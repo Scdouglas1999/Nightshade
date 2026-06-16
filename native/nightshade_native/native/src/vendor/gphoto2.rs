@@ -293,40 +293,55 @@ static GPHOTO2_SDK: OnceLock<Option<GPhoto2Sdk>> = OnceLock::new();
 impl GPhoto2Sdk {
     /// Load the libgphoto2 library
     fn load() -> Option<Self> {
-        let mut lib_paths: Vec<String> = Vec::new();
+        let mut lib_paths: Vec<std::path::PathBuf> = Vec::new();
 
         if cfg!(target_os = "windows") {
-            lib_paths.push("libgphoto2.dll".to_string());
-            lib_paths.push("gphoto2.dll".to_string());
+            lib_paths.push(std::path::PathBuf::from("libgphoto2.dll"));
+            lib_paths.push(std::path::PathBuf::from("gphoto2.dll"));
             // Common installation paths
-            lib_paths.push("C:\\Program Files\\libgphoto2\\bin\\libgphoto2.dll".to_string());
-            lib_paths.push("C:\\msys64\\mingw64\\bin\\libgphoto2.dll".to_string());
+            lib_paths.push(std::path::PathBuf::from(
+                "C:\\Program Files\\libgphoto2\\bin\\libgphoto2.dll",
+            ));
+            lib_paths.push(std::path::PathBuf::from(
+                "C:\\msys64\\mingw64\\bin\\libgphoto2.dll",
+            ));
 
             if let Ok(exe_path) = std::env::current_exe() {
                 if let Some(exe_dir) = exe_path.parent() {
-                    lib_paths.push(exe_dir.join("libgphoto2.dll").to_string_lossy().to_string());
+                    lib_paths.push(exe_dir.join("libgphoto2.dll"));
                 }
             }
         } else if cfg!(target_os = "macos") {
-            lib_paths.push("libgphoto2.dylib".to_string());
-            lib_paths.push("/usr/local/lib/libgphoto2.dylib".to_string());
-            lib_paths.push("/opt/homebrew/lib/libgphoto2.dylib".to_string());
+            lib_paths = crate::vendor::sdk_loader::vendor_library_candidates(
+                &["libgphoto2.dylib"],
+                &[
+                    "/usr/local/lib/libgphoto2.dylib",
+                    "/opt/homebrew/lib/libgphoto2.dylib",
+                ],
+            );
             // Homebrew Cellar paths
-            lib_paths.push("/usr/local/opt/libgphoto2/lib/libgphoto2.dylib".to_string());
-            lib_paths.push("/opt/homebrew/opt/libgphoto2/lib/libgphoto2.dylib".to_string());
+            lib_paths.push(std::path::PathBuf::from(
+                "/usr/local/opt/libgphoto2/lib/libgphoto2.dylib",
+            ));
+            lib_paths.push(std::path::PathBuf::from(
+                "/opt/homebrew/opt/libgphoto2/lib/libgphoto2.dylib",
+            ));
         } else {
             // Linux
-            lib_paths.push("libgphoto2.so".to_string());
-            lib_paths.push("libgphoto2.so.6".to_string());
-            lib_paths.push("libgphoto2.so.2".to_string());
-            lib_paths.push("/usr/lib/libgphoto2.so".to_string());
-            lib_paths.push("/usr/lib/x86_64-linux-gnu/libgphoto2.so".to_string());
-            lib_paths.push("/usr/local/lib/libgphoto2.so".to_string());
-            lib_paths.push("/usr/lib64/libgphoto2.so".to_string());
+            lib_paths = crate::vendor::sdk_loader::vendor_library_candidates(
+                &["libgphoto2.so", "libgphoto2.so.6", "libgphoto2.so.2"],
+                &[
+                    "/usr/lib/libgphoto2.so",
+                    "/usr/lib/x86_64-linux-gnu/libgphoto2.so",
+                    "/usr/lib/aarch64-linux-gnu/libgphoto2.so",
+                    "/usr/local/lib/libgphoto2.so",
+                    "/usr/lib64/libgphoto2.so",
+                ],
+            );
         }
 
         for path in &lib_paths {
-            tracing::debug!("Trying to load libgphoto2 from: {}", path);
+            tracing::debug!("Trying to load libgphoto2 from: {}", path.display());
             // SAFETY: `libloading::Library::new(path)` is unsafe because the dynamic
             // linker may execute initializer code from the loaded shared object. The
             // candidate paths come from a hard-coded list of standard libgphoto2
@@ -336,7 +351,7 @@ impl GPhoto2Sdk {
             unsafe {
                 match libloading::Library::new(path) {
                     Ok(lib) => {
-                        tracing::info!("Found libgphoto2 at: {}", path);
+                        tracing::info!("Found libgphoto2 at: {}", path.display());
 
                         fn load_symbol<T: Copy>(
                             lib: &libloading::Library,
@@ -491,12 +506,12 @@ impl GPhoto2Sdk {
 
                         tracing::info!(
                             "Successfully loaded all libgphoto2 functions from: {}",
-                            path
+                            path.display()
                         );
                         return Some(sdk);
                     }
                     Err(e) => {
-                        tracing::debug!("libgphoto2 not found at {}: {}", path, e);
+                        tracing::debug!("libgphoto2 not found at {}: {}", path.display(), e);
                     }
                 }
             }

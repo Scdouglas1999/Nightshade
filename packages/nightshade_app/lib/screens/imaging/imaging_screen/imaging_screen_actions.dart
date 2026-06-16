@@ -256,6 +256,12 @@ extension _ImagingScreenActions on _ImagingScreenState {
     final isActive = ref.read(liveStackingIsActiveProvider);
     if (!isActive) return;
 
+    // Remote mode: the appliance auto-feeds every frame it saves into its own
+    // stacker (server-side, on the ImageSaved event). Feeding again from here
+    // would either double-count the frame or hand the host a tablet-local path
+    // it cannot read — so leave feeding to the host.
+    if (ref.read(isRemoteModeProvider)) return;
+
     final filePath = image.filePath;
     if (filePath != null && filePath.isNotEmpty) {
       // Fire-and-forget: the notifier logs warnings on rejection

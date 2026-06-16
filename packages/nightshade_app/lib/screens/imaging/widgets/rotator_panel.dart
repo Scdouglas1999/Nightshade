@@ -19,12 +19,14 @@ class RotatorPanel extends ConsumerStatefulWidget {
 class _RotatorPanelState extends ConsumerState<RotatorPanel> {
   final _angleController = TextEditingController();
   final _angleFocusNode = FocusNode();
+  final _syncController = TextEditingController();
   bool _isGoingTo = false;
 
   @override
   void dispose() {
     _angleController.dispose();
     _angleFocusNode.dispose();
+    _syncController.dispose();
     super.dispose();
   }
 
@@ -95,6 +97,31 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
     }
   }
 
+  /// Sync the rotator's current mechanical position to a known sky position
+  /// angle (ASCOM IRotatorV3 Sync). Distinct from Go-To: it sets the
+  /// mechanical↔sky offset without moving the rotator.
+  Future<void> _syncToPa() async {
+    final pa = double.tryParse(_syncController.text);
+    if (pa == null || pa < 0 || pa > 360) {
+      if (mounted) {
+        context.showErrorSnackBar('Enter a sky PA between 0 and 360°');
+      }
+      return;
+    }
+    final deviceId = _rotatorState.deviceId;
+    if (deviceId == null) return;
+    try {
+      await ref.read(deviceBackendProvider).rotatorSyncToPa(deviceId, pa);
+      if (mounted) {
+        context.showSuccessSnackBar(
+          'Synced rotator to ${pa.toStringAsFixed(1)}° sky PA',
+        );
+      }
+    } catch (e) {
+      if (mounted) context.showErrorSnackBar('Failed to sync rotator: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = widget.colors;
@@ -150,6 +177,15 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
           title: 'Relative Move',
           colors: colors,
           child: _buildRelativeMoveSection(colors),
+        ),
+        const SizedBox(height: 16),
+
+        // Sync section — calibrate the mechanical↔sky offset (IRotatorV3 Sync)
+        // without moving. Available on any connected rotator.
+        PanelSection(
+          title: 'Sync Sky PA',
+          colors: colors,
+          child: _buildSyncSection(colors),
         ),
         const SizedBox(height: 16),
 
@@ -306,6 +342,60 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
           colors: colors,
           isEnabled: canGoTo,
           onTap: _goToAngle,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSyncSection(NightshadeColors colors) {
+    final canSync = _isConnected && !_isMoving;
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            decoration: BoxDecoration(
+              color: colors.background,
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+              border: Border.all(color: colors.border),
+            ),
+            child: TextField(
+              controller: _syncController,
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize13,
+                color: colors.textPrimary,
+              ),
+              decoration: InputDecoration(
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                border: InputBorder.none,
+                isDense: true,
+                hintText: 'Sky PA 0 - 360',
+                hintStyle: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textMuted,
+                ),
+                suffixText: '°',
+                suffixStyle: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  color: colors.textMuted,
+                ),
+              ),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              enabled: _isConnected,
+              onSubmitted: (_) {
+                if (canSync) _syncToPa();
+              },
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        SmallButton(
+          label: 'Sync',
+          icon: LucideIcons.link,
+          colors: colors,
+          isEnabled: canSync,
+          onTap: _syncToPa,
         ),
       ],
     );

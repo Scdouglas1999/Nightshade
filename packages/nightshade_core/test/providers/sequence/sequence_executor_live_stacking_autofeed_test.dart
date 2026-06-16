@@ -80,6 +80,14 @@ class _FakeLiveStackingService implements LiveStackingService {
   }
 
   @override
+  Future<LiveStackingStats> startArmed({
+    LiveStackingConfig config = const LiveStackingConfig(),
+  }) async {
+    // Remote-only arm path; not exercised by the local autofeed executor test.
+    return _stats;
+  }
+
+  @override
   Future<LiveStackingStats> startFromData({
     required int width,
     required int height,

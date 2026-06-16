@@ -4,7 +4,7 @@
 # scripts/docker_build_linux.sh produces (that script runs the full
 # rust + melos + `flutter build linux --release` pipeline inside the
 # ghcr.io/cirruslabs/flutter image and emits
-# nightshade-linux-x64-<ver>.tar.gz). Two-step flow, from the repo root:
+# nightshade-linux-<arch>-<ver>.tar.gz). Two-step flow, from the repo root:
 #
 #   1. Build the release tarball (writes to ./dist-linux):
 #        docker run --rm \
@@ -17,7 +17,7 @@
 #      context, which should be the repo root):
 #        docker build \
 #          -f packaging/appliance/docker/Dockerfile \
-#          --build-arg BUNDLE_TARBALL=dist-linux/nightshade-linux-x64-3.0.0.tar.gz \
+#          --build-arg BUNDLE_TARBALL=dist-linux/nightshade-linux-x64-4.0.0.tar.gz \
 #          -t nightshade-headless .
 #
 # Why no in-Dockerfile build stage: the build script intentionally snapshots
@@ -52,7 +52,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 # Path of the release tarball relative to the build context (repo root).
-ARG BUNDLE_TARBALL=dist-linux/nightshade-linux-x64-3.0.0.tar.gz
+ARG BUNDLE_TARBALL=dist-linux/nightshade-linux-x64-4.0.0.tar.gz
 # ADD auto-extracts local tarballs.
 ADD ${BUNDLE_TARBALL} /opt/nightshade/bundle/
 
@@ -62,10 +62,12 @@ RUN chmod +x /usr/local/bin/nightshade-healthcheck \
        --home-dir /var/lib/nightshade --create-home nightshade \
   && chmod 750 /var/lib/nightshade
 
-# All persistent state (Drift DB, pairing DB, TLS cert, push_config.json,
-# OTA state, NIGHTSHADE_DATA_DIR) lives under $HOME = /var/lib/nightshade.
+# All persistent state lives under /var/lib/nightshade. App-support data comes
+# from HOME; the Drift DB and native data roots are pinned explicitly so daemon
+# runs never depend on a user Documents folder.
 ENV HOME=/var/lib/nightshade \
     NIGHTSHADE_DATA_DIR=/var/lib/nightshade/data \
+    NIGHTSHADE_DATABASE_DIR=/var/lib/nightshade/database \
     NIGHTSHADE_PORT=8080
 VOLUME ["/var/lib/nightshade"]
 

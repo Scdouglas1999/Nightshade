@@ -294,6 +294,7 @@ class _DeviceDashboard extends ConsumerWidget {
     final weatherState = ref.watch(weatherStateProvider);
     final safetyMonitorState = ref.watch(safetyMonitorStateProvider);
     final coverCalibratorState = ref.watch(coverCalibratorStateProvider);
+    final switchState = ref.watch(switchStateProvider);
 
     // Build list of connected device cards
     final connectedCards = <Widget>[];
@@ -359,6 +360,13 @@ class _DeviceDashboard extends ConsumerWidget {
       connectedCards.add(const ConnectedDeviceCard(
         type: ConnectedDeviceType.coverCalibrator,
       ));
+    }
+
+    // Switch / power box has no ConnectedDeviceType, so render its per-channel
+    // control card directly (dew heaters, outlets). Works remotely via the
+    // switch-channel fix.
+    if (switchState.connectionState == DeviceConnectionState.connected) {
+      connectedCards.add(const SwitchControlCard());
     }
 
     // No profile selected state

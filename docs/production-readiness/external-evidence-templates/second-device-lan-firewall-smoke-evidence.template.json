@@ -1,0 +1,22 @@
+{
+  "usedPhysicalSecondDevice": true,
+  "clientDevice": "phone/tablet/laptop model",
+  "clientIp": "192.168.1.50",
+  "serverLanUrl": "http://192.168.1.10:7624",
+  "windowsFirewallRule": {
+    "name": "Nightshade Headless API",
+    "profile": "Private",
+    "port": 7624,
+    "action": "Allow"
+  },
+  "networkPath": "same trusted LAN; no guest Wi-Fi or VPN isolation",
+  "dashboardLoaded": true,
+  "authPositivePassed": true,
+  "authNegativePassed": true,
+  "websocketConnected": true,
+  "websocketReconnectObserved": true,
+  "evidenceArtifacts": [
+    "docs/production-readiness/second-device-lan-screenshot.png"
+  ],
+  "notes": "Do not use localhost, 127.0.0.1, or Android emulator 10.0.2.2. Every evidence artifact path must exist when this verifier runs."
+}

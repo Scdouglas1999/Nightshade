@@ -291,7 +291,7 @@ pub async fn discover_devices() -> Result<Vec<MoravianCameraInfo>, NativeError> 
         }
 
         // Get camera description
-        let mut name_buf = [0i8; 256];
+        let mut name_buf = [0 as c_char; 256];
         // SAFETY: moravian_mutex held; `handle` was just successfully initialized (non-null check above); name_buf is a 256-byte stack array and we pass `256` as the truthful length so the SDK cannot overrun.
         if unsafe {
             (sdk.get_string_parameter)(handle, GSP_CAMERA_DESCRIPTION, 256, name_buf.as_mut_ptr())
@@ -303,7 +303,7 @@ pub async fn discover_devices() -> Result<Vec<MoravianCameraInfo>, NativeError> 
                 .to_string();
 
             // Get serial number
-            let mut serial_buf = [0i8; 64];
+            let mut serial_buf = [0 as c_char; 64];
             // SAFETY: moravian_mutex held; `handle` is still the successfully-initialized one from above; serial_buf is 64 bytes and the truthful length is passed.
             let serial_number = if unsafe {
                 (sdk.get_string_parameter)(handle, GSP_CAMERA_SERIAL, 64, serial_buf.as_mut_ptr())
@@ -462,7 +462,7 @@ impl NativeDevice for MoravianCamera {
             let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
             // Get name
-            let mut name_buf = [0i8; 256];
+            let mut name_buf = [0 as c_char; 256];
             // SAFETY: moravian_mutex held above; `handle` is the just-successfully-initialized camera handle stored in self.handle; name_buf is 256 bytes and the truthful length is passed so the SDK cannot overrun.
             if unsafe {
                 (sdk.get_string_parameter)(
@@ -1262,7 +1262,7 @@ impl NativeCamera for MoravianCamera {
 
         let mut modes = Vec::new();
         for i in 0..num_modes {
-            let mut desc_buf = [0i8; 256];
+            let mut desc_buf = [0 as c_char; 256];
             // SAFETY: moravian_mutex held; handle is open; `i` is in the range [0, num_modes) as reported by the SDK above; desc_buf is 256 bytes and the truthful length is passed so the SDK cannot overrun.
             if unsafe { (sdk.enumerate_read_modes)(handle, i, 256, desc_buf.as_mut_ptr()) } != 0 {
                 // SAFETY: desc_buf is 256 bytes; gXusb SDK guarantees NUL-termination within the buffer on success.

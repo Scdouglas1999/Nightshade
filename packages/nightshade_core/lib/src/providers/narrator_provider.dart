@@ -6,6 +6,8 @@
 /// uses, so the Narrator ingests for exactly as long as a session is running.
 library;
 
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../backend/network_backend.dart';
@@ -38,12 +40,83 @@ NarratorEvent narratorEventFromRow(NarratorEventRow row) {
   );
 }
 
-/// Session-scoped feed (pinned-first, newest-first). DB-watched: updates the
-/// instant the service persists a new event.
+/// Reconstruct a [NarratorEvent] from the wire JSON the appliance's
+/// `/api/narrator/*` endpoints emit (see `NarratorHandlers._rowToWireJson`).
+/// Mirrors [narratorEventFromRow] but reads a decoded map instead of a DB row,
+/// so the remote feed renders identically to the local one.
+NarratorEvent narratorEventFromWireJson(Map<String, dynamic> json) {
+  return NarratorEvent(
+    id: (json['id'] as num).toInt(),
+    sessionId: (json['sessionId'] as num?)?.toInt(),
+    capturedImageId: (json['capturedImageId'] as num?)?.toInt(),
+    timestamp: DateTime.fromMillisecondsSinceEpoch(
+      (json['timestamp'] as num).toInt(),
+    ),
+    eventType: json['eventType'] as String,
+    category: narratorCategoryFromName(json['category'] as String),
+    severity: narratorSeverityFromName(json['severity'] as String),
+    headline: json['headline'] as String,
+    body: json['body'] as String?,
+    evidence: NarratorEvidence.fromJsonString(json['evidenceJson'] as String?),
+    dedupeKey: json['dedupeKey'] as String,
+    pinned: (json['pinned'] as bool?) ?? false,
+  );
+}
+
+/// Remote narrator feed stream: the NarratorService runs on the appliance, so a
+/// remote client cannot watch the DB. Instead we fetch a REST snapshot and
+/// re-fetch (debounced) whenever a backend event arrives — new captures are
+/// exactly what produce new narrator events — giving a near-live feed without a
+/// dedicated WS event type.
+Stream<List<NarratorEvent>> _remoteNarratorStream(
+  Ref ref,
+  NetworkBackend backend,
+  Future<List<Map<String, dynamic>>> Function() fetch,
+) {
+  final controller = StreamController<List<NarratorEvent>>();
+  Timer? debounce;
+
+  Future<void> refetch() async {
+    try {
+      final raw = await fetch();
+      final events = raw
+          .map(narratorEventFromWireJson)
+          .toList(growable: false);
+      if (!controller.isClosed) controller.add(events);
+    } catch (_) {
+      // Transient (reconnect / host busy): keep the last good snapshot rather
+      // than flashing an empty feed.
+    }
+  }
+
+  refetch();
+  final sub = backend.eventStream.listen((_) {
+    debounce?.cancel();
+    debounce = Timer(const Duration(milliseconds: 750), refetch);
+  });
+  ref.onDispose(() {
+    debounce?.cancel();
+    unawaited(sub.cancel());
+    unawaited(controller.close());
+  });
+  return controller.stream;
+}
+
+/// Session-scoped feed (pinned-first, newest-first). Local: DB-watched, updates
+/// the instant the service persists. Remote: REST snapshot + event-driven
+/// refresh from the appliance feed.
 final narratorFeedProvider = StreamProvider.family<List<NarratorEvent>, int>((
   ref,
   sessionId,
 ) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return _remoteNarratorStream(
+      ref,
+      backend,
+      () => backend.getNarratorFeed(sessionId),
+    );
+  }
   return ref
       .watch(narratorEventsDaoProvider)
       .watchFeedForSession(sessionId)
@@ -53,6 +126,14 @@ final narratorFeedProvider = StreamProvider.family<List<NarratorEvent>, int>((
 /// Sessionless recent feed (last N across all sessions). For the dashboard
 /// tile before a session is selected and standalone surfaces.
 final recentNarratorFeedProvider = StreamProvider<List<NarratorEvent>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return _remoteNarratorStream(
+      ref,
+      backend,
+      () => backend.getRecentNarratorFeed(),
+    );
+  }
   return ref
       .watch(narratorEventsDaoProvider)
       .watchRecentFeed()

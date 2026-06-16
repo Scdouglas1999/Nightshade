@@ -335,8 +335,30 @@ extension _DeviceServiceConnections on DeviceService {
       try {
         await _backend.connectDevice(DeviceType.focuser, deviceId);
 
-        // Get actual focuser status from the backend (now typed FocuserStatus)
-        final status = await _backend.getFocuserStatus(deviceId);
+        // Get actual focuser status from the backend (now typed FocuserStatus).
+        // Some drivers (notably INDI) stream device properties asynchronously
+        // AFTER the connection is established, so an immediate status read can
+        // race the property stream and throw ("Position not available") even
+        // though the focuser is connected and movable. The connection itself is
+        // up — retry the initial snapshot for a couple of seconds before giving
+        // up, mirroring the filter-wheel encoder-settle poll.
+        FocuserStatus? status;
+        Object? lastStatusError;
+        for (var attempt = 0; attempt < 5; attempt++) {
+          try {
+            status = await _backend.getFocuserStatus(deviceId);
+            break;
+          } catch (e) {
+            lastStatusError = e;
+            await Future<void>.delayed(const Duration(milliseconds: 500));
+          }
+        }
+        if (status == null) {
+          throw StateError(
+            'Focuser connected but did not report status in time '
+            '(driver property stream too slow): $lastStatusError',
+          );
+        }
 
         notifier.setConnected(
           maxPosition: status.maxPosition,

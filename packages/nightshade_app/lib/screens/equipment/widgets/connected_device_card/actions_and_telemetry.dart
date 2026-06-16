@@ -160,6 +160,12 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
             onTap: () => _handleFindHome(),
             colors: colors,
           ),
+          const SizedBox(width: 8),
+          _ActionButton(
+            label: 'Flip',
+            onTap: () => _handleManualMeridianFlip(),
+            colors: colors,
+          ),
         ];
 
       case ConnectedDeviceType.focuser:
@@ -226,13 +232,39 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
             onTap: () => _handleDomePark(state.isParked),
             colors: colors,
           ),
+          const SizedBox(width: 8),
+          _ActionButton(
+            label: 'Slew...',
+            onTap: () => _showDomeSlewDialog(context),
+            colors: colors,
+          ),
+          const SizedBox(width: 8),
+          _ActionButton(
+            label: 'Home',
+            onTap: () => _handleDomeHome(),
+            colors: colors,
+          ),
+          const SizedBox(width: 8),
+          _ActionButton(
+            label: 'Halt',
+            onTap: () => _handleDomeHalt(),
+            colors: colors,
+          ),
         ];
 
       case ConnectedDeviceType.weather:
         return [];
 
       case ConnectedDeviceType.safetyMonitor:
-        return [];
+        final state = ref.watch(safetyMonitorStateProvider);
+        return [
+          if (!state.isSafe)
+            _ActionButton(
+              label: 'Acknowledge',
+              onTap: () => _handleSafetyAcknowledge(),
+              colors: colors,
+            ),
+        ];
 
       case ConnectedDeviceType.coverCalibrator:
         final state = ref.watch(coverCalibratorStateProvider);

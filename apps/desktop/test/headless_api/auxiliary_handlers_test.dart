@@ -3,10 +3,25 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_desktop/headless_api/handlers/auxiliary_handlers.dart';
 import 'package:shelf/shelf.dart';
 
 import 'handler_test_helpers.dart';
+
+/// Minimal [DeviceBackend] whose connected-device list is scriptable; every
+/// other method loud-fails via [noSuchMethod] so an accidental dependency is
+/// obvious.
+class _FakeDeviceBackend implements DeviceBackend {
+  _FakeDeviceBackend(this.connected);
+  final List<DeviceInfo> connected;
+
+  @override
+  Future<List<DeviceInfo>> getConnectedDevices() async => connected;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 void main() {
   group('AuxiliaryHandlers', () {
@@ -34,6 +49,48 @@ void main() {
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], 'deviceId query parameter is required');
     });
+
+    test(
+      'cover mutations return a clean 404 (not 500) when no cover is connected',
+      () async {
+        // Regression: the cover open/close/brightness/calibrator handlers used
+        // to call straight into the native bridge, which throws an opaque 500
+        // when nothing is attached. A remote tablet user must instead get the
+        // same graceful "not connected" 404 the switch/dome handlers return.
+        final scoped = ProviderContainer(
+          overrides: [
+            deviceBackendProvider.overrideWithValue(_FakeDeviceBackend(const [])),
+          ],
+        );
+        addTearDown(scoped.dispose);
+        final scopedHandlers = AuxiliaryHandlers(scoped);
+
+        final endpoints = <String, Future<Response> Function(Request)>{
+          '/api/cover/close': scopedHandlers.handleCoverClose,
+          '/api/cover/open': scopedHandlers.handleCoverOpen,
+          '/api/cover/calibrator-off': scopedHandlers.handleCalibratorOff,
+        };
+        for (final entry in endpoints.entries) {
+          final response = await translateHandlerErrors(
+            entry.value(
+              Request(
+                'POST',
+                Uri.parse('http://localhost${entry.key}'),
+                body: jsonEncode({'deviceId': 'cover-1'}),
+              ),
+            ),
+          );
+          expect(
+            response.statusCode,
+            HttpStatus.notFound,
+            reason: '${entry.key} must be 404 when no cover is connected',
+          );
+          final body = jsonDecode(await response.readAsString()) as Map;
+          expect(body['error'], 'Cover calibrator not connected');
+          expect(body['connected'], false);
+        }
+      },
+    );
 
     test('switch set reports missing deviceId as JSON bad request', () async {
       final response = await translateHandlerErrors(

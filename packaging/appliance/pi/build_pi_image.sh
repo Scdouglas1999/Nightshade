@@ -7,9 +7,9 @@
 #   1. copy + decompress the base image, grow the rootfs partition,
 #   2. drop the (pre-built, arm64) release bundle into /opt/nightshade,
 #   3. install the hardened systemd unit from ../systemd/, an env file with
-#      a freshly generated auth token, sysusers/tmpfiles fragments that
-#      create the `nightshade` user on first boot,
-#   4. install the first-boot setup service (installs xvfb if missing) and
+#      a freshly generated auth token, astronomy USB udev rules,
+#      sysusers/tmpfiles fragments that create the `nightshade` user on first boot,
+#   4. install the first-boot setup service (installs xvfb/xauth if missing) and
 #      the Wi-Fi hotspot fallback provisioning service (provisioning/),
 #   5. enable everything via wants-symlinks (no systemctl needed offline).
 #
@@ -25,20 +25,19 @@
 # Required tools (Arch/CachyOS):  pacman -S --needed util-linux parted \
 #     e2fsprogs dosfstools xz coreutils binutils rsync
 #   (util-linux: losetup/sfdisk; binutils: readelf for the arch check.)
-# Optional, for baking xvfb into the image instead of first-boot install:
+# Optional, for baking xvfb/xauth into the image instead of first-boot install:
 #     pacman -S qemu-user-static qemu-user-static-binfmt
 #
 # ── The arm64 bundle: an honest note ────────────────────────────────────────
-# scripts/docker_build_linux.sh produces an x86_64 bundle. There is NO
-# verified arm64 cross-build path in this repo yet. To get the arm64 tarball
-# this script needs, either:
+# scripts/docker_build_linux.sh produces a bundle for the host architecture.
+# There is NO verified arm64 cross-build path in this repo yet. To get the
+# arm64 tarball this script needs, either:
 #   a) run scripts/docker_build_linux.sh on an arm64 host (a Pi 4/5 with
 #      8 GB + swap, or an arm64 CI runner / cloud VM):
 #        docker run --rm -v "$PWD":/host:ro -v "$PWD/dist-linux":/out \
 #          ghcr.io/cirruslabs/flutter:stable bash /host/scripts/docker_build_linux.sh
-#      (the script is arch-agnostic; the bundle lands under
-#       build/linux/arm64/release/bundle on arm64 hosts — the script's
-#       hardcoded x64 path/tarball name will need the obvious arm64 fixup),
+#      (the bundle lands under build/linux/arm64/release/bundle on arm64
+#       hosts and emits nightshade-linux-arm64-<version>.tar.gz),
 #   or
 #   b) run the same container under emulation on this x86_64 box
 #      (qemu-user-static + binfmt, `docker run --platform linux/arm64 ...`).
@@ -137,7 +136,7 @@ case "$BASE_IMAGE" in
 esac
 
 # ── 2. Grow the image + rootfs partition ─────────────────────────────────────
-# RPi OS images ship a rootfs with almost no free space; the bundle + xvfb
+# RPi OS images ship a rootfs with almost no free space; the bundle + xvfb/xauth
 # need room. (RPi OS still auto-expands to fill the SD card on first boot.)
 echo "== [2/7] grow rootfs by ${GROW_MB} MiB =="
 truncate -s +"${GROW_MB}M" "$OUT_IMAGE"
@@ -169,13 +168,23 @@ rsync -a "$WORK/bundle/" "$ROOT_MNT/opt/nightshade/bundle/"
 chown -R 0:0 "$ROOT_MNT/opt/nightshade"
 
 # systemd unit (shared with the bare-metal install) + a Pi drop-in that
-# orders it after the first-boot setup (which installs xvfb on first boot
+# orders it after the first-boot setup (which installs xvfb/xauth on first boot
 # when it was not baked in below).
 install -m 0644 "$SYSTEMD_SRC_DIR/nightshade-headless.service" \
   "$ROOT_MNT/etc/systemd/system/nightshade-headless.service"
+install -d "$ROOT_MNT/etc/udev/rules.d"
+install -m 0644 "$SYSTEMD_SRC_DIR/99-nightshade-astro.rules" \
+  "$ROOT_MNT/etc/udev/rules.d/99-nightshade-astro.rules"
+# Static Avahi advertisement so the appliance is discoverable over real mDNS,
+# not just the UDP broadcast beacon. RPi OS Lite ships avahi-daemon, so the
+# service file is picked up at boot with no extra package. (The in-app `nsd`
+# mDNS path has no Linux implementation — see ../avahi/nightshade.service.)
+install -d -m 0755 "$ROOT_MNT/etc/avahi/services"
+install -m 0644 "$SCRIPT_DIR/../avahi/nightshade.service" \
+  "$ROOT_MNT/etc/avahi/services/nightshade.service"
 install -d "$ROOT_MNT/etc/systemd/system/nightshade-headless.service.d"
 cat > "$ROOT_MNT/etc/systemd/system/nightshade-headless.service.d/pi.conf" <<'EOF'
-# Pi appliance ordering: first boot must finish (xvfb install, user
+# Pi appliance ordering: first boot must finish (xvfb/xauth install, user
 # creation via sysusers) before the daemon starts.
 [Unit]
 Wants=nightshade-firstboot.service
@@ -232,25 +241,25 @@ ln -sf /etc/systemd/system/nightshade-headless.service "$WANTS/"
 ln -sf /etc/systemd/system/nightshade-firstboot.service "$WANTS/"
 ln -sf /etc/systemd/system/nightshade-netprovision.service "$WANTS/"
 
-# Optional: bake xvfb into the image now via qemu-user-static chroot, so
+# Optional: bake xvfb/xauth into the image now via qemu-user-static chroot, so
 # first boot does not need to apt-get it. Best-effort — skipped (with a
 # clear message) when binfmt/qemu is not set up on this build host.
 if chroot "$ROOT_MNT" /usr/bin/true 2>/dev/null; then
-  echo "qemu binfmt works — installing xvfb into the image now"
+  echo "qemu binfmt works — installing xvfb/xauth into the image now"
   mount -t proc proc "$ROOT_MNT/proc"
   mount -t sysfs sys "$ROOT_MNT/sys"
   mount --bind /dev "$ROOT_MNT/dev"
   if chroot "$ROOT_MNT" sh -c \
       'apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq xvfb xauth'; then
-    echo "xvfb baked in — first boot will skip the package install."
+    echo "xvfb/xauth baked in — first boot will skip the package install."
   else
-    echo "WARNING: chroot apt install failed (no network?); first boot will install xvfb instead."
+    echo "WARNING: chroot apt install failed (no network?); first boot will install xvfb/xauth instead."
   fi
   umount "$ROOT_MNT/proc" "$ROOT_MNT/sys" "$ROOT_MNT/dev"
 else
   echo "NOTE: arm64 chroot not runnable on this host (install qemu-user-static"
   echo "      + qemu-user-static-binfmt to bake xvfb in). The first-boot service"
-  echo "      will apt-get install xvfb once the Pi is online."
+  echo "      will apt-get install xvfb/xauth once the Pi is online."
 fi
 
 # ── 6. Hostname / ssh / first-user (RPi OS specifics) ───────────────────────

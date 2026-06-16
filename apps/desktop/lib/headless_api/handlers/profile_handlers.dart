@@ -242,6 +242,20 @@ class ProfileHandlers {
 
     final backend = container.read(profileSettingsBackendProvider);
     await backend.setLocation(location);
+
+    // Mirror the location into the Drift settings DAO. The backend store above
+    // is the canonical one read by GET /api/settings/location, the planetarium,
+    // and the native sequencer — but the scheduler and "tonight" suggestion
+    // subsystems read observer lat/lon straight from `settingsDao`, which on a
+    // headless appliance is otherwise only ever populated by the GUI settings
+    // flow (never run here). Without this mirror, a remote client that sets its
+    // location through the API gets a working planetarium but a permanently
+    // "No observer location configured" scheduler. Clearing (null) zeroes both.
+    final settingsDao = container.read(databaseProvider).settingsDao;
+    await settingsDao.setObserverLatitude(location?.latitude ?? 0.0);
+    await settingsDao.setObserverLongitude(location?.longitude ?? 0.0);
+    await settingsDao.setObserverElevation(location?.elevation ?? 0.0);
+
     publishHostMutationFromContainer(
       container,
       entityType: HostMutationEntity.settings,

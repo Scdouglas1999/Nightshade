@@ -140,6 +140,11 @@ class NightshadeDiscovery {
     required int signalingPort,
     String name = 'Nightshade',
     String version = '2.0.0',
+    String scheme = 'http',
+    String? fingerprint,
+    bool authRequired = false,
+    String authenticationMode = 'none',
+    bool pairingSupported = false,
     Duration interval = const Duration(seconds: 2),
   }) async {
     final socket = await RawDatagramSocket.bind(
@@ -156,22 +161,27 @@ class NightshadeDiscovery {
       'version': version,
       'webPort': webPort,
       'signalingPort': signalingPort,
+      'scheme': scheme,
+      'authRequired': authRequired,
+      'authenticationMode': authenticationMode,
+      'pairingSupported': pairingSupported,
+      if (fingerprint != null && fingerprint.isNotEmpty)
+        'fingerprint': fingerprint,
     };
     final messageBytes = utf8.encode('$_responsePrefix${jsonEncode(payload)}');
+    final broadcastTargets = await _udpBroadcastTargets();
 
     void emit() {
-      try {
-        socket.send(
-          messageBytes,
-          InternetAddress('255.255.255.255'),
-          _serverPort,
-        );
-      } catch (_) {
-        // Why: periodic broadcaster tick — network may not be ready
-        // (interface coming up), firewall may be blocking, or address
-        // may be temporarily unreachable. Killing the periodic loop on
-        // any of these would silently disable discovery for the session;
-        // we want to keep retrying every tick until conditions recover.
+      for (final target in broadcastTargets) {
+        try {
+          socket.send(messageBytes, target, _serverPort);
+        } catch (_) {
+          // Why: periodic broadcaster tick — network may not be ready
+          // (interface coming up), firewall may be blocking, or address
+          // may be temporarily unreachable. Killing the periodic loop on
+          // any of these would silently disable discovery for the session;
+          // we want to keep retrying every tick until conditions recover.
+        }
       }
     }
 
@@ -283,31 +293,17 @@ class NightshadeDiscovery {
         final datagram = socket!.receive();
         if (datagram == null) return;
         try {
-          final message = utf8.decode(datagram.data);
-          if (!message.startsWith(_responsePrefix)) return;
-          final jsonStr = message.substring(_responsePrefix.length);
-          final info = jsonDecode(jsonStr);
-          if (info is! Map<String, dynamic>) return;
-          if (info['webPort'] is! int || info['signalingPort'] is! int) return;
-
-          final host = datagram.address.address;
-          final webPort = info['webPort'] as int;
+          final server = tryParseResponsePacket(
+            utf8.decode(datagram.data),
+            datagram.address.address,
+          );
+          if (server == null) return;
+          final webPort = server.webPort;
+          final host = server.host;
           final key = '$host:$webPort';
           if (seen.contains(key)) return;
           seen.add(key);
-          servers.add(
-            DiscoveredServer(
-              host: host,
-              webPort: webPort,
-              signalingPort: info['signalingPort'] as int,
-              name: info['name'] is String
-                  ? info['name'] as String
-                  : 'Nightshade',
-              version: info['version'] is String
-                  ? info['version'] as String
-                  : '2.0.0',
-            ),
-          );
+          servers.add(server);
           developer.log(
             'Found server: ${servers.last.name} at $host',
             name: 'NightshadeDiscovery',
@@ -328,7 +324,13 @@ class NightshadeDiscovery {
       final probe = utf8.encode(
         '$_requestPrefix${jsonEncode({'protocol': _protocolVersion})}',
       );
-      socket.send(probe, InternetAddress('255.255.255.255'), _serverPort);
+      for (final target in await _udpBroadcastTargets()) {
+        try {
+          socket.send(probe, target, _serverPort);
+        } catch (_) {
+          // Best-effort discovery probe: another target may still work.
+        }
+      }
 
       await Future.delayed(timeout);
       developer.log(
@@ -354,6 +356,102 @@ class NightshadeDiscovery {
   }) async {
     final servers = await discoverServers(timeout: timeout);
     return servers.isNotEmpty ? servers.first : null;
+  }
+
+  static String _validScheme(Object? raw) {
+    if (raw is! String) return 'http';
+    final scheme = raw.toLowerCase();
+    return scheme == 'https' ? 'https' : 'http';
+  }
+
+  /// Parse one UDP response packet. Exposed as a pure helper so the wire
+  /// contract can be covered without depending on LAN broadcast behaviour in
+  /// unit tests.
+  static DiscoveredServer? tryParseResponsePacket(String message, String host) {
+    try {
+      if (!message.startsWith(_responsePrefix)) return null;
+      final jsonStr = message.substring(_responsePrefix.length);
+      final info = jsonDecode(jsonStr);
+      if (info is! Map<String, dynamic>) return null;
+      if (info['webPort'] is! int || info['signalingPort'] is! int) {
+        return null;
+      }
+
+      return DiscoveredServer(
+        host: host,
+        webPort: info['webPort'] as int,
+        signalingPort: info['signalingPort'] as int,
+        name: info['name'] is String ? info['name'] as String : 'Nightshade',
+        version: info['version'] is String
+            ? info['version'] as String
+            : '2.0.0',
+        scheme: _validScheme(info['scheme']),
+        authRequired: info['authRequired'] as bool? ?? false,
+        authenticationMode: info['authenticationMode'] is String
+            ? info['authenticationMode'] as String
+            : 'none',
+        pairingSupported: info['pairingSupported'] as bool? ?? false,
+        fingerprint: info['fingerprint'] is String
+            ? info['fingerprint'] as String
+            : null,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// UDP broadcast targets used for discovery probes and server beacons.
+  ///
+  /// `255.255.255.255` is still the baseline, but some Linux/Wi-Fi stacks
+  /// drop limited broadcast packets. Adding likely /24 directed broadcasts
+  /// for each active IPv4 interface improves Raspberry Pi appliance discovery
+  /// on common home networks without requiring router configuration.
+  static Future<List<InternetAddress>> _udpBroadcastTargets() async {
+    final targets = <String>{'255.255.255.255'};
+    try {
+      final interfaces = await NetworkInterface.list(
+        type: InternetAddressType.IPv4,
+        includeLoopback: false,
+      );
+      final addresses = interfaces.expand(
+        (interface) => interface.addresses.map((address) => address.address),
+      );
+      targets.addAll(likelyIpv4DirectedBroadcastTargets(addresses));
+    } catch (_) {
+      // Interface enumeration is optional. Limited broadcast remains enough
+      // for the legacy path when the OS denies interface listing.
+    }
+    return targets.map(InternetAddress.new).toList(growable: false);
+  }
+
+  /// Compute likely directed-broadcast addresses from IPv4 interface addresses.
+  ///
+  /// Dart's [NetworkInterface] does not expose netmasks, so this intentionally
+  /// uses the common /24 form (`a.b.c.255`) instead of pretending to know the
+  /// exact subnet. The result supplements, not replaces, limited broadcast.
+  static Set<String> likelyIpv4DirectedBroadcastTargets(
+    Iterable<String> addresses,
+  ) {
+    final targets = <String>{};
+    for (final address in addresses) {
+      final parts = address.split('.');
+      if (parts.length != 4) continue;
+      final octets = <int>[];
+      var valid = true;
+      for (final part in parts) {
+        final value = int.tryParse(part);
+        if (value == null || value < 0 || value > 255) {
+          valid = false;
+          break;
+        }
+        octets.add(value);
+      }
+      if (!valid) continue;
+      if (octets[0] == 127 || octets[0] == 0) continue;
+      if (octets[3] == 0 || octets[3] == 255) continue;
+      targets.add('${octets[0]}.${octets[1]}.${octets[2]}.255');
+    }
+    return targets;
   }
 }
 

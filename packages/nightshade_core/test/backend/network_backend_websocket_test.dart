@@ -580,6 +580,154 @@ void main() {
         }
       },
     );
+
+    test(
+      'mints a one-shot WS ticket and connects with ?ticket= (not ?token=)',
+      () async {
+        // Security: the long-lived bearer token must not appear in the
+        // WebSocket URL. The client should POST /api/ws/ticket and present the
+        // returned single-use ticket on the upgrade instead.
+        var ticketPosts = 0;
+        Uri? wsUpgradeUri;
+        const issuedTicket = 'tkt-abc123';
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        server.listen((request) async {
+          final path = request.uri.path;
+          if (path == '/api/info') {
+            request.response
+              ..statusCode = HttpStatus.ok
+              ..headers.contentType = ContentType.json
+              ..write(jsonEncode(const {'version': '2.5.0'}));
+            await request.response.close();
+            return;
+          }
+          if (path == '/api/ws/ticket' && request.method == 'POST') {
+            ticketPosts++;
+            request.response
+              ..statusCode = HttpStatus.ok
+              ..headers.contentType = ContentType.json
+              ..write(
+                jsonEncode(const {
+                  'ticket': issuedTicket,
+                  'expiresInSeconds': 60,
+                }),
+              );
+            await request.response.close();
+            return;
+          }
+          if (path == '/events') {
+            wsUpgradeUri = request.uri;
+            final socket = await WebSocketTransformer.upgrade(request);
+            socket.listen((message) {
+              final data = jsonDecode(message as String) as Map<String, dynamic>;
+              if (data['type'] == 'ping') {
+                socket.add(jsonEncode({'type': 'pong'}));
+              }
+            });
+            return;
+          }
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
+        });
+
+        final backend = NetworkBackend(
+          serverHost: InternetAddress.loopbackIPv4.address,
+          serverPort: server.port,
+          webSocketPort: server.port,
+          authToken: 'bearer-secret-xyz',
+          webSocketHeartbeatInterval: const Duration(milliseconds: 50),
+          webSocketHeartbeatTimeout: const Duration(milliseconds: 250),
+        );
+
+        try {
+          await backend.connectionStateStream
+              .firstWhere((s) => s == BackendConnectionState.connected)
+              .timeout(const Duration(seconds: 3));
+          await _waitUntil(
+            () => wsUpgradeUri != null,
+            timeout: const Duration(seconds: 2),
+          );
+          expect(
+            ticketPosts,
+            greaterThanOrEqualTo(1),
+            reason: 'client must POST /api/ws/ticket before the upgrade',
+          );
+          expect(wsUpgradeUri!.queryParameters['ticket'], issuedTicket);
+          expect(
+            wsUpgradeUri!.queryParameters.containsKey('token'),
+            isFalse,
+            reason: 'bearer token must NOT be in the WS URL when a ticket exists',
+          );
+        } finally {
+          backend.dispose();
+          await server.close(force: true);
+        }
+      },
+    );
+
+    test('falls back to ?token= when the server has no ticket endpoint', () async {
+      // Backward compatibility: against an older appliance that returns 404 for
+      // /api/ws/ticket, the client must still connect via the legacy ?token=.
+      Uri? wsUpgradeUri;
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((request) async {
+        final path = request.uri.path;
+        if (path == '/api/info') {
+          request.response
+            ..statusCode = HttpStatus.ok
+            ..headers.contentType = ContentType.json
+            ..write(jsonEncode(const {'version': '2.5.0'}));
+          await request.response.close();
+          return;
+        }
+        if (path == '/api/ws/ticket') {
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
+          return;
+        }
+        if (path == '/events') {
+          wsUpgradeUri = request.uri;
+          final socket = await WebSocketTransformer.upgrade(request);
+          socket.listen((message) {
+            final data = jsonDecode(message as String) as Map<String, dynamic>;
+            if (data['type'] == 'ping') {
+              socket.add(jsonEncode({'type': 'pong'}));
+            }
+          });
+          return;
+        }
+        request.response.statusCode = HttpStatus.notFound;
+        await request.response.close();
+      });
+
+      final backend = NetworkBackend(
+        serverHost: InternetAddress.loopbackIPv4.address,
+        serverPort: server.port,
+        webSocketPort: server.port,
+        authToken: 'bearer-secret-xyz',
+        webSocketHeartbeatInterval: const Duration(milliseconds: 50),
+        webSocketHeartbeatTimeout: const Duration(milliseconds: 250),
+      );
+
+      try {
+        await backend.connectionStateStream
+            .firstWhere((s) => s == BackendConnectionState.connected)
+            .timeout(const Duration(seconds: 3));
+        await _waitUntil(
+          () => wsUpgradeUri != null,
+          timeout: const Duration(seconds: 2),
+        );
+        expect(wsUpgradeUri!.queryParameters['token'], 'bearer-secret-xyz');
+        expect(
+          wsUpgradeUri!.queryParameters.containsKey('ticket'),
+          isFalse,
+          reason: 'no ticket endpoint -> must use legacy ?token=',
+        );
+      } finally {
+        backend.dispose();
+        await server.close(force: true);
+      }
+    });
   });
 }
 

@@ -172,10 +172,46 @@ impl FliSdk {
         } else {
             "libfli.so"
         };
+        let system_paths = if cfg!(target_os = "linux") {
+            vec![
+                format!("/usr/lib/{lib_name}"),
+                format!("/usr/local/lib/{lib_name}"),
+            ]
+        } else if cfg!(target_os = "macos") {
+            vec![
+                format!("/usr/local/lib/{lib_name}"),
+                format!("/opt/homebrew/lib/{lib_name}"),
+            ]
+        } else {
+            Vec::new()
+        };
+        let system_path_refs = system_paths.iter().map(String::as_str).collect::<Vec<_>>();
+        let candidates =
+            crate::vendor::sdk_loader::vendor_library_candidates(&[lib_name], &system_path_refs);
 
-        // SAFETY: libloading::Library::new performs platform dynamic loading; the lib name is a compile-time constant (libfli.dll/dylib/so) and the resulting Library is returned to the caller — no transmute or memory access happens here.
-        let library = unsafe { libloading::Library::new(lib_name) }
-            .map_err(|e| NativeError::SdkError(format!("Failed to load FLI SDK: {}", e)))?;
+        let mut last_error = None;
+        let mut loaded = None;
+        for path in &candidates {
+            // SAFETY: libloading::Library::new performs platform dynamic loading; the lib name
+            // is a compile-time constant and no transmute or memory access happens here.
+            match unsafe { libloading::Library::new(path) } {
+                Ok(library) => {
+                    tracing::info!("Loaded FLI SDK from {}", path.display());
+                    loaded = Some(library);
+                    break;
+                }
+                Err(e) => {
+                    last_error = Some(e.to_string());
+                }
+            }
+        }
+        let library = loaded.ok_or_else(|| {
+            NativeError::SdkError(format!(
+                "Failed to load FLI SDK from {} candidate paths: {}",
+                candidates.len(),
+                last_error.unwrap_or_else(|| "no candidate paths supplied".to_string())
+            ))
+        })?;
 
         // SAFETY: dereferencing each `library.get::<FnType>(symbol)` result with `*` is safe because libloading::Symbol derefs to the function-pointer type only after a successful name lookup; the FFI signatures match libfli.h exactly (verified against vendor header) so the function-pointer ABI is correct.
         unsafe {
@@ -433,8 +469,8 @@ async fn discover_devices_by_type(
 
     // Iterate through devices
     let mut dev_domain: c_long = 0;
-    let mut filename = [0i8; 256];
-    let mut name_buf = [0i8; 256];
+    let mut filename = [0 as c_char; 256];
+    let mut name_buf = [0 as c_char; 256];
 
     // Get first device
     // SAFETY: fli_mutex held; all four out-pointers point to stack buffers (dev_domain c_long and 256-byte arrays); lengths are passed correctly so SDK can't overrun.
@@ -465,7 +501,7 @@ async fn discover_devices_by_type(
 
             // SAFETY: fli_mutex held; `dev` is a valid stack pointer; path_cstr is a valid NUL-terminated CString that outlives the call.
             if unsafe { (sdk.open)(&mut dev, path_cstr.as_ptr(), domain) } == 0 {
-                let mut serial_buf = [0i8; 64];
+                let mut serial_buf = [0 as c_char; 64];
                 // SAFETY: fli_mutex held; `dev` was successfully opened; serial_buf is a 64-byte stack buffer and the length is passed truthfully so the SDK can't overrun.
                 let serial = if unsafe {
                     (sdk.get_serial_string)(dev, serial_buf.as_mut_ptr(), serial_buf.len())
@@ -538,7 +574,7 @@ pub fn get_sdk_status() -> (bool, String) {
 }
 
 fn sdk_version_from_sdk(sdk: &FliSdk) -> Option<String> {
-    let mut version_buf = [0i8; 64];
+    let mut version_buf = [0 as c_char; 64];
     // SAFETY: version_buf is a 64-byte stack array; the length is passed truthfully so the SDK can't overrun. FLIGetLibVersion has no device handle to validate.
     if unsafe { (sdk.get_lib_version)(version_buf.as_mut_ptr(), version_buf.len()) } != 0 {
         return None;
@@ -676,7 +712,7 @@ impl NativeDevice for FliCamera {
         }
 
         // Get model name
-        let mut model_buf = [0i8; 128];
+        let mut model_buf = [0 as c_char; 128];
         // SAFETY: fli_mutex held; self.handle was just successfully opened above; model_buf is a 128-byte stack array with truthful length passed to SDK.
         if unsafe { (sdk.get_model)(self.handle, model_buf.as_mut_ptr(), model_buf.len()) } == 0 {
             // SAFETY: model_buf is 128 bytes; FLI SDK guarantees NUL-termination on success.
@@ -1411,7 +1447,7 @@ impl NativeDevice for FliFocuser {
         }
 
         // Get model name
-        let mut model_buf = [0i8; 128];
+        let mut model_buf = [0 as c_char; 128];
         // SAFETY: fli_mutex held; self.handle was just opened above; model_buf is a 128-byte stack array with truthful length.
         if unsafe { (sdk.get_model)(self.handle, model_buf.as_mut_ptr(), model_buf.len()) } == 0 {
             // SAFETY: model_buf is 128 bytes; FLI SDK guarantees NUL-termination on success.
@@ -1682,7 +1718,7 @@ impl NativeDevice for FliFilterWheel {
         }
 
         // Get model name
-        let mut model_buf = [0i8; 128];
+        let mut model_buf = [0 as c_char; 128];
         // SAFETY: fli_mutex held; self.handle was just opened above; model_buf is a 128-byte stack array with truthful length.
         if unsafe { (sdk.get_model)(self.handle, model_buf.as_mut_ptr(), model_buf.len()) } == 0 {
             // SAFETY: model_buf is 128 bytes; FLI SDK guarantees NUL-termination on success.

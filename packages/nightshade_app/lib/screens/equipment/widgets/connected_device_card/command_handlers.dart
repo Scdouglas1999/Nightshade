@@ -162,6 +162,73 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
     context.showCommandActionResult(result);
   }
 
+  /// Manually trigger a meridian flip now (outside the sequencer's automatic
+  /// watchdog). Flips and re-points to the mount's current sky position. Useful
+  /// when a remote operator is stalled at the meridian — there was previously
+  /// no manual "flip now" control anywhere.
+  Future<void> _handleManualMeridianFlip() async {
+    final mountState = ref.read(mountStateProvider);
+    final mountId = mountState.deviceId;
+    final ra = mountState.ra;
+    final dec = mountState.dec;
+    if (mountId == null || ra == null || dec == null) {
+      if (mounted) {
+        context.showErrorSnackBar('Mount position unavailable for a flip');
+      }
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => NightshadeDialog(
+        title: 'Meridian Flip Now?',
+        icon: LucideIcons.flipHorizontal,
+        width: 400,
+        actions: [
+          NightshadeButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
+          ),
+          NightshadeButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            label: 'Flip',
+            variant: ButtonVariant.primary,
+            size: ButtonSize.small,
+          ),
+        ],
+        child: Text(
+          'This slews the mount across the meridian and re-points to the '
+          'current position. Guiding pauses and resumes automatically. '
+          'Proceed?',
+          style: TextStyle(
+            color: NightshadeColors.of(ctx).textSecondary,
+            fontSize: NightshadeTypography.fontSize13,
+          ),
+        ),
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await ref.read(sequencerBackendProvider).performMeridianFlip(
+            mountId: mountId,
+            targetName: 'Manual flip',
+            targetRaHours: ra,
+            targetDecDegrees: dec,
+            pauseGuiding: true,
+            autoCenter: true,
+            refocusAfter: false,
+            resumeGuiding: true,
+            settleTimeSecs: 30,
+          );
+      if (mounted) context.showSuccessSnackBar('Meridian flip started');
+    } catch (e) {
+      if (mounted) context.showErrorSnackBar('Meridian flip failed: $e');
+    }
+  }
+
   Future<void> _handleFilterChange(int position) async {
     final deviceService = ref.read(deviceServiceProvider);
     try {
@@ -245,15 +312,115 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
           context.showSuccessSnackBar('Parking dome');
         }
       } else {
-        // There's no explicit unpark for domes -- slew to home position
-        // which effectively unparks. This is the standard ASCOM behavior.
+        // ASCOM domes have no explicit unpark verb; finding home releases the
+        // parked state (standard ASCOM behaviour). Drive it so the "Unpark"
+        // button is functional instead of a no-op hint.
+        final backend = ref.read(backendProvider);
+        if (backend is NetworkBackend) {
+          await backend.domeHome();
+        } else {
+          await bridge_api.apiDomeFindHome(deviceId: domeState.deviceId!);
+        }
         if (mounted) {
-          context.showInfoSnackBar('Slew dome to unpark');
+          context.showSuccessSnackBar('Unparking dome (homing)');
         }
       }
     } catch (e) {
       if (mounted) {
         context.showErrorSnackBar('Dome park operation failed: $e');
+      }
+    }
+  }
+
+  Future<void> _handleDomeSlew(double azimuth) async {
+    final domeState = ref.read(domeStateProvider);
+    if (domeState.deviceId == null) return;
+    try {
+      final backend = ref.read(backendProvider);
+      if (backend is NetworkBackend) {
+        await backend.domeSlew(azimuth);
+      } else {
+        await bridge_api.apiDomeSlewToAzimuth(
+          deviceId: domeState.deviceId!,
+          azimuth: azimuth,
+        );
+      }
+      if (mounted) {
+        context.showSuccessSnackBar(
+          'Slewing dome to ${azimuth.toStringAsFixed(0)}°',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Dome slew failed: $e');
+      }
+    }
+  }
+
+  Future<void> _handleDomeHome() async {
+    final domeState = ref.read(domeStateProvider);
+    if (domeState.deviceId == null) return;
+    try {
+      final backend = ref.read(backendProvider);
+      if (backend is NetworkBackend) {
+        await backend.domeHome();
+      } else {
+        await bridge_api.apiDomeFindHome(deviceId: domeState.deviceId!);
+      }
+      if (mounted) {
+        context.showSuccessSnackBar('Homing dome');
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Dome home failed: $e');
+      }
+    }
+  }
+
+  Future<void> _handleDomeHalt() async {
+    final domeState = ref.read(domeStateProvider);
+    if (domeState.deviceId == null) return;
+    try {
+      final backend = ref.read(backendProvider);
+      if (backend is NetworkBackend) {
+        await backend.domeHalt();
+      } else {
+        await bridge_api.apiDomeAbortSlew(deviceId: domeState.deviceId!);
+      }
+      if (mounted) {
+        context.showSuccessSnackBar('Stopping dome');
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Dome halt failed: $e');
+      }
+    }
+  }
+
+  /// Acknowledge an unsafe safety-monitor condition. This is a headless-server
+  /// concept (the appliance records the acknowledgement and suppresses the
+  /// unsafe gate for the chosen window), so it applies to remote sessions; the
+  /// local desktop manages safety directly through its sequencer settings.
+  Future<void> _handleSafetyAcknowledge() async {
+    final backend = ref.read(backendProvider);
+    if (backend is! NetworkBackend) {
+      if (mounted) {
+        context.showInfoSnackBar(
+          'Safety acknowledgement is managed by the appliance (remote sessions).',
+        );
+      }
+      return;
+    }
+    try {
+      await backend.acknowledgeSafetyCondition(
+        reason: 'Acknowledged from app',
+      );
+      if (mounted) {
+        context.showSuccessSnackBar('Safety condition acknowledged');
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Acknowledge failed: $e');
       }
     }
   }

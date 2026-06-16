@@ -235,13 +235,46 @@ impl AtikSdk {
         } else {
             "libatikcameras.so"
         };
+        let system_paths = if cfg!(target_os = "linux") {
+            vec![
+                format!("/usr/lib/{lib_name}"),
+                format!("/usr/local/lib/{lib_name}"),
+            ]
+        } else if cfg!(target_os = "macos") {
+            vec![
+                format!("/usr/local/lib/{lib_name}"),
+                format!("/opt/homebrew/lib/{lib_name}"),
+            ]
+        } else {
+            Vec::new()
+        };
+        let system_path_refs = system_paths.iter().map(String::as_str).collect::<Vec<_>>();
+        let candidates =
+            crate::vendor::sdk_loader::vendor_library_candidates(&[lib_name], &system_path_refs);
 
-        // SAFETY: libloading::Library::new performs platform dynamic loading; `lib_name` is one
-        // of three compile-time constants (AtikCameras.dll / libatikcameras.dylib /
-        // libatikcameras.so) and no memory access or transmute happens here — only the OS
-        // loader is invoked.
-        let library = unsafe { libloading::Library::new(lib_name) }
-            .map_err(|e| NativeError::SdkError(format!("Failed to load Atik SDK: {}", e)))?;
+        let mut last_error = None;
+        let mut loaded = None;
+        for path in &candidates {
+            // SAFETY: libloading::Library::new performs platform dynamic loading; `lib_name` is
+            // a compile-time constant and no memory access or transmute happens here.
+            match unsafe { libloading::Library::new(path) } {
+                Ok(library) => {
+                    tracing::info!("Loaded Atik SDK from {}", path.display());
+                    loaded = Some(library);
+                    break;
+                }
+                Err(e) => {
+                    last_error = Some(e.to_string());
+                }
+            }
+        }
+        let library = loaded.ok_or_else(|| {
+            NativeError::SdkError(format!(
+                "Failed to load Atik SDK from {} candidate paths: {}",
+                candidates.len(),
+                last_error.unwrap_or_else(|| "no candidate paths supplied".to_string())
+            ))
+        })?;
 
         // SAFETY: each `library.get::<FnType>(symbol)` returns a libloading::Symbol that derefs
         // to a function pointer of the requested type only after a successful name lookup; the
@@ -539,7 +572,7 @@ pub async fn discover_devices() -> Result<Vec<AtikDiscoveryInfo>, NativeError> {
             continue;
         }
 
-        let mut name_buf = [0i8; 100];
+        let mut name_buf = [0 as c_char; 100];
         // SAFETY: atik_mutex held; `i` is a valid device index; name_buf is a 100-byte stack
         // array and the SDK writes a NUL-terminated name into it (Atik SDK guarantees the
         // buffer is bounded by the name field width in ARTEMISPROPERTIES, 40 bytes).
@@ -553,7 +586,7 @@ pub async fn discover_devices() -> Result<Vec<AtikDiscoveryInfo>, NativeError> {
             format!("Atik Camera {}", i)
         };
 
-        let mut serial_buf = [0i8; 100];
+        let mut serial_buf = [0 as c_char; 100];
         // SAFETY: atik_mutex held; `i` is a valid device index; serial_buf is a 100-byte stack
         // array — ArtemisDeviceSerial returns a NUL-terminated serial that fits in the buffer.
         let serial = if unsafe { (sdk.device_serial)(i, serial_buf.as_mut_ptr()) } != 0 {
@@ -615,7 +648,7 @@ pub async fn discover_filter_wheels() -> Result<Vec<AtikFilterWheelDiscoveryInfo
         }
 
         let mut efw_type: c_int = 0;
-        let mut serial_buf = [0i8; 100];
+        let mut serial_buf = [0 as c_char; 100];
         // SAFETY: atik_mutex held; `i` was reported present by ArtemisEFWIsPresent;
         // `efw_type` and `serial_buf` are valid out-pointers per AtikCameras.h.
         let result = unsafe { efw_get_device_details(i, &mut efw_type, serial_buf.as_mut_ptr()) };
@@ -1746,7 +1779,7 @@ impl NativeDevice for AtikFilterWheel {
         }
 
         let mut efw_type: c_int = 0;
-        let mut serial_buf = [0i8; 100];
+        let mut serial_buf = [0 as c_char; 100];
         // SAFETY: atik_mutex held; out-pointers are valid. Failure is non-fatal for connect:
         // the wheel handle is already valid, and type/name are display metadata.
         if unsafe {

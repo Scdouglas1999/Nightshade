@@ -309,12 +309,17 @@ String _bucketIdFor(_StatusEntry entry) {
   final category = entry.category;
 
   if (path.startsWith('docs/production-readiness/') ||
+      path.startsWith('.github/workflows/') ||
+      path.startsWith('apps/desktop/linux/') ||
       path == 'docs/headless-secure-setup.md' ||
       path == 'docs/migration-backup-restore.md' ||
       path == 'docs/known-limitations.md' ||
       path == 'docs/release-notes-template.md' ||
       path == 'docs/supported-hardware-by-platform.md' ||
+      path.startsWith('docs/troubleshooting/') ||
+      path.startsWith('packaging/appliance/') ||
       path.startsWith('tools/production/') ||
+      path == 'package.json' ||
       path == 'melos.yaml' ||
       path.endsWith('/tool/production_migration_probe.dart')) {
     return 'release-infra-evidence';

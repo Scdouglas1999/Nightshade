@@ -6,9 +6,11 @@ import '../models/defect_map.dart';
 import '../services/calibration/defect_map_service.dart';
 import 'database_provider.dart';
 
-/// Service provider for [DefectMapService]. Stateless wrapper.
+/// Service provider for [DefectMapService]. The service reads the active
+/// backend through [ref] so build/apply can route to the host over REST when
+/// running as a remote client.
 final defectMapServiceProvider = Provider<DefectMapService>((ref) {
-  return DefectMapService();
+  return DefectMapService(ref);
 });
 
 /// Query parameters for looking up a stored defect map.
@@ -94,15 +96,24 @@ class DefectMapNotifier extends StateNotifier<DefectMapUiState> {
   DefectMapService get _service => ref.read(defectMapServiceProvider);
 
   /// Build a new defect map from the supplied dark-frame paths.
+  ///
+  /// On a remote client the operator picks a host directory rather than
+  /// individual files (the host filesystem is not enumerable client-side);
+  /// pass that directory as [darkFramesDirectory] with an empty
+  /// [darkFramePaths] and the host enumerates its FITS/XISF darks.
   Future<void> build({
     required String cameraId,
     required List<String> darkFramePaths,
     required double sensorTemperatureCelsius,
+    String? darkFramesDirectory,
   }) async {
     state = state.copyWith(
       isBuilding: true,
-      statusMessage:
-          'Scanning ${darkFramePaths.length} dark frames for defective pixels...',
+      statusMessage: darkFramesDirectory != null
+          ? 'Scanning host dark frames in $darkFramesDirectory for defective '
+                'pixels...'
+          : 'Scanning ${darkFramePaths.length} dark frames for defective '
+                'pixels...',
       errorMessage: null,
     );
     try {
@@ -110,6 +121,7 @@ class DefectMapNotifier extends StateNotifier<DefectMapUiState> {
         cameraId: cameraId,
         darkFramePaths: darkFramePaths,
         sensorTemperatureCelsius: sensorTemperatureCelsius,
+        darkFramesDirectory: darkFramesDirectory,
       );
       state = state.copyWith(
         isBuilding: false,

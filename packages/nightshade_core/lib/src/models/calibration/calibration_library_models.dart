@@ -192,6 +192,41 @@ class CalibrationMasterRecord {
     );
   }
 
+  /// Reconstruct a record from the headless API's [toJson] envelope. The
+  /// server-only `ageDays`/`freshness` fields are recomputed locally from
+  /// [createdAt], so they are ignored here.
+  factory CalibrationMasterRecord.fromJson(Map<String, dynamic> json) {
+    final type =
+        calibrationMasterTypeFromWire('${json['type']}') ??
+        CalibrationMasterType.dark;
+    return CalibrationMasterRecord(
+      type: type,
+      id: (json['id'] as num).toInt(),
+      filePath: json['filePath'] as String?,
+      isMaster: json['isMaster'] as bool? ?? false,
+      frameCount: (json['frameCount'] as num?)?.toInt(),
+      exposureSeconds: (json['exposureSeconds'] as num?)?.toDouble(),
+      temperature: (json['temperature'] as num?)?.toDouble(),
+      gain: (json['gain'] as num?)?.toInt(),
+      offset: (json['offset'] as num?)?.toInt(),
+      binX: (json['binX'] as num?)?.toInt() ?? 1,
+      binY: (json['binY'] as num?)?.toInt() ?? 1,
+      filter: json['filter'] as String?,
+      flatKind: json['flatKind'] as String?,
+      width: (json['width'] as num?)?.toInt(),
+      height: (json['height'] as num?)?.toInt(),
+      cameraId: json['cameraId'] as String?,
+      opticalTrainId: json['opticalTrainId'] as String?,
+      createdAt:
+          DateTime.tryParse('${json['createdAt']}')?.toLocal() ??
+          DateTime.now(),
+      tags: [
+        for (final t in (json['tags'] as List? ?? const [])) t.toString(),
+      ],
+      notes: json['notes'] as String?,
+    );
+  }
+
   Map<String, dynamic> toJson({DateTime? now}) {
     final at = now ?? DateTime.now();
     return {
@@ -277,6 +312,19 @@ class LightFrameContext {
     this.opticalTrainId,
   });
 
+  factory LightFrameContext.fromJson(Map<String, dynamic> json) =>
+      LightFrameContext(
+        cameraId: json['cameraId'] as String?,
+        gain: (json['gain'] as num?)?.toInt() ?? 0,
+        offset: (json['offset'] as num?)?.toInt() ?? 0,
+        exposureSeconds: (json['exposureSeconds'] as num?)?.toDouble() ?? 0.0,
+        temperature: (json['temperature'] as num?)?.toDouble(),
+        filter: json['filter'] as String?,
+        binX: (json['binX'] as num?)?.toInt() ?? 1,
+        binY: (json['binY'] as num?)?.toInt() ?? 1,
+        opticalTrainId: json['opticalTrainId'] as String?,
+      );
+
   Map<String, dynamic> toJson() => {
     if (cameraId != null) 'cameraId': cameraId,
     'gain': gain,
@@ -337,6 +385,25 @@ class CalibrationMatch {
     this.exposureScaleFactor,
   });
 
+  /// Reconstruct a per-type match from the headless API envelope.
+  factory CalibrationMatch.fromJson(Map<String, dynamic> json) =>
+      CalibrationMatch(
+        record: CalibrationMasterRecord.fromJson(
+          (json['record'] as Map).cast<String, dynamic>(),
+        ),
+        score: (json['score'] as num?)?.toDouble() ?? 0.0,
+        reasons: [
+          for (final r in (json['reasons'] as List? ?? const []))
+            r.toString(),
+        ],
+        warnings: [
+          for (final w in (json['warnings'] as List? ?? const []))
+            w.toString(),
+        ],
+        exposureScaled: json['exposureScaled'] as bool? ?? false,
+        exposureScaleFactor: (json['exposureScaleFactor'] as num?)?.toDouble(),
+      );
+
   Map<String, dynamic> toJson({DateTime? now}) => {
     'record': record.toJson(now: now),
     'score': score,
@@ -376,6 +443,29 @@ class CalibrationMatchSet {
     ...?flat?.warnings,
     ...?defectMap?.warnings,
   ];
+
+  /// Reconstruct a match set from the headless API's [toJson] envelope.
+  factory CalibrationMatchSet.fromJson(Map<String, dynamic> json) {
+    CalibrationMatch? matchAt(String key) {
+      final raw = json[key];
+      return raw is Map
+          ? CalibrationMatch.fromJson(raw.cast<String, dynamic>())
+          : null;
+    }
+
+    return CalibrationMatchSet(
+      context: LightFrameContext.fromJson(
+        (json['context'] as Map? ?? const {}).cast<String, dynamic>(),
+      ),
+      dark: matchAt('dark'),
+      bias: matchAt('bias'),
+      flat: matchAt('flat'),
+      defectMap: matchAt('defectMap'),
+      warnings: [
+        for (final w in (json['warnings'] as List? ?? const [])) w.toString(),
+      ],
+    );
+  }
 
   Map<String, dynamic> toJson({DateTime? now}) => {
     'context': context.toJson(),

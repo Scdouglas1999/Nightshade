@@ -408,7 +408,10 @@ impl ParsedDeviceId {
             Self::parse_indi(id)
         } else if id.starts_with("native:") {
             Self::parse_native(id)
-        } else if id.starts_with("simulator:") || id.starts_with("sim:") {
+        } else if id.starts_with("simulator:")
+            || id.starts_with("sim:")
+            || id.starts_with("sim_")
+        {
             Self::parse_simulator(id)
         } else {
             // Try to infer the type from the ID format
@@ -722,13 +725,30 @@ impl ParsedDeviceId {
 
     /// Parse a simulator device ID
     fn parse_simulator(id: &str) -> Result<Self, NightshadeError> {
-        let remainder = id
-            .strip_prefix("simulator:")
-            .or_else(|| id.strip_prefix("sim:"))
-            .ok_or_else(|| NightshadeError::invalid_device_id(id, "Missing simulator prefix"))?;
+        // Two accepted forms, both producing the same ConnectionInfo::Simulator:
+        //   canonical  `simulator:<type>[:<instance>]` / `sim:<type>...`  (colon)
+        //   legacy     `sim_<type>_<instance>`                            (under-
+        //              score) — the form the rest of the bridge's simulator
+        //              device family uses (camera.rs, real_device_ops.rs,
+        //              discovery.rs) and what `device_info_from_id` needs so a
+        //              sim mount/focuser/rotator/filter-wheel is connectable by
+        //              id, not just the sim camera.
+        let (remainder, sep): (&str, char) =
+            if let Some(r) = id.strip_prefix("simulator:") {
+                (r, ':')
+            } else if let Some(r) = id.strip_prefix("sim:") {
+                (r, ':')
+            } else if let Some(r) = id.strip_prefix("sim_") {
+                (r, '_')
+            } else {
+                return Err(NightshadeError::invalid_device_id(
+                    id,
+                    "Missing simulator prefix",
+                ));
+            };
 
-        // Format: device_type:instance (instance optional, defaults to 0)
-        let parts: Vec<&str> = remainder.split(':').collect();
+        // Format: device_type<sep>instance (instance optional, defaults to 0)
+        let parts: Vec<&str> = remainder.split(sep).collect();
 
         let device_type = parts
             .first()

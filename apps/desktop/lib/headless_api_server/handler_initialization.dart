@@ -103,6 +103,8 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
     _fileSystemHandlers = FileSystemHandlers(container);
     _scienceHandlers = ScienceHandlers(container);
 
+    _narratorHandlers = NarratorHandlers(container);
+
     // Initialize auxiliary device handlers
     _domeHandlers = DomeHandlers(container);
     _safetyMonitorHandlers = SafetyMonitorHandlers(container);
@@ -114,6 +116,17 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
     // Initialize intelligent scheduler and focus model handlers
     _schedulerHandlers = SchedulerHandlers(container);
     _focusModelHandlers = FocusModelHandlers(container);
+
+    // Live stacking control surface (host-side EAA integration).
+    _stackingHandlers = StackingHandlers(container);
+
+    // Post-session integration / finishing control surface. JobManager-backed
+    // (passed the same manager as plate-solve) so each long compute op returns
+    // {jobId} immediately and runs on the host's FFI pipeline in the background.
+    _postSessionHandlers = PostSessionHandlers(
+      container,
+      jobManager: _jobManager,
+    );
 
     // broadcast controller that fans out NightshadeEvents from
     // the backend stream to every connected SSE subscriber. Created here

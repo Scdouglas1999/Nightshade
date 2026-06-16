@@ -366,6 +366,18 @@ extension _HeadlessApiServerWebSocketSessions on HeadlessApiServer {
       case 'session_handoff.clear':
         _collaborationManager.setSessionHandoff(null);
         return;
+      default:
+        // Unknown collaboration message type: tell the client rather than
+        // silently dropping it (a typo or a newer client talking to an older
+        // server would otherwise just see no effect with no signal).
+        socket.sink.add(
+          jsonEncode({
+            'type': 'error',
+            'message': 'Unknown collaboration message type: '
+                '${type ?? '(missing "type")'}',
+          }),
+        );
+        return;
     }
   }
 }

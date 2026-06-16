@@ -397,6 +397,40 @@ class AnalyticsHandlers {
   }
 
   // ===========================================================================
+  // Untracked Targets Cleanup
+  // ===========================================================================
+
+  /// GET /api/analytics/untracked-targets/count
+  /// Number of "untracked" library targets (no integration goal, not a
+  /// favorite, no captured subs, no integration time, not referenced by any
+  /// imaging session) eligible for the opt-in Analytics cleanup. Same
+  /// session-aware predicate as the local Drift path, run against the host DB.
+  Future<Response> handleGetUntrackedTargetsCount(Request request) async {
+    _logInfo('[API] GET /api/analytics/untracked-targets/count');
+    final database = container.read(databaseProvider);
+    final count = await database.targetsDao.countUntrackedTargets();
+
+    return jsonOk({"count": count});
+  }
+
+  /// POST /api/analytics/untracked-targets/remove
+  /// Permanently removes every untracked library target (see
+  /// [handleGetUntrackedTargetsCount]) and returns how many rows were deleted.
+  /// Irreversible — the client confirms with the user before calling this.
+  Future<Response> handleRemoveUntrackedTargets(Request request) async {
+    _logInfo('[API] POST /api/analytics/untracked-targets/remove');
+    final database = container.read(databaseProvider);
+    final deleted = await database.targetsDao.deleteUntrackedTargets();
+
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.target,
+      action: HostMutationAction.deleted,
+    );
+    return jsonOk({"status": "removed", "deleted": deleted});
+  }
+
+  // ===========================================================================
   // Get Sessions For Target
   // ===========================================================================
 

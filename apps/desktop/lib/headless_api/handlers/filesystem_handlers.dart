@@ -11,11 +11,13 @@ import '../validation.dart';
 
 class FileSystemHandlers {
   final ProviderContainer container;
+  final Map<String, String> _environment;
 
   /// Cached set of canonicalized root paths the caller may browse under.
   /// Recomputed on each request because the user can change save-path /
   /// backup-dir at runtime; the per-request cost is one stat call per root.
-  FileSystemHandlers(this.container);
+  FileSystemHandlers(this.container, {Map<String, String>? environment})
+    : _environment = environment ?? Platform.environment;
 
   LoggingService get _logger => container.read(loggingServiceProvider);
 
@@ -213,7 +215,41 @@ class FileSystemHandlers {
     await add('Sequences', settings?.sequencesPath);
     await add('Logs', settings?.logsPath);
 
+    // 4. Deployment-defined roots for headless appliances. This is the
+    // systemd/Docker escape hatch for paths such as /captures or
+    // /mnt/captures that may not live under Documents or app state but still
+    // need to be selectable from an Android tablet or browser dashboard.
+    for (final root in _parseBrowseRootsEnv(_environment)) {
+      await add(root.label, root.path);
+    }
+
     return roots;
+  }
+
+  List<_ConfiguredBrowseRoot> _parseBrowseRootsEnv(
+    Map<String, String> environment,
+  ) {
+    final raw = environment['NIGHTSHADE_BROWSE_ROOTS']?.trim();
+    if (raw == null || raw.isEmpty) return const [];
+
+    return raw
+        .split(';')
+        .map((entry) => entry.trim())
+        .where((entry) => entry.isNotEmpty)
+        .map((entry) {
+          final separator = entry.indexOf('=');
+          if (separator <= 0) {
+            return _ConfiguredBrowseRoot(label: 'Configured Root', path: entry);
+          }
+          final label = entry.substring(0, separator).trim();
+          final path = entry.substring(separator + 1).trim();
+          return _ConfiguredBrowseRoot(
+            label: label.isEmpty ? 'Configured Root' : label,
+            path: path,
+          );
+        })
+        .where((root) => root.path.isNotEmpty)
+        .toList(growable: false);
   }
 
   /// Returns true iff [path] is the same as or a descendant of any root.
@@ -289,4 +325,11 @@ class _BrowseRoot {
   final String canonicalPath;
 
   const _BrowseRoot({required this.label, required this.canonicalPath});
+}
+
+class _ConfiguredBrowseRoot {
+  final String label;
+  final String path;
+
+  const _ConfiguredBrowseRoot({required this.label, required this.path});
 }

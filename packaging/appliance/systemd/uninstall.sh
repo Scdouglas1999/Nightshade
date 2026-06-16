@@ -9,6 +9,7 @@ set -euo pipefail
 
 UNIT_NAME=nightshade-headless.service
 SERVICE_USER=nightshade
+UDEV_RULE_NAME=99-nightshade-astro.rules
 PURGE=0
 
 case "${1:-}" in
@@ -30,6 +31,10 @@ systemctl daemon-reload
 
 echo "== removing application bundle =="
 rm -rf /opt/nightshade
+rm -f "/etc/udev/rules.d/$UDEV_RULE_NAME"
+if command -v udevadm >/dev/null 2>&1; then
+  udevadm control --reload-rules || true
+fi
 
 if [ "$PURGE" -eq 1 ]; then
   echo "== purging data, config and user =="

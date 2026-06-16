@@ -98,7 +98,23 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
   }
 
   Future<void> _startStacking() async {
-    // Let user pick a reference image file
+    final notifier = ref.read(liveStackingProvider.notifier);
+    final config = ref.read(liveStackingProvider).config;
+
+    // Remote (appliance) mode: there is no local reference file to pick — the
+    // host stacks the frames IT captures. Arm the host; the next captured frame
+    // becomes the reference and subsequent frames auto-feed.
+    if (ref.read(isRemoteModeProvider)) {
+      setState(() => _isStarting = true);
+      try {
+        await notifier.startRemote(config: config);
+      } finally {
+        if (mounted) setState(() => _isStarting = false);
+      }
+      return;
+    }
+
+    // Local mode: let the user pick a reference image file.
     const typeGroup = XTypeGroup(
       label: 'Image files',
       extensions: ['fits', 'fit', 'fts', 'xisf', 'tif', 'tiff', 'png'],
@@ -110,8 +126,6 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
     setState(() => _isStarting = true);
 
     try {
-      final notifier = ref.read(liveStackingProvider.notifier);
-      final config = ref.read(liveStackingProvider).config;
       await notifier.startFromFile(file.path, config: config);
     } finally {
       if (mounted) setState(() => _isStarting = false);
@@ -295,8 +309,10 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
                     child: Text(
-                      'Live stacking from a local file is only available on the '
-                      'imaging host. Capture frames on the host to stack remotely.',
+                      'Stacking runs on the imaging host. Press Start to arm it — '
+                      'the next captured frame becomes the reference and every '
+                      'frame after is stacked automatically, even while this '
+                      'tablet is asleep.',
                       style: TextStyle(
                         fontSize: NightshadeTypography.fontSize11,
                         color: widget.colors.textMuted,
@@ -314,7 +330,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                             ? NightshadeIcons.loading
                             : NightshadeIcons.layers,
                         colors: widget.colors,
-                        isEnabled: !isRemoteMode && !isRunning && !_isStarting,
+                        isEnabled: !isRunning && !_isStarting,
                         onTap: _startStacking,
                       ),
                     ),

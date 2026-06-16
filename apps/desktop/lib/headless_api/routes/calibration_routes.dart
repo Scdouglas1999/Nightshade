@@ -16,6 +16,16 @@ import 'headless_route.dart';
 List<HeadlessRoute> buildCalibrationRoutes(
   CalibrationHandlers h,
 ) => <HeadlessRoute>[
+  // Remote dark-library auto-match for frame calibration. A remote client
+  // can't run the matcher locally (the library lives on the host), so it
+  // posts the light frame's capture params here and gets back the matched
+  // dark's on-host path (or null) to feed to /api/imaging/calibrate-file.
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/calibration/match-dark',
+    h.handleMatchDark,
+  ),
+
   // Darks
   HeadlessRoute(HttpMethod.get, '/api/calibration/darks', h.handleListDarks),
   HeadlessRoute(
@@ -75,6 +85,17 @@ List<HeadlessRoute> buildCalibrationRoutes(
     HttpMethod.post,
     '/api/calibration/defect-maps',
     h.handleRegisterDefectMap,
+  ),
+  // Literal sub-paths MUST register before the `<id>` route below.
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/calibration/defect-maps/build',
+    h.handleBuildDefectMap,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/calibration/defect-maps/apply',
+    h.handleApplyDefectMap,
   ),
   HeadlessRoute(
     HttpMethod.get,

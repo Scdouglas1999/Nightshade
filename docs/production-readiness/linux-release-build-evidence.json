@@ -1,0 +1,50 @@
+{
+  "platform": "linux",
+  "metadataSchemaVersion": 2,
+  "buildCommand": "dart run melos run build:desktop:linux --no-select",
+  "toolVersions": {
+    "operatingSystem": "linux",
+    "dartVersion": "3.12.1 (stable) on linux_x64",
+    "flutterVersion": "Flutter 3.44.1 stable, framework revision 924134a44c",
+    "rustcVersion": "rustc 1.96.0 (ac68faa20 2026-05-25)"
+  },
+  "buildPassed": true,
+  "packageArtifactPath": "/home/scdouglas/Documents/Nightshade2/build/release-linux/nightshade-linux-x64.tar.gz",
+  "packageSizeBytes": 47979024,
+  "packageSha256": "f9195e6bb380e6c8b54b5eb2642561e4892b4e1cc051dfc2c479cea869caa220",
+  "packageSha256Path": "/home/scdouglas/Documents/Nightshade2/build/release-linux/nightshade-linux-x64.tar.gz.sha256",
+  "metadataPath": "docs/production-readiness/linux-release-package-metadata.json",
+  "runtimeSmokePassed": true,
+  "runtimeSmokeArtifact": "docs/production-readiness/linux-runtime-smoke.log",
+  "runtimeSmokeChecks": [
+    {
+      "check": "headless_process_started",
+      "passed": true,
+      "evidence": "linux-runtime-smoke.log records pid 870757 and successful startup banner on port 18081"
+    },
+    {
+      "check": "api_info_ok",
+      "passed": true,
+      "evidence": "/api/info returned HTTP 200 with version 4.0.0, apiVersion 2.6.0, platform linux, authRequired true, and webUIAvailable true"
+    },
+    {
+      "check": "openapi_ok",
+      "passed": true,
+      "evidence": "/api/openapi.json returned HTTP 200 with an admin bearer token; response size was 244107 bytes"
+    },
+    {
+      "check": "dashboard_asset_ok",
+      "passed": true,
+      "evidence": "/dashboard/ returned HTTP 200; response size was 77771 bytes"
+    }
+  ],
+  "nativeLibraryNotes": [
+    "ldd on the packaged nightshade_desktop binary resolved bundled Flutter/plugin libraries from apps/desktop/build/linux/x64/release/bundle/lib and system GTK, libsecret, X11/Wayland, glib, sqlite, and C++ runtime dependencies.",
+    "ldd on libnightshade_bridge.so resolved libudev.so.1, libssl.so.3, libcrypto.so.3, libraw.so.25, libjpeg.so.8, lcms2, zstd, brotli, libgomp, libstdc++, libgcc_s, libm, and libc from the Linux host; vendor camera SDK smoke remains a hardware/simulator evidence item."
+  ],
+  "linuxPermissionNotes": [
+    "The package includes packaging/appliance/systemd/99-nightshade-astro.rules for USB/serial astronomy device access; live-device verification still needs the target user in the required dialout, plugdev, or video groups for the connected hardware.",
+    "This runtime smoke used the packaged headless API without a real INDI server or USB device attached; INDI driver package/source and native vendor permissions remain covered by the full hardware/control smoke evidence."
+  ],
+  "notes": "Built on Linux, packaged as nightshade-linux-x64.tar.gz, smoke-tested by starting the packaged headless binary on port 18081 with an admin token, and probing /api/info, /api/openapi.json, and /dashboard/."
+}

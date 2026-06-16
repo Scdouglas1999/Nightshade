@@ -5,10 +5,15 @@ import '../../localization/nightshade_localizations.dart';
 import 'catalog_settings_screen.dart';
 import 'equipment_profiles_screen.dart';
 import 'integrations_settings.dart';
+import 'backup_screen.dart';
 import 'merged_sections.dart';
 import 'widgets/adaptive_conditions_settings.dart';
 import 'widgets/adaptive_exposure_settings.dart';
 import 'widgets/about_settings.dart';
+import 'widgets/captured_images_settings.dart';
+import 'widgets/focus_model_settings.dart';
+import 'widgets/rig_catalog_settings.dart';
+import 'widgets/update_settings.dart';
 import 'widgets/ai_assistant_settings.dart';
 import 'widgets/annotation_settings.dart';
 import 'widgets/appearance_settings.dart';
@@ -581,6 +586,79 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
             'verbosity',
           ],
           build: (isMobile) => LogViewer(isMobile: isMobile),
+        ),
+        SettingsSectionDef(
+          key: 'backup',
+          label: 'Backup & Restore',
+          icon: LucideIcons.archive,
+          keywords: const [
+            'backup',
+            'restore',
+            'export',
+            'import',
+            'snapshot',
+            'database',
+            'migrate',
+          ],
+          build: (isMobile) => const BackupScreen(),
+        ),
+        SettingsSectionDef(
+          key: 'updates',
+          label: 'Appliance Updates',
+          icon: LucideIcons.downloadCloud,
+          keywords: const [
+            'update',
+            'ota',
+            'upgrade',
+            'firmware',
+            'version',
+            'rollback',
+            'appliance',
+          ],
+          build: (isMobile) => UpdateSettings(isMobile: isMobile),
+        ),
+        SettingsSectionDef(
+          key: 'rig-catalogs',
+          label: 'Appliance Catalogs',
+          icon: LucideIcons.library,
+          keywords: const [
+            'catalog',
+            'plate solve',
+            'star catalog',
+            'astrometry',
+            'download catalog',
+            'appliance',
+            'rig',
+          ],
+          build: (isMobile) => RigCatalogSettings(isMobile: isMobile),
+        ),
+        SettingsSectionDef(
+          key: 'captured-images',
+          label: 'Captured Images',
+          icon: LucideIcons.image,
+          keywords: const [
+            'gallery',
+            'images',
+            'frames',
+            'captures',
+            'thumbnails',
+            'photos',
+            'appliance',
+          ],
+          build: (isMobile) => CapturedImagesSettings(isMobile: isMobile),
+        ),
+        SettingsSectionDef(
+          key: 'focus-model',
+          label: 'Focus Model',
+          icon: LucideIcons.thermometer,
+          keywords: const [
+            'focus model',
+            'temperature compensation',
+            'autofocus',
+            'slope',
+            'temp comp',
+          ],
+          build: (isMobile) => FocusModelSettings(isMobile: isMobile),
         ),
         SettingsSectionDef(
           key: 'replay-debug',

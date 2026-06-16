@@ -224,9 +224,48 @@ const TOUPTEK_BRANDS: &[(&str, &str, &str)] = &[
 
 impl TouptekSdk {
     fn load(dll_name: &str, func_prefix: &str) -> Result<Self, NativeError> {
-        // SAFETY: libloading::Library::new performs platform dynamic loading; `dll_name` comes from the compile-time TOUPTEK_BRANDS constant array of vendor SDK shared library filenames (ogmacam.dll/toupcam.dll/altaircam.dll/mallincam.dll). Errors (missing file / invalid format) are propagated as NativeError::SdkError rather than UB.
-        let library = unsafe { Library::new(dll_name) }
-            .map_err(|e| NativeError::SdkError(format!("Failed to load {}: {}", dll_name, e)))?;
+        let system_paths = if cfg!(target_os = "linux") {
+            vec![
+                format!("/usr/lib/{dll_name}"),
+                format!("/usr/local/lib/{dll_name}"),
+            ]
+        } else if cfg!(target_os = "macos") {
+            vec![
+                format!("/usr/local/lib/{dll_name}"),
+                format!("/opt/homebrew/lib/{dll_name}"),
+            ]
+        } else {
+            Vec::new()
+        };
+        let system_path_refs = system_paths.iter().map(String::as_str).collect::<Vec<_>>();
+        let candidates =
+            crate::vendor::sdk_loader::vendor_library_candidates(&[dll_name], &system_path_refs);
+
+        let mut last_error = None;
+        let mut loaded = None;
+        for path in &candidates {
+            // SAFETY: libloading::Library::new performs platform dynamic loading; `dll_name`
+            // comes from the compile-time TOUPTEK_BRANDS constant array. Errors are
+            // accumulated and reported as NativeError::SdkError rather than UB.
+            match unsafe { Library::new(path) } {
+                Ok(library) => {
+                    tracing::info!("Loaded {} SDK from {}", dll_name, path.display());
+                    loaded = Some(library);
+                    break;
+                }
+                Err(e) => {
+                    last_error = Some(e.to_string());
+                }
+            }
+        }
+        let library = loaded.ok_or_else(|| {
+            NativeError::SdkError(format!(
+                "Failed to load {} from {} candidate paths: {}",
+                dll_name,
+                candidates.len(),
+                last_error.unwrap_or_else(|| "no candidate paths supplied".to_string())
+            ))
+        })?;
 
         // Build symbol names dynamically from the function prefix
         let sym = |suffix: &str| -> Vec<u8> {
@@ -897,7 +936,7 @@ impl NativeDevice for TouptekCamera {
                 let handle_val = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
                 with_sdk(&brand, |sdk| {
-                    let mut sn_buf = [0i8; 64];
+                    let mut sn_buf = [0 as c_char; 64];
                     let mut serial = None;
                     // SAFETY: touptek_mutex held above (in connect's outer scope); `handle_val` was just opened above (null-checked) and the per-camera `handle` mutex is held briefly during the load (handle.lock().unwrap_or_else); `sn_buf.as_mut_ptr()` points to a stack [i8; 64] buffer — Ogmacam_get_SerialNumber writes at most 64 bytes of a NUL-terminated ASCII serial per the SDK header.
                     if unsafe { (sdk.get_serial_number)(handle_val, sn_buf.as_mut_ptr()) } >= 0 {

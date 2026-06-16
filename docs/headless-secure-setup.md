@@ -42,7 +42,7 @@ Packaged Windows run:
 Packaged Linux run:
 
 ```bash
-./build/linux/x64/release/bundle/nightshade_desktop --headless --require-auth
+./build/linux/<arch>/release/bundle/nightshade_desktop --headless --require-auth
 ```
 
 Use a fixed token when clients need a stable credential:
@@ -112,6 +112,49 @@ Keep the TCP API port blocked from untrusted networks. If exposing Nightshade
 through a VPN or reverse proxy, terminate TLS at that layer and keep the
 headless server bound to loopback when possible.
 
+## Headless Storage
+
+For systemd, Docker, and Raspberry Pi appliance deployments, keep application
+state under the daemon-owned state directory:
+
+```bash
+NIGHTSHADE_DATA_DIR=/var/lib/nightshade/data
+NIGHTSHADE_DATABASE_DIR=/var/lib/nightshade/database
+```
+
+`NIGHTSHADE_DATA_DIR` is the native persistence root for generated data such as
+defect maps. `NIGHTSHADE_DATABASE_DIR` pins the Drift database outside any user
+Documents folder. Capture output, backups, and exports can still be pointed at
+operator-selected storage such as an external imaging disk.
+
+Remote clients can browse only allow-listed directories. Add external capture
+disks with `NIGHTSHADE_BROWSE_ROOTS`:
+
+```bash
+NIGHTSHADE_BROWSE_ROOTS="Captures=/mnt/captures;USB SSD=/media/nightshade"
+```
+
+In the hardened systemd unit, any external write target must also be listed in
+`ReadWritePaths` or a drop-in because `ProtectSystem=strict` is enabled.
+
+## Linux Device Access
+
+Bare-metal and Raspberry Pi appliance installs include
+`/etc/udev/rules.d/99-nightshade-astro.rules`. The rule grants `0660` access to
+the `nightshade` service group, plus logind `uaccess`, for common astronomy USB
+camera/filter-wheel vendors and USB-serial mount adapters. This replaces the
+world-writable `0666` rules many vendor SDKs suggest.
+
+The rule covers baseline permissions only. Some QHY-class devices still need
+vendor firmware packages or INDI packages for firmware upload, and native SDK
+support still depends on shipping the correct `.so` files for the host CPU.
+After changing rules or groups, reload udev and reconnect devices:
+
+```bash
+sudo udevadm control --reload-rules
+sudo udevadm trigger --subsystem-match=usb --subsystem-match=tty --subsystem-match=hidraw
+```
+
 ## Verification Checklist
 
 1. Confirm `/api/info` reports the expected version, platform, auth mode, and
@@ -150,6 +193,14 @@ headless server bound to loopback when possible.
 
 6. Confirm WebSocket clients send `ping`, receive `pong`, and reconnect after a
    heartbeat timeout.
+
+7. On Linux/Pi appliances, confirm the daemon can see plugged-in rig devices:
+
+   ```bash
+   lsusb
+   ls -l /dev/ttyUSB* /dev/ttyACM* 2>/dev/null || true
+   sudo -u nightshade groups
+   ```
 
 ## Operational Notes
 

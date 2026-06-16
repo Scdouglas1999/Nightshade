@@ -281,6 +281,11 @@ class _ApiServerLifecycle {
           signalingPort: nextServer.actualPort,
           name: 'Nightshade',
           version: appVersion,
+          scheme: nextServer.isTlsActive ? 'https' : 'http',
+          fingerprint: nextServer.serverFingerprint,
+          authRequired: true,
+          authenticationMode: 'token',
+          pairingSupported: true,
         );
         logger.info(
           'UDP discovery broadcasting on port 45679 (HTTP ${nextServer.actualPort})',

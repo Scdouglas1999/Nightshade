@@ -68,22 +68,56 @@ class WeatherHandlers {
       return jsonBadRequest({"error": "Missing lat/lon query parameters"});
     }
 
-    // Weather forecast can be calculated from radar frames
-    final service = container.read(weatherRadarServiceProvider);
-    service.initialize();
+    // Back the forecast with the same Open-Meteo hourly cloud feed the desktop
+    // planner uses (weekForecastCloudProvider, keyed only on the site so remote
+    // and local share one cached fetch). It returns a RadarFetchResult whose
+    // frames are hourly cloud-cover samples (opacity 0-1 == cloud cover 0-100%)
+    // spanning the past day plus the next several forecast days.
+    try {
+      final result = await container.read(
+        weekForecastCloudProvider(ForecastSite(lat, lon)).future,
+      );
 
-    final result = await service.fetchRadarFrames(
-      latitude: lat,
-      longitude: lon,
-    );
+      if (!result.isSuccess) {
+        return jsonResponse({
+          "error": "forecast_fetch_failed",
+          "message": result.errorMessage ?? 'Cloud forecast unavailable',
+        }, statusCode: 502);
+      }
 
-    // Return basic forecast info based on radar data
-    return jsonOk({
-      "hasData": result.isSuccess,
-      "frameCount": result.frames.length,
-      "fetchedAt": result.fetchedAt.millisecondsSinceEpoch,
-      "lastUpdated": DateTime.now().millisecondsSinceEpoch,
-    });
+      final now = DateTime.now().toUtc();
+      final hourly = result.frames
+          .where((f) => !f.timestamp.toUtc().isBefore(now))
+          .map(
+            (f) => {
+              'timestamp': f.timestamp.toUtc().millisecondsSinceEpoch,
+              'time': f.timestamp.toUtc().toIso8601String(),
+              // Open-Meteo cloud frames carry cloud cover as opacity in [0, 1].
+              'cloudCoverPercent': (f.opacity.clamp(0.0, 1.0) * 100.0),
+            },
+          )
+          .toList();
+
+      return jsonOk({
+        "hasData": true,
+        "latitude": lat,
+        "longitude": lon,
+        "source": result.providerName ?? 'Open-Meteo',
+        "fetchedAt": result.fetchedAt.millisecondsSinceEpoch,
+        "lastUpdated": DateTime.now().millisecondsSinceEpoch,
+        "hourly": hourly,
+      });
+    } catch (e, stackTrace) {
+      // The fetch genuinely requires a live network call; surface a clean 502
+      // rather than fabricating a forecast.
+      throw HandlerFailure(
+        code: 'forecast_fetch_failed',
+        message: 'Cloud forecast unavailable.',
+        statusCode: 502,
+        cause: e,
+        stackTrace: stackTrace,
+      );
+    }
   }
 
   // ===========================================================================
@@ -117,27 +151,58 @@ class WeatherHandlers {
       return jsonBadRequest({"error": "Missing lat/lon query parameters"});
     }
 
-    final service = container.read(weatherRadarServiceProvider);
-    service.initialize();
+    // Use the same Open-Meteo hourly cloud feed the desktop app uses
+    // (weekForecastCloudProvider), then read the sample nearest to "now" — the
+    // same nearest-hour lookup OpenMeteoCloudProvider.getCloudCoverAt performs.
+    // The cloudCoverPercentageProvider the UI watches is location-bound (it
+    // reads the configured observer location, not an arbitrary lat/lon), so we
+    // can't honor the request's lat/lon through it; this feed takes lat/lon
+    // directly and shares the same provider/cache as the planner.
+    try {
+      final result = await container.read(
+        weekForecastCloudProvider(ForecastSite(lat, lon)).future,
+      );
 
-    // Get cached frames for cloud cover analysis
-    final frames = service.getCachedFrames();
+      if (!result.isSuccess || result.frames.isEmpty) {
+        return jsonResponse({
+          "error": "cloud_cover_fetch_failed",
+          "message": result.errorMessage ?? 'No cloud cover data available',
+        }, statusCode: 502);
+      }
 
-    if (frames == null || frames.isEmpty) {
+      // Nearest frame to the current instant (frame timestamps are UTC) — the
+      // same nearest-hour lookup OpenMeteoCloudProvider.getCloudCoverAt does.
+      final now = DateTime.now().toUtc();
+      RadarFrame nearest = result.frames.first;
+      Duration bestDistance = nearest.timestamp.toUtc().difference(now).abs();
+      for (final frame in result.frames) {
+        final d = frame.timestamp.toUtc().difference(now).abs();
+        if (d < bestDistance) {
+          bestDistance = d;
+          nearest = frame;
+        }
+      }
+
       return jsonOk({
-        "hasData": false,
-        "message": "No cloud cover data available. Fetch radar data first.",
+        "hasData": true,
+        "latitude": lat,
+        "longitude": lon,
+        "source": result.providerName ?? 'Open-Meteo',
+        // Open-Meteo cloud frames carry cloud cover as opacity in [0, 1].
+        "cloudCoverPercent": (nearest.opacity.clamp(0.0, 1.0) * 100.0),
+        "timestamp": nearest.timestamp.toUtc().millisecondsSinceEpoch,
+        "fetchedAt": result.fetchedAt.millisecondsSinceEpoch,
       });
+    } catch (e, stackTrace) {
+      // Genuine live network fetch can fail; surface a clean 502.
+      throw HandlerFailure(
+        code: 'cloud_cover_fetch_failed',
+        message: 'Cloud cover data unavailable.',
+        statusCode: 502,
+        cause: e,
+        stackTrace: stackTrace,
+      );
     }
-
-    // Get the most recent frame
-    final latestFrame = frames.last;
-
-    return jsonOk({
-      "hasData": true,
-      "timestamp": latestFrame.timestamp.millisecondsSinceEpoch,
-      "frameCount": frames.length,
-    });
   }
 
   // ===========================================================================

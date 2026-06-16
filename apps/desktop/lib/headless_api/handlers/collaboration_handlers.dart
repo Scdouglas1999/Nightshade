@@ -170,13 +170,31 @@ class CollaborationHandlers {
     try {
       final payload =
           jsonDecode(await request.readAsString()) as Map<String, dynamic>;
-      final viewerId = payload['viewerId'] as String?;
+      final clientViewerId = payload['viewerId'] as String?;
       final viewerName = payload['viewerName'] as String?;
       final message = payload['message'] as String?;
-      if (viewerId == null || viewerName == null || message == null) {
+      if (clientViewerId == null || viewerName == null || message == null) {
         return jsonBadRequest({
           'error': 'viewerId, viewerName, and message are required',
         });
+      }
+      // a client cannot put words in another operator's mouth — the
+      // authenticated identity wins over any client-supplied viewerId,
+      // mirroring the join/leave handlers. When auth is disabled (no tokens
+      // configured), fall back to the payload value.
+      final authIdentity = authIdentityFrom(request);
+      final viewerId = authIdentity ?? clientViewerId;
+      if (viewerId.isEmpty) {
+        return jsonBadRequest({'error': 'Missing viewerId'});
+      }
+      if (authIdentity != null &&
+          clientViewerId.isNotEmpty &&
+          clientViewerId != authIdentity) {
+        _logWarning(
+          '[COLLAB] HTTP chat impersonation attempt '
+          '(claimed=$clientViewerId actual=${redactBearer(authIdentity)}); '
+          'substituting authenticated identity.',
+        );
       }
       manager.addChat(
         viewerId: viewerId,

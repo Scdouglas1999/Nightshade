@@ -48,8 +48,16 @@ function(APPLY_STANDARD_SETTINGS TARGET)
   # come from upstream plugins, not our code, and would otherwise break the build
   # on bleeding-edge toolchains. Demote just these diagnostics back to warnings.
   # Appended AFTER -Werror so the per-warning exemption wins.
+  #
+  # `-Wno-unknown-warning-option` MUST come first: older clang (e.g. clang 14 on
+  # Debian Bookworm, the appliance's build/runtime target) does not know the
+  # `deprecated-literal-operator` warning name, and without this guard `-Werror`
+  # promotes the resulting "unknown warning option" into a hard build failure.
+  # With it, the specific suppressions below are simply ignored on toolchains
+  # that predate those warnings.
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_compile_options(${TARGET} PRIVATE
+      -Wno-unknown-warning-option
       -Wno-error=deprecated-literal-operator
       -Wno-error=deprecated-declarations)
   endif()

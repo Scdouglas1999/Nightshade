@@ -340,6 +340,39 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
     });
   }
 
+  /// Mint a single-use WebSocket ticket via `POST /api/ws/ticket`.
+  ///
+  /// WebSocket upgrades can't carry an `Authorization` header through the
+  /// browser/dart WS client, so the legacy path put the long-lived bearer
+  /// token directly in the `?token=` query string — where it leaks into
+  /// access logs, proxy logs, and connection history (especially over the
+  /// appliance's default plain-HTTP LAN transport). The ticket is bound
+  /// server-side to this token's identity, expires in ~60 s, and is consumed
+  /// on first use, so it's safe to place in the URL.
+  ///
+  /// Returns the ticket, or null when the call fails or the server predates
+  /// the endpoint — callers then fall back to `?token=`, which the server
+  /// still accepts (with a deprecation warning) for backward compatibility.
+  Future<String?> _mintWsTicket() async {
+    if (authToken == null || authToken!.isEmpty) {
+      return null;
+    }
+    try {
+      final res = await _post('ws/ticket');
+      final ticket = res['ticket'];
+      if (ticket is String && ticket.isNotEmpty) {
+        return ticket;
+      }
+    } catch (e) {
+      developer.log(
+        'WS ticket unavailable; falling back to legacy ?token=: $e',
+        name: 'NetworkBackend',
+        level: 700,
+      );
+    }
+    return null;
+  }
+
   Future<void> _delete(String endpoint) async {
     return _retryableRequest(() async {
       final uri = _apiUri(endpoint);

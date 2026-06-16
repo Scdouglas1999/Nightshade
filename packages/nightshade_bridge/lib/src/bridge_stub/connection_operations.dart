@@ -243,21 +243,50 @@ extension _NativeBridgeConnectionOperations on _NativeBridgeImplementation {
     DeviceType deviceType,
     String deviceId,
   ) async {
-    // Parse the device ID: alpaca:host:port/type/number
-    final parts = deviceId.substring(7).split('/'); // Remove "alpaca:"
-    if (parts.length < 3) {
-      throw Exception('Invalid Alpaca device ID: $deviceId');
-    }
+    // Parse the device ID. Discovery emits the canonical form
+    //   alpaca:{protocol}://{host}:{port}:{type}:{num}
+    // (e.g. alpaca:http://127.0.0.1:32323:telescope:0), matching the Rust
+    // `parse_alpaca`. An older form `alpaca:host:port/type/number` is still
+    // accepted for backward compatibility. Previously this only handled the
+    // legacy slash form, so a canonical id split on '/' yielded host="http"
+    // (the protocol token), port=11111 (default), and an empty device type —
+    // producing the broken URL `http://http:11111/api/v1//0/connected` and
+    // failing every Alpaca connection.
+    final remainder = deviceId.substring(7); // Remove "alpaca:"
+    final String host;
+    final int port;
+    final String deviceTypeName;
+    final int deviceNumber;
 
-    final hostPort = parts[0].split(':');
-    if (hostPort.length != 2) {
-      throw Exception('Invalid Alpaca device ID: $deviceId');
+    if (remainder.contains('://')) {
+      // Canonical: protocol://host:port:type:num (colon-separated).
+      final afterProtocol = remainder.split('://').last;
+      final segs = afterProtocol.split(':');
+      if (segs.length < 4) {
+        throw Exception('Invalid Alpaca device ID: $deviceId');
+      }
+      // type and number are the last two segments; host:port are the first two.
+      // (Reading from the ends tolerates a host that itself contains extra
+      // colons, e.g. a future IPv6 literal.)
+      host = segs[0];
+      port = int.tryParse(segs[1]) ?? 11111;
+      deviceTypeName = segs[segs.length - 2];
+      deviceNumber = int.tryParse(segs[segs.length - 1]) ?? 0;
+    } else {
+      // Legacy: host:port/type/number (slash-separated type/number).
+      final parts = remainder.split('/');
+      if (parts.length < 3) {
+        throw Exception('Invalid Alpaca device ID: $deviceId');
+      }
+      final hostPort = parts[0].split(':');
+      if (hostPort.length != 2) {
+        throw Exception('Invalid Alpaca device ID: $deviceId');
+      }
+      host = hostPort[0];
+      port = int.tryParse(hostPort[1]) ?? 11111;
+      deviceTypeName = parts[1];
+      deviceNumber = int.tryParse(parts[2]) ?? 0;
     }
-
-    final host = hostPort[0];
-    final port = int.tryParse(hostPort[1]) ?? 11111;
-    final deviceTypeName = parts[1];
-    final deviceNumber = int.tryParse(parts[2]) ?? 0;
 
     final server = alpaca.AlpacaServer(host: host, port: port);
     final alpacaDevice = alpaca.AlpacaDevice(

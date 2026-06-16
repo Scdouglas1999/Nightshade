@@ -321,12 +321,10 @@ fn qhy_candidate_library_paths() -> Vec<PathBuf> {
             PathBuf::from("/Library/Frameworks/QHYCCD.framework/QHYCCD"),
         ]
     } else {
-        vec![
-            PathBuf::from("libqhyccd.so"),
-            PathBuf::from("libqhyccd.so.21"),
-            PathBuf::from("/usr/lib/libqhyccd.so"),
-            PathBuf::from("/usr/local/lib/libqhyccd.so"),
-        ]
+        crate::vendor::sdk_loader::vendor_library_candidates(
+            &["libqhyccd.so", "libqhyccd.so.21"],
+            &["/usr/lib/libqhyccd.so", "/usr/local/lib/libqhyccd.so"],
+        )
     }
 }
 
@@ -1595,7 +1593,7 @@ impl NativeCamera for QhyCamera {
 
         let mut modes = Vec::new();
         for i in 0..num_modes {
-            let mut name_buf = [0i8; 256];
+            let mut name_buf = [0 as c_char; 256];
             // SAFETY: qhy_mutex held; handle valid; `i` is in `0..num_modes` reported by the
             // SDK above so it is a valid read-mode index; name_buf is a 256-byte stack array.
             let result =
@@ -1817,7 +1815,7 @@ fn discover_devices_internal(sdk: &QhySdk) -> Result<Vec<QhyCameraInfo>, NativeE
 
     let mut cameras = Vec::new();
     for i in 0..num_cameras {
-        let mut id_buf = [0i8; 256];
+        let mut id_buf = [0 as c_char; 256];
         // SAFETY: caller (discover_devices) holds qhy_mutex(); `i` is in `0..num_cameras` so
         // ScanQHYCCD's reported index range; id_buf is a 256-byte stack array — qhyccd.h
         // documents the ID as fitting within 32 bytes.
@@ -2263,7 +2261,7 @@ fn discover_filter_wheels_internal(sdk: &QhySdk) -> Result<Vec<QhyFilterWheelInf
     let mut filter_wheels = Vec::new();
 
     for i in 0..num_cameras {
-        let mut id_buf = [0i8; 256];
+        let mut id_buf = [0 as c_char; 256];
         // SAFETY: caller holds qhy_mutex(); `i` is in `0..num_cameras`; id_buf is a 256-byte
         // stack array.
         let result = unsafe { (sdk.get_qhyccd_id)(i, id_buf.as_mut_ptr()) };

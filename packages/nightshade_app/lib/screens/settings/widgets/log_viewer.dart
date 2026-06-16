@@ -192,7 +192,10 @@ class _LogViewerState extends ConsumerState<LogViewer>
   }
 
   Future<void> _exportLogs() async {
-    final loggingService = ref.read(loggingServiceProvider);
+    // Log tail — on a remote session the local ring buffer is
+    // empty; the entries on-screen were fetched from the host. Export those
+    // in-memory entries instead of the (empty) local buffer.
+    final backend = ref.read(backendProvider);
     try {
       final docsDir = await getApplicationDocumentsDirectory();
       final timestamp = DateTime.now()
@@ -203,7 +206,21 @@ class _LogViewerState extends ConsumerState<LogViewer>
       final outputPath =
           '${docsDir.path}${Platform.pathSeparator}nightshade_logs_$timestamp.txt';
 
-      await loggingService.exportLogs(outputPath);
+      if (backend is NetworkBackend) {
+        final output = StringBuffer();
+        output.writeln('=== Nightshade Log Export (remote) ===');
+        output.writeln('Exported: ${DateTime.now().toIso8601String()}');
+        output.writeln('Host: ${backend.serverHost}:${backend.serverPort}');
+        output.writeln('Entries: ${_filteredLogs.length}');
+        output.writeln('');
+        for (final entry in _filteredLogs) {
+          output.writeln(entry.toString());
+        }
+        await File(outputPath).writeAsString(output.toString());
+      } else {
+        final loggingService = ref.read(loggingServiceProvider);
+        await loggingService.exportLogs(outputPath);
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

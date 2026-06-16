@@ -182,6 +182,78 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
     }
   }
 
+  void _showDomeSlewDialog(BuildContext context) async {
+    final colors = NightshadeColors.of(context);
+    final domeState = ref.read(domeStateProvider);
+    final controller = TextEditingController(
+      text: domeState.azimuth?.toStringAsFixed(0) ?? '0',
+    );
+
+    final result = await showDialog<double>(
+      context: context,
+      builder: (context) => NightshadeDialog(
+        title: 'Slew Dome To Azimuth',
+        icon: LucideIcons.navigation,
+        width: 400,
+        actions: [
+          NightshadeButton(
+            onPressed: () => Navigator.pop(context),
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
+          ),
+          NightshadeButton(
+            onPressed: () {
+              final az = double.tryParse(controller.text);
+              if (az != null && az >= 0 && az <= 360) {
+                Navigator.pop(context, az);
+              }
+            },
+            label: 'Slew',
+            variant: ButtonVariant.primary,
+            size: ButtonSize.small,
+          ),
+        ],
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Enter target azimuth (0 - 360 degrees):',
+              style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: NightshadeTypography.fontSize13),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              style: TextStyle(color: colors.textPrimary),
+              decoration: InputDecoration(
+                hintText: 'Azimuth',
+                suffixText: 'degrees',
+                suffixStyle: TextStyle(color: colors.textMuted),
+                hintStyle: TextStyle(color: colors.textMuted),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: colors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: colors.primary),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result != null && context.mounted) {
+      await _handleDomeSlew(result);
+    }
+  }
+
   void _showEditNameDialog(BuildContext context) async {
     final colors = NightshadeColors.of(context);
     final currentName = _getDeviceName();
@@ -492,6 +564,9 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
   void _showDomeSettingsDialog() async {
     final domeState = ref.read(domeStateProvider);
     bool slaved = domeState.isSlaved;
+    // Capture the State's context up front: the Save handler is async and
+    // snackbars must not use the dialog's (popped) context after the await.
+    final pageContext = context;
 
     await showDialog(
         context: context,
@@ -510,10 +585,33 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
                   size: ButtonSize.small,
                 ),
                 NightshadeButton(
-                  onPressed: () {
-                    ref.read(domeStateProvider.notifier).setSlaved(slaved);
+                  onPressed: () async {
+                    // Command the driver as well as updating local UI state —
+                    // the toggle used to only set `domeStateProvider` and never
+                    // actually slaved the dome.
+                    final deviceId = domeState.deviceId;
                     Navigator.pop(context);
-                    context.showSuccessSnackBar('Dome settings updated');
+                    ref.read(domeStateProvider.notifier).setSlaved(slaved);
+                    try {
+                      final backend = ref.read(backendProvider);
+                      if (backend is NetworkBackend) {
+                        await backend.domeSync(slaved);
+                      } else if (deviceId != null) {
+                        await bridge_api.apiDomeSetSlaved(
+                          deviceId: deviceId,
+                          slaved: slaved,
+                        );
+                      }
+                      if (mounted) {
+                        pageContext.showSuccessSnackBar(
+                          slaved ? 'Dome slaved to mount' : 'Dome unslaved',
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        pageContext.showErrorSnackBar('Dome slave failed: $e');
+                      }
+                    }
                   },
                   label: 'Save',
                   variant: ButtonVariant.primary,

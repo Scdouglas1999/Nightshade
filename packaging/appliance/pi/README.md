@@ -11,8 +11,9 @@ mobile app, image all night. No keyboard, monitor, or SSH session required.
 | App bundle (arm64) | `/opt/nightshade/bundle/` | your release tarball |
 | Hardened systemd unit | `/etc/systemd/system/nightshade-headless.service` | `../systemd/nightshade-headless.service` (shared with bare-metal installs) |
 | Config + generated auth token | `/etc/nightshade/headless.env` | `../systemd/headless.env.example` |
+| Astronomy USB permissions | `/etc/udev/rules.d/99-nightshade-astro.rules` | `../systemd/99-nightshade-astro.rules` |
 | Service user (created at first boot) | `sysusers.d/nightshade.conf` | declarative — no chroot `useradd` needed |
-| First-boot setup (installs xvfb if not baked in) | `nightshade-firstboot.{sh,service}` | `firstboot/` |
+| First-boot setup (installs xvfb/xauth if not baked in) | `nightshade-firstboot.{sh,service}` | `firstboot/` |
 | Wi-Fi hotspot fallback provisioning | `nightshade-netprovision.{sh,service}`, `provision_portal.py` | `provisioning/` |
 | Captive-DNS for the hotspot | `/etc/NetworkManager/dnsmasq-shared.d/nightshade-captive.conf` | written by the build script |
 
@@ -31,16 +32,18 @@ Plus:
    <https://www.raspberrypi.com/software/operating-systems/>. Bookworm is
    required: the provisioning flow drives **NetworkManager**, which is the
    default network stack from Bookworm on.
-2. **An arm64 release bundle tarball** — see the next section. This is the
-   one input we cannot fully produce on this x86_64 box (honestly).
+2. **An arm64 release bundle tarball** — see the next section. Flutter Linux
+   desktop builds are host-architecture builds, so produce this on an arm64
+   host or in an arm64 container/emulated environment.
 
 ## Getting the arm64 bundle (the honest part)
 
 `scripts/docker_build_linux.sh` is the canonical Linux release pipeline
 (rust `cargo build --release` → `melos bootstrap` → `flutter build linux
---release` → smoke test under xvfb → tarball). It is architecture-agnostic
-but has only been exercised for x86_64, and Flutter does not cross-compile
-Linux desktop targets. Two real options:
+--release` → smoke test under xvfb → tarball). It detects the host
+architecture and emits `nightshade-linux-x64-<version>.tar.gz` or
+`nightshade-linux-arm64-<version>.tar.gz`. Flutter does not cross-compile
+Linux desktop targets, so two real options remain:
 
 * **On an arm64 host** (Pi 4/5 with 8 GB and swap, or any arm64 VM/CI
   runner) run the standard flow:
@@ -50,10 +53,14 @@ Linux desktop targets. Two real options:
     ghcr.io/cirruslabs/flutter:stable bash /host/scripts/docker_build_linux.sh
   ```
 
-  On arm64 the Flutter bundle lands in `build/linux/arm64/release/bundle`;
-  the script's hardcoded `x64` bundle path and `-x64-` tarball name need
-  the obvious one-line fixups (kept out of the script here so the x64
-  release path stays untouched while other work is in flight).
+  On arm64 the Flutter bundle lands in `build/linux/arm64/release/bundle`
+  and the tarball lands in `dist-linux/nightshade-linux-arm64-4.0.0.tar.gz`
+  unless `NIGHTSHADE_VERSION` or `NIGHTSHADE_ARTIFACT_NAME` overrides it.
+  If you have redistributable arm64 vendor SDK `.so` files, place them in a
+  staging directory and set `NIGHTSHADE_VENDOR_LIB_DIR=/path/to/vendor-libs`
+  before running the build. The release script copies matching `.so`/`.so.*`
+  files into `bundle/lib`, which the native SDK loaders search before system
+  library paths.
 
 * **Emulated on this box**: install `qemu-user-static{,-binfmt}` and add
   `--platform linux/arm64` to the same `docker run`. This works but takes
@@ -89,10 +96,19 @@ Notes:
 * `--user/--password` writes `userconf.txt`; without it the appliance
   still runs (services are unaffected by the first-run user wizard) but
   you have no SSH/console account for debugging.
-* If qemu binfmt is available, xvfb is baked in during the build;
+* If qemu binfmt is available, xvfb/xauth is baked in during the build;
   otherwise the **first boot needs internet once** to
-  `apt install xvfb` (the daemon is ordered after that step, so it simply
-  starts a few minutes later on the very first boot).
+  `apt install xvfb xauth` (the daemon is ordered after that step, so it
+  simply starts a few minutes later on the very first boot).
+* The image installs baseline udev rules for common astronomy USB devices
+  (ZWO, QHY, Player One, ToupTek/Ogma-style cameras, Atik, and common
+  USB-serial mount adapters). They grant `0660` access to the `nightshade`
+  group plus logind `uaccess`, not world-writable `0666` permissions. Vendor
+  packages may still be required for firmware loaders or device-specific SDKs.
+* Native SDK libraries are not auto-extracted from `SDKs/` during image
+  creation. Bundle redistributable arm64 `.so` files at Linux build time with
+  `NIGHTSHADE_VENDOR_LIB_DIR`, or install vendor packages on the Pi and record
+  that dependency in your release notes.
 
 Flash with `rpi-imager`, balenaEtcher, or:
 
@@ -112,9 +128,12 @@ sudo dd if=nightshade-pi-arm64.img of=/dev/sdX bs=4M conv=fsync status=progress
    Wi-Fi, enter the password, submit. The hotspot drops, the Pi joins your
    network (on a wrong password the hotspot returns within a minute with
    an error banner — just retry).
-4. Open the Nightshade mobile app: the server advertises
-   `_nightshade._tcp` over mDNS and UDP beacons on 45679, so it appears in
-   discovery. Pair; the pairing code prints to the Pi's journal
+4. Open the Nightshade mobile app: the appliance is advertised as
+   `_nightshade._tcp` over mDNS (via avahi-daemon, from the static service
+   file at `/etc/avahi/services/nightshade.service` — the in-app `nsd` mDNS
+   path has no Linux implementation, so the image ships this instead) and over
+   UDP beacons on 45679, so it appears in discovery. Pair; the pairing code
+   prints to the Pi's journal
    (`journalctl -u nightshade-headless`) and on accessory-less setups the
    in-app pairing flow handles it.
 

@@ -39,6 +39,12 @@ done
 step() { printf '\n\033[36m==> %s\033[0m\n' "$1"; }
 ok()   { printf '  \033[32m[OK]\033[0m %s\n' "$1"; }
 
+case "$(uname -m)" in
+  x86_64|amd64) FLUTTER_LINUX_ARCH=x64 ;;
+  aarch64|arm64) FLUTTER_LINUX_ARCH=arm64 ;;
+  *) FLUTTER_LINUX_ARCH="$(uname -m)" ;;
+esac
+
 if [[ $CLEAN -eq 1 ]]; then
   step "Cleaning build artifacts..."
   ( cd "$DESKTOP_DIR" && flutter clean >/dev/null 2>&1 || true ); ok "Flutter cleaned"
@@ -75,7 +81,7 @@ cd "$DESKTOP_DIR"
 if [[ $NO_RUN -eq 1 ]]; then
   step "Building Flutter Linux bundle..."
   if [[ $RELEASE -eq 1 ]]; then flutter build linux --release; else flutter build linux --debug; fi
-  ok "Build complete — bundle in build/linux/x64/$([[ $RELEASE -eq 1 ]] && echo release || echo debug)/bundle"
+  ok "Build complete — bundle in build/linux/${FLUTTER_LINUX_ARCH}/$([[ $RELEASE -eq 1 ]] && echo release || echo debug)/bundle"
 else
   step "Running Flutter app on Linux..."
   if [[ $RELEASE -eq 1 ]]; then flutter run -d linux --release; else flutter run -d linux; fi

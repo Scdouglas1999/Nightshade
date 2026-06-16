@@ -31,7 +31,7 @@ const _headlessLogSource = 'HeadlessMain';
 ///
 ///   Or build and run:
 ///   Windows: .\\build\\windows\\x64\\runner\\Release\\nightshade_desktop.exe --headless
-///   Linux:   ./build/linux/x64/release/bundle/nightshade_desktop --headless
+///   Linux:   ./build/linux/`<arch>`/release/bundle/nightshade_desktop --headless
 ///
 /// Authentication:
 ///   --auth-token=`<token>`  Set a specific authentication token
@@ -77,6 +77,14 @@ const _headlessLogSource = 'HeadlessMain';
 ///   NIGHTSHADE_PORT        Server port (default: 8080)
 ///   NIGHTSHADE_DATA_DIR    Native persistence root (defect maps, etc.). When
 ///                         unset, matches the GUI application-support path.
+///   NIGHTSHADE_DATABASE_DIR
+///                         Drift database directory. Headless systemd/Pi
+///                         installs pin this under /var/lib/nightshade so the
+///                         daemon does not depend on a user Documents folder.
+///   NIGHTSHADE_BROWSE_ROOTS
+///                         Semicolon-separated remote directory browse roots
+///                         for headless clients, e.g.
+///                         Captures=/mnt/captures;USB=/media/nightshade.
 ///   NIGHTSHADE_ALLOW_UNAUTHENTICATED_LAN=true
 ///                         Same as --allow-unauthenticated-lan
 ///   NIGHTSHADE_CORS_ORIGINS
@@ -664,28 +672,6 @@ Future<HeadlessApiServer> _startHeadlessServices(
     }
   }
 
-  if (!bindLocalOnly) {
-    try {
-      final appVersion = container.read(appVersionProvider);
-      await _startDiscoveryServer(
-        logger: logger,
-        advertisedPort: port,
-        appVersion: appVersion.version,
-      );
-      logger.info(
-        'Discovery server started on UDP port 45679 (advertising $port)',
-        source: _headlessLogSource,
-      );
-    } catch (e) {
-      logger.warning('Discovery server failed: $e', source: _headlessLogSource);
-    }
-  } else {
-    logger.info(
-      'Headless server is bound to loopback; LAN discovery is disabled',
-      source: _headlessLogSource,
-    );
-  }
-
   // eagerly construct the PairingService so the server can hydrate
   // _pairedSessionTokens from the on-disk Drift DB at startup. Without
   // this, the server lazy-creates the service only when a client hits
@@ -711,6 +697,29 @@ Future<HeadlessApiServer> _startHeadlessServices(
 
   await apiServer.start();
   logger.info('API server started on port $port', source: _headlessLogSource);
+
+  if (!bindLocalOnly) {
+    try {
+      final appVersion = container.read(appVersionProvider);
+      await _startDiscoveryServer(
+        logger: logger,
+        apiServer: apiServer,
+        appVersion: appVersion.version,
+      );
+      logger.info(
+        'Discovery server started on UDP port 45679 '
+        '(advertising ${apiServer.actualPort})',
+        source: _headlessLogSource,
+      );
+    } catch (e) {
+      logger.warning('Discovery server failed: $e', source: _headlessLogSource);
+    }
+  } else {
+    logger.info(
+      'Headless server is bound to loopback; LAN discovery is disabled',
+      source: _headlessLogSource,
+    );
+  }
 
   // spin up the LAN UDP push broadcaster when the server is
   // exposed on the LAN. Loopback-only deployments have no LAN clients to
@@ -1052,17 +1061,23 @@ MdnsServiceRegistration? _mdnsRegistration;
 
 Future<void> _startDiscoveryServer({
   required LoggingService logger,
-  required int advertisedPort,
+  required HeadlessApiServer apiServer,
   required String appVersion,
 }) async {
   _discoverySocket = await NightshadeDiscovery.startBroadcasting(
-    webPort: advertisedPort,
-    signalingPort: advertisedPort,
+    webPort: apiServer.actualPort,
+    signalingPort: apiServer.actualPort,
     name: 'Nightshade Headless',
     version: appVersion,
+    scheme: apiServer.isTlsActive ? 'https' : 'http',
+    fingerprint: apiServer.serverFingerprint,
+    authRequired: apiServer.isAuthRequired,
+    authenticationMode: apiServer.isAuthRequired ? 'token' : 'none',
+    pairingSupported: true,
   );
   logger.info(
-    'Broadcasting headless server discovery beacons for port $advertisedPort',
+    'Broadcasting headless server discovery beacons for port '
+    '${apiServer.actualPort}',
     source: _headlessLogSource,
   );
 }

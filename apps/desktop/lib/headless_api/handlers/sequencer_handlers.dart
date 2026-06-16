@@ -55,9 +55,41 @@ class SequencerHandlers {
     final commandId = commandCorrelator?.beginCommand(
       operation: 'sequencer.start',
     );
-    final executor = container.read(sequenceExecutorProvider);
+    // Two start paths converge here:
+    //
+    //  * In-editor sequence present (a graphical desktop host driving its own
+    //    `currentSequenceProvider`): run the full Dart [SequenceExecutor.start]
+    //    so pre-flight validation, the session row, the sequence_runs row, the
+    //    checkpoint timer and lifecycle hooks all fire (Audit C3).
+    //
+    //  * No in-editor sequence (the headless Pi appliance — nothing ever wires
+    //    an editor into `currentSequenceProvider` there): the sequence was
+    //    loaded straight into the native executor via POST /api/sequencer/load.
+    //    Start THAT one directly. Without this branch the canonical remote flow
+    //    (load → start) always failed with "No sequence loaded", which meant a
+    //    tablet/desktop client could not run an imaging sequence on the rig at
+    //    all — the appliance's core purpose.
+    final hasInEditorSequence =
+        container.read(currentSequenceProvider) != null;
     try {
-      await executor.start();
+      if (hasInEditorSequence) {
+        final executor = container.read(sequenceExecutorProvider);
+        await executor.start();
+      } else {
+        _logInfo(
+          '[API] POST /api/sequencer/start: no in-editor sequence; starting '
+          'the natively-loaded sequence (headless load->start path)',
+        );
+        final backend = container.read(sequencerBackendProvider);
+        // Wire real-hardware device ops onto the native executor before
+        // starting. The Dart-orchestrated start path does this via
+        // sequencerSetSimulationMode(false) (UnifiedDeviceOps); the bare
+        // load->start path otherwise hits "No device operations configured".
+        // Passing `false` is always permitted (only enabling simulation is
+        // gated off in release builds).
+        await backend.sequencerSetSimulationMode(false);
+        await backend.sequencerStart();
+      }
     } on SequenceValidationException catch (e) {
       _logInfo(
         '[API] POST /api/sequencer/start rejected: '
@@ -232,7 +264,21 @@ class SequencerHandlers {
     final enabled = requireBool(payload, 'enabled');
 
     final backend = container.read(sequencerBackendProvider);
-    await backend.sequencerSetSimulationMode(enabled);
+    try {
+      await backend.sequencerSetSimulationMode(enabled);
+    } catch (e) {
+      // Release/production appliance builds deliberately refuse simulation mode
+      // (NightshadeError.NotSupported) so a shipped rig never drives mock
+      // hardware. Surface that as a clean 400 with an actionable message rather
+      // than an opaque 500 internal_error a remote client can't interpret.
+      _logInfo('[API] POST /api/sequencer/simulation rejected: $e');
+      return jsonBadRequest({
+        'error': 'simulation_mode_unavailable',
+        'message':
+            'Simulation mode is not available on this build (production '
+            'appliances run real hardware only).',
+      });
+    }
     return jsonOk({'status': 'ok'});
   }
 
@@ -541,13 +587,13 @@ class SequencerHandlers {
       focuserId: payload['focuserId'] as String?,
       coverCalibratorId: payload['coverCalibratorId'] as String?,
       targetName: requireString(payload, 'targetName'),
-      targetRaHours: (payload['targetRaHours'] as num).toDouble(),
-      targetDecDegrees: (payload['targetDecDegrees'] as num).toDouble(),
+      targetRaHours: requireDouble(payload, 'targetRaHours'),
+      targetDecDegrees: requireDouble(payload, 'targetDecDegrees'),
       pauseGuiding: payload['pauseGuiding'] as bool? ?? true,
       autoCenter: payload['autoCenter'] as bool? ?? true,
       refocusAfter: payload['refocusAfter'] as bool? ?? false,
       resumeGuiding: payload['resumeGuiding'] as bool? ?? true,
-      settleTimeSecs: (payload['settleTimeSecs'] as num?)?.toDouble() ?? 10.0,
+      settleTimeSecs: optionalDouble(payload, 'settleTimeSecs') ?? 10.0,
     );
     return jsonOk({'status': 'flipped'});
   }

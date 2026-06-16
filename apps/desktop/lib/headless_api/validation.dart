@@ -1,8 +1,67 @@
 import 'dart:convert';
 
+import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_error;
 import 'package:shelf/shelf.dart';
 
 import 'response_helpers.dart';
+
+/// Map a flutter_rust_bridge [bridge_error.NightshadeError] to the HTTP status
+/// that best describes it. Device-operation errors that reach the headless
+/// error translator would otherwise all collapse to an opaque 500 — a remote
+/// tablet should instead see "not supported", "not connected", "bad request",
+/// etc. so it can react. Genuinely internal/driver faults stay 500.
+/// Extract a human-readable message from a flutter_rust_bridge
+/// [bridge_error.NightshadeError]. Its `toString()` leaks the freezed wrapper
+/// (`NightshadeError.operationFailed(field0: <msg>)`); unwrap to just `<msg>`
+/// so the wire response carries the actionable text a remote client should
+/// show, not the Dart class plumbing.
+String _cleanBackendErrorMessage(bridge_error.NightshadeError e) {
+  final raw = e.toString();
+  final match = RegExp(r'\(field0:\s*(.*)\)$', dotAll: true).firstMatch(raw);
+  final inner = match?.group(1)?.trim();
+  return (inner != null && inner.isNotEmpty) ? inner : raw;
+}
+
+/// Produce a short, single-line message from an arbitrary thrown object for the
+/// generic-500 wire body. Strips the `Exception:`/`StateError:` prefixes, keeps
+/// only the first line (so a multi-line message can't smuggle a stack trace),
+/// and caps the length.
+String _sanitizeErrorDetail(Object e) {
+  var msg = e.toString().trim();
+  for (final prefix in const ['Exception: ', 'StateError: ', 'Bad state: ']) {
+    if (msg.startsWith(prefix)) {
+      msg = msg.substring(prefix.length).trim();
+    }
+  }
+  final firstLine = msg.split('\n').first.trim();
+  const maxLen = 300;
+  return firstLine.length > maxLen
+      ? '${firstLine.substring(0, maxLen)}…'
+      : firstLine;
+}
+
+int _httpStatusForBackendError(bridge_error.NightshadeError e) {
+  return e.maybeMap(
+    notSupported: (_) => 501,
+    notConnected: (_) => 409,
+    deviceDisconnected: (_) => 409,
+    deviceNotFound: (_) => 404,
+    invalidParameter: (_) => 400,
+    invalidInput: (_) => 400,
+    invalidDeviceId: (_) => 400,
+    parameterOutOfRange: (_) => 400,
+    deviceBusy: (_) => 409,
+    resourceExhausted: (_) => 409,
+    timeout: (_) => 504,
+    deviceTimeout: (_) => 504,
+    connectionTimeout: (_) => 504,
+    connectionFailed: (_) => 502,
+    noImageAvailable: (_) => 404,
+    exposureCancelled: (_) => 409,
+    cancelled: (_) => 409,
+    orElse: () => 500,
+  );
+}
 
 /// Validation helpers for headless API request payloads.
 ///
@@ -388,6 +447,34 @@ Middleware errorTranslationMiddleware({
           e.toJsonBody(requestId: requestId),
           statusCode: e.statusCode,
         );
+      } on bridge_error.NightshadeError catch (e, stackTrace) {
+        // Device-operation errors from the native bridge: map the structured
+        // category to a meaningful HTTP status (501 not-supported, 409
+        // not-connected/busy, 404 not-found, 400 bad-params, 504 timeout, 502
+        // unreachable) so a remote client gets an actionable response instead
+        // of an opaque 500. Genuinely internal/driver faults fall through to
+        // 500 via the mapper's orElse.
+        final requestId = requestIdFor(request);
+        final statusCode = _httpStatusForBackendError(e);
+        final message = _cleanBackendErrorMessage(e);
+        if (statusCode >= 500) {
+          logError(
+            '[ERR][$requestId] Backend error: $message',
+            fields: {
+              'requestId': requestId,
+              'error': message,
+              'stack': stackTrace.toString(),
+            },
+          );
+        }
+        return jsonResponse(
+          {
+            'error': statusCode >= 500 ? 'internal_error' : 'device_error',
+            'message': message,
+            'requestId': requestId,
+          },
+          statusCode: statusCode,
+        );
       } catch (e, stackTrace) {
         final requestId = requestIdFor(request);
         logError(
@@ -398,8 +485,18 @@ Middleware errorTranslationMiddleware({
             'stack': stackTrace.toString(),
           },
         );
+        // Surface a sanitized, truncated message even for unanticipated
+        // exceptions. This is a self-hosted appliance accessed by its owner, so
+        // "PHD2 launch failed: ..." / "session 1 not found" is far more useful
+        // than a bare `internal_error` — and it turns the many precondition /
+        // environment failures (a guider not running, no report data, a feature
+        // not configured) into something a remote client can actually act on.
+        // The full cause + stack stay server-side (logged above). Auth failures
+        // never reach here (they're BadRequestError / HandlerFailure above).
+        final detail = _sanitizeErrorDetail(e);
         return jsonInternalServerError({
           'error': 'internal_error',
+          if (detail.isNotEmpty) 'message': detail,
           'requestId': requestId,
         });
       }

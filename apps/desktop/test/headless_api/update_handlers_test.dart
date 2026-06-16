@@ -382,7 +382,9 @@ void main() {
         await _pumpUntil(
           () => jobManager.get(jobId)?.state == JobState.succeeded,
         );
-        expect(controller.rollbackJobIds, ['pending']);
+        // The controller must receive the SAME job id the handler returned, so
+        // WS progress/completion events correlate with /api/jobs/{id} polling.
+        expect(controller.rollbackJobIds, [jobId]);
       },
     );
 
@@ -455,7 +457,7 @@ void main() {
       await _pumpUntil(
         () => jobManager.get(jobId)?.state == JobState.succeeded,
       );
-      expect(controller.downloadJobIds, ['pending']);
+      expect(controller.downloadJobIds, [jobId]);
     });
 
     test(
@@ -476,7 +478,7 @@ void main() {
         await _pumpUntil(
           () => jobManager.get(jobId)?.state == JobState.succeeded,
         );
-        expect(controller.applyJobIds, ['pending']);
+        expect(controller.applyJobIds, [jobId]);
       },
     );
   });

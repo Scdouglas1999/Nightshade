@@ -1,0 +1,39 @@
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<!--
+  Static Avahi (mDNS / Bonjour / DNS-SD) advertisement for the Nightshade
+  headless appliance.
+
+  WHY THIS FILE EXISTS:
+  The in-app mDNS registration (packages/nightshade_remote_protocol/.../
+  mdns_registration.dart) uses the Flutter `nsd` plugin, which has NO Linux
+  desktop implementation — it is absent from the Linux plugin registrant, so
+  `register()` throws MissingPluginException and the advertisement silently
+  no-ops on Linux (and therefore on the Pi appliance). Without this file the
+  appliance is only discoverable over the UDP broadcast beacon (port 45679),
+  which Wi-Fi AP client-isolation and any subnet/VLAN boundary will drop.
+
+  Installing this file into /etc/avahi/services/ makes avahi-daemon advertise
+  the service over real mDNS, which is exactly what the mobile client's
+  `discoverViaMdns()` (startDiscovery('_nightshade._tcp')) already looks for.
+
+  PORT: must match NIGHTSHADE_PORT in /etc/nightshade/headless.env. 8080 is the
+  default; if you change the port, update <port> below and reload avahi
+  (systemctl reload avahi-daemon).
+
+  FINGERPRINT: deliberately NOT advertised here — it is per-appliance and
+  generated at runtime. The client treats the TXT fingerprint as an optional
+  pre-HTTP optimization and falls back to fetching it from GET /api/info, so
+  omitting it costs one extra HTTP roundtrip and nothing else.
+-->
+<service-group>
+  <name replace-wildcards="yes">Nightshade on %h</name>
+  <service>
+    <type>_nightshade._tcp</type>
+    <port>8080</port>
+    <txt-record>version=4.0.0</txt-record>
+    <txt-record>scheme=http</txt-record>
+    <txt-record>pairingSupported=true</txt-record>
+    <txt-record>name=Nightshade</txt-record>
+  </service>
+</service-group>

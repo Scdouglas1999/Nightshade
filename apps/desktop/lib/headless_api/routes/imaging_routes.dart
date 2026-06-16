@@ -13,6 +13,14 @@ List<HeadlessRoute> buildImagingRoutes(ImagingHandlers h) => <HeadlessRoute>[
   // Plate Solving
   HeadlessRoute(HttpMethod.post, '/api/plate-solve', h.handlePlateSolve),
 
+  // True FITS pixel dimensions for a host file (remote clients use this
+  // instead of estimating dimensions from a star bounding box).
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/imaging/fits-dimensions',
+    h.handleGetFitsDimensions,
+  ),
+
   // Plate Solver Setup (host-owned: detect/verify/config for the
   // settings page; remote clients route here so they operate on the
   // host's filesystem rather than their own).

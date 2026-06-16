@@ -287,10 +287,46 @@ impl SvbonySdk {
         } else {
             "libSVBCameraSDK.so"
         };
+        let system_paths = if cfg!(target_os = "linux") {
+            vec![
+                format!("/usr/lib/{lib_name}"),
+                format!("/usr/local/lib/{lib_name}"),
+            ]
+        } else if cfg!(target_os = "macos") {
+            vec![
+                format!("/usr/local/lib/{lib_name}"),
+                format!("/opt/homebrew/lib/{lib_name}"),
+            ]
+        } else {
+            Vec::new()
+        };
+        let system_path_refs = system_paths.iter().map(String::as_str).collect::<Vec<_>>();
+        let candidates =
+            crate::vendor::sdk_loader::vendor_library_candidates(&[lib_name], &system_path_refs);
 
-        // SAFETY: libloading::Library::new performs platform dynamic loading; `lib_name` is a compile-time string constant naming the vendor SDK shared library (SVBCameraSDK.dll/dylib/so). Errors (missing file, invalid format) are propagated via the map_err arm rather than UB.
-        let library = unsafe { libloading::Library::new(lib_name) }
-            .map_err(|e| NativeError::SdkError(format!("Failed to load SVBony SDK: {}", e)))?;
+        let mut last_error = None;
+        let mut loaded = None;
+        for path in &candidates {
+            // SAFETY: libloading::Library::new performs platform dynamic loading; `lib_name` is
+            // a compile-time string constant naming the vendor SDK shared library.
+            match unsafe { libloading::Library::new(path) } {
+                Ok(library) => {
+                    tracing::info!("Loaded SVBony SDK from {}", path.display());
+                    loaded = Some(library);
+                    break;
+                }
+                Err(e) => {
+                    last_error = Some(e.to_string());
+                }
+            }
+        }
+        let library = loaded.ok_or_else(|| {
+            NativeError::SdkError(format!(
+                "Failed to load SVBony SDK from {} candidate paths: {}",
+                candidates.len(),
+                last_error.unwrap_or_else(|| "no candidate paths supplied".to_string())
+            ))
+        })?;
 
         // SAFETY: each `library.get::<FnType>(b"symbol\0")` returns a `Symbol` that we immediately deref with `*` to copy out a function pointer; the C ABI signatures declared above (SvbGetNumOfConnectedCameras, SvbGetCameraInfo, ...) are from the vendor's SVBCameraSDK.h header so the function-pointer ABI matches. The loaded `library` is moved into the returned SvbonySdk so the function pointers remain valid for the program's lifetime (SDK is stored in a `static OnceLock`).
         unsafe {

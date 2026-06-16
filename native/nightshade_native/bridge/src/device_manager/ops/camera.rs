@@ -709,6 +709,27 @@ impl DeviceManager {
                                                     pixels
                                                 };
 
+                                                // INDI image BLOBs are padded to
+                                                // a 2880-byte (FITS) block
+                                                // boundary, so the decoded buffer
+                                                // can carry trailing padding
+                                                // pixels beyond width*height
+                                                // (e.g. a 1280x1024 frame arrives
+                                                // as 911*2880 = 2623680 bytes =
+                                                // 1311840 u16, 1120 px of padding).
+                                                // Trim to the exact frame so
+                                                // downstream size validation
+                                                // (width*height*2) accepts it
+                                                // instead of rejecting the whole
+                                                // exposure as "truncated or
+                                                // corrupted".
+                                                let expected_pixels =
+                                                    (width as usize) * (height as usize);
+                                                let mut image_data = image_data;
+                                                if image_data.len() > expected_pixels {
+                                                    image_data.truncate(expected_pixels);
+                                                }
+
                                                 return Ok(ImageData {
                                                     width,
                                                     height,
@@ -762,10 +783,40 @@ impl DeviceManager {
                 // the singleton does not declare an "exposure region" and
                 // tests rely on a deterministic image size.
                 let sim = crate::device_manager::ops::sim_gate::read_camera_status().await?;
+                // Synthesize a deterministic, non-uniform frame (faint gradient
+                // background + a handful of bright "stars") rather than an
+                // all-zero buffer. An all-zero frame is correctly rejected by
+                // [IMAGE_VALIDATION] as a dead/black frame, which made the
+                // simulator camera unusable for an end-to-end sequencer run
+                // (every captured frame failed and the sequence aborted). Real
+                // hardware reads real pixels here and is unaffected; this only
+                // changes the simulator's synthetic download.
+                const SIM_W: usize = 1920;
+                const SIM_H: usize = 1080;
+                let mut sim_data = vec![0u16; SIM_W * SIM_H];
+                for y in 0..SIM_H {
+                    let row = y * SIM_W;
+                    for x in 0..SIM_W {
+                        // Faint gradient (~200..600 ADU) — deterministic and
+                        // never uniform, so it passes the all-identical check.
+                        sim_data[row + x] = 200 + (((x + y) % 400) as u16);
+                    }
+                }
+                for &(sx, sy) in &[(480, 270), (960, 540), (1440, 810), (300, 850)] {
+                    for dy in 0..6usize {
+                        for dx in 0..6usize {
+                            let px = sx + dx;
+                            let py = sy + dy;
+                            if px < SIM_W && py < SIM_H {
+                                sim_data[py * SIM_W + px] = 50_000;
+                            }
+                        }
+                    }
+                }
                 Ok(ImageData {
                     width: 1920,
                     height: 1080,
-                    data: vec![0; 1920 * 1080],
+                    data: sim_data,
                     bits_per_pixel: 16,
                     bayer_pattern: None,
                     metadata: nightshade_native::camera::ImageMetadata {

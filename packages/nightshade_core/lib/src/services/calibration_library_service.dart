@@ -4,10 +4,12 @@ import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../backend/network_backend.dart';
 import '../database/daos/calibration_tags_dao.dart';
 import '../database/daos/flat_library_dao.dart';
 import '../database/database.dart';
 import '../models/calibration/calibration_library_models.dart';
+import '../providers/backend_provider.dart';
 import '../providers/database_provider.dart';
 import 'calibration/fits_header_reader.dart';
 
@@ -33,20 +35,36 @@ class CalibrationLibraryService {
     required NightshadeDatabase db,
     required FlatLibraryDao flatLibraryDao,
     required CalibrationTagsDao tagsDao,
+    Ref? ref,
     this.headerReader = const FitsHeaderReader(),
     this.thresholds = CalibrationStalenessThresholds.defaults,
     DateTime Function()? now,
   }) : _db = db,
        _flatDao = flatLibraryDao,
        _tagsDao = tagsDao,
+       _ref = ref,
        _now = now ?? DateTime.now;
 
   final NightshadeDatabase _db;
   final FlatLibraryDao _flatDao;
   final CalibrationTagsDao _tagsDao;
+  final Ref? _ref;
   final FitsHeaderReader headerReader;
   final CalibrationStalenessThresholds thresholds;
   final DateTime Function() _now;
+
+  /// The active [NetworkBackend] when this device is a remote client (a tablet
+  /// or desktop driving the headless appliance). When non-null, tag/note/
+  /// delete/match operations target the APPLIANCE's real calibration library
+  /// over `/api/calibration-library/*` instead of this device's local Drift
+  /// DB (which on a remote client is empty). Null on the host / local builds,
+  /// where the operations run against the local DB.
+  NetworkBackend? get _remote {
+    final ref = _ref;
+    if (ref == null) return null;
+    final backend = ref.read(backendProvider);
+    return backend is NetworkBackend ? backend : null;
+  }
 
   // ---------------------------------------------------------------------------
   // Listing + enrichment
@@ -174,6 +192,13 @@ class CalibrationLibraryService {
     LightFrameContext context, {
     CalibrationMatchTolerances tolerances = CalibrationMatchTolerances.defaults,
   }) async {
+    final remote = _remote;
+    if (remote != null) {
+      // Remote client: the appliance owns the real master library, so the
+      // host runs the matcher against its own DB and returns the transparent
+      // per-type result.
+      return remote.matchCalibrationMasters(context);
+    }
     final all = await _loadAll();
     final setWarnings = <String>[];
 
@@ -243,6 +268,15 @@ class CalibrationLibraryService {
       for (final t in tags)
         if (t.trim().isNotEmpty) t.trim(),
     ];
+    final remote = _remote;
+    if (remote != null) {
+      await remote.setCalibrationMasterTags(
+        type: calibrationMasterTypeWireName(type),
+        id: id,
+        tags: cleaned,
+      );
+      return;
+    }
     await _tagsDao.upsert(type, id, tags: cleaned);
   }
 
@@ -253,6 +287,15 @@ class CalibrationLibraryService {
     String? notes,
   ) async {
     final cleaned = notes?.trim();
+    final remote = _remote;
+    if (remote != null) {
+      await remote.setCalibrationMasterNotes(
+        type: calibrationMasterTypeWireName(type),
+        id: id,
+        notes: cleaned,
+      );
+      return;
+    }
     if (cleaned == null || cleaned.isEmpty) {
       await _tagsDao.upsert(type, id, clearNotes: true);
     } else {
@@ -272,6 +315,18 @@ class CalibrationLibraryService {
     int id, {
     bool deleteFile = false,
   }) async {
+    final remote = _remote;
+    if (remote != null) {
+      // The appliance owns the row + file. A 404 there surfaces as a thrown
+      // ServerError (no_calibration_master); the caller reloads either way, so
+      // success here means the host accepted the delete.
+      await remote.deleteCalibrationMaster(
+        type: calibrationMasterTypeWireName(type),
+        id: id,
+        deleteFile: deleteFile,
+      );
+      return true;
+    }
     var found = false;
     switch (type) {
       case CalibrationMasterType.dark:
@@ -910,5 +965,6 @@ final calibrationLibraryServiceProvider = Provider<CalibrationLibraryService>((
     db: ref.watch(databaseProvider),
     flatLibraryDao: ref.watch(flatLibraryDaoProvider),
     tagsDao: ref.watch(calibrationTagsDaoProvider),
+    ref: ref,
   );
 });

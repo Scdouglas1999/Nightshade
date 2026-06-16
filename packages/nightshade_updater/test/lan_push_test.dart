@@ -16,9 +16,16 @@ import 'package:test/test.dart';
 
 const int testDiscoveryPort =
     45689; // Different from production to avoid conflicts
-const int testPushPort = 45690;
+const int advertisedPushPort = 45690;
 const String updatePushMessage = 'NIGHTSHADE_UPDATE_PUSH';
 const String updateResponsePrefix = 'NIGHTSHADE_UPDATE_TARGET:';
+
+Future<int> _unusedTcpPort() async {
+  final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+  final port = socket.port;
+  await socket.close();
+  return port;
+}
 
 void main() {
   group('LAN Push Discovery Protocol', () {
@@ -47,7 +54,7 @@ void main() {
                     'name': 'TestReceiver',
                     'version': '2.0.0',
                     'buildNumber': 42,
-                    'pushPort': testPushPort,
+                    'pushPort': advertisedPushPort,
                     'isReceiving': false,
                   });
               responder.send(
@@ -100,7 +107,7 @@ void main() {
                     'name': 'BusyReceiver',
                     'version': '2.0.0',
                     'buildNumber': 42,
-                    'pushPort': testPushPort,
+                    'pushPort': advertisedPushPort,
                     'isReceiving': true, // Busy flag
                   });
               responder.send(
@@ -152,10 +159,8 @@ void main() {
   group('LAN Push Transfer Protocol', () {
     test('should transfer manifest and package data', () async {
       // Start mock receiver
-      final server = await ServerSocket.bind(
-        InternetAddress.loopbackIPv4,
-        testPushPort,
-      );
+      final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final pushPort = server.port;
       final connectionReceived = Completer<void>();
       Map<String, dynamic>? receivedManifest;
       int receivedBytes = 0;
@@ -214,7 +219,7 @@ void main() {
       // Connect and send
       final client = await Socket.connect(
         InternetAddress.loopbackIPv4,
-        testPushPort,
+        pushPort,
       );
 
       // Send manifest length (4 bytes, big-endian)
@@ -241,11 +246,13 @@ void main() {
     });
 
     test('should handle connection refused gracefully', () async {
+      final unusedPort = await _unusedTcpPort();
+
       // Try to connect to a port with no listener
       expect(
         () async => await Socket.connect(
           InternetAddress.loopbackIPv4,
-          testPushPort + 100, // Unused port
+          unusedPort,
           timeout: const Duration(seconds: 1),
         ),
         throwsA(isA<SocketException>()),
@@ -255,10 +262,8 @@ void main() {
     test(
       'should handle large package transfer',
       () async {
-        final server = await ServerSocket.bind(
-          InternetAddress.loopbackIPv4,
-          testPushPort,
-        );
+        final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+        final pushPort = server.port;
         final completer = Completer<int>();
 
         server.listen((socket) async {
@@ -314,7 +319,7 @@ void main() {
 
         final client = await Socket.connect(
           InternetAddress.loopbackIPv4,
-          testPushPort,
+          pushPort,
         );
 
         final lengthBytes = ByteData(4);

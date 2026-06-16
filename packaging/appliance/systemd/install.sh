@@ -3,7 +3,7 @@
 #
 # Usage:
 #   sudo ./install.sh --tarball /path/to/nightshade-linux-<arch>-<ver>.tar.gz
-#   sudo ./install.sh --bundle-dir /path/to/build/linux/x64/release/bundle
+#   sudo ./install.sh --bundle-dir /path/to/build/linux/<arch>/release/bundle
 #   sudo ./install.sh                # unit/user/dirs only, bundle already in place
 #
 # What it does:
@@ -12,7 +12,8 @@
 #   3. Unpacks the release tarball (from scripts/docker_build_linux.sh) into
 #      /opt/nightshade/bundle.
 #   4. Installs nightshade-headless.service and /etc/nightshade/headless.env
-#      (generating a random auth token on first install).
+#      (generating a random auth token on first install), plus udev rules for
+#      astronomy USB devices.
 #   5. Enables + starts the service.
 set -euo pipefail
 
@@ -24,6 +25,8 @@ CONF_DIR=/etc/nightshade
 ENV_FILE="$CONF_DIR/headless.env"
 UNIT_NAME=nightshade-headless.service
 SERVICE_USER=nightshade
+SERVICE_GROUP=nightshade
+UDEV_RULE_NAME=99-nightshade-astro.rules
 
 TARBALL=""
 SRC_BUNDLE_DIR=""
@@ -51,23 +54,29 @@ if ! command -v systemctl >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! command -v xvfb-run >/dev/null 2>&1; then
-  echo "WARNING: xvfb-run not found. The unit wraps the daemon in xvfb-run" >&2
+if ! command -v xvfb-run >/dev/null 2>&1 || ! command -v xauth >/dev/null 2>&1; then
+  echo "WARNING: xvfb-run/xauth not found. The unit wraps the daemon in xvfb-run" >&2
   echo "         (the Flutter GTK embedder needs a display even headless)." >&2
-  echo "         Install it first: Debian/RPi OS: apt install xvfb" >&2
-  echo "                           Arch:          pacman -S xorg-server-xvfb" >&2
+  echo "         Install them first: Debian/RPi OS: apt install xvfb xauth" >&2
+  echo "                             Arch:          pacman -S xorg-server-xvfb xorg-xauth" >&2
 fi
 
 echo "== [1/5] service user =="
+if ! getent group "$SERVICE_GROUP" >/dev/null 2>&1; then
+  groupadd --system "$SERVICE_GROUP"
+  echo "Created system group '$SERVICE_GROUP'"
+fi
 if ! id -u "$SERVICE_USER" >/dev/null 2>&1; then
   useradd --system --home-dir "$STATE_DIR" --create-home \
-    --shell /usr/sbin/nologin "$SERVICE_USER"
+    --gid "$SERVICE_GROUP" --shell /usr/sbin/nologin "$SERVICE_USER"
   echo "Created system user '$SERVICE_USER'"
 else
   echo "User '$SERVICE_USER' already exists"
+  usermod -aG "$SERVICE_GROUP" "$SERVICE_USER"
 fi
 # Device-access groups for cameras / mounts / focusers. Not all distros have
-# all three; add the ones that exist.
+# all three; add the ones that exist. The appliance udev rules additionally
+# grant direct access to the dedicated nightshade group.
 for grp in dialout video plugdev; do
   if getent group "$grp" >/dev/null 2>&1; then
     usermod -aG "$grp" "$SERVICE_USER"
@@ -118,6 +127,31 @@ else
 fi
 install -m 0644 "$SCRIPT_DIR/nightshade-headless.service" \
   "/etc/systemd/system/$UNIT_NAME"
+install -m 0644 "$SCRIPT_DIR/$UDEV_RULE_NAME" \
+  "/etc/udev/rules.d/$UDEV_RULE_NAME"
+# Static Avahi advertisement. The in-app `nsd` mDNS registration has no Linux
+# implementation, so without this the appliance is only discoverable over the
+# fragile UDP broadcast beacon. Drop the service file into Avahi's pickup dir;
+# avahi-daemon advertises `_nightshade._tcp` for us. Best-effort: only if Avahi
+# is present (RPi OS ships it; minimal hosts may not).
+AVAHI_SRC="$SCRIPT_DIR/../avahi/nightshade.service"
+if [ -d /etc/avahi/services ] || command -v avahi-daemon >/dev/null 2>&1; then
+  install -d -m 0755 /etc/avahi/services
+  install -m 0644 "$AVAHI_SRC" /etc/avahi/services/nightshade.service
+  echo "Installed Avahi mDNS advertisement (/etc/avahi/services/nightshade.service)."
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl reload avahi-daemon 2>/dev/null \
+      || systemctl restart avahi-daemon 2>/dev/null || true
+  fi
+else
+  echo "NOTE: Avahi not detected — mDNS discovery will be unavailable; the UDP"
+  echo "      broadcast beacon (45679) remains. Install avahi-daemon for mDNS."
+fi
+if command -v udevadm >/dev/null 2>&1; then
+  udevadm control --reload-rules || true
+  udevadm trigger --subsystem-match=usb --subsystem-match=tty \
+    --subsystem-match=hidraw || true
+fi
 systemctl daemon-reload
 
 echo "== [5/5] enable + start =="

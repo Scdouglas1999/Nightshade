@@ -310,29 +310,32 @@ impl PoaPwSdk {
     fn load() -> Option<Self> {
         let lib_paths = if cfg!(target_os = "windows") {
             vec![
-                "PlayerOnePW.dll",
-                "C:\\Program Files\\PlayerOne\\SDK\\lib\\x64\\PlayerOnePW.dll",
+                std::path::PathBuf::from("PlayerOnePW.dll"),
+                std::path::PathBuf::from(
+                    "C:\\Program Files\\PlayerOne\\SDK\\lib\\x64\\PlayerOnePW.dll",
+                ),
             ]
         } else if cfg!(target_os = "macos") {
             vec![
-                "libPlayerOnePW.dylib",
-                "/usr/local/lib/libPlayerOnePW.dylib",
+                std::path::PathBuf::from("libPlayerOnePW.dylib"),
+                std::path::PathBuf::from("/usr/local/lib/libPlayerOnePW.dylib"),
             ]
         } else {
-            vec![
-                "libPlayerOnePW.so",
-                "libPlayerOnePW.so.1",
-                "/usr/lib/libPlayerOnePW.so",
-                "/usr/local/lib/libPlayerOnePW.so",
-            ]
+            crate::vendor::sdk_loader::vendor_library_candidates(
+                &["libPlayerOnePW.so", "libPlayerOnePW.so.1"],
+                &[
+                    "/usr/lib/libPlayerOnePW.so",
+                    "/usr/local/lib/libPlayerOnePW.so",
+                ],
+            )
         };
 
-        for path in lib_paths {
+        for path in &lib_paths {
             // SAFETY: path is a static vendor SDK library name/path and symbols below match
             // PlayerOnePW.h. The Library is stored in PoaPwSdk so function pointers remain valid.
             unsafe {
                 if let Ok(lib) = libloading::Library::new(path) {
-                    tracing::info!("Loaded Player One PW SDK from: {}", path);
+                    tracing::info!("Loaded Player One PW SDK from: {}", path.display());
                     return Some(Self {
                         get_pw_count: *lib.get(b"POAGetPWCount\0").ok()?,
                         get_pw_properties: *lib.get(b"POAGetPWProperties\0").ok()?,
@@ -367,28 +370,31 @@ impl PoaSdk {
     fn load() -> Option<Self> {
         let lib_paths = if cfg!(target_os = "windows") {
             vec![
-                "PlayerOneCamera.dll",
-                "C:\\Program Files\\PlayerOne\\SDK\\lib\\x64\\PlayerOneCamera.dll",
+                std::path::PathBuf::from("PlayerOneCamera.dll"),
+                std::path::PathBuf::from(
+                    "C:\\Program Files\\PlayerOne\\SDK\\lib\\x64\\PlayerOneCamera.dll",
+                ),
             ]
         } else if cfg!(target_os = "macos") {
             vec![
-                "libPlayerOneCamera.dylib",
-                "/usr/local/lib/libPlayerOneCamera.dylib",
+                std::path::PathBuf::from("libPlayerOneCamera.dylib"),
+                std::path::PathBuf::from("/usr/local/lib/libPlayerOneCamera.dylib"),
             ]
         } else {
-            vec![
-                "libPlayerOneCamera.so",
-                "libPlayerOneCamera.so.1",
-                "/usr/lib/libPlayerOneCamera.so",
-                "/usr/local/lib/libPlayerOneCamera.so",
-            ]
+            crate::vendor::sdk_loader::vendor_library_candidates(
+                &["libPlayerOneCamera.so", "libPlayerOneCamera.so.1"],
+                &[
+                    "/usr/lib/libPlayerOneCamera.so",
+                    "/usr/local/lib/libPlayerOneCamera.so",
+                ],
+            )
         };
 
-        for path in lib_paths {
+        for path in &lib_paths {
             // SAFETY: libloading::Library::new performs platform dynamic loading; each `path` is a compile-time string constant naming a vendor SDK shared library (PlayerOneCamera.dll/dylib/so). Each `lib.get::<FnType>(b"symbol\0")` then dereferences the returned Symbol with `*`: the FFI signatures declared above are the C ABI from PlayerOneCamera.h (verified against vendor header) so the function-pointer ABI is correct. The loaded `lib` is moved into the returned PoaSdk so the function pointers remain valid for the program's lifetime.
             unsafe {
                 if let Ok(lib) = libloading::Library::new(path) {
-                    tracing::info!("Loaded Player One SDK from: {}", path);
+                    tracing::info!("Loaded Player One SDK from: {}", path.display());
 
                     // Load all function pointers - actual SDK function names
                     let sdk = Self {
@@ -1830,7 +1836,7 @@ impl NativeFilterWheel for PlayerOneFilterWheel {
         let _lock = player_one_mutex().lock().await;
         let mut names = Vec::new();
         for position in 0..self.filter_count {
-            let mut name_buf = [0i8; 24];
+            let mut name_buf = [0 as c_char; 24];
             // SAFETY: player_one_mutex held; handle is open; position is in range; buffer length
             // matches PlayerOnePW.h MAX_NAME_LEN.
             let result =

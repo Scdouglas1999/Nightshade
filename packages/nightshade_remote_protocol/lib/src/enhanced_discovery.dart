@@ -31,6 +31,7 @@ class _DiscoveryPrefs {
   static const lastServerAuthMode = 'nightshade_last_server_auth_mode';
   static const lastServerPairingSupported =
       'nightshade_last_server_pairing_supported';
+  static const lastServerScheme = 'nightshade_last_server_scheme';
   // SHA-256 server fingerprint persisted so the LAN UDP push
   // receiver can derive the same HMAC key as the broadcaster without a
   // round-trip to /api/info. Stored next to host/port — the fingerprint
@@ -402,6 +403,12 @@ String? _decodeTxtValue(Object? raw) {
   return asString.isEmpty ? null : asString;
 }
 
+String _normalizeTransportScheme(Object? raw, {String fallback = 'http'}) {
+  if (raw is! String) return fallback;
+  final lowered = raw.toLowerCase();
+  return (lowered == 'http' || lowered == 'https') ? lowered : fallback;
+}
+
 /// Discovery status callback type
 typedef DiscoveryStatusCallback = void Function(String status);
 
@@ -442,6 +449,7 @@ class EnhancedNightshadeDiscovery {
       _DiscoveryPrefs.lastServerPairingSupported,
       server.pairingSupported,
     );
+    await prefs.setString(_DiscoveryPrefs.lastServerScheme, server.scheme);
     final fp = server.fingerprint;
     if (fp != null && fp.isNotEmpty) {
       await prefs.setString(_DiscoveryPrefs.lastServerFingerprint, fp);
@@ -493,6 +501,9 @@ class EnhancedNightshadeDiscovery {
           prefs.getBool(_DiscoveryPrefs.lastServerPairingSupported) ?? false,
       authToken: (authToken != null && authToken.isNotEmpty) ? authToken : null,
       fingerprint: prefs.getString(_DiscoveryPrefs.lastServerFingerprint),
+      scheme: _normalizeTransportScheme(
+        prefs.getString(_DiscoveryPrefs.lastServerScheme),
+      ),
     );
   }
 
@@ -509,6 +520,7 @@ class EnhancedNightshadeDiscovery {
     await prefs.remove(_DiscoveryPrefs.lastServerAuthRequired);
     await prefs.remove(_DiscoveryPrefs.lastServerAuthMode);
     await prefs.remove(_DiscoveryPrefs.lastServerPairingSupported);
+    await prefs.remove(_DiscoveryPrefs.lastServerScheme);
     await prefs.remove(_DiscoveryPrefs.lastServerFingerprint);
     // Legacy slot — should already be empty post-migration but flush anyway
     // in case the user wiped storage out from under us.
@@ -546,6 +558,7 @@ class EnhancedNightshadeDiscovery {
       pairingSupported:
           info['pairingSupported'] as bool? ?? seed.pairingSupported,
       fingerprint: info['fingerprint'] as String? ?? seed.fingerprint,
+      scheme: _normalizeTransportScheme(info['scheme'], fallback: seed.scheme),
     );
   }
 

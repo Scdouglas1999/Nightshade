@@ -114,12 +114,38 @@ extension MountDeviceHandlers on DeviceHandlers {
   }
 
   Future<Response> handleMountGetStatus(Request request) async {
-    final deviceId = request.url.queryParameters['deviceId'] ?? '';
-
     final backend = container.read(deviceBackendProvider);
-    final status = await backend.mountGetStatus(deviceId);
 
-    return jsonOk(status);
+    // Resolve the target mount. When the caller omits `deviceId` (the common
+    // case for a tablet that just wants "the" mount), fall back to the single
+    // connected mount instead of passing an empty id straight to the backend,
+    // which previously produced an opaque 500 ("Device not found:"). Only when
+    // no mount is connected do we surface a clean 400.
+    var deviceId = request.url.queryParameters['deviceId'] ?? '';
+    if (deviceId.isEmpty) {
+      final connected = await backend.getConnectedDevices();
+      final mounts = connected
+          .where((d) => d.deviceType == DeviceType.mount)
+          .toList();
+      if (mounts.isEmpty) {
+        throw BadRequestError(
+          field: 'deviceId',
+          expected: 'string',
+          message:
+              'deviceId query parameter is required (no mount is connected)',
+        );
+      }
+      deviceId = mounts.first.id;
+    }
+
+    // Use getMountStatus (returns the domain MountStatus with a real toJson())
+    // rather than mountGetStatus (returns the raw flutter_rust_bridge object,
+    // which has no toJson and so makes jsonEncode throw -> internal_error for
+    // every remote client). Both route through the same native apiGetMountStatus
+    // under the hood, so simulator and real mounts are handled identically.
+    final status = await backend.getMountStatus(deviceId);
+
+    return jsonOk(status.toJson());
   }
 
   Future<Response> handleMountSetTrackingRate(Request request) async {

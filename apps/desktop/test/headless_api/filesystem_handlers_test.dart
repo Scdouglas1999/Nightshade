@@ -15,16 +15,28 @@ void main() {
   group('FileSystemHandlers', () {
     late ProviderContainer container;
     late FileSystemHandlers handlers;
+    late Directory envBrowseRoot;
 
-    setUp(() {
+    setUp(() async {
+      envBrowseRoot = await Directory.systemTemp.createTemp(
+        'nightshade_browse_root_',
+      );
       container = ProviderContainer(
         overrides: [appSettingsProvider.overrideWith(_TestSettings.new)],
       );
-      handlers = FileSystemHandlers(container);
+      handlers = FileSystemHandlers(
+        container,
+        environment: {
+          'NIGHTSHADE_BROWSE_ROOTS': 'Capture Disk=${envBrowseRoot.path}',
+        },
+      );
     });
 
-    tearDown(() {
+    tearDown(() async {
       container.dispose();
+      if (await envBrowseRoot.exists()) {
+        await envBrowseRoot.delete(recursive: true);
+      }
     });
 
     test(
@@ -41,6 +53,75 @@ void main() {
         final body = jsonDecode(await response.readAsString()) as Map;
         expect(body['currentPath'], isNull);
         expect(body['directories'], isA<List>());
+        final dirs = (body['directories'] as List).cast<Map>();
+        expect(
+          dirs,
+          contains(
+            allOf(
+              containsPair('name', 'Capture Disk'),
+              containsPair('path', envBrowseRoot.resolveSymbolicLinksSync()),
+            ),
+          ),
+        );
+      },
+    );
+
+    test('browse allows configured headless root children', () async {
+      final child = await Directory(
+        '${envBrowseRoot.path}${Platform.pathSeparator}session-001',
+      ).create();
+
+      final response = await translateHandlerErrors(
+        handlers.handleBrowseDirectories(
+          Request(
+            'GET',
+            Uri.parse(
+              'http://localhost/api/files/browse?path=${Uri.encodeQueryComponent(envBrowseRoot.path)}',
+            ),
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.ok);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      final dirs = (body['directories'] as List).cast<Map>();
+      expect(
+        dirs,
+        contains(
+          allOf(
+            containsPair('name', 'session-001'),
+            containsPair('path', child.resolveSymbolicLinksSync()),
+          ),
+        ),
+      );
+    });
+
+    test(
+      'browse rejects existing directories outside configured roots',
+      () async {
+        final outside = await Directory.systemTemp.createTemp(
+          'nightshade_outside_root_',
+        );
+        addTearDown(() async {
+          if (await outside.exists()) {
+            await outside.delete(recursive: true);
+          }
+        });
+
+        final response = await translateHandlerErrors(
+          handlers.handleBrowseDirectories(
+            Request(
+              'GET',
+              Uri.parse(
+                'http://localhost/api/files/browse?path=${Uri.encodeQueryComponent(outside.path)}',
+              ),
+            ),
+          ),
+        );
+
+        expect(response.statusCode, HttpStatus.forbidden);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['error'], 'path_not_allowed');
       },
     );
 

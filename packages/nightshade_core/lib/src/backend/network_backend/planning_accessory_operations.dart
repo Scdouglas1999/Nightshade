@@ -160,17 +160,31 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
   // Switch Control
   // ===========================================================================
 
-  /// Get all switch states
-  Future<Map<String, dynamic>> getSwitchStatus() async {
-    return await _get('switch/status');
+  /// Get switch states.
+  ///
+  /// Pass [deviceId] to scope to a single device — that returns the
+  /// `{switchCount, switches:[...]}` single-device shape the per-channel UI
+  /// consumes. Omit it for the all-devices summary
+  /// (`{devicesConnected, devices:[...]}`).
+  Future<Map<String, dynamic>> getSwitchStatus({String? deviceId}) async {
+    return await _get('switch/status', {
+      if (deviceId != null && deviceId.isNotEmpty) 'deviceId': deviceId,
+    });
   }
 
-  /// Set a switch value
+  /// Set a switch value. [deviceId] is required by the server
+  /// (`POST /api/switch/set`); [value] is a `bool` for boolean switches or a
+  /// `num` for analog ones.
   Future<void> setSwitch({
+    required String deviceId,
     required int switchId,
     required dynamic value,
   }) async {
-    await _post('switch/set', {'switchId': switchId, 'value': value});
+    await _post('switch/set', {
+      'deviceId': deviceId,
+      'switchId': switchId,
+      'value': value,
+    });
   }
 
   // ===========================================================================

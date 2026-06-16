@@ -31,6 +31,7 @@ export 'handlers/science_handlers.dart';
 
 // Auxiliary device handlers
 export 'handlers/dome_handlers.dart';
+export 'handlers/narrator_handlers.dart';
 export 'handlers/safety_monitor_handlers.dart';
 export 'handlers/auxiliary_handlers.dart';
 
@@ -40,6 +41,12 @@ export 'handlers/planetarium_handlers.dart';
 // Intelligent scheduler and focus model
 export 'handlers/scheduler_handlers.dart';
 export 'handlers/focus_model_handlers.dart';
+
+// Live stacking (EAA real-time integration) control surface
+export 'handlers/stacking_handlers.dart';
+
+// post-session integration / finishing ("finish last night") control surface
+export 'handlers/post_session_handlers.dart';
 
 // phone/tablet run-watch monitoring surface
 export 'handlers/run_watch_handlers.dart';

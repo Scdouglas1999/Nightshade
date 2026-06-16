@@ -1,0 +1,9 @@
+{
+  "generatedAt": "2026-06-16T19:17:51.689344Z",
+  "rulesPath": "docs/production-readiness/fail_closed_rules.yaml",
+  "ruleCount": 11,
+  "filesScanned": 5167,
+  "violationCount": 0,
+  "passed": true,
+  "violations": []
+}

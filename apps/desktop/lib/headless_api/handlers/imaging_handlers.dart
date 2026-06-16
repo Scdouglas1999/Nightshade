@@ -137,6 +137,31 @@ class ImagingHandlers {
   // not the phone's. The host implementation goes through the imaging
   // backend (FfiBackend), which calls the Rust `api_platesolve_*`.
 
+  /// GET /api/imaging/fits-dimensions?path=&lt;hostPath&gt;
+  ///
+  /// Returns the exact pixel dimensions of a host FITS file. Lets a remote
+  /// client (e.g. the photometric-calibration wizard) get true width/height
+  /// instead of estimating them from a star bounding box — the host reads the
+  /// real header. Host paths only.
+  Future<Response> handleGetFitsDimensions(Request request) async {
+    final filePath = request.url.queryParameters['path'] ?? '';
+    if (filePath.isEmpty) {
+      throw BadRequestError(
+        field: 'path',
+        expected: 'string',
+        message: "Missing 'path' query parameter (host FITS file path)",
+      );
+    }
+    if (!await File(filePath).exists()) {
+      return jsonNotFound({
+        'error': 'fits_not_found',
+        'message': 'No FITS file at host path: $filePath',
+      });
+    }
+    final fits = await bridge.apiReadFitsFile(filePath: filePath);
+    return jsonOk({'width': fits.width, 'height': fits.height});
+  }
+
   Future<Response> handleDetectPlateSolvers(Request request) async {
     _logInfo('[API] GET /api/plate-solver/detect');
     final backend = container.read(imagingBackendProvider);

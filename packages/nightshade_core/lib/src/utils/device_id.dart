@@ -159,6 +159,21 @@ class DeviceId {
         segs.map((s) => s.trim().toLowerCase()).toList(growable: false),
       );
     }
+    // Legacy bare simulator ids (`sim_camera_1`, `sim_mount_1`, ...). The
+    // native device layer identifies its in-process simulators by this
+    // underscore form — 40+ `id.starts_with("sim_")` branches across the Rust
+    // bridge (simulation.rs, camera.rs, imaging.rs, heartbeat.rs) route to it —
+    // and discovery emits exactly these ids. Classify them as simulator rather
+    // than `unknown` so the connect guard and any kind-based routing agree.
+    // Segments split on `_`: `sim_camera_1` -> ['camera', '1'].
+    if (lower.startsWith('sim_')) {
+      final segs = trimmed.substring('sim_'.length).split('_');
+      return DeviceId._(
+        raw,
+        DeviceDriverKind.simulator,
+        segs.map((s) => s.trim().toLowerCase()).toList(growable: false),
+      );
+    }
 
     return DeviceId._(raw, DeviceDriverKind.unknown, const <String>[]);
   }
@@ -217,6 +232,14 @@ bool _isPhd2Token(String lower) =>
 bool isValidDeviceIdFormat(String deviceId) {
   if (deviceId.isEmpty) return false;
   if (kKnownDeviceIdSingletons.contains(deviceId)) return true;
+  // Legacy bare simulator ids (`sim_camera_1`, ...). The native device layer
+  // keys its in-process simulators off the `sim_` prefix, and discovery emits
+  // these, so accept the form here — otherwise the simulator camera/mount/etc.
+  // is discoverable but never connectable over the API. The canonical
+  // `simulator:<type>` form is accepted via the prefix loop below.
+  if (deviceId.startsWith('sim_') && deviceId.length > 'sim_'.length) {
+    return true;
+  }
   for (final prefix in kKnownDeviceIdPrefixes) {
     if (deviceId.startsWith(prefix) && deviceId.length > prefix.length) {
       return true;

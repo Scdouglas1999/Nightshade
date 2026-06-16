@@ -11,6 +11,7 @@ import 'widgets/connected_device_card.dart';
 import 'widgets/discovery_panel.dart';
 import 'widgets/equipment_health_panel.dart';
 import 'widgets/equipment_readiness_panel.dart';
+import 'widgets/switch_control_card.dart';
 import 'dialogs/profile_editor_dialog.dart';
 import 'tabs/settings_tab.dart';
 import 'utils/connect_all_summary.dart';

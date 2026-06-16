@@ -6,6 +6,78 @@ mixin _NetworkBackendRemoteCalibrationCatalogOperations
   // Remote calibration library management.
   // =========================================================================
 
+  /// GET /api/calibration-library — the appliance's master calibration
+  /// library (darks/flats/biases/defect maps). Returns the raw master maps
+  /// (the server serializes `CalibrationMasterRecord.toJson`); callers read the
+  /// fields they need for display. [type] filters to one master type by its
+  /// wire name (`dark`/`bias`/`flat`/`defectMap`).
+  Future<List<Map<String, dynamic>>> getCalibrationMasters({
+    String? type,
+  }) async {
+    final response = await _get('calibration-library', {
+      if (type != null && type.isNotEmpty) 'type': type,
+    });
+    final raw = response['masters'];
+    if (raw is! List) return const [];
+    return raw.whereType<Map<String, dynamic>>().toList(growable: false);
+  }
+
+  /// PUT `/api/calibration-library/<type>/<id>/tags` — replace the user tags
+  /// of one appliance master. [type] is the wire name (`dark`/`bias`/`flat`/
+  /// `defectMap`). The server merges tags and notes through the same endpoint;
+  /// this method touches only the tags.
+  Future<CalibrationMasterRecord> setCalibrationMasterTags({
+    required String type,
+    required int id,
+    required List<String> tags,
+  }) async {
+    final response = await _put('calibration-library/$type/$id/tags', {
+      'tags': tags,
+    });
+    return CalibrationMasterRecord.fromJson(response);
+  }
+
+  /// PUT `/api/calibration-library/<type>/<id>/tags` — replace the notes of
+  /// one appliance master (null/empty clears them).
+  Future<CalibrationMasterRecord> setCalibrationMasterNotes({
+    required String type,
+    required int id,
+    required String? notes,
+  }) async {
+    final response = await _put('calibration-library/$type/$id/tags', {
+      'notes': notes,
+    });
+    return CalibrationMasterRecord.fromJson(response);
+  }
+
+  /// DELETE `/api/calibration-library/<type>/<id>[?deleteFile=true]` — remove
+  /// one master from the appliance library, optionally deleting the on-disk
+  /// artifact(s) too.
+  Future<void> deleteCalibrationMaster({
+    required String type,
+    required int id,
+    bool deleteFile = false,
+  }) async {
+    // Keep the query string as a literal in each branch (not a `$suffix`
+    // variable) so the path normalizes to the registered
+    // `/api/calibration-library/<type>/<id>` route.
+    if (deleteFile) {
+      await _delete('calibration-library/$type/$id?deleteFile=true');
+    } else {
+      await _delete('calibration-library/$type/$id');
+    }
+  }
+
+  /// POST /api/calibration-library/match — preview which appliance masters a
+  /// given light-frame context auto-selects, with the per-pick score, reasons,
+  /// and warnings the host matcher produced.
+  Future<CalibrationMatchSet> matchCalibrationMasters(
+    LightFrameContext context,
+  ) async {
+    final response = await _post('calibration-library/match', context.toJson());
+    return CalibrationMatchSet.fromJson(response);
+  }
+
   /// GET /api/calibration/darks — filtered listing.
   Future<List<RemoteDarkLibraryEntry>> listDarks({
     double? exposureSeconds,

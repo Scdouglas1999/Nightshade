@@ -107,6 +107,51 @@ pub trait VendorSdk: Sized + Send + Sync + 'static {
     fn required_symbols() -> &'static [&'static str];
 }
 
+/// Build a deterministic search list for vendor shared libraries.
+///
+/// Flutter Linux desktop bundles place app-specific shared objects under
+/// `bundle/lib/` next to the executable. On a Raspberry Pi appliance that is
+/// the natural place to ship redistributable camera SDK `.so` files. Most
+/// vendor examples only try the dynamic loader path or `/usr/lib`, which means
+/// a perfectly packaged appliance can still fail native discovery. This helper
+/// keeps the search order consistent across vendors.
+pub fn vendor_library_candidates(library_names: &[&str], system_paths: &[&str]) -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            for name in library_names {
+                push_unique(&mut candidates, exe_dir.join(name));
+                push_unique(&mut candidates, exe_dir.join("lib").join(name));
+                push_unique(&mut candidates, exe_dir.join("lib64").join(name));
+            }
+
+            if let Some(parent) = exe_dir.parent() {
+                for name in library_names {
+                    push_unique(&mut candidates, parent.join("lib").join(name));
+                    push_unique(&mut candidates, parent.join("lib64").join(name));
+                }
+            }
+        }
+    }
+
+    for name in library_names {
+        push_unique(&mut candidates, PathBuf::from(name));
+    }
+
+    for path in system_paths {
+        push_unique(&mut candidates, PathBuf::from(path));
+    }
+
+    candidates
+}
+
+fn push_unique(paths: &mut Vec<PathBuf>, path: PathBuf) {
+    if !paths.iter().any(|existing| existing == &path) {
+        paths.push(path);
+    }
+}
+
 /// Walk `candidate_paths` and return the first library that loads, along with
 /// the path that produced it (for logging).
 ///
@@ -413,5 +458,37 @@ mod tests {
             }
             other => panic!("expected PathNotFound, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn vendor_library_candidates_include_flutter_bundle_lib_dir() {
+        let candidates = vendor_library_candidates(
+            &["libCameraSdk.so", "libCameraSdk.so.1"],
+            &["/usr/lib/libCameraSdk.so"],
+        );
+
+        let exe_dir = std::env::current_exe()
+            .expect("current exe")
+            .parent()
+            .expect("exe dir")
+            .to_path_buf();
+
+        assert_eq!(candidates.first(), Some(&exe_dir.join("libCameraSdk.so")));
+        assert!(candidates.contains(&PathBuf::from("libCameraSdk.so")));
+        assert!(candidates.contains(&exe_dir.join("lib").join("libCameraSdk.so")));
+        assert!(candidates.contains(&PathBuf::from("/usr/lib/libCameraSdk.so")));
+    }
+
+    #[test]
+    fn vendor_library_candidates_deduplicate_paths() {
+        let candidates = vendor_library_candidates(&["libCameraSdk.so"], &["libCameraSdk.so"]);
+
+        assert_eq!(
+            candidates
+                .iter()
+                .filter(|path| path.as_os_str() == "libCameraSdk.so")
+                .count(),
+            1
+        );
     }
 }

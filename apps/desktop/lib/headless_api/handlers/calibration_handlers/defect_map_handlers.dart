@@ -161,6 +161,117 @@ extension CalibrationDefectMapHandlers on CalibrationHandlers {
     return jsonCreated({'defectMap': await _defectMapMetadataToJson(row)});
   }
 
+  /// POST /api/calibration/defect-maps/build
+  ///
+  /// Builds a defect map host-side from a set of dark frames. The remote
+  /// client cannot run a local file picker over the host's filesystem, so it
+  /// supplies either an explicit list of on-host dark-frame paths
+  /// (`darkFramePaths`) or a single host directory (`darkFramesDirectory`)
+  /// that the host enumerates for FITS/XISF dark frames. Mirrors the status
+  /// envelope returned by [handleRegenerateDefectMap].
+  Future<Response> handleBuildDefectMap(Request request) async {
+    _logInfo('[API] POST /api/calibration/defect-maps/build');
+    final payload = await readJsonObject(request);
+
+    final cameraId = requireString(payload, 'cameraId');
+    final temperatureCelsius = requireDouble(payload, 'sensorTemperatureCelsius');
+
+    final explicitPaths = optionalList<String>(payload, 'darkFramePaths');
+    final directory = optionalString(payload, 'darkFramesDirectory');
+
+    List<String> darkFramePaths;
+    if (explicitPaths != null && explicitPaths.isNotEmpty) {
+      darkFramePaths = explicitPaths;
+    } else if (directory != null) {
+      darkFramePaths = await _enumerateDarkFrames(directory);
+      if (darkFramePaths.isEmpty) {
+        throw HandlerFailure(
+          code: 'defect_map_no_darks_in_directory',
+          message:
+              'No dark frames (.fits/.fit/.fts/.xisf) found in $directory',
+          statusCode: 409,
+          details: {'darkFramesDirectory': directory},
+        );
+      }
+    } else {
+      throw BadRequestError(
+        field: 'darkFramePaths',
+        expected: 'array<string> or darkFramesDirectory',
+        message:
+            'Supply either darkFramePaths (host paths) or darkFramesDirectory',
+      );
+    }
+
+    final service = container.read(defectMapServiceProvider);
+    final status = await service.build(
+      cameraId: cameraId,
+      darkFramePaths: darkFramePaths,
+      sensorTemperatureCelsius: temperatureCelsius,
+    );
+
+    return jsonOk({
+      'status': {
+        'cameraId': status.cameraId,
+        'width': status.width,
+        'height': status.height,
+        'temperatureBucketDecicelsius': status.temperatureBucket.decicelsius,
+        'defectivePixelCount': status.defectivePixelCount,
+        'lastRebuiltUnixSeconds': status.lastRebuiltUnixSeconds,
+        'applyDuringCapture': status.applyDuringCapture,
+        'storedOnDisk': status.storedOnDisk,
+      },
+    });
+  }
+
+  /// POST /api/calibration/defect-maps/apply
+  ///
+  /// Toggles whether the stored defect map for `cameraId` is applied to
+  /// lights at capture time. The map itself already lives host-side; this is
+  /// a pure preference flip with no file transfer.
+  Future<Response> handleApplyDefectMap(Request request) async {
+    _logInfo('[API] POST /api/calibration/defect-maps/apply');
+    final payload = await readJsonObject(request);
+
+    final cameraId = requireString(payload, 'cameraId');
+    final applyDuringCapture = requireBool(payload, 'applyDuringCapture');
+
+    final service = container.read(defectMapServiceProvider);
+    await service.apply(
+      cameraId: cameraId,
+      applyDuringCapture: applyDuringCapture,
+    );
+
+    return jsonOk({
+      'cameraId': cameraId,
+      'applyDuringCapture': applyDuringCapture,
+    });
+  }
+
+  /// Enumerate dark-frame files (FITS/XISF) directly under [directoryPath].
+  /// Non-recursive: callers point at the directory that holds the darks.
+  Future<List<String>> _enumerateDarkFrames(String directoryPath) async {
+    final directory = Directory(directoryPath);
+    if (!await directory.exists()) {
+      throw HandlerFailure(
+        code: 'defect_map_darks_dir_missing',
+        message: 'Dark-frame directory does not exist: $directoryPath',
+        statusCode: 409,
+        details: {'darkFramesDirectory': directoryPath},
+      );
+    }
+    const darkExtensions = {'.fits', '.fit', '.fts', '.xisf'};
+    final paths = <String>[];
+    await for (final entity in directory.list(followLinks: false)) {
+      if (entity is! File) continue;
+      final ext = p.extension(entity.path).toLowerCase();
+      if (darkExtensions.contains(ext)) {
+        paths.add(entity.path);
+      }
+    }
+    paths.sort();
+    return paths;
+  }
+
   /// DELETE /api/calibration/defect-maps/{id}?deleteFile=true
   Future<Response> handleDeleteDefectMap(Request request, String id) async {
     final iid = _parsePathId(id, 'id');

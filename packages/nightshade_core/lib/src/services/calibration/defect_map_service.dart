@@ -1,22 +1,54 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 
+import '../../backend/network_backend.dart';
 import '../../models/defect_map.dart';
+import '../../providers/backend_provider.dart';
 
 /// Service for the defect-map / bad-pixel cosmetic correction pipeline.
 ///
-/// Wraps the native bridge calls. The service is stateless except for
-/// the wrapped bridge instance, so it is cheap to construct from a
-/// Riverpod provider.
+/// Wraps the native bridge calls. When running as a remote client (a tablet
+/// talking to a headless appliance) the dark frames and the on-disk defect
+/// map live on the HOST, so [build] and [apply] route over
+/// `/api/calibration/defect-maps/*` instead of the local FFI bridge (whose
+/// view of the host filesystem is empty). All other calls (status / clear /
+/// sequencer push) operate on local FFI state that is meaningless on a remote
+/// client and stay on the bridge.
 class DefectMapService {
+  final Ref _ref;
+
+  DefectMapService(this._ref);
+
+  /// The active [NetworkBackend] when running as a remote client, else null.
+  NetworkBackend? get _remote {
+    final backend = _ref.read(backendProvider);
+    return backend is NetworkBackend ? backend : null;
+  }
+
   /// Build a defect map for `cameraId` from the supplied dark / bias
   /// frame paths. At least
   /// [minRequiredDarkFrames] frames are required for the consistency
   /// check; supplying fewer is an error rather than a silent fall-back.
+  ///
+  /// On a remote client the supplied paths are HOST paths; when the caller
+  /// instead picked a host directory (the remote dark frames are not
+  /// enumerable client-side), it passes [darkFramesDirectory] and the host
+  /// enumerates the FITS/XISF darks itself.
   Future<DefectMapStatus> build({
     required String cameraId,
     required List<String> darkFramePaths,
     required double sensorTemperatureCelsius,
+    String? darkFramesDirectory,
   }) async {
+    final remote = _remote;
+    if (remote != null) {
+      return remote.buildDefectMap(
+        cameraId: cameraId,
+        sensorTemperatureCelsius: sensorTemperatureCelsius,
+        darkFramePaths: darkFramePaths.isEmpty ? null : darkFramePaths,
+        darkFramesDirectory: darkFramesDirectory,
+      );
+    }
     final result = await bridge.apiDefectMapBuild(
       cameraId: cameraId,
       darkFramePaths: darkFramePaths,
@@ -31,6 +63,13 @@ class DefectMapService {
     required String cameraId,
     required bool applyDuringCapture,
   }) {
+    final remote = _remote;
+    if (remote != null) {
+      return remote.applyDefectMap(
+        cameraId: cameraId,
+        applyDuringCapture: applyDuringCapture,
+      );
+    }
     return bridge.apiDefectMapApply(
       cameraId: cameraId,
       applyDuringCapture: applyDuringCapture,

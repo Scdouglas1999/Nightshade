@@ -50,6 +50,12 @@ pub struct ConfiguredDevice {
     pub device_name: String,
     pub device_type: String,
     pub device_number: u32,
+    // The ASCOM Alpaca management spec spells this "UniqueID" (capital D), which
+    // PascalCase derivation would render as "UniqueId" — so without this explicit
+    // rename every device fails to deserialize and discovery against any
+    // spec-compliant Alpaca server (incl. the ASCOM Omni Simulator) silently
+    // returns nothing. Default to empty so a server that omits it still lists.
+    #[serde(rename = "UniqueID", default)]
     pub unique_id: String,
 }
 

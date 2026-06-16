@@ -109,7 +109,7 @@ RotatorCapabilities _caps({double? minAngle, double? maxAngle}) =>
 /// Enter [value] into the Go-To field and tap the Go To button, draining any
 /// resulting snackbar/state frames so the next interaction sees a settled tree.
 Future<void> _goTo(WidgetTester tester, String value) async {
-  await tester.enterText(find.byType(TextField), value);
+  await tester.enterText(_goToAngleField, value);
   await tester.pump();
   await tester.tap(find.text('Go To'));
   // Drain the validation snackbar / move-dispatch state change. The recording
@@ -119,6 +119,12 @@ Future<void> _goTo(WidgetTester tester, String value) async {
     await tester.pump(const Duration(milliseconds: 20));
   }
 }
+
+final Finder _goToAngleField = find.byWidgetPredicate((widget) {
+  if (widget is! TextField) return false;
+  final hint = widget.decoration?.hintText;
+  return hint != null && RegExp(r'^\d+\.0 - \d+\.0$').hasMatch(hint);
+});
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

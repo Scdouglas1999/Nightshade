@@ -115,10 +115,26 @@ fn main() {
         // The library is named libraw.so, so we link with -lraw
         println!("cargo:rustc-link-lib=dylib=raw");
 
-        // Also check common system library paths
+        // Also check common system library paths. The multiarch dir is
+        // arch-specific (`x86_64-linux-gnu` on a PC, `aarch64-linux-gnu` on a
+        // Raspberry Pi / arm64 box), so derive it from the build target rather
+        // than hardcoding x86_64 — otherwise an arm64 appliance build looks in
+        // the wrong directory and only links by luck via the fallback paths.
         println!("cargo:rustc-link-search=native=/usr/lib");
-        println!("cargo:rustc-link-search=native=/usr/lib/x86_64-linux-gnu");
         println!("cargo:rustc-link-search=native=/usr/local/lib");
+        if let Ok(arch) = std::env::var("CARGO_CFG_TARGET_ARCH") {
+            // CARGO_CFG_TARGET_ARCH is `x86_64` / `aarch64` / `arm`; the Debian
+            // multiarch tuple is `<arch>-linux-gnu` (arm uses the gnueabihf abi).
+            let multiarch = if arch == "arm" {
+                "arm-linux-gnueabihf".to_string()
+            } else {
+                format!("{arch}-linux-gnu")
+            };
+            println!("cargo:rustc-link-search=native=/usr/lib/{multiarch}");
+        } else {
+            // Fallback for the common desktop case if the env var is missing.
+            println!("cargo:rustc-link-search=native=/usr/lib/x86_64-linux-gnu");
+        }
     }
 
     #[cfg(target_os = "macos")]

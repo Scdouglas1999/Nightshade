@@ -843,6 +843,11 @@ fn scan_simulator_for_type(device_type: DeviceType) -> Vec<DeviceInfo> {
     if device_type != DeviceType::Camera {
         return Vec::new();
     }
+    // The `sim_` prefix is the simulator id convention the entire native
+    // device layer keys off (40+ sites in simulation.rs/camera.rs/imaging.rs/
+    // heartbeat.rs route to the in-process simulator by `id.starts_with`).
+    // The Dart connect guard accepts this legacy form too — see the `sim_`
+    // branch in `device_id.dart`.
     vec![DeviceInfo {
         id: "sim_camera_1".to_string(),
         name: "Simulated Camera".to_string(),

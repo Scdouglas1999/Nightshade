@@ -1,6 +1,22 @@
 part of '../network_backend.dart';
 
 mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
+  /// True pixel dimensions of a host FITS file. Used by the photometric
+  /// calibration wizard to size images exactly on a remote client instead of
+  /// estimating from the detected-star bounding box. Returns null if the host
+  /// has no such file.
+  Future<({int width, int height})?> getFitsDimensions(String hostPath) async {
+    try {
+      final response = await _get('imaging/fits-dimensions', {'path': hostPath});
+      return (
+        width: (response['width'] as num).toInt(),
+        height: (response['height'] as num).toInt(),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
   // =========================================================================
   // Sessions & Analytics
   // =========================================================================
@@ -185,6 +201,22 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
     return response;
   }
 
+  /// Count "untracked" library targets eligible for the Analytics cleanup
+  /// (no integration goal, not a favorite, no captured subs, no integration
+  /// time, not referenced by any session). The session-aware predicate runs
+  /// against the host DB, so a remote client asks the host instead of guessing.
+  Future<int> countUntrackedTargets() async {
+    final response = await _get('analytics/untracked-targets/count');
+    return (response['count'] as num?)?.toInt() ?? 0;
+  }
+
+  /// Permanently remove every untracked library target on the host and return
+  /// the number deleted. Irreversible — the caller confirms with the user first.
+  Future<int> removeUntrackedTargets() async {
+    final response = await _post('analytics/untracked-targets/remove', const {});
+    return (response['deleted'] as num?)?.toInt() ?? 0;
+  }
+
   // =========================================================================
   // Weather & Radar
   // =========================================================================
@@ -230,6 +262,35 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   /// Clear weather cache
   Future<void> clearWeatherCache() async {
     await _post('weather/clear-cache');
+  }
+
+  // =========================================================================
+  // Night Narrator feed (read-only)
+  // =========================================================================
+
+  /// Fetch the appliance's narrator feed for a session (pinned-first,
+  /// newest-first). Returns the raw event maps; callers reconstruct
+  /// `NarratorEvent` via `narratorEventFromWireJson`. The narrator runs on the
+  /// host, so a remote client reads its feed here instead of the local DB.
+  Future<List<Map<String, dynamic>>> getNarratorFeed(int sessionId) async {
+    final json = await _get('narrator/feed', {
+      'sessionId': sessionId.toString(),
+    });
+    return _narratorEventsList(json);
+  }
+
+  /// Fetch the appliance's sessionless recent narrator feed.
+  Future<List<Map<String, dynamic>>> getRecentNarratorFeed({
+    int limit = 50,
+  }) async {
+    final json = await _get('narrator/recent', {'limit': limit.toString()});
+    return _narratorEventsList(json);
+  }
+
+  List<Map<String, dynamic>> _narratorEventsList(Map<String, dynamic> json) {
+    final raw = json['events'];
+    if (raw is! List) return const [];
+    return raw.whereType<Map<String, dynamic>>().toList(growable: false);
   }
 
   // =========================================================================

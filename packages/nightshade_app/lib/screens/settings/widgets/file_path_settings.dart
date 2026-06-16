@@ -21,6 +21,16 @@ class FilePathSettings extends ConsumerWidget {
     String currentPath,
   ) async {
     final isRemoteMode = ref.read(isRemoteModeProvider);
+    // Only `image_output_path` is carried by the remote wire model; the three
+    // infra paths (sequences/database/logs) are excluded from partial
+    // persistence and setting them throws UnsupportedError. Block the picker
+    // up-front in remote mode so the user gets a clear message instead of an
+    // unhandled exception.
+    if (isRemoteMode && settingKey != 'image') {
+      context.showWarningSnackBar(
+          'This path can only be changed on the host machine.');
+      return;
+    }
     final result = isRemoteMode
         ? await RemoteDirectoryPickerDialog.show(
             context,

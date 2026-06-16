@@ -44,10 +44,13 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       ...buildFramingRoutes(_framingHandlers),
       ...buildPlanetariumRoutes(_planetariumHandlers),
       ...buildDomeRoutes(_domeHandlers),
+      ...buildNarratorRoutes(_narratorHandlers),
       ...buildSafetyMonitorRoutes(_safetyMonitorHandlers),
       ...buildAuxiliaryRoutes(_auxiliaryHandlers),
       ...buildSchedulerRoutes(_schedulerHandlers),
       ...buildFocusModelRoutes(_focusModelHandlers),
+      ...buildStackingRoutes(_stackingHandlers),
+      ...buildPostSessionRoutes(_postSessionHandlers),
       ...buildJobRoutes(_jobHandlers),
       ...buildSessionOwnershipRoutes(_sessionOwnershipHandlers),
     ];
@@ -443,6 +446,16 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       final backend = container.read(backendProvider);
       _eventSubscription = backend.eventStream.listen((event) {
         broadcastEvent(event);
+        // Host-side live-stacking auto-feed: every frame the host writes to
+        // disk is offered to the stacker, which ignores it unless stacking is
+        // armed. This is what lets a running sequence stack live with no client
+        // in the loop. Fire-and-forget; the coordinator serializes internally.
+        if (event.eventType == 'ImageSaved') {
+          final path = event.data['file_path'];
+          if (path is String && path.isNotEmpty) {
+            _stackingHandlers.onImageSaved(path);
+          }
+        }
         // re-broadcast onto the SSE fan-out controller. Two
         // separate sinks (WS clients + SSE clients) read from the same
         // upstream so a phone subscribing via SSE sees the same events

@@ -7,6 +7,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../utils/snackbar_helper.dart';
+import '../../../widgets/remote_directory_picker_dialog.dart';
 import 'panel_widgets.dart';
 
 /// Image-calibration controls for the imaging screen.
@@ -49,7 +50,6 @@ class CalibrationSection extends ConsumerWidget {
     final isRemoteMode = ref.watch(isRemoteModeProvider);
     final String? disabledReason = _resolveDisabledReason(
       isConnected: isConnected,
-      isRemoteMode: isRemoteMode,
       cameraId: cameraId,
       sensorWidth: sensorWidth,
       sensorHeight: sensorHeight,
@@ -93,6 +93,7 @@ class CalibrationSection extends ConsumerWidget {
             disabledReason: disabledReason,
             cameraId: cameraId,
             temperatureC: temperatureC,
+            isRemoteMode: isRemoteMode,
           ),
           const SizedBox(height: 12),
           _ApplyToggle(
@@ -129,16 +130,16 @@ class CalibrationSection extends ConsumerWidget {
 
   static String? _resolveDisabledReason({
     required bool isConnected,
-    required bool isRemoteMode,
     required String? cameraId,
     required int sensorWidth,
     required int sensorHeight,
     required double? temperatureC,
   }) {
-    if (isRemoteMode) {
-      return 'Build the defect map on the imaging host — local file pickers '
-          'cannot select host dark frames.';
-    }
+    // Remote mode is fully supported: the host owns the dark frames and the
+    // stored defect map. BUILD picks a host directory via the remote picker;
+    // APPLY and CLEAR route to the host over REST. The camera-state gates
+    // below still apply (they describe the host camera, mirrored to the
+    // remote client over the WS).
     if (!isConnected || cameraId == null || cameraId.isEmpty) {
       return 'Connect a camera to manage its defect map.';
     }
@@ -463,6 +464,7 @@ class _BuildButton extends ConsumerStatefulWidget {
   final String? disabledReason;
   final String? cameraId;
   final double? temperatureC;
+  final bool isRemoteMode;
 
   const _BuildButton({
     required this.colors,
@@ -470,6 +472,7 @@ class _BuildButton extends ConsumerStatefulWidget {
     required this.disabledReason,
     required this.cameraId,
     required this.temperatureC,
+    required this.isRemoteMode,
   });
 
   @override
@@ -486,6 +489,19 @@ class _BuildButtonState extends ConsumerState<_BuildButton> {
       return;
     }
 
+    if (widget.isRemoteMode) {
+      await _pickHostDirectoryAndBuild(cameraId, temperatureC);
+    } else {
+      await _pickLocalFilesAndBuild(cameraId, temperatureC);
+    }
+  }
+
+  /// Local path: pick the dark FITS/XISF files with the OS file picker and
+  /// build from their absolute paths.
+  Future<void> _pickLocalFilesAndBuild(
+    String cameraId,
+    double temperatureC,
+  ) async {
     const typeGroup = XTypeGroup(
       label: 'Dark frames',
       extensions: ['fits', 'fit', 'fts', 'xisf'],
@@ -511,7 +527,33 @@ class _BuildButtonState extends ConsumerState<_BuildButton> {
       darkFramePaths: paths,
       sensorTemperatureCelsius: temperatureC,
     );
+    _reportResult();
+  }
 
+  /// Remote path: the host owns the dark frames, so the operator picks a host
+  /// directory. The host enumerates the FITS/XISF darks under it and builds
+  /// the map there — no frame data crosses the wire.
+  Future<void> _pickHostDirectoryAndBuild(
+    String cameraId,
+    double temperatureC,
+  ) async {
+    final directory = await RemoteDirectoryPickerDialog.show(
+      context,
+      title: 'Select the host folder containing dark frames',
+    );
+    if (directory == null) return;
+
+    final notifier = ref.read(defectMapNotifierProvider.notifier);
+    await notifier.build(
+      cameraId: cameraId,
+      darkFramePaths: const [],
+      darkFramesDirectory: directory,
+      sensorTemperatureCelsius: temperatureC,
+    );
+    _reportResult();
+  }
+
+  void _reportResult() {
     if (!mounted) return;
     final state = ref.read(defectMapNotifierProvider);
     if (state.errorMessage != null) {

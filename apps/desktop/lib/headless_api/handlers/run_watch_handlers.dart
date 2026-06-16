@@ -259,7 +259,13 @@ class RunWatchHandlers {
     // Recent events — last 5 from the bridge's history provider.
     final recentEvents = _recentEvents(limit: 5);
 
-    return jsonOk({
+    // Coerce any BigInt values to JSON-safe forms before encoding. frb maps
+    // Rust u64/i64 fields (notably event timestamps from `event.toJson()`) to
+    // Dart BigInt, which dart:convert cannot encode -> previously a 500
+    // ("Converting object to an encodable object failed: Instance of
+    // '_BigIntImpl'"). Applied once to the whole bundle so every sub-block is
+    // covered, not just the one that happens to carry a BigInt today.
+    return jsonOk(_jsonSafe(<String, Object?>{
       'serverTime': DateTime.now().toUtc().toIso8601String(),
       'sequencer': {...sequencerStatus, 'progress': progressBlock},
       'activeTarget': activeTargetBlock,
@@ -268,7 +274,26 @@ class RunWatchHandlers {
       'recovery': recovery,
       'devices': devices,
       'recentEvents': recentEvents,
-    });
+    }) as Map<String, Object?>);
+  }
+
+  /// Recursively replace BigInt with int (or String when it exceeds the
+  /// 53-bit range JSON consumers can represent losslessly), walking maps and
+  /// lists. Returns other values unchanged. Keeps the snapshot encodable no
+  /// matter which frb-sourced sub-object introduces a BigInt.
+  static Object? _jsonSafe(Object? value) {
+    if (value is BigInt) {
+      return value.isValidInt ? value.toInt() : value.toString();
+    }
+    if (value is Map) {
+      return value.map(
+        (k, v) => MapEntry(k.toString(), _jsonSafe(v)),
+      );
+    }
+    if (value is List) {
+      return value.map(_jsonSafe).toList(growable: false);
+    }
+    return value;
   }
 
   Map<String, Object?> _progressToJson(SequenceProgress p) => {

@@ -281,6 +281,9 @@ class HeadlessApiServer {
   late final FileSystemHandlers _fileSystemHandlers;
   late final ScienceHandlers _scienceHandlers;
 
+  // Night Narrator feed (read-only) for remote clients
+  late final NarratorHandlers _narratorHandlers;
+
   // Auxiliary device handlers
   late final DomeHandlers _domeHandlers;
   late final SafetyMonitorHandlers _safetyMonitorHandlers;
@@ -292,6 +295,16 @@ class HeadlessApiServer {
   // Intelligent scheduler and focus model
   late final SchedulerHandlers _schedulerHandlers;
   late final FocusModelHandlers _focusModelHandlers;
+
+  // Live stacking (EAA real-time integration) control surface. Public so the
+  // server lifecycle can route the `ImageSaved` event stream into its
+  // host-side auto-feed coordinator.
+  late final StackingHandlers _stackingHandlers;
+
+  // Post-session integration / finishing ("finish last night") control surface.
+  // JobManager-backed: each long-running compute op returns {jobId} and runs in
+  // the background on the host's FFI pipeline.
+  late final PostSessionHandlers _postSessionHandlers;
 
   // Run-Watch (phone/tablet monitoring).
   // The handler exposes /api/run-watch/{snapshot,frame-thumbnail,events}.
@@ -723,6 +736,9 @@ class HeadlessApiServer {
   /// `true` when the server is bound with a TLS context. The mDNS `scheme`
   /// TXT record reads this so the advertised transport matches reality.
   bool get isTlsActive => tlsContext != null;
+
+  /// `true` when at least one bearer token is accepted by the server.
+  bool get isAuthRequired => _effectiveAuthTokensByValue.isNotEmpty;
 
   /// random UUID identifying this server instance. Returned by
   /// /api/info and stamped on every outbound event.

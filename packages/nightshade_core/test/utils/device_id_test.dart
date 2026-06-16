@@ -22,10 +22,21 @@ void main() {
         DeviceDriverKind.simulator,
       );
       expect(DeviceId.parse('sim:mount').kind, DeviceDriverKind.simulator);
+      // Legacy bare simulator ids (the native bridge's `sim_` convention,
+      // emitted by discovery) classify as simulator, not unknown.
+      expect(
+        DeviceId.parse('sim_camera_1').kind,
+        DeviceDriverKind.simulator,
+      );
+      expect(DeviceId.parse('sim_mount_1').kind, DeviceDriverKind.simulator);
       expect(
         DeviceId.parse('builtin_guider').kind,
         DeviceDriverKind.builtinGuider,
       );
+    });
+
+    test('legacy sim_ ids split segments on underscore', () {
+      expect(DeviceId.parse('sim_camera_1').segments, <String>['camera', '1']);
     });
 
     test('classifies all PHD2 representations as phd2', () {
@@ -287,6 +298,10 @@ void main() {
       expect(isValidDeviceIdFormat('phd2'), isTrue);
       expect(isValidDeviceIdFormat('phd2_guider'), isTrue);
       expect(isValidDeviceIdFormat('builtin_guider'), isTrue);
+      // Legacy bare simulator ids must be connectable (the native bridge keys
+      // its simulators off the `sim_` prefix and discovery emits them).
+      expect(isValidDeviceIdFormat('sim_camera_1'), isTrue);
+      expect(isValidDeviceIdFormat('sim_mount_1'), isTrue);
     });
 
     test('rejects malformed ids', () {

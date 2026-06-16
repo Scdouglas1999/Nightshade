@@ -467,6 +467,17 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
       return (width: fits.width.toDouble(), height: fits.height.toDouble());
     }
 
+    // Remote: ask the host for the TRUE dimensions (it reads the real FITS
+    // header) rather than estimating from the star bounding box. The estimate
+    // below remains only as a last resort if the host can't read the file.
+    final backend = ref.read(backendProvider);
+    if (backend is NetworkBackend) {
+      final dims = await backend.getFitsDimensions(filePath);
+      if (dims != null) {
+        return (width: dims.width.toDouble(), height: dims.height.toDouble());
+      }
+    }
+
     if (stars.isNotEmpty) {
       final maxX = stars.map((s) => s.x).reduce(math.max);
       final maxY = stars.map((s) => s.y).reduce(math.max);

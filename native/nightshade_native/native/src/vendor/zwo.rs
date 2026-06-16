@@ -206,6 +206,7 @@ enum ASIBayerPattern {
 // single-line change in the `symbols: { ... }` block below.
 
 use crate::load_vendor_sdk;
+use crate::vendor::sdk_loader::vendor_library_candidates;
 use std::path::PathBuf;
 
 /// Build the ordered list of candidate paths for ASICamera2 (the ZWO camera SDK).
@@ -265,10 +266,13 @@ fn asi_candidate_paths() -> Vec<PathBuf> {
         paths.push(PathBuf::from("libASICamera2.dylib"));
         paths.push(PathBuf::from("/usr/local/lib/libASICamera2.dylib"));
     } else {
-        paths.push(PathBuf::from("libASICamera2.so"));
-        paths.push(PathBuf::from("libASICamera2.so.1"));
-        paths.push(PathBuf::from("/usr/lib/libASICamera2.so"));
-        paths.push(PathBuf::from("/usr/local/lib/libASICamera2.so"));
+        paths.extend(vendor_library_candidates(
+            &["libASICamera2.so", "libASICamera2.so.1"],
+            &[
+                "/usr/lib/libASICamera2.so",
+                "/usr/local/lib/libASICamera2.so",
+            ],
+        ));
     }
 
     paths
@@ -1769,7 +1773,13 @@ fn eaf_candidate_paths() -> Vec<PathBuf> {
     } else if cfg!(target_os = "macos") {
         paths.push(PathBuf::from("libEAF_focuser.dylib"));
     } else {
-        paths.push(PathBuf::from("libEAF_focuser.so"));
+        paths.extend(vendor_library_candidates(
+            &["libEAF_focuser.so"],
+            &[
+                "/usr/lib/libEAF_focuser.so",
+                "/usr/local/lib/libEAF_focuser.so",
+            ],
+        ));
     }
     paths
 }
@@ -2518,7 +2528,13 @@ fn efw_candidate_paths() -> Vec<PathBuf> {
     } else if cfg!(target_os = "macos") {
         paths.push(PathBuf::from("libEFW_filter.dylib"));
     } else {
-        paths.push(PathBuf::from("libEFW_filter.so"));
+        paths.extend(vendor_library_candidates(
+            &["libEFW_filter.so"],
+            &[
+                "/usr/lib/libEFW_filter.so",
+                "/usr/local/lib/libEFW_filter.so",
+            ],
+        ));
     }
     paths
 }

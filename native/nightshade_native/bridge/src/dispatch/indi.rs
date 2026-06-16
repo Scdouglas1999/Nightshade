@@ -72,6 +72,29 @@ pub(crate) fn infer_indi_device_type_from_properties(
 
 /// Fallback INDI device classifier when property inspection didn't match a
 /// known shape — uses the device name + driver string supplied by the server.
+/// Classify an INDI device from its properties + name/driver.
+///
+/// Precedence matters: a SPECIFIC property match (camera/mount/focuser/...) is
+/// authoritative, but the property inference's final "any Switch vector ->
+/// Switch" catch-all is unreliable — EVERY INDI device carries a mandatory
+/// CONNECTION switch vector, and during discovery the device-specific
+/// properties (CCD_EXPOSURE, EQUATORIAL_EOD_COORD, ...) often haven't streamed
+/// in yet. So take a specific property match first, then fall back to
+/// name/driver, and only then accept the Switch catch-all — otherwise a
+/// still-loading mount or camera is misreported as a "switch", which breaks the
+/// entire INDI equipment workflow (the standard Raspberry Pi setup).
+pub(crate) fn classify_indi_device(
+    properties: &[nightshade_indi::IndiProperty],
+    name: &str,
+    driver: &str,
+) -> Option<DeviceType> {
+    let by_props = infer_indi_device_type_from_properties(properties);
+    by_props
+        .filter(|t| *t != DeviceType::Switch)
+        .or_else(|| infer_indi_device_type_from_name_driver(name, driver))
+        .or(by_props)
+}
+
 pub(crate) fn infer_indi_device_type_from_name_driver(
     name: &str,
     driver: &str,
@@ -97,7 +120,16 @@ pub(crate) fn infer_indi_device_type_from_name_driver(
     if name_upper.contains("FOCUSER") || driver_upper.contains("FOCUSER") {
         return Some(DeviceType::Focuser);
     }
-    if name_upper.contains("WHEEL") || driver_upper.contains("WHEEL") {
+    // Filter wheels are frequently named without "wheel" — INDI's simulator is
+    // "Filter Simulator", and real units are commonly "...EFW" (electronic
+    // filter wheel) or "...Filter...". Match those too.
+    if name_upper.contains("WHEEL")
+        || driver_upper.contains("WHEEL")
+        || name_upper.contains("FILTER")
+        || driver_upper.contains("FILTER")
+        || name_upper.contains("EFW")
+        || driver_upper.contains("EFW")
+    {
         return Some(DeviceType::FilterWheel);
     }
     if name_upper.contains("ROTATOR") || driver_upper.contains("ROTATOR") {
@@ -337,20 +369,39 @@ impl DeviceManager {
             }
         };
 
-        // Wait a moment for devices to be populated
-        // In a real scenario, we might want to wait for a specific event or have a timeout
-        // Wait up to 2 seconds for devices to appear.
+        // INDI announces a device's NAME before its full property set streams
+        // in. Classification keys off device-specific properties (CCD_EXPOSURE,
+        // EQUATORIAL_EOD_COORD, ...), so breaking out the instant a device name
+        // appears races the property stream and sees only the mandatory
+        // CONNECTION switch vector — making every device look like a "switch".
+        // Wait (up to 5 s) until every announced device classifies to a
+        // specific type via its properties OR a self-describing name, so real
+        // mounts/cameras/domes aren't misreported as switches.
         let start = std::time::Instant::now();
         loop {
             {
                 let locked_client = client.read().await;
                 let devices = locked_client.get_devices().await;
                 if !devices.is_empty() {
-                    break;
+                    let mut all_classified = true;
+                    for d in &devices {
+                        let props = locked_client.get_properties(&d.name).await;
+                        let specific_by_props = infer_indi_device_type_from_properties(&props)
+                            .is_some_and(|t| t != DeviceType::Switch);
+                        let by_name =
+                            infer_indi_device_type_from_name_driver(&d.name, &d.driver).is_some();
+                        if !specific_by_props && !by_name {
+                            all_classified = false;
+                            break;
+                        }
+                    }
+                    if all_classified {
+                        break;
+                    }
                 }
             }
 
-            if start.elapsed().as_secs() >= 2 {
+            if start.elapsed().as_secs() >= 5 {
                 break;
             }
 
@@ -364,8 +415,7 @@ impl DeviceManager {
         let mut devices = Vec::new();
         for dev in indi_devices {
             let properties = locked_client.get_properties(&dev.name).await;
-            let device_type = infer_indi_device_type_from_properties(&properties)
-                .or_else(|| infer_indi_device_type_from_name_driver(&dev.name, &dev.driver));
+            let device_type = classify_indi_device(&properties, &dev.name, &dev.driver);
             let Some(device_type) = device_type else {
                 tracing::warn!(
                     "Skipping INDI device '{}' with unrecognized type (driver='{}')",
@@ -603,5 +653,65 @@ mod tests {
         let inferred = infer_indi_device_type_from_name_driver("ASI294MM Camera", "ZWO CCD");
 
         assert_eq!(inferred, Some(DeviceType::Camera));
+    }
+
+    #[test]
+    fn infer_indi_name_driver_detects_filter_wheel_without_wheel_word() {
+        // INDI's simulator is "Filter Simulator"; real units are often "...EFW".
+        assert_eq!(
+            infer_indi_device_type_from_name_driver("Filter Simulator", "indi_simulator_wheel"),
+            Some(DeviceType::FilterWheel)
+        );
+        assert_eq!(
+            infer_indi_device_type_from_name_driver("ASI EFW", "ASI EFW"),
+            Some(DeviceType::FilterWheel)
+        );
+    }
+
+    fn switch_prop(name: &str) -> nightshade_indi::IndiProperty {
+        nightshade_indi::IndiProperty {
+            device: "dev".to_string(),
+            name: name.to_string(),
+            label: name.to_string(),
+            group: String::new(),
+            property_type: nightshade_indi::IndiPropertyType::Switch,
+            state: nightshade_indi::IndiPropertyState::Ok,
+            perm: nightshade_indi::IndiPermission::ReadWrite,
+            elements: vec![],
+            switch_rule: None,
+        }
+    }
+
+    #[test]
+    fn classify_does_not_let_connection_switch_preempt_name() {
+        // Regression: every INDI device exposes a CONNECTION switch vector
+        // before its device-specific properties stream in. The old code's
+        // property inference returned Switch for that, masking the real type.
+        // A telescope/camera with ONLY a CONNECTION switch loaded must still
+        // classify by name, not as a switch.
+        let props = vec![switch_prop("CONNECTION"), switch_prop("DEBUG")];
+        assert_eq!(
+            classify_indi_device(&props, "Telescope Simulator", "indi_simulator_telescope"),
+            Some(DeviceType::Mount),
+        );
+        assert_eq!(
+            classify_indi_device(&props, "CCD Simulator", "indi_simulator_ccd"),
+            Some(DeviceType::Camera),
+        );
+        assert_eq!(
+            classify_indi_device(&props, "Dome Simulator", "indi_simulator_dome"),
+            Some(DeviceType::Dome),
+        );
+    }
+
+    #[test]
+    fn classify_still_returns_switch_for_a_genuine_switch_device() {
+        // A device with only switch vectors AND no type-identifying name should
+        // still fall through to Switch (the catch-all is valid as a last resort).
+        let props = vec![switch_prop("CONNECTION"), switch_prop("OUTLET_1")];
+        assert_eq!(
+            classify_indi_device(&props, "Pegasus Powerbox", "indi_pegasus_upb"),
+            Some(DeviceType::Switch),
+        );
     }
 }

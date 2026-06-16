@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
@@ -142,9 +144,9 @@ class PlanetariumHandlers {
       if (sensorWidthMm > 0 && sensorHeightMm > 0) {
         // FOV = 2 * atan(sensor_size / (2 * focal_length)) * (180/pi)
         fovWidthDegrees =
-            2 * 57.2957795 * _atan(sensorWidthMm / (2 * focalLength));
+            2 * (180 / math.pi) * math.atan(sensorWidthMm / (2 * focalLength));
         fovHeightDegrees =
-            2 * 57.2957795 * _atan(sensorHeightMm / (2 * focalLength));
+            2 * (180 / math.pi) * math.atan(sensorHeightMm / (2 * focalLength));
       }
 
       if (pixelSize != null && pixelSize > 0) {
@@ -470,14 +472,15 @@ class PlanetariumHandlers {
     Map<String, dynamic>? visibility;
     if (location != null) {
       final now = DateTime.now();
-      // Simple altitude calculation (simplified - full implementation would use AstronomyCalculations)
-      final lst = _localSiderealTime(now, location.longitude);
-      final hourAngle = lst - (exactMatch.ra / 15.0); // RA in hours
-      final (alt, az) = _equatorialToHorizontal(
-        exactMatch.ra,
-        exactMatch.dec,
-        location.latitude,
-        hourAngle * 15,
+      // exactMatch.ra is in degrees (note the /15.0 used for hour formatting
+      // below), so it maps directly to objectAltAz's raDeg parameter — the same
+      // helper scheduler_handlers.dart uses, so remote answers stay consistent.
+      final (alt, az) = AstronomyCalculations.objectAltAz(
+        raDeg: exactMatch.ra,
+        decDeg: exactMatch.dec,
+        dt: now,
+        latitudeDeg: location.latitude,
+        longitudeDeg: location.longitude,
       );
 
       visibility = {
@@ -575,130 +578,4 @@ class PlanetariumHandlers {
     });
   }
 
-  // ===========================================================================
-  // Helper Methods
-  // ===========================================================================
-
-  /// Simple atan implementation for FOV calculations
-  double _atan(double x) {
-    // Use Dart's built-in atan
-    return x.isNaN ? 0.0 : _dartAtan(x);
-  }
-
-  double _dartAtan(double x) {
-    // Dart math atan
-    return x / (1.0 + 0.28 * x * x); // Fast approximation for small angles
-    // For more accuracy, would use: import 'dart:math' as math; math.atan(x)
-  }
-
-  /// Calculate local sidereal time
-  double _localSiderealTime(DateTime dt, double longitude) {
-    // Julian date
-    final y = dt.year;
-    final m = dt.month;
-    final d = dt.day + dt.hour / 24 + dt.minute / 1440 + dt.second / 86400;
-
-    final a = ((14 - m) / 12).floor();
-    final y2 = y + 4800 - a;
-    final m2 = m + 12 * a - 3;
-
-    final jd =
-        d +
-        ((153 * m2 + 2) / 5).floor() +
-        365 * y2 +
-        (y2 / 4).floor() -
-        (y2 / 100).floor() +
-        (y2 / 400).floor() -
-        32045;
-
-    final t = (jd - 2451545.0) / 36525;
-    var lst =
-        280.46061837 +
-        360.98564736629 * (jd - 2451545.0) +
-        0.000387933 * t * t -
-        t * t * t / 38710000;
-    lst = lst + longitude;
-    lst = lst % 360;
-    if (lst < 0) lst += 360;
-    return lst / 15; // Convert to hours
-  }
-
-  /// Convert equatorial to horizontal coordinates
-  (double alt, double az) _equatorialToHorizontal(
-    double raDeg,
-    double decDeg,
-    double latDeg,
-    double hourAngleDeg,
-  ) {
-    const pi = 3.14159265358979;
-    final latRad = latDeg * pi / 180;
-    final decRad = decDeg * pi / 180;
-    final haRad = hourAngleDeg * pi / 180;
-
-    final sinAlt =
-        _sin(decRad) * _sin(latRad) + _cos(decRad) * _cos(latRad) * _cos(haRad);
-    final alt = _asin(sinAlt) * 180 / pi;
-
-    final cosAz =
-        (_sin(decRad) - _sin(alt * pi / 180) * _sin(latRad)) /
-        (_cos(alt * pi / 180) * _cos(latRad));
-    var az = _acos(cosAz.clamp(-1.0, 1.0)) * 180 / pi;
-
-    if (_sin(haRad) > 0) {
-      az = 360 - az;
-    }
-
-    return (alt, az);
-  }
-
-  // Simple trig functions (could use dart:math but keeping self-contained)
-  double _sin(double x) => _taylorSin(x);
-  double _cos(double x) => _taylorSin(x + 1.5707963267948966);
-  double _asin(double x) => _taylorAsin(x.clamp(-1.0, 1.0));
-  double _acos(double x) => 1.5707963267948966 - _asin(x);
-
-  double _taylorSin(double x) {
-    // Normalize to -pi to pi
-    const pi = 3.14159265358979;
-    while (x > pi) {
-      x -= 2 * pi;
-    }
-    while (x < -pi) {
-      x += 2 * pi;
-    }
-
-    // Taylor series for sin
-    final x2 = x * x;
-    final x3 = x2 * x;
-    final x5 = x3 * x2;
-    final x7 = x5 * x2;
-    return x - x3 / 6 + x5 / 120 - x7 / 5040;
-  }
-
-  double _taylorAsin(double x) {
-    // Simple asin approximation for small values
-    if (x.abs() > 0.9) {
-      // For values near +/-1, use different approximation
-      final sign = x >= 0 ? 1.0 : -1.0;
-      const pi = 3.14159265358979;
-      return sign *
-          (pi / 2 -
-              _sqrt(1 - x.abs()) * (1.5707963267948966 - 0.2146018 * x.abs()));
-    }
-    final x2 = x * x;
-    final x3 = x2 * x;
-    final x5 = x3 * x2;
-    return x + x3 / 6 + 3 * x5 / 40;
-  }
-
-  double _sqrt(double x) {
-    if (x <= 0) return 0;
-    var guess = x / 2;
-    for (var i = 0; i < 10; i++) {
-      guess = (guess + x / guess) / 2;
-    }
-    return guess;
-  }
-
-  /// Format RA in hours to HH:MM:SS string
 }

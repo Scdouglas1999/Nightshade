@@ -29,7 +29,7 @@ services:
       context: ../../..
       dockerfile: packaging/appliance/docker/Dockerfile
       args:
-        BUNDLE_TARBALL: dist-linux/nightshade-linux-x64-3.0.0.tar.gz
+        BUNDLE_TARBALL: ${NIGHTSHADE_BUNDLE_TARBALL:-dist-linux/nightshade-linux-x64-4.0.0.tar.gz}
     container_name: nightshade-headless
     restart: unless-stopped
 
@@ -47,6 +47,7 @@ services:
       #   NIGHTSHADE_AUTH_TOKEN=$(openssl rand -hex 32)
       NIGHTSHADE_AUTH_TOKEN: ${NIGHTSHADE_AUTH_TOKEN:?set NIGHTSHADE_AUTH_TOKEN in .env}
       NIGHTSHADE_PORT: ${NIGHTSHADE_PORT:-8080}
+      NIGHTSHADE_BROWSE_ROOTS: ${NIGHTSHADE_BROWSE_ROOTS:-Captures=/captures}
       # Pairing codes are only visible in `docker logs` on a headless box.
       NIGHTSHADE_PAIRING_PRINT_CODES: "true"
       # Recommended: self-signed TLS; the SPKI fingerprint the phone pins
@@ -62,7 +63,7 @@ services:
 
     volumes:
       # All persistent state: Drift DB, pairing DB, TLS cert/key,
-      # push_config.json, OTA state, NIGHTSHADE_DATA_DIR (defect maps).
+      # push_config.json, OTA state, native data roots.
       - nightshade-data:/var/lib/nightshade
       # Capture output. Point the left side at your image disk and set the
       # capture path to /captures in app settings (the disk-space watchdog

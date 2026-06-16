@@ -478,6 +478,41 @@ impl ApiVersion {
     }
 }
 
+/// Decode the JSON body of an Alpaca PUT (void) operation.
+///
+/// ASCOM Alpaca PUT operations (Connected=true, slew, move, switch set, cover
+/// open, ...) are void: their response carries only ClientTransactionID /
+/// ServerTransactionID / ErrorNumber / ErrorMessage and NO "Value" field.
+/// Decoding those into `AlpacaResponse<()>` fails with "missing field Value",
+/// which broke EVERY Alpaca PUT (connect included). We instead read the error
+/// fields directly and tolerate an absent "Value": when present it is decoded
+/// into `T` (so a rare value-returning PUT still works); when absent it is
+/// treated as JSON `null`, which deserializes to `()` for the void case.
+fn decode_put_response<T: for<'de> Deserialize<'de>>(
+    raw: serde_json::Value,
+) -> Result<T, AlpacaError> {
+    let error_number = raw
+        .get("ErrorNumber")
+        .and_then(serde_json::Value::as_i64)
+        .unwrap_or(0) as i32;
+    if error_number != 0 {
+        let error_message = raw
+            .get("ErrorMessage")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        return Err(AlpacaError::DeviceError {
+            code: error_number,
+            message: error_message,
+        });
+    }
+    let value_json = raw
+        .get("Value")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null);
+    serde_json::from_value(value_json).map_err(|e| AlpacaError::RequestFailed(e.to_string()))
+}
+
 /// Alpaca API response wrapper
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "PascalCase")]
@@ -864,16 +899,7 @@ impl AlpacaClient {
                     });
                 }
 
-                let alpaca_response: AlpacaResponse<T> = response.json().await?;
-
-                if alpaca_response.error_number != 0 {
-                    return Err(AlpacaError::DeviceError {
-                        code: alpaca_response.error_number,
-                        message: alpaca_response.error_message,
-                    });
-                }
-
-                Ok(alpaca_response.value)
+                decode_put_response::<T>(response.json().await?)
             }
         })
         .await
@@ -1012,16 +1038,7 @@ impl AlpacaClient {
             });
         }
 
-        let alpaca_response: AlpacaResponse<T> = response.json().await?;
-
-        if alpaca_response.error_number != 0 {
-            return Err(AlpacaError::DeviceError {
-                code: alpaca_response.error_number,
-                message: alpaca_response.error_message,
-            });
-        }
-
-        Ok(alpaca_response.value)
+        decode_put_response::<T>(response.json().await?)
     }
 
     /// Make a very long-running PUT request with extended timeout
@@ -1068,16 +1085,7 @@ impl AlpacaClient {
             });
         }
 
-        let alpaca_response: AlpacaResponse<T> = response.json().await?;
-
-        if alpaca_response.error_number != 0 {
-            return Err(AlpacaError::DeviceError {
-                code: alpaca_response.error_number,
-                message: alpaca_response.error_message,
-            });
-        }
-
-        Ok(alpaca_response.value)
+        decode_put_response::<T>(response.json().await?)
     }
 
     /// Make a very long-running GET request with extended timeout
@@ -1404,6 +1412,42 @@ mod tests {
     use std::collections::HashSet;
     use std::sync::Arc;
     use std::thread;
+
+    #[test]
+    fn decode_put_response_tolerates_missing_value() {
+        // ASCOM Alpaca void PUT (e.g. Connected=true, slew): no "Value" field.
+        let void_body = serde_json::json!({
+            "ClientTransactionID": 1,
+            "ServerTransactionID": 2,
+            "ErrorNumber": 0,
+            "ErrorMessage": ""
+        });
+        // Regression: this used to fail with "missing field Value".
+        let unit: () = decode_put_response::<()>(void_body).expect("void PUT must decode");
+        let _ = unit;
+    }
+
+    #[test]
+    fn decode_put_response_surfaces_device_error() {
+        let err_body = serde_json::json!({
+            "ErrorNumber": 1035,
+            "ErrorMessage": "SlewToCoordinatesAsync is not allowed when tracking is False"
+        });
+        let result = decode_put_response::<()>(err_body);
+        match result {
+            Err(AlpacaError::DeviceError { code, message }) => {
+                assert_eq!(code, 1035);
+                assert!(message.contains("tracking"));
+            }
+            other => panic!("expected DeviceError, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn decode_put_response_still_reads_a_present_value() {
+        let valued = serde_json::json!({ "Value": true, "ErrorNumber": 0, "ErrorMessage": "" });
+        assert!(decode_put_response::<bool>(valued).expect("decodes value"));
+    }
 
     #[test]
     fn test_transaction_id_uniqueness_single_thread() {

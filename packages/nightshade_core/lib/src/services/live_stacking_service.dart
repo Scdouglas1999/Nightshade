@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 
+import '../backend/network_backend.dart';
+import '../providers/backend_provider.dart';
 import '../services/logging_service.dart';
 
 /// Configuration for the live stacking engine.
@@ -164,6 +166,37 @@ class LiveStackingService {
 
   LoggingService get _logger => _ref.read(loggingServiceProvider);
 
+  /// The active NetworkBackend when running as a remote client (tablet talking
+  /// to a headless appliance), else null. When non-null the stacker runs on the
+  /// HOST and every operation routes over `/api/stacking/*` rather than the
+  /// local FFI bridge (whose stacker is empty on a remote client).
+  NetworkBackend? get _remote {
+    final backend = _ref.read(backendProvider);
+    return backend is NetworkBackend ? backend : null;
+  }
+
+  /// Arm host-side live stacking without a local reference frame: the next
+  /// frame the host captures becomes the reference and subsequent frames are
+  /// auto-fed. This is the remote entry point — the tablet has no local file to
+  /// hand the host. Only valid on a remote (NetworkBackend) connection; locally
+  /// the operator picks a reference file via [startFromFile].
+  Future<LiveStackingStats> startArmed({
+    LiveStackingConfig config = const LiveStackingConfig(),
+  }) async {
+    final remote = _remote;
+    if (remote == null) {
+      throw StateError(
+        'startArmed is only valid on a remote connection; use startFromFile '
+        'with a reference frame when running on the imaging host.',
+      );
+    }
+    _logger.info(
+      'Arming host-side live stacking',
+      source: 'LiveStackingService',
+    );
+    return remote.stackingStart(config: config);
+  }
+
   /// Start live stacking with a reference image file.
   ///
   /// The reference frame defines the coordinate system; all subsequent frames
@@ -176,6 +209,15 @@ class LiveStackingService {
       'Starting live stacking from file: $referenceImagePath',
       source: 'LiveStackingService',
     );
+
+    final remote = _remote;
+    if (remote != null) {
+      // On a remote client the path is a HOST path; the host starts its stacker.
+      return remote.stackingStart(
+        referencePath: referenceImagePath,
+        config: config,
+      );
+    }
 
     final bridgeConfig = bridge.ApiLiveStackingConfig(
       sigmaClipEnabled: config.sigmaClipEnabled,
@@ -211,6 +253,16 @@ class LiveStackingService {
       source: 'LiveStackingService',
     );
 
+    if (_remote != null) {
+      // Raw pixel upload to the host is intentionally unsupported (the host
+      // captures and stacks its own frames). Remote clients arm the host
+      // ([startArmed]) or pass a host reference path ([startFromFile]).
+      throw StateError(
+        'startFromData is not available on a remote connection; the imaging '
+        'host stacks the frames it captures. Use startArmed() instead.',
+      );
+    }
+
     final bridgeConfig = bridge.ApiLiveStackingConfig(
       sigmaClipEnabled: config.sigmaClipEnabled,
       sigmaClipThreshold: config.sigmaClipThreshold,
@@ -242,6 +294,11 @@ class LiveStackingService {
       source: 'LiveStackingService',
     );
 
+    final remote = _remote;
+    if (remote != null) {
+      return remote.stackingAddFrame(imagePath);
+    }
+
     final result = await bridge.apiStackingAddFrame(imagePath: imagePath);
     return _convertResult(result);
   }
@@ -252,6 +309,12 @@ class LiveStackingService {
     required int height,
     required List<int> data,
   }) async {
+    if (_remote != null) {
+      throw StateError(
+        'addFrameFromData is not available on a remote connection; the imaging '
+        'host stacks the frames it captures.',
+      );
+    }
     final result = await bridge.apiStackingAddFrameFromData(
       width: width,
       height: height,
@@ -262,12 +325,20 @@ class LiveStackingService {
 
   /// Get the current stacked result without adding a frame.
   Future<LiveStackingResult> getCurrentResult() async {
+    final remote = _remote;
+    if (remote != null) {
+      return remote.stackingGetResult();
+    }
     final result = await bridge.apiStackingGetResult();
     return _convertResult(result);
   }
 
   /// Get the current stacking statistics.
   Future<LiveStackingStats> getStats() async {
+    final remote = _remote;
+    if (remote != null) {
+      return remote.stackingGetStats();
+    }
     final result = await bridge.apiStackingGetStats();
     return _convertStats(result);
   }
@@ -275,12 +346,22 @@ class LiveStackingService {
   /// Reset the stacker, clearing accumulated data but keeping the reference.
   Future<void> reset() async {
     _logger.info('Resetting live stacker', source: 'LiveStackingService');
+    final remote = _remote;
+    if (remote != null) {
+      await remote.stackingReset();
+      return;
+    }
     await bridge.apiStackingReset();
   }
 
   /// Stop live stacking and release all resources.
   Future<void> stop() async {
     _logger.info('Stopping live stacker', source: 'LiveStackingService');
+    final remote = _remote;
+    if (remote != null) {
+      await remote.stackingStop();
+      return;
+    }
     await bridge.apiStackingStop();
   }
 

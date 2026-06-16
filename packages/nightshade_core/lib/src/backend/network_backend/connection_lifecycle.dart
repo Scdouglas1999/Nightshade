@@ -255,7 +255,15 @@ extension _NetworkBackendConnectionLifecycle on _NetworkBackendTransport {
 
       final queryParameters = <String, String>{};
       if (authToken != null && authToken!.isNotEmpty) {
-        queryParameters['token'] = authToken!;
+        // Prefer the one-shot WS ticket so the bearer token stays out of the
+        // WebSocket URL (logs/proxies/history). Falls back to ?token= for
+        // servers that predate the ticket endpoint.
+        final wsTicket = await _mintWsTicket();
+        if (wsTicket != null) {
+          queryParameters['ticket'] = wsTicket;
+        } else {
+          queryParameters['token'] = authToken!;
+        }
       }
       queryParameters['apiVersion'] = RemoteApiCompatibility.clientApiVersion
           .format();

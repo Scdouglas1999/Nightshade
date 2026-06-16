@@ -63,24 +63,22 @@ final perFilterIntegrationProvider =
 // Untracked-Targets Cleanup Count
 // =============================================================================
 
-/// Number of "untracked" library targets eligible for the opt-in cleanup, or
-/// `null` when the active backend can't compute it (remote host). Re-evaluates
-/// whenever the targets or sessions data changes so the button count stays live.
+/// Number of "untracked" library targets eligible for the opt-in cleanup.
+/// Re-evaluates whenever the targets or sessions data changes so the button
+/// count stays live. On a remote host the same session-aware predicate runs
+/// host-side over `/api/analytics/untracked-targets/count`.
 ///
 /// "Untracked" is defined in [TargetsDao.deleteUntrackedTargets]: no integration
 /// goal, not a favorite, no captured subs, no integration time, and not
 /// referenced by any imaging session.
 final untrackedTargetsCountProvider = FutureProvider<int?>((ref) async {
   final backend = ref.watch(backendProvider);
-  if (backend is NetworkBackend) {
-    // The cleanup runs a session-aware SQL predicate against the local Drift DB.
-    // There is no equivalent host RPC, so signal "unavailable" rather than fake
-    // a count. The UI disables the button with an explanatory tooltip.
-    return null;
-  }
   // Recompute when the underlying data changes.
   ref.watch(allDbTargetsProvider);
   ref.watch(allSessionsProvider);
+  if (backend is NetworkBackend) {
+    return backend.countUntrackedTargets();
+  }
   return ref.read(targetsDaoProvider).countUntrackedTargets();
 });
 
@@ -234,9 +232,9 @@ class _ProjectTrackingPanelState extends ConsumerState<ProjectTrackingPanel> {
 
 /// Opt-in affordance to remove "untracked" library targets (no goal, no
 /// favorite, no captured data, no sessions) that accumulated as phantom rows.
-/// Hidden entirely when there is nothing to remove; disabled with an
-/// explanatory tooltip when running against a remote imaging host where the
-/// session-aware cleanup can't be performed.
+/// Hidden entirely when there is nothing to remove. Works against both the
+/// local Drift DB and a remote imaging host (the session-aware cleanup runs
+/// host-side over the analytics API).
 class _CleanupHeaderRow extends ConsumerWidget {
   const _CleanupHeaderRow();
 
@@ -281,8 +279,10 @@ class _CleanupHeaderRow extends ConsumerWidget {
     if (!context.mounted) return;
 
     try {
-      final deleted =
-          await ref.read(targetsDaoProvider).deleteUntrackedTargets();
+      final backend = ref.read(backendProvider);
+      final deleted = backend is NetworkBackend
+          ? await backend.removeUntrackedTargets()
+          : await ref.read(targetsDaoProvider).deleteUntrackedTargets();
       // Refresh the library-backed views and this panel's count.
       ref.invalidate(allDbTargetsProvider);
       ref.invalidate(favoriteDbTargetsProvider);
@@ -301,30 +301,6 @@ class _CleanupHeaderRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
     final countAsync = ref.watch(untrackedTargetsCountProvider);
-    final backend = ref.watch(backendProvider);
-    final isRemote = backend is NetworkBackend;
-
-    // On a remote host the cleanup can't run; surface a disabled, explained
-    // button instead of hiding it or silently no-op'ing.
-    if (isRemote) {
-      return Padding(
-        padding: const EdgeInsets.only(bottom: 12),
-        child: Align(
-          alignment: Alignment.centerRight,
-          child: Tooltip(
-            message: 'Available on the imaging host',
-            child: TextButton.icon(
-              onPressed: null,
-              icon: const Icon(LucideIcons.trash2, size: 14),
-              label: const Text(
-                'Remove untracked targets',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize12),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
 
     final count = countAsync.valueOrNull ?? 0;
     if (count <= 0) {

@@ -456,6 +456,57 @@ extension CalibrationDarkLibraryHandlers on CalibrationHandlers {
     return jsonOk({'dark': await _darkEntryToWire(match)});
   }
 
+  /// POST /api/calibration/match-dark
+  ///
+  /// Remote-client counterpart to the local `DarkLibraryService.findMatchingDark`
+  /// path in `CalibrationService.calibrateFile`. A remote client cannot run the
+  /// matcher itself because the dark library (and its FITS files) live on the
+  /// host, so it asks the host to run the match and report back the matched
+  /// dark's on-host file path. The path is then handed straight to
+  /// `POST /api/imaging/calibrate-file`, which reads it host-side.
+  ///
+  /// Unlike `darks/find-match` (which returns the full wire entry, 404 on miss),
+  /// this endpoint always answers 200 with `{matched: <hostPath>|null}` so the
+  /// caller can branch on a clean null without treating "no match" as an error.
+  ///
+  /// The matcher is routed through the same `darkLibraryMatchTolerancesProvider`
+  /// the local path and the coverage UI consult, so the host and a co-located
+  /// local client agree on what counts as a matching dark.
+  Future<Response> handleMatchDark(Request request) async {
+    _logInfo('[API] POST /api/calibration/match-dark');
+    final payload = await readJsonObject(request);
+
+    final exposureTime = requireDouble(payload, 'exposureTime', min: 0);
+    final gain = requireInt(payload, 'gain');
+    final offset = optionalInt(payload, 'offset') ?? 0;
+    final binX = optionalInt(payload, 'binX', min: 1) ?? 1;
+    final binY = optionalInt(payload, 'binY', min: 1) ?? 1;
+    final temperature = optionalDouble(payload, 'temperature');
+
+    final darkLibrary = container.read(darkLibraryServiceProvider);
+    final tolerances = container.read(darkLibraryMatchTolerancesProvider);
+
+    final match = await darkLibrary.findMatchingDark(
+      exposureTime: exposureTime,
+      gain: gain,
+      offset: offset,
+      binX: binX,
+      binY: binY,
+      temperature: temperature,
+      tolerances: tolerances,
+    );
+
+    if (match == null) {
+      _logInfo('No matching dark in library for remote calibration request');
+      return jsonOk({'matched': null});
+    }
+    _logInfo(
+      'Matched dark for remote calibration: ${match.filePath} '
+      '(exposure=${match.exposureTime}s, temp=${match.temperature}C)',
+    );
+    return jsonOk({'matched': match.filePath});
+  }
+
   /// POST /api/calibration/darks/backfill-sizes
   ///
   /// Note: the `dark_library` schema has no `file_size` column, so this

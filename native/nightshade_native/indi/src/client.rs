@@ -1073,6 +1073,16 @@ impl IndiClient {
     ) -> IndiResult<()> {
         let mut reader = quick_xml::reader::Reader::from_reader(tokio::io::BufReader::new(reader));
         reader.trim_text(true);
+        // INDI is a continuous STREAM of independent top-level vectors, not a
+        // single rooted document, and we maintain our own depth stack
+        // (`xml_stack`) below with explicit stray-end-tag recovery. quick-xml's
+        // built-in end-name matching is therefore redundant — and harmful: when
+        // a closing tag like `</setSwitchVector>` lands on a buffer/TCP-read
+        // boundary (common during the bursty switch-vector traffic an exposure
+        // produces) it raises a hard "expected </<...>" mismatch, which forces a
+        // reader teardown that drops the in-flight exposure. Defer structure
+        // validation to our own stack, which degrades gracefully.
+        reader.check_end_names(false);
 
         let mut buf = Vec::new();
 
@@ -1752,6 +1762,9 @@ impl IndiClient {
                     let inner = reader.into_inner();
                     reader = quick_xml::reader::Reader::from_reader(inner);
                     reader.trim_text(true);
+                    // Match the primary reader: defer end-name validation to our
+                    // own xml_stack (see the construction site above).
+                    reader.check_end_names(false);
                 }
                 Err(_) => {
                     // Read timeout - check if connection is still alive

@@ -1,10 +1,17 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+    FlutterSecureStorage.setMockInitialValues(<String, String>{});
+  });
+
   group('isLocalNetworkHost — RFC1918 / loopback / link-local', () {
     test('accepts 10.0.0.0/8', () {
       expect(isLocalNetworkHost('10.0.0.1'), isTrue);
@@ -198,6 +205,88 @@ void main() {
       expect(server.isTls, isTrue);
       expect(server.webUrl, 'https://100.64.0.5:8443');
       expect(server.copyWith(scheme: 'http').webUrl, 'http://100.64.0.5:8443');
+    });
+  });
+
+  group('EnhancedNightshadeDiscovery saved server persistence', () {
+    test('round-trips the transport scheme for HTTPS rigs', () async {
+      await EnhancedNightshadeDiscovery.saveLastServer(
+        DiscoveredServer(
+          host: '100.64.0.5',
+          webPort: 8443,
+          signalingPort: 8443,
+          name: 'Nightshade Headless',
+          version: '4.0.0',
+          scheme: 'https',
+          authRequired: true,
+          authenticationMode: 'token',
+          pairingSupported: true,
+          fingerprint: 'abcdef1234567890',
+        ),
+      );
+
+      final loaded = await EnhancedNightshadeDiscovery.loadLastServer();
+
+      expect(loaded, isNotNull);
+      expect(loaded!.scheme, 'https');
+      expect(loaded.webUrl, 'https://100.64.0.5:8443');
+      expect(loaded.authRequired, isTrue);
+      expect(loaded.fingerprint, 'abcdef1234567890');
+    });
+  });
+
+  group('NightshadeDiscovery UDP response parsing', () {
+    test('preserves transport, auth, pairing, and fingerprint metadata', () {
+      const raw =
+          'NIGHTSHADE_RESPONSE_V2:'
+          '{"protocol":"2","name":"Nightshade Headless","version":"4.0.0",'
+          '"webPort":8080,"signalingPort":8080,"scheme":"https",'
+          '"authRequired":true,"authenticationMode":"token",'
+          '"pairingSupported":true,"fingerprint":"abc123def456"}';
+
+      final server = NightshadeDiscovery.tryParseResponsePacket(
+        raw,
+        '192.168.1.42',
+      );
+
+      expect(server, isNotNull);
+      expect(server!.host, '192.168.1.42');
+      expect(server.name, 'Nightshade Headless');
+      expect(server.version, '4.0.0');
+      expect(server.webPort, 8080);
+      expect(server.scheme, 'https');
+      expect(server.isTls, isTrue);
+      expect(server.authRequired, isTrue);
+      expect(server.authenticationMode, 'token');
+      expect(server.pairingSupported, isTrue);
+      expect(server.fingerprint, 'abc123def456');
+    });
+
+    test('rejects malformed or non-Nightshade packets', () {
+      expect(
+        NightshadeDiscovery.tryParseResponsePacket('{"webPort":8080}', 'host'),
+        isNull,
+      );
+      expect(
+        NightshadeDiscovery.tryParseResponsePacket(
+          'NIGHTSHADE_RESPONSE_V2:{"webPort":"8080"}',
+          'host',
+        ),
+        isNull,
+      );
+    });
+
+    test('computes likely /24 directed broadcast targets', () {
+      expect(
+        NightshadeDiscovery.likelyIpv4DirectedBroadcastTargets([
+          '192.168.1.23',
+          '10.0.4.55',
+          '127.0.0.1',
+          'not-an-ip',
+          '192.168.1.255',
+        ]),
+        {'192.168.1.255', '10.0.4.255'},
+      );
     });
   });
 

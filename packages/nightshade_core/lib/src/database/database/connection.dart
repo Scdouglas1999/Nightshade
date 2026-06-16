@@ -1,11 +1,26 @@
 part of '../database.dart';
 
+/// Environment variable used by headless/systemd deployments to pin the Drift
+/// database under a daemon-owned state directory instead of a user Documents
+/// folder.
+const nightshadeDatabaseDirEnv = 'NIGHTSHADE_DATABASE_DIR';
+
 /// Resolve the on-disk path the desktop/mobile database lives at. Exposed
 /// separately so the UI bootstrap and CLI tools can find the file (e.g. for
 /// "Show database location" buttons or post-recovery diagnostics) without
 /// re-implementing the path heuristic.
-Future<File> resolveDefaultDatabaseFile() async {
-  final dbFolder = await getApplicationDocumentsDirectory();
+Future<File> resolveDefaultDatabaseFile({
+  Map<String, String>? environment,
+  Future<Directory> Function()? documentsDirectoryProvider,
+}) async {
+  final env = environment ?? Platform.environment;
+  final overrideDir = env[nightshadeDatabaseDirEnv]?.trim();
+  if (overrideDir != null && overrideDir.isNotEmpty) {
+    return File(p.join(overrideDir, 'nightshade.db'));
+  }
+
+  final dbFolder =
+      await (documentsDirectoryProvider ?? getApplicationDocumentsDirectory)();
   return File(p.join(dbFolder.path, 'Nightshade', 'nightshade.db'));
 }
 

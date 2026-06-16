@@ -1,0 +1,281 @@
+import 'dart:convert';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
+import 'package:nightshade_core/nightshade_core.dart';
+import 'package:shelf/shelf.dart';
+
+import '../job_manager.dart';
+import '../response_helpers.dart';
+import '../validation.dart';
+
+/// Headless control surface for the **post-session integration / finishing**
+/// core — the "review and integrate last night's data" workflow.
+///
+/// Every operation here runs on the HOST (the appliance that captured the subs)
+/// against HOST file paths and HOST session ids. Pixel data is never uploaded
+/// from a remote client: a tablet hands the host the on-disk paths of the subs /
+/// masters and the host's Rust pipeline does the compute. This mirrors the
+/// host-only-processing policy of the imaging-stats and live-stacking surfaces.
+///
+/// These are long-running compute ops (a full integration can run for minutes),
+/// so each is backed by the [JobManager]: the action POST returns
+/// `{jobId, status: queued}` immediately and the client polls `/api/jobs/{id}`
+/// (or watches the WS `job` event stream) for completion. The job's `result`
+/// payload is the exact JSON envelope the native FFI returned — the client's
+/// [PostSessionSeam] result classes decode it verbatim.
+///
+/// The handlers forward to the same native bridge free functions
+/// (`apiIntegrateSession`, `apiAnalyzeNight`, `apiBuildMasterFlat`,
+/// `apiColorCalibrate`, `apiExtractBackground`, `apiCombineChannels`,
+/// `apiDrizzleIntegrate`) that [BridgePostSessionSeam] wraps, so the host result
+/// is byte-for-byte identical whether the op was driven locally or remotely.
+///
+/// Mosaic stitching (`api_stitch_mosaic`) is intentionally NOT exposed here; it
+/// is owned by the separate mosaic surface.
+class PostSessionHandlers {
+  final ProviderContainer container;
+
+  /// Long-running ops register as [JobManager] jobs so the action POST returns
+  /// immediately. Required for this surface — every op is potentially minutes
+  /// long; constructing without it is a programmer error.
+  final JobManager jobManager;
+
+  PostSessionHandlers(this.container, {required this.jobManager});
+
+  LoggingService get _logger => container.read(loggingServiceProvider);
+
+  void _logInfo(String message) =>
+      _logger.info(message, source: 'PostSessionHandlers');
+
+  /// Decode a native JSON envelope to a `Map<String, dynamic>`, the job-result
+  /// shape clients decode. Mirrors `BridgePostSessionSeam._decodeObject`.
+  Map<String, dynamic> _decodeObject(String json) {
+    final decoded = jsonDecode(json);
+    if (decoded is Map<String, dynamic>) return decoded;
+    throw FormatException(
+      'post-session native call returned a non-object JSON payload',
+      json,
+    );
+  }
+
+  /// Register [work] as a JobManager job and return the queued-job envelope.
+  Future<Response> _startJob(
+    String operation,
+    Future<Map<String, Object?>> Function() work,
+  ) async {
+    final job = jobManager.start(
+      operation: operation,
+      deviceId: null,
+      work: (sink, cancellation) async {
+        sink.update(null, operation);
+        // The native pipeline is a single FFI call with no cancellation hook;
+        // we still race it against the cancellation signal so a client cancel
+        // unblocks the awaiting caller even though the host keeps computing
+        // until the FFI returns. (Same contract as plate-solve.)
+        final result = await Future.any<Object?>([
+          work(),
+          cancellation.whenCancelled.then((_) => _Cancelled.instance),
+        ]);
+        if (result is _Cancelled) {
+          throw const JobCancelledException(
+            'Post-session operation cancellation requested by client',
+          );
+        }
+        return result as Map<String, Object?>;
+      },
+    );
+    return jsonOk({
+      'jobId': job.jobId,
+      'status': job.state.wireName,
+      'operation': job.operation,
+    });
+  }
+
+  // ===========================================================================
+  // Integrate session — one-shot batch integration of a sub list into a linear
+  // FITS master. Wraps `api_integrate_session`.
+  // ===========================================================================
+
+  /// POST /api/post-session/integrate
+  /// Body: the `IntegrateSessionArgs` JSON shape
+  /// `{ lightPaths, reference?, exposuresSec?, calibration, settings, output }`
+  /// (host paths). Returns `{jobId}`; the job result is the
+  /// `IntegrateSessionResult` envelope.
+  Future<Response> handleIntegrateSession(Request request) async {
+    _logInfo('[API] POST /api/post-session/integrate');
+    final args = await readJsonObject(request);
+    return _startJob('post-session.integrate', () async {
+      final out = await bridge.apiIntegrateSession(argsJson: jsonEncode(args));
+      return _decodeObject(out);
+    });
+  }
+
+  // ===========================================================================
+  // Drizzle integrate — variable-pixel linear reconstruction onto a scaled
+  // grid. Wraps `api_drizzle_integrate`.
+  // ===========================================================================
+
+  /// POST /api/post-session/drizzle
+  /// Body: the `DrizzleIntegrateArgs` JSON shape
+  /// `{ frames: [{ fitsPath, transform, weight }], refW, refH, config, bayer?,
+  /// calibration?, outputFits, coverageFits?, previewPngPath? }` (host paths).
+  /// Returns `{jobId}`; the job result is
+  /// `{outputPath, coveragePath?, outWidth, outHeight, channels, previewPngPath?}`.
+  Future<Response> handleDrizzleIntegrate(Request request) async {
+    _logInfo('[API] POST /api/post-session/drizzle');
+    final args = await readJsonObject(request);
+    return _startJob('post-session.drizzle', () async {
+      final out = await bridge.apiDrizzleIntegrate(argsJson: jsonEncode(args));
+      return _decodeObject(out);
+    });
+  }
+
+  // ===========================================================================
+  // Analyze night — marginal-SNR integration curve + keep/cull recommendation.
+  // Wraps `api_analyze_night` (a pure analytic predictor; no pixels integrated).
+  // ===========================================================================
+
+  /// POST /api/post-session/analyze-night
+  /// Body: `{ qualities: [...], weights: [...], exposuresS: [...],
+  /// optimizer?: { aggressiveness?, minKeep? } }`. Returns `{jobId}`; the job
+  /// result is the `IntegrationCurve` envelope.
+  Future<Response> handleAnalyzeNight(Request request) async {
+    _logInfo('[API] POST /api/post-session/analyze-night');
+    final args = await readJsonObject(request);
+    // Validate the three aligned arrays exist (the native side requires them);
+    // shape is otherwise pass-through.
+    requireList<dynamic>(args, 'qualities');
+    requireList<dynamic>(args, 'weights');
+    requireList<dynamic>(args, 'exposuresS');
+    return _startJob('post-session.analyze-night', () async {
+      final out = await bridge.apiAnalyzeNight(argsJson: jsonEncode(args));
+      return _decodeObject(out);
+    });
+  }
+
+  // ===========================================================================
+  // Build master flat — unit-mean master flat from raw flats. Wraps
+  // `api_build_master_flat`.
+  // ===========================================================================
+
+  /// POST /api/post-session/build-master-flat
+  /// Body: the `BuildMasterFlatArgs` JSON shape (host paths). Returns `{jobId}`;
+  /// the job result is the `BuildMasterFlatResult` envelope.
+  Future<Response> handleBuildMasterFlat(Request request) async {
+    _logInfo('[API] POST /api/post-session/build-master-flat');
+    final args = await readJsonObject(request);
+    return _startJob('post-session.build-master-flat', () async {
+      final out = await bridge.apiBuildMasterFlat(argsJson: jsonEncode(args));
+      return _decodeObject(out);
+    });
+  }
+
+  // ===========================================================================
+  // Color calibrate — solve + apply a per-channel white balance from the
+  // matched colour-indexed stars. Wraps `api_color_calibrate`.
+  // ===========================================================================
+
+  /// POST /api/post-session/color-calibrate
+  /// Body: `{ inputFits, outputFits, channels, whiteRefBv?, matchedStars: [...] }`
+  /// (host paths). Returns `{jobId}`; the job result is the
+  /// `ColorCalibrationResult` envelope.
+  Future<Response> handleColorCalibrate(Request request) async {
+    _logInfo('[API] POST /api/post-session/color-calibrate');
+    final args = await readJsonObject(request);
+    requireString(args, 'inputFits');
+    requireString(args, 'outputFits');
+    requireInt(args, 'channels');
+    requireList<dynamic>(args, 'matchedStars');
+    return _startJob('post-session.color-calibrate', () async {
+      final out = await bridge.apiColorCalibrate(argsJson: jsonEncode(args));
+      return _decodeObject(out);
+    });
+  }
+
+  // ===========================================================================
+  // Detect stars (photometry) — measure each star's per-channel aperture flux,
+  // the input to colour calibration's Dart-side cross-match. Wraps
+  // `api_detect_stars_photometry`.
+  // ===========================================================================
+
+  /// POST /api/post-session/detect-stars
+  /// Body: `{ inputFits, maxStars?, aperture? }` (host path). Returns `{jobId}`;
+  /// the job result is the `StarPhotometryResult` envelope.
+  Future<Response> handleDetectStars(Request request) async {
+    _logInfo('[API] POST /api/post-session/detect-stars');
+    final args = await readJsonObject(request);
+    requireString(args, 'inputFits');
+    return _startJob('post-session.detect-stars', () async {
+      final out = await bridge.apiDetectStarsPhotometry(
+        argsJson: jsonEncode(args),
+      );
+      return _decodeObject(out);
+    });
+  }
+
+  // ===========================================================================
+  // Extract background — fit + subtract a low-order background model. Wraps
+  // `api_extract_background`.
+  // ===========================================================================
+
+  /// POST /api/post-session/extract-background
+  /// Body: `{ inputFits, outputFits, config? }` (host paths). Returns `{jobId}`;
+  /// the job result is the `{outputPath}` envelope.
+  Future<Response> handleExtractBackground(Request request) async {
+    _logInfo('[API] POST /api/post-session/extract-background');
+    final args = await readJsonObject(request);
+    requireString(args, 'inputFits');
+    requireString(args, 'outputFits');
+    return _startJob('post-session.extract-background', () async {
+      final out = await bridge.apiExtractBackground(argsJson: jsonEncode(args));
+      return _decodeObject(out);
+    });
+  }
+
+  // ===========================================================================
+  // Combine channels — linearly combine single-channel narrowband masters into
+  // an RGB composite. Wraps `api_combine_channels`.
+  // ===========================================================================
+
+  /// POST /api/post-session/combine-channels
+  /// Body: the `CombineChannelsArgs` JSON shape (host paths). Returns `{jobId}`;
+  /// the job result is the `{outputPath}` envelope.
+  Future<Response> handleCombineChannels(Request request) async {
+    _logInfo('[API] POST /api/post-session/combine-channels');
+    final args = await readJsonObject(request);
+    return _startJob('post-session.combine-channels', () async {
+      final out = await bridge.apiCombineChannels(argsJson: jsonEncode(args));
+      return _decodeObject(out);
+    });
+  }
+
+  // ===========================================================================
+  // Master accumulate — multi-night accumulating master (create / add /
+  // finalize / info). Wraps `api_master_accumulate`. The `info` / `create` /
+  // `finalize` ops are cheap, but `add` folds a whole night, so the whole op
+  // family is job-backed for a uniform client contract.
+  // ===========================================================================
+
+  /// POST /api/post-session/master-accumulate
+  /// Body: the `MasterAccumulateArgs` JSON shape, carrying an `op` of
+  /// `create` / `add` / `finalize` / `info` plus that op's fields (host paths).
+  /// Returns `{jobId}`; the job result is the `MasterAccumulateResult` envelope.
+  Future<Response> handleMasterAccumulate(Request request) async {
+    _logInfo('[API] POST /api/post-session/master-accumulate');
+    final args = await readJsonObject(request);
+    requireString(args, 'op');
+    return _startJob('post-session.master-accumulate', () async {
+      final out = await bridge.apiMasterAccumulate(argsJson: jsonEncode(args));
+      return _decodeObject(out);
+    });
+  }
+}
+
+/// Sentinel marking the cancellation branch of a [Future.any] race against a
+/// long-running post-session op. Library-private (the analogous sentinel in
+/// imaging_handlers is similarly private).
+class _Cancelled {
+  const _Cancelled._();
+  static const _Cancelled instance = _Cancelled._();
+}

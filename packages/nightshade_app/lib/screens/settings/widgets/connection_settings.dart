@@ -178,12 +178,19 @@ class ConnectionSettings extends ConsumerWidget {
             ],
           ),
         SettingsSection(
-          title: 'Platform Capabilities',
+          // The capability matrix is computed from the LOCAL device's OS
+          // (Platform.operatingSystem). In remote mode that is the tablet, not
+          // the imaging host — so relabel to make clear whose driver support
+          // this describes and avoid implying it is the rig's capabilities.
+          title: isConnected
+              ? 'This Device Capabilities'
+              : 'Platform Capabilities',
           isMobile: isMobile,
           children: [
             _PlatformCapabilityMatrixView(
               report: platformCapabilities,
               isMobile: isMobile,
+              isRemote: isConnected,
             ),
           ],
         ),
@@ -306,10 +313,12 @@ class ConnectionSettings extends ConsumerWidget {
 class _PlatformCapabilityMatrixView extends StatelessWidget {
   final PlatformCapabilityReport report;
   final bool isMobile;
+  final bool isRemote;
 
   const _PlatformCapabilityMatrixView({
     required this.report,
     required this.isMobile,
+    this.isRemote = false,
   });
 
   @override
@@ -329,7 +338,9 @@ class _PlatformCapabilityMatrixView extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  'Current platform: $platformLabel',
+                  isRemote
+                      ? 'This device: $platformLabel (not the imaging host)'
+                      : 'Current platform: $platformLabel',
                   style: TextStyle(
                     fontSize: isMobile
                         ? NightshadeTypography.fontSize12
@@ -341,6 +352,19 @@ class _PlatformCapabilityMatrixView extends StatelessWidget {
               ),
             ],
           ),
+          if (isRemote) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Driver support shown is for this device. The imaging host may '
+              'support different drivers.',
+              style: TextStyle(
+                fontSize: isMobile
+                    ? NightshadeTypography.fontSize11
+                    : NightshadeTypography.fontSize12,
+                color: colors.textMuted,
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           ...report.drivers.map(
             (driver) => _PlatformCapabilityRow(

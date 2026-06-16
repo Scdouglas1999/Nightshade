@@ -45,8 +45,19 @@ to control that device either.
 
 - Add the user to `dialout` for serial devices.
 - Add the user to `video` or `plugdev` when required by camera drivers.
-- Install vendor udev rules for cameras and USB accessories.
+- On Nightshade systemd/Pi appliances, confirm
+  `/etc/udev/rules.d/99-nightshade-astro.rules` is installed. It grants the
+  `nightshade` service group access to common astronomy cameras and USB-serial
+  adapters without making devices world-writable.
+- Install vendor udev/firmware packages when the device needs firmware upload
+  or a vendor-specific driver stack beyond basic permissions.
 - Log out and back in after changing group membership.
+- Reload udev and reconnect devices after changing rules:
+
+  ```bash
+  sudo udevadm control --reload-rules
+  sudo udevadm trigger --subsystem-match=usb --subsystem-match=tty --subsystem-match=hidraw
+  ```
 
 ## Release-Gate Evidence
 

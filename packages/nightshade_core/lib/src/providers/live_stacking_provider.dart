@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -101,6 +102,76 @@ class LiveStackingNotifier extends StateNotifier<LiveStackingState> {
 
   LoggingService get _logger => _ref.read(loggingServiceProvider);
   LiveStackingService get _service => _ref.read(liveStackingServiceProvider);
+
+  /// Polls the host's stacked result while remote stacking is active. The host
+  /// auto-feeds captured frames into its stacker, so the client has nothing to
+  /// react to except the wall clock — it refreshes the preview/stats on a
+  /// cadence. Null when local (frames update the preview synchronously) or idle.
+  Timer? _remotePollTimer;
+
+  /// Arm host-side live stacking and begin polling its preview/stats.
+  ///
+  /// The remote entry point: the tablet has no local reference frame, so the
+  /// host arms its stacker and the next captured frame becomes the reference.
+  /// Used by the UI when connected to an appliance.
+  Future<void> startRemote({LiveStackingConfig? config}) async {
+    final effectiveConfig = config ?? state.config;
+    state = state.copyWith(
+      status: LiveStackingStatus.running,
+      config: effectiveConfig,
+      errorMessage: null,
+    );
+    try {
+      final stats = await _service.startArmed(config: effectiveConfig);
+      if (!mounted) return;
+      state = state.copyWith(stats: stats);
+      _logger.info(
+        'Remote live stacking armed on host',
+        source: 'LiveStackingNotifier',
+      );
+      _startRemotePolling();
+    } catch (e) {
+      if (!mounted) return;
+      state = state.copyWith(
+        status: LiveStackingStatus.error,
+        errorMessage: e.toString(),
+      );
+      _logger.error(
+        'Failed to arm remote live stacking: $e',
+        source: 'LiveStackingNotifier',
+      );
+    }
+  }
+
+  void _startRemotePolling() {
+    _remotePollTimer?.cancel();
+    // 2.5s cadence: brisk enough that the preview tracks a typical sub-minute
+    // EAA exposure within a frame or two, cheap enough not to flood the LAN
+    // with full-frame u16 downloads. Each tick pulls the latest host result.
+    _remotePollTimer = Timer.periodic(
+      const Duration(milliseconds: 2500),
+      (_) => _pollRemoteResult(),
+    );
+  }
+
+  Future<void> _pollRemoteResult() async {
+    if (!mounted || state.status != LiveStackingStatus.running) return;
+    try {
+      final result = await _service.getCurrentResult();
+      if (!mounted) return;
+      state = state.copyWith(
+        stats: result.stats,
+        previewData: Uint16List.fromList(result.data),
+        previewWidth: result.width,
+        previewHeight: result.height,
+        lastFrameTotalPixels: result.width * result.height,
+      );
+    } catch (e) {
+      // Before the host's first frame lands there is no result yet (404
+      // no_active_stack). That's expected while armed-but-not-started — keep
+      // polling silently rather than flipping to an error state.
+    }
+  }
 
   /// Start a new live stacking session from a reference image file.
   Future<void> startFromFile(
@@ -297,6 +368,8 @@ class LiveStackingNotifier extends StateNotifier<LiveStackingState> {
 
   /// Stop stacking and release resources.
   Future<void> stop() async {
+    _remotePollTimer?.cancel();
+    _remotePollTimer = null;
     try {
       await _service.stop();
     } catch (e) {
@@ -308,6 +381,13 @@ class LiveStackingNotifier extends StateNotifier<LiveStackingState> {
 
     if (!mounted) return;
     state = const LiveStackingState();
+  }
+
+  @override
+  void dispose() {
+    _remotePollTimer?.cancel();
+    _remotePollTimer = null;
+    super.dispose();
   }
 }
 

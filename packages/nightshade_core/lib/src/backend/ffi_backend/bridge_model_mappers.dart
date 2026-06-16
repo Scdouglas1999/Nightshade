@@ -67,8 +67,20 @@ extension _FfiBackendBridgeModelMappers on _FfiBackendBase {
       canPulseGuide: s.canPulseGuide,
       canSetTrackingRate: s.canSetTrackingRate,
       availability: s.availability.map(
-        (key, value) => MapEntry(key, value.toString()),
+        (key, value) => MapEntry(key, _fieldAvailabilityToWire(value)),
       ),
+    );
+  }
+
+  /// Serialize a flutter_rust_bridge [FieldAvailability] to the stable wire
+  /// string the headless API and clients expect ('available' / 'unsupported' /
+  /// `error: <reason>`). Using `.toString()` would leak the Dart class name
+  /// ('FieldAvailability.available()') into the JSON contract.
+  String _fieldAvailabilityToWire(bridge_device.FieldAvailability v) {
+    return v.when(
+      available: () => 'available',
+      unsupported: () => 'unsupported',
+      error: (reason) => 'error: $reason',
     );
   }
 

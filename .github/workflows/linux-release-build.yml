@@ -90,6 +90,44 @@ jobs:
           echo "Bundle lib contents:"
           ls -l "$BUNDLE_LIB"
 
+      - name: Verify glibc floor (Bookworm / Raspberry Pi OS compatibility)
+        run: |
+          set -euo pipefail
+          # This job builds on ubuntu-latest (newer glibc), but the appliance
+          # ships on Debian/Raspberry Pi OS Bookworm (glibc 2.36) — both the
+          # systemd/Pi installs and the docker appliance (FROM debian:bookworm-slim).
+          # A binary that requires a newer glibc aborts on boot there with
+          # "GLIBC_2.38 not found", invisible to a smoke test run on this runner.
+          # Fail loudly if any bundle binary exceeds the target floor.
+          #
+          # To make this PASS (not just detect), build on Bookworm: the
+          # now-Bookworm-capable scripts/docker_build_linux.sh produces a
+          # glibc-2.36 bundle and runs this same check internally —
+          #   docker run --rm -e NIGHTSHADE_GLIBC_FLOOR=2.36 \
+          #     -v "$PWD":/host:ro -v "$PWD/dist-linux":/out \
+          #     debian:bookworm-slim bash /host/scripts/docker_build_linux.sh
+          FLOOR="${NIGHTSHADE_GLIBC_FLOOR:-2.36}"
+          BUNDLE="apps/desktop/build/linux/x64/release/bundle"
+          floor_major=${FLOOR%%.*}; floor_minor=${FLOOR#*.}
+          violations=0
+          for bin in "$BUNDLE"/nightshade_desktop "$BUNDLE"/lib/*.so; do
+            [ -f "$bin" ] || continue
+            maxv=$(objdump -T "$bin" 2>/dev/null \
+              | grep -oE 'GLIBC_2\.[0-9]+' | sort -V | tail -1 || true)
+            [ -n "$maxv" ] || continue
+            v=${maxv#GLIBC_}; major=${v%%.*}; minor=${v#*.}
+            if [ "$major" -gt "$floor_major" ] || \
+               { [ "$major" -eq "$floor_major" ] && [ "$minor" -gt "$floor_minor" ]; }; then
+              echo "VIOLATION: $(basename "$bin") needs $maxv (> $FLOOR)"
+              violations=$((violations + 1))
+            fi
+          done
+          if [ "$violations" -gt 0 ]; then
+            echo "::error::$violations binary(ies) exceed glibc $FLOOR — this artifact will NOT boot on the Bookworm appliance. Build on Bookworm (see comment above)."
+            exit 1
+          fi
+          echo "glibc floor OK (no binary exceeds $FLOOR)"
+
       - name: Headless runtime smoke
         run: |
           set -euo pipefail

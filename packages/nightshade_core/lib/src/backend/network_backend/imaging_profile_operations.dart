@@ -111,6 +111,81 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
         .toList();
   }
 
+  /// Ask the host to find the best-matching dark in its library for the given
+  /// light-frame capture parameters and return that dark's on-host file path.
+  ///
+  /// A remote client can't run the matcher itself — the dark library and its
+  /// FITS files live on the host — so this delegates to
+  /// `POST /api/calibration/match-dark`. The returned path is a host-side path
+  /// and is meant to be handed straight to [calibrateImageFile], which reads
+  /// it host-side. Returns `null` when no library dark matches.
+  Future<String?> matchDarkFromLibrary({
+    required double exposureTime,
+    required int gain,
+    int offset = 0,
+    int binX = 1,
+    int binY = 1,
+    double? temperature,
+  }) async {
+    final response = await _post('calibration/match-dark', {
+      'exposureTime': exposureTime,
+      'gain': gain,
+      'offset': offset,
+      'binX': binX,
+      'binY': binY,
+      if (temperature != null) 'temperature': temperature,
+    });
+    return response['matched'] as String?;
+  }
+
+  /// Build a defect map host-side from dark frames.
+  ///
+  /// A remote client has no local picker over the host filesystem, so it
+  /// passes either explicit on-host [darkFramePaths] or a single host
+  /// [darkFramesDirectory] for the host to enumerate. Delegates to
+  /// `POST /api/calibration/defect-maps/build`; the host runs the same
+  /// `DefectMapService.build` the local FFI path uses and returns the
+  /// resulting status.
+  Future<DefectMapStatus> buildDefectMap({
+    required String cameraId,
+    required double sensorTemperatureCelsius,
+    List<String>? darkFramePaths,
+    String? darkFramesDirectory,
+  }) async {
+    final response = await _post('calibration/defect-maps/build', {
+      'cameraId': cameraId,
+      'sensorTemperatureCelsius': sensorTemperatureCelsius,
+      if (darkFramePaths != null) 'darkFramePaths': darkFramePaths,
+      if (darkFramesDirectory != null)
+        'darkFramesDirectory': darkFramesDirectory,
+    });
+    final status = response['status'] as Map<String, dynamic>;
+    return DefectMapStatus(
+      cameraId: status['cameraId'] as String,
+      width: (status['width'] as num).toInt(),
+      height: (status['height'] as num).toInt(),
+      temperatureBucket: DefectMapTemperatureBucket(
+        (status['temperatureBucketDecicelsius'] as num).toInt(),
+      ),
+      defectivePixelCount: (status['defectivePixelCount'] as num).toInt(),
+      lastRebuiltUnixSeconds: (status['lastRebuiltUnixSeconds'] as num).toInt(),
+      applyDuringCapture: status['applyDuringCapture'] as bool,
+      storedOnDisk: status['storedOnDisk'] as bool,
+    );
+  }
+
+  /// Toggle whether the host applies the stored defect map to lights at
+  /// capture time. Delegates to `POST /api/calibration/defect-maps/apply`.
+  Future<void> applyDefectMap({
+    required String cameraId,
+    required bool applyDuringCapture,
+  }) async {
+    await _post('calibration/defect-maps/apply', {
+      'cameraId': cameraId,
+      'applyDuringCapture': applyDuringCapture,
+    });
+  }
+
   @override
   Future<void> calibrateImageFile({
     required String lightPath,

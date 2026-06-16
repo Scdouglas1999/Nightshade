@@ -141,39 +141,67 @@ class CalibrationService {
     final backend = _ref.read(backendProvider);
     final isRemote = backend is NetworkBackend;
 
-    // Determine dark frame path
+    // Determine dark frame path. A manual override always wins; the library
+    // auto-match only runs when no manual dark was supplied.
     String? darkPath = settings.manualDarkPath;
-    if (!isRemote &&
-        settings.autoDarkFromLibrary &&
+    if (settings.autoDarkFromLibrary &&
         darkPath == null &&
         exposureTime != null &&
         gain != null) {
-      // Route through the unified tolerances provider so the
-      // runtime matcher and the coverage UI agree on what counts as a
-      // matching dark.
-      final tolerances = _ref.read(darkLibraryMatchTolerancesProvider);
-      final matchingDark = await _darkLibrary.findMatchingDark(
-        exposureTime: exposureTime,
-        gain: gain,
-        offset: offset ?? 0,
-        binX: binX,
-        binY: binY,
-        temperature: sensorTemperature,
-        tolerances: tolerances,
-      );
-      if (matchingDark != null) {
-        darkPath = matchingDark.filePath;
-        _logger.info(
-          'Auto-matched dark: ${matchingDark.filePath} '
-          '(exposure=${matchingDark.exposureTime}s, '
-          'temp=${matchingDark.temperature}C)',
-          source: 'CalibrationService',
+      if (backend is NetworkBackend) {
+        // Remote: the dark library lives on the host, so the client can't
+        // run the matcher itself. Ask the host to match and hand back the
+        // dark's on-host path. The path is fed to `calibrateImageFile`,
+        // which reads it host-side. The host applies the same unified
+        // tolerances the local path and coverage UI consult.
+        final matchedHostPath = await backend.matchDarkFromLibrary(
+          exposureTime: exposureTime,
+          gain: gain,
+          offset: offset ?? 0,
+          binX: binX,
+          binY: binY,
+          temperature: sensorTemperature,
         );
+        if (matchedHostPath != null) {
+          darkPath = matchedHostPath;
+          _logger.info(
+            'Auto-matched dark on host: $matchedHostPath',
+            source: 'CalibrationService',
+          );
+        } else {
+          _logger.info(
+            'No matching dark found in host library',
+            source: 'CalibrationService',
+          );
+        }
       } else {
-        _logger.info(
-          'No matching dark found in library',
-          source: 'CalibrationService',
+        // Local: match directly against the on-disk dark library. Route
+        // through the unified tolerances provider so the runtime matcher
+        // and the coverage UI agree on what counts as a matching dark.
+        final tolerances = _ref.read(darkLibraryMatchTolerancesProvider);
+        final matchingDark = await _darkLibrary.findMatchingDark(
+          exposureTime: exposureTime,
+          gain: gain,
+          offset: offset ?? 0,
+          binX: binX,
+          binY: binY,
+          temperature: sensorTemperature,
+          tolerances: tolerances,
         );
+        if (matchingDark != null) {
+          darkPath = matchingDark.filePath;
+          _logger.info(
+            'Auto-matched dark: ${matchingDark.filePath} '
+            '(exposure=${matchingDark.exposureTime}s, '
+            'temp=${matchingDark.temperature}C)',
+            source: 'CalibrationService',
+          );
+        } else {
+          _logger.info(
+            'No matching dark found in library',
+            source: 'CalibrationService',
+          );
+        }
       }
     }
 

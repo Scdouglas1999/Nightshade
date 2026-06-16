@@ -95,11 +95,16 @@ class UpdateHandlers {
   /// `POST /api/system/update/download` — start streaming the staged
   /// download.
   Future<Response> handleDownload(Request request) async {
-    final job = jobManager.start(
+    // The work callback runs in a microtask scheduled after start() returns,
+    // so `job` is assigned by the time the controller call executes; capturing
+    // it lets the controller stamp the REAL jobId onto every WS event so
+    // /api/jobs/{id} polling correlates with the event stream.
+    late final Job job;
+    job = jobManager.start(
       operation: 'system.update.download',
       work: (sink, cancellation) async {
         sink.update(0, 'Downloading update');
-        await controller.downloadAndStage(jobId: 'pending');
+        await controller.downloadAndStage(jobId: job.jobId);
         if (cancellation.isCancelled) {
           throw const JobCancelledException('download_cancelled');
         }
@@ -107,11 +112,6 @@ class UpdateHandlers {
       },
     );
 
-    // Re-emit DownloadStarted with the real jobId so the WS broadcast
-    // matches what the caller polls. The controller emitted the first
-    // event with the placeholder 'pending' jobId because we didn't have
-    // the real one at the time start() returned; here we don't replay
-    // the event, we just hand the caller the jobId for tracking.
     return jsonOk({'jobId': job.jobId, 'status': job.state.wireName});
   }
 
@@ -123,11 +123,12 @@ class UpdateHandlers {
   /// `JobApplyStarted` + `UpdateApplied` as terminal signals and
   /// reconnect after the WS drops.
   Future<Response> handleApply(Request request) async {
-    final job = jobManager.start(
+    late final Job job;
+    job = jobManager.start(
       operation: 'system.update.apply',
       work: (sink, cancellation) async {
         sink.update(null, 'Applying staged update');
-        await controller.applyStagedUpdate(jobId: 'pending');
+        await controller.applyStagedUpdate(jobId: job.jobId);
         // applyStagedUpdate typically exits the process; reaching here
         // means the apply returned without restart, which is rare but
         // surface it explicitly.
@@ -192,11 +193,12 @@ class UpdateHandlers {
             'once the new build proves stable.',
       });
     }
-    final job = jobManager.start(
+    late final Job job;
+    job = jobManager.start(
       operation: 'system.update.rollback',
       work: (sink, cancellation) async {
         sink.update(null, 'Rolling back last applied update');
-        await controller.rollback(jobId: 'pending');
+        await controller.rollback(jobId: job.jobId);
         return {'status': 'rolled_back'};
       },
     );

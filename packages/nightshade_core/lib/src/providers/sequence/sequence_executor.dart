@@ -324,7 +324,26 @@ class SequenceExecutor {
   Future<void> start() async {
     final sequence = _ref.read(currentSequenceProvider);
     if (sequence == null) {
-      throw Exception('No sequence loaded');
+      // "Nothing loaded" is an operator/state error, not a server fault.
+      // Throw the same typed exception the validation path uses so every
+      // caller — including the headless POST /api/sequencer/start handler —
+      // surfaces it as a clean 400 with an actionable message instead of an
+      // opaque 500 a remote tablet can't interpret.
+      throw validation.SequenceValidationException(
+        validation.ValidationResult(
+          issues: const [
+            validation.ValidationIssue(
+              severity: validation.ValidationSeverity.error,
+              category: validation.ValidationCategory.structure,
+              title: 'No sequence loaded',
+              description:
+                  'Load or build a sequence before starting the sequencer.',
+              code: 'no_sequence_loaded',
+            ),
+          ],
+          validatedAt: DateTime.now(),
+        ),
+      );
     }
 
     // Audit C3 — full pre-flight pass. Every start path (UI button via

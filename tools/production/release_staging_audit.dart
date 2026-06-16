@@ -34,8 +34,10 @@ const _binaryExtensions = {
 };
 
 const _releaseCriticalPrefixes = {
+  '.github/workflows/',
   'apps/desktop/lib/headless_api/',
   'apps/desktop/lib/headless_api_server.dart',
+  'apps/desktop/linux/',
   'apps/desktop/lib/main_headless.dart',
   'apps/desktop/web_dashboard/',
   'apps/mobile/lib/',
@@ -50,7 +52,10 @@ const _releaseCriticalPrefixes = {
   'docs/known-limitations.md',
   'docs/release-notes-template.md',
   'docs/supported-hardware-by-platform.md',
+  'docs/troubleshooting/',
+  'packaging/appliance/',
   'melos.yaml',
+  'package.json',
 };
 
 void main(List<String> args) async {

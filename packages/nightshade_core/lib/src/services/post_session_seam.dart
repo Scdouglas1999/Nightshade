@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 
+import '../backend/network_backend.dart';
 import '../backend/nightshade_backend.dart';
 import '../models/imaging/color_calibration_result.dart';
 import '../models/imaging/integration_curve.dart';
@@ -150,10 +151,28 @@ class BridgePostSessionSeam implements PostSessionSeam {
 
   const BridgePostSessionSeam([this._backend]);
 
+  /// The active [NetworkBackend] when this seam runs on a remote client (a
+  /// tablet talking to a headless appliance), else null. When non-null every
+  /// host-side compute op routes over `/api/post-session/*` — the host's Rust
+  /// pipeline does the work on its own file paths — rather than the local FFI
+  /// bridge (whose result would be computed against the *client's* filesystem,
+  /// where the subs do not exist). This is the post-session twin of
+  /// `LiveStackingService._remote`.
+  NetworkBackend? get _remote {
+    final backend = _backend;
+    return backend is NetworkBackend ? backend : null;
+  }
+
   @override
   Future<IntegrateSessionResult> integrateSession(
     Map<String, dynamic> args,
   ) async {
+    final remote = _remote;
+    if (remote != null) {
+      return IntegrateSessionResult.fromJson(
+        await remote.postSessionIntegrate(args),
+      );
+    }
     final out = await bridge.apiIntegrateSession(argsJson: jsonEncode(args));
     return IntegrateSessionResult.fromJson(_decodeObject(out));
   }
@@ -162,6 +181,12 @@ class BridgePostSessionSeam implements PostSessionSeam {
   Future<MasterAccumulateResult> masterAccumulate(
     Map<String, dynamic> args,
   ) async {
+    final remote = _remote;
+    if (remote != null) {
+      return MasterAccumulateResult.fromJson(
+        await remote.postSessionMasterAccumulate(args),
+      );
+    }
     final out = await bridge.apiMasterAccumulate(argsJson: jsonEncode(args));
     return MasterAccumulateResult.fromJson(_decodeObject(out));
   }
@@ -170,6 +195,12 @@ class BridgePostSessionSeam implements PostSessionSeam {
   Future<BuildMasterFlatResult> buildMasterFlat(
     Map<String, dynamic> args,
   ) async {
+    final remote = _remote;
+    if (remote != null) {
+      return BuildMasterFlatResult.fromJson(
+        await remote.postSessionBuildMasterFlat(args),
+      );
+    }
     final out = await bridge.apiBuildMasterFlat(argsJson: jsonEncode(args));
     return BuildMasterFlatResult.fromJson(_decodeObject(out));
   }
@@ -197,6 +228,12 @@ class BridgePostSessionSeam implements PostSessionSeam {
         if (minKeep != null) 'minKeep': minKeep,
       },
     };
+    final remote = _remote;
+    if (remote != null) {
+      return IntegrationCurve.fromJson(
+        await remote.postSessionAnalyzeNight(args),
+      );
+    }
     final out = await bridge.apiAnalyzeNight(argsJson: jsonEncode(args));
     return IntegrationCurve.fromJson(_decodeObject(out));
   }
@@ -212,6 +249,12 @@ class BridgePostSessionSeam implements PostSessionSeam {
       if (maxStars != null) 'maxStars': maxStars,
       if (aperture != null) 'aperture': aperture,
     };
+    final remote = _remote;
+    if (remote != null) {
+      return StarPhotometryResult.fromJson(
+        await remote.postSessionDetectStars(args),
+      );
+    }
     final out = await bridge.apiDetectStarsPhotometry(
       argsJson: jsonEncode(args),
     );
@@ -233,12 +276,24 @@ class BridgePostSessionSeam implements PostSessionSeam {
       if (whiteRefBv != null) 'whiteRefBv': whiteRefBv,
       'matchedStars': matchedStars,
     };
+    final remote = _remote;
+    if (remote != null) {
+      return ColorCalibrationResult.fromJson(
+        await remote.postSessionColorCalibrate(args),
+      );
+    }
     final out = await bridge.apiColorCalibrate(argsJson: jsonEncode(args));
     return ColorCalibrationResult.fromJson(_decodeObject(out));
   }
 
   @override
   Future<String> extractBackground(Map<String, dynamic> args) async {
+    final remote = _remote;
+    if (remote != null) {
+      return _outputPathFromMap(
+        await remote.postSessionExtractBackground(args),
+      );
+    }
     final out = await bridge.apiExtractBackground(argsJson: jsonEncode(args));
     return _decodeOutputPath(out);
   }
@@ -259,12 +314,20 @@ class BridgePostSessionSeam implements PostSessionSeam {
   Future<Map<String, dynamic>> drizzleIntegrate(
     Map<String, dynamic> args,
   ) async {
+    final remote = _remote;
+    if (remote != null) {
+      return remote.postSessionDrizzleIntegrate(args);
+    }
     final out = await bridge.apiDrizzleIntegrate(argsJson: jsonEncode(args));
     return _decodeObject(out);
   }
 
   @override
   Future<String> combineChannels(Map<String, dynamic> args) async {
+    final remote = _remote;
+    if (remote != null) {
+      return _outputPathFromMap(await remote.postSessionCombineChannels(args));
+    }
     final out = await bridge.apiCombineChannels(argsJson: jsonEncode(args));
     return _decodeOutputPath(out);
   }
@@ -303,6 +366,16 @@ class BridgePostSessionSeam implements PostSessionSeam {
     throw FormatException(
       'post-session native call returned no outputPath',
       json,
+    );
+  }
+
+  /// Pull the `outputPath` out of an already-decoded result map (the remote
+  /// job-result envelope), mirroring [_decodeOutputPath]'s string contract.
+  String _outputPathFromMap(Map<String, dynamic> obj) {
+    final path = obj['outputPath'];
+    if (path is String) return path;
+    throw FormatException(
+      'post-session remote call returned no outputPath: $obj',
     );
   }
 

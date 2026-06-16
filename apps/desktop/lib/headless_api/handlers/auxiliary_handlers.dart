@@ -238,10 +238,31 @@ class AuxiliaryHandlers {
     });
   }
 
+  /// Returns a 404 "not connected" response when [deviceId] is not a currently
+  /// connected cover/calibrator, else null. The cover mutation endpoints
+  /// (open/close/brightness/calibrator) otherwise call straight into the native
+  /// bridge, which throws an opaque 500 when no cover is attached — a remote
+  /// tablet user closing the cover with nothing connected would see
+  /// `internal_error`. This mirrors the switch/dome handlers so every accessory
+  /// control degrades to the same clean 404.
+  Future<Response?> _coverNotConnectedResponse(String deviceId) async {
+    final covers = await _connectedDevicesByType(DeviceType.coverCalibrator);
+    if (!covers.any((d) => d.id == deviceId)) {
+      return jsonNotFound({
+        'connected': false,
+        'deviceId': deviceId,
+        'error': 'Cover calibrator not connected',
+      });
+    }
+    return null;
+  }
+
   /// POST /api/cover/open
   Future<Response> handleCoverOpen(Request request) async {
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
+    final notConnected = await _coverNotConnectedResponse(deviceId);
+    if (notConnected != null) return notConnected;
     await bridge.apiCoverCalibratorOpenCover(deviceId: deviceId);
     return jsonOk({'status': 'opening', 'deviceId': deviceId});
   }
@@ -250,6 +271,8 @@ class AuxiliaryHandlers {
   Future<Response> handleCoverClose(Request request) async {
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
+    final notConnected = await _coverNotConnectedResponse(deviceId);
+    if (notConnected != null) return notConnected;
     await bridge.apiCoverCalibratorCloseCover(deviceId: deviceId);
     return jsonOk({'status': 'closing', 'deviceId': deviceId});
   }
@@ -259,6 +282,8 @@ class AuxiliaryHandlers {
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
     final brightness = requireInt(payload, 'brightness', min: 0);
+    final notConnected = await _coverNotConnectedResponse(deviceId);
+    if (notConnected != null) return notConnected;
     await bridge.apiCoverCalibratorCalibratorOn(
       deviceId: deviceId,
       brightness: brightness,
@@ -275,6 +300,8 @@ class AuxiliaryHandlers {
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
     final brightness = optionalInt(payload, 'brightness', min: 0) ?? 128;
+    final notConnected = await _coverNotConnectedResponse(deviceId);
+    if (notConnected != null) return notConnected;
     await bridge.apiCoverCalibratorCalibratorOn(
       deviceId: deviceId,
       brightness: brightness,
@@ -290,6 +317,8 @@ class AuxiliaryHandlers {
   Future<Response> handleCalibratorOff(Request request) async {
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
+    final notConnected = await _coverNotConnectedResponse(deviceId);
+    if (notConnected != null) return notConnected;
     await bridge.apiCoverCalibratorCalibratorOff(deviceId: deviceId);
     return jsonOk({'status': 'off', 'deviceId': deviceId});
   }

@@ -42,20 +42,43 @@ class _CalibrationLibrarySettingsState
   CalibrationLibraryService get _service =>
       ref.read(calibrationLibraryServiceProvider);
 
+  int get _masterCount => _records.length;
+
   Future<void> _reload() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final records = await _service.listMasters(
-        filter: CalibrationLibraryFilter(type: _typeFilter),
-      );
-      if (!mounted) return;
-      setState(() {
-        _records = records;
-        _loading = false;
-      });
+      final backend = ref.read(backendProvider);
+      if (backend is NetworkBackend) {
+        // Remote: read the APPLIANCE's master library over REST so a tablet
+        // sees the rig's actual darks/flats/biases, not this device's library.
+        // The maps are the host's `CalibrationMasterRecord.toJson`, so we
+        // rebuild typed records and drive the same edit/delete actions — the
+        // service routes those mutations back to the appliance.
+        final masters = await backend.getCalibrationMasters(
+          type: _typeFilter == null
+              ? null
+              : calibrationMasterTypeWireName(_typeFilter!),
+        );
+        if (!mounted) return;
+        setState(() {
+          _records = [
+            for (final m in masters) CalibrationMasterRecord.fromJson(m),
+          ];
+          _loading = false;
+        });
+      } else {
+        final records = await _service.listMasters(
+          filter: CalibrationLibraryFilter(type: _typeFilter),
+        );
+        if (!mounted) return;
+        setState(() {
+          _records = records;
+          _loading = false;
+        });
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -67,6 +90,12 @@ class _CalibrationLibrarySettingsState
 
   @override
   Widget build(BuildContext context) {
+    // Both local and remote share the same panes: locally the records come
+    // from this device's Drift DB; remotely they are the APPLIANCE's masters
+    // read over `/api/calibration-library`, and the edit / delete / match
+    // actions route back to the appliance through CalibrationLibraryService.
+    final isRemote = ref.watch(backendProvider) is NetworkBackend;
+
     return SettingsPage(
       title: 'Calibration Library',
       description: 'Browse, tag, and auto-match master darks, flats, '
@@ -75,7 +104,7 @@ class _CalibrationLibrarySettingsState
       hideHeader: widget.isMobile,
       children: [
         SettingsSection(
-          title: 'Masters',
+          title: isRemote ? 'Appliance Masters' : 'Masters',
           isMobile: widget.isMobile,
           children: [
             _buildFilterBar(context),
@@ -118,7 +147,7 @@ class _CalibrationLibrarySettingsState
           ),
         ),
         const SizedBox(width: 12),
-        Text('${_records.length} master${_records.length == 1 ? '' : 's'}',
+        Text('$_masterCount master${_masterCount == 1 ? '' : 's'}',
             style: theme.textTheme.bodySmall),
         IconButton(
           tooltip: 'Refresh',

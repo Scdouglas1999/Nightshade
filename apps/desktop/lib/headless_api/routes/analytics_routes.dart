@@ -63,7 +63,22 @@ List<HeadlessRoute> buildAnalyticsRoutes(
   ),
   HeadlessRoute(
     HttpMethod.get,
-    '/api/analytics/target-statistics',
+    '/api/analytics/untracked-targets/count',
+    h.handleGetUntrackedTargetsCount,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/analytics/untracked-targets/remove',
+    h.handleRemoveUntrackedTargets,
+  ),
+  // Was '/api/analytics/target-statistics' (no id) wired to a handler that
+  // requires a targetId — every call parsed an empty id and 500'd. The handler
+  // is per-target, so the path must carry the id. (Keep this comment ABOVE the
+  // HeadlessRoute call — the route-contract scanner can't see a path string
+  // separated from HttpMethod.get by an intervening comment.)
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/analytics/target-statistics/<targetId>',
     h.handleGetTargetStatistics,
   ),
 ];

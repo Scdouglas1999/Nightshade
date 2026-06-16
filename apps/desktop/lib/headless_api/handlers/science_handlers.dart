@@ -382,22 +382,26 @@ class ScienceHandlers {
 
     final zeroPoint = calibration.zeroPoint ?? 0.0;
     final catalogManager = CatalogManager.instance;
-    List<HygStarData> catalogStars = const [];
-    if (catalogManager.isInitialized) {
-      final searchRadiusDeg =
-          math.sqrt(
-                wcs.fieldWidthDegrees * wcs.fieldWidthDegrees +
-                    wcs.fieldHeightDegrees * wcs.fieldHeightDegrees,
-              ) *
-              0.65 +
-          0.3;
-      catalogStars = await catalogManager.searchStarsNearby(
-        ra: wcs.raHours * 15.0,
-        dec: wcs.decDegrees,
-        radiusDegrees: searchRadiusDeg.clamp(0.25, 8.0),
-        maxMagnitude: 14.0,
-      );
+    if (!catalogManager.isInitialized) {
+      return jsonBadRequest({
+        'error':
+            'Star catalog is not initialized. Photometric calibration matches '
+            'require a loaded catalog; no synthetic matches are produced.',
+      });
     }
+    final searchRadiusDeg =
+        math.sqrt(
+              wcs.fieldWidthDegrees * wcs.fieldWidthDegrees +
+                  wcs.fieldHeightDegrees * wcs.fieldHeightDegrees,
+            ) *
+            0.65 +
+        0.3;
+    final catalogStars = await catalogManager.searchStarsNearby(
+      ra: wcs.raHours * 15.0,
+      dec: wcs.decDegrees,
+      radiusDegrees: searchRadiusDeg.clamp(0.25, 8.0),
+      maxMagnitude: 14.0,
+    );
 
     final fits = await apiReadFitsFile(filePath: image.filePath);
     final projectedCatalog = <({double x, double y, HygStarData star})>[];
@@ -421,7 +425,6 @@ class ScienceHandlers {
       }
     }
 
-    final rng = math.Random(42);
     final usedCatalogIndices = <int>{};
     final matches = <CatalogStarMatch>[];
     for (final star in stars) {
@@ -436,7 +439,6 @@ class ScienceHandlers {
         continue;
       }
 
-      double? realBv;
       double bestDistance = 10.0;
       int? bestIndex;
       for (var index = 0; index < projectedCatalog.length; index++) {
@@ -453,20 +455,25 @@ class ScienceHandlers {
         }
       }
 
-      if (bestIndex != null) {
-        usedCatalogIndices.add(bestIndex);
-        final matchedStar = projectedCatalog[bestIndex].star;
-        if (matchedStar.colorIndex != null &&
-            matchedStar.colorIndex!.isFinite) {
-          realBv = matchedStar.colorIndex!;
-        } else if (matchedStar.spectralType != null &&
-            matchedStar.spectralType!.isNotEmpty) {
-          realBv = _bvFromSpectralType(matchedStar.spectralType!);
-        }
+      // Only emit a match when there is a REAL catalog cross-match. Stars
+      // with no nearby catalog entry are dropped rather than fabricated, so
+      // the transform fit never sees synthetic B-V / ra / dec values.
+      if (bestIndex == null) {
+        continue;
       }
-
-      final bv = realBv ?? (0.65 + 0.4 * _gaussianRandom(rng));
-      final catalogB = catalogV + bv;
+      usedCatalogIndices.add(bestIndex);
+      final matchedStar = projectedCatalog[bestIndex].star;
+      double? realBv;
+      if (matchedStar.colorIndex != null && matchedStar.colorIndex!.isFinite) {
+        realBv = matchedStar.colorIndex!;
+      } else if (matchedStar.spectralType != null &&
+          matchedStar.spectralType!.isNotEmpty) {
+        realBv = _bvFromSpectralType(matchedStar.spectralType!);
+      }
+      if (realBv == null || !realBv.isFinite) {
+        continue;
+      }
+      final catalogB = catalogV + realBv;
       if (!catalogB.isFinite) {
         continue;
       }
@@ -475,12 +482,8 @@ class ScienceHandlers {
         CatalogStarMatch(
           x: star.x,
           y: star.y,
-          raDegrees: bestIndex != null
-              ? projectedCatalog[bestIndex].star.ra
-              : 0.0,
-          decDegrees: bestIndex != null
-              ? projectedCatalog[bestIndex].star.dec
-              : 0.0,
+          raDegrees: matchedStar.ra,
+          decDegrees: matchedStar.dec,
           catalogMagV: catalogV,
           catalogMagB: catalogB,
           instrumentalFlux: star.flux,
@@ -575,13 +578,6 @@ class ScienceHandlers {
     }).toList()..sort((a, b) => b.capturedAt.compareTo(a.capturedAt));
 
     return filtered.isEmpty ? null : filtered.first;
-  }
-
-  double _gaussianRandom(math.Random rng) {
-    final u1 = rng.nextDouble();
-    final u2 = rng.nextDouble();
-    return math.sqrt(-2.0 * math.log(u1.clamp(1e-10, 1.0))) *
-        math.cos(2.0 * math.pi * u2);
   }
 
   static double? _bvFromSpectralType(String spectralType) {
