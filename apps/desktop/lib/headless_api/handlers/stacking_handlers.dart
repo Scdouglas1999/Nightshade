@@ -100,17 +100,20 @@ class StackingHandlers {
     final referencePath = optionalString(payload, 'referencePath');
 
     return _enqueue(() async {
-      // Always reset first so a re-start doesn't accumulate onto a stale stack.
-      try {
-        await _service.reset();
-      } catch (e, stackTrace) {
-        throw HandlerFailure(
-          code: 'stacking_reset_failed',
-          message: 'Live stacking could not be reset before starting.',
-          statusCode: 500,
-          cause: e,
-          stackTrace: stackTrace,
-        );
+      // Reset an existing stack before restarting. A fresh armed start has not
+      // initialized the native stacker yet, so there is nothing to clear.
+      if (_started || _service.isActive) {
+        try {
+          await _service.reset();
+        } catch (e, stackTrace) {
+          throw HandlerFailure(
+            code: 'stacking_reset_failed',
+            message: 'Live stacking could not be reset before starting.',
+            statusCode: 500,
+            cause: e,
+            stackTrace: stackTrace,
+          );
+        }
       }
       _armed = true;
       if (referencePath != null && referencePath.isNotEmpty) {
@@ -274,8 +277,8 @@ class StackingHandlers {
   ///
   /// Tolerates the armed-but-never-started case: if no reference frame has
   /// landed yet the native stacker was never initialized, so calling stop on it
-  /// throws "not initialized". That's not an error from the caller's view — they
-  /// just want stacking off — so we only stop the engine when it actually
+  /// throws "not initialized". That's not an error from the caller's view; they
+  /// just want stacking off. Only stop the engine when it actually
   /// started, and always clear the coordinator's armed/started state.
   Future<Response> handleStop(Request request) async {
     return _enqueue(() async {

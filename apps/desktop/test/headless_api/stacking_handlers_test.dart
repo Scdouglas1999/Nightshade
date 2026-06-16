@@ -50,11 +50,15 @@ class _FakeStackingService extends LiveStackingService {
 
   @override
   Future<void> reset() async {
+    // Mirror the native engine: reset is invalid before the first frame
+    // initializes the stacker.
+    if (!_active) throw StateError('Live stacker not initialized');
     resets++;
   }
 
   @override
   Future<void> stop() async {
+    if (!_active) throw StateError('Live stacker not initialized');
     stops++;
     _active = false;
   }
@@ -66,8 +70,10 @@ class _FakeStackingService extends LiveStackingService {
   int get frameCount => _active ? 1 + added.length : 0;
 
   @override
-  Future<LiveStackingStats> getStats() async =>
-      LiveStackingStats(stackedFrameCount: 1 + added.length);
+  Future<LiveStackingStats> getStats() async {
+    if (!_active) throw StateError('Live stacker not initialized');
+    return LiveStackingStats(stackedFrameCount: 1 + added.length);
+  }
 
   @override
   Future<LiveStackingResult> getCurrentResult() async => LiveStackingResult(
@@ -132,10 +138,13 @@ void main() {
     await handlers.onImageSaved('/host/frame_0002.fits');
     await handlers.onImageSaved('/host/frame_0003.fits');
 
-    expect(fake.started, ['/host/frame_0001.fits'],
-        reason: 'first saved frame becomes the reference');
-    expect(fake.added, ['/host/frame_0002.fits', '/host/frame_0003.fits'],
-        reason: 'subsequent frames are added, not re-referenced');
+    expect(fake.started, [
+      '/host/frame_0001.fits',
+    ], reason: 'first saved frame becomes the reference');
+    expect(fake.added, [
+      '/host/frame_0002.fits',
+      '/host/frame_0003.fits',
+    ], reason: 'subsequent frames are added, not re-referenced');
   });
 
   test('no auto-feed before arming or after stop', () async {
@@ -159,8 +168,8 @@ void main() {
 
   test('stop while armed-but-not-started does not touch the engine', () async {
     // Regression for the live-smoke 500: arming without a reference frame never
-    // initializes the native stacker, so stop must NOT call into it (which
-    // throws "not initialized") — it should just disarm cleanly.
+    // initializes the native stacker, so stop must not call into it. It should
+    // just disarm cleanly.
     await handlers.handleStart(post('/api/stacking/start'));
 
     // stats while armed-but-not-started must report zeroes, not 500.
@@ -173,7 +182,11 @@ void main() {
 
     final resp = await handlers.handleStop(post('/api/stacking/stop'));
     expect(resp.statusCode, 200);
-    expect(fake.stops, 0, reason: 'engine.stop must not run when never started');
+    expect(
+      fake.stops,
+      0,
+      reason: 'engine.stop must not run when never started',
+    );
 
     // Same guard on reset: armed-but-not-started must not call into the engine.
     // (handleStart itself resets internally, so measure the delta across the
@@ -182,15 +195,23 @@ void main() {
     final resetsBefore = fake.resets;
     final resetResp = await handlers.handleReset(post('/api/stacking/reset'));
     expect(resetResp.statusCode, 200);
-    expect(fake.resets, resetsBefore,
-        reason: 'engine.reset must not run when never started');
+    expect(
+      fake.resets,
+      resetsBefore,
+      reason: 'engine.reset must not run when never started',
+    );
     await handlers.handleStop(post('/api/stacking/stop'));
 
-    final status = jsonDecode(
-      await (await handlers.handleStatus(
-        Request('GET', Uri.parse('http://localhost/api/stacking/status')),
-      )).readAsString(),
-    ) as Map<String, dynamic>;
+    final status =
+        jsonDecode(
+              await (await handlers.handleStatus(
+                Request(
+                  'GET',
+                  Uri.parse('http://localhost/api/stacking/status'),
+                ),
+              )).readAsString(),
+            )
+            as Map<String, dynamic>;
     expect(status['armed'], false);
   });
 
@@ -208,11 +229,16 @@ void main() {
     await handlers.onImageSaved('/host/ref.fits');
     await handlers.onImageSaved('/host/f2.fits');
 
-    final status = jsonDecode(
-      await (await handlers.handleStatus(
-        Request('GET', Uri.parse('http://localhost/api/stacking/status')),
-      )).readAsString(),
-    ) as Map<String, dynamic>;
+    final status =
+        jsonDecode(
+              await (await handlers.handleStatus(
+                Request(
+                  'GET',
+                  Uri.parse('http://localhost/api/stacking/status'),
+                ),
+              )).readAsString(),
+            )
+            as Map<String, dynamic>;
     expect(status['active'], true);
     expect(status['armed'], true);
     expect(status['started'], true);
