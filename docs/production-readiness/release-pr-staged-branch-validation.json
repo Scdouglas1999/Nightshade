@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-16T19:43:31.653388Z",
+  "generatedAt": "2026-06-16T19:56:13.082470Z",
   "matrixPath": "docs/production-readiness/release-pr-owner-decision-matrix.json",
   "matrixGeneratedAt": "2026-06-16T19:35:32.479571Z",
   "matrixIntegrity": {
@@ -95,13 +95,13 @@
   "mode": "branch",
   "base": "main",
   "passed": true,
-  "observedPathCount": 199,
+  "observedPathCount": 202,
   "issueCount": 0,
   "warningCount": 2,
   "issues": [],
   "warnings": [
     "Generated Only paths are not included in this validation.",
-    "Unplanned paths are present: `docs/production-readiness/public-release-blocker-inputs.json`, `docs/production-readiness/public-release-blocker-inputs.md`, `docs/production-readiness/public-release-checklist-audit.json`, `docs/production-readiness/public-release-checklist-audit.md`, `docs/production-readiness/public-release-completion-audit.json`, `docs/production-readiness/public-release-completion-audit.md`, `docs/production-readiness/public-release-gate.json`, `docs/production-readiness/public-release-gate.md`, `docs/production-readiness/public-release-owner-checklist.json`, `docs/production-readiness/public-release-owner-checklist.md`, `tools/production/public_release_gate.dart`"
+    "Unplanned paths are present: `docs/production-readiness/public-release-blocker-inputs.json`, `docs/production-readiness/public-release-blocker-inputs.md`, `docs/production-readiness/public-release-checklist-audit.json`, `docs/production-readiness/public-release-checklist-audit.md`, `docs/production-readiness/public-release-completion-audit.json`, `docs/production-readiness/public-release-completion-audit.md`, `docs/production-readiness/public-release-gate.json`, `docs/production-readiness/public-release-gate.md`, `docs/production-readiness/public-release-owner-checklist.json`, `docs/production-readiness/public-release-owner-checklist.md`, `melos.yaml`, `tools/production/hardware_availability_probe.dart`, `tools/production/public_release_blocker_inputs.dart`, `tools/production/public_release_gate.dart`"
   ],
   "decisionGroupCoverage": [
     {
@@ -287,6 +287,7 @@
     "docs/production-readiness/release-staging-audit.md",
     "docs/supported-hardware-by-platform.md",
     "docs/troubleshooting/indi.md",
+    "melos.yaml",
     "native/nightshade_native/alpaca/src/client.rs",
     "native/nightshade_native/alpaca/src/discovery.rs",
     "native/nightshade_native/bridge/src/api/discovery.rs",
@@ -379,6 +380,8 @@
     "packaging/appliance/systemd/uninstall.sh",
     "scripts/dev.sh",
     "scripts/docker_build_linux.sh",
+    "tools/production/hardware_availability_probe.dart",
+    "tools/production/public_release_blocker_inputs.dart",
     "tools/production/public_release_gate.dart",
     "tools/production/release_pr_split_plan.dart",
     "tools/production/release_staging_audit.dart"

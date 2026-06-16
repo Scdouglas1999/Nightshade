@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-16T19:55:32.483020Z",
+  "generatedAt": "2026-06-16T19:56:19.018486Z",
   "decision": "NOT_READY",
   "ready": false,
   "passedCount": 20,
@@ -108,7 +108,7 @@
       "label": "Clean release branch / PR staging",
       "passed": true,
       "evidence": "docs/production-readiness/release-staging-audit.json; docs/production-readiness/release-pr-split-plan.json; docs/production-readiness/release-pr-staged-branch-validation.json",
-      "detail": "branch=release/hardening-audit-2026-06-16 entryCount=0 untrackedReleaseCritical=0. Staged-branch validation mode=branch passed=true observed=199 issues=0 warnings=2 matrixSourceMatches=true pathspecs=8. Clean non-main release branch is present."
+      "detail": "branch=release/hardening-audit-2026-06-16 entryCount=0 untrackedReleaseCritical=0. Staged-branch validation mode=branch passed=true observed=202 issues=0 warnings=2 matrixSourceMatches=true pathspecs=8. Clean non-main release branch is present."
     },
     {
       "id": "linux_release_workflow",

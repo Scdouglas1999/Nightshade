@@ -1,11 +1,11 @@
 # Release PR Staged Branch Validation
 
-- Generated at: `2026-06-16T19:43:31.653388Z`
+- Generated at: `2026-06-16T19:56:13.082470Z`
 - Matrix: `docs/production-readiness/release-pr-owner-decision-matrix.json`
 - Mode: `branch`
 - Base: `main`
 - Passed: `true`
-- Observed paths: `199`
+- Observed paths: `202`
 - Issues: `0`
 - Warnings: `2`
 
@@ -16,7 +16,7 @@ None.
 ## Warnings
 
 - Generated Only paths are not included in this validation.
-- Unplanned paths are present: `docs/production-readiness/public-release-blocker-inputs.json`, `docs/production-readiness/public-release-blocker-inputs.md`, `docs/production-readiness/public-release-checklist-audit.json`, `docs/production-readiness/public-release-checklist-audit.md`, `docs/production-readiness/public-release-completion-audit.json`, `docs/production-readiness/public-release-completion-audit.md`, `docs/production-readiness/public-release-gate.json`, `docs/production-readiness/public-release-gate.md`, `docs/production-readiness/public-release-owner-checklist.json`, `docs/production-readiness/public-release-owner-checklist.md`, `tools/production/public_release_gate.dart`
+- Unplanned paths are present: `docs/production-readiness/public-release-blocker-inputs.json`, `docs/production-readiness/public-release-blocker-inputs.md`, `docs/production-readiness/public-release-checklist-audit.json`, `docs/production-readiness/public-release-checklist-audit.md`, `docs/production-readiness/public-release-completion-audit.json`, `docs/production-readiness/public-release-completion-audit.md`, `docs/production-readiness/public-release-gate.json`, `docs/production-readiness/public-release-gate.md`, `docs/production-readiness/public-release-owner-checklist.json`, `docs/production-readiness/public-release-owner-checklist.md`, `melos.yaml`, `tools/production/hardware_availability_probe.dart`, `tools/production/public_release_blocker_inputs.dart`, `tools/production/public_release_gate.dart`
 
 ## Matrix Integrity
 
@@ -189,6 +189,7 @@ git restore --staged --pathspec-from-file=docs/production-readiness/release-pr-p
 - `docs/production-readiness/release-staging-audit.md`
 - `docs/supported-hardware-by-platform.md`
 - `docs/troubleshooting/indi.md`
+- `melos.yaml`
 - `native/nightshade_native/alpaca/src/client.rs`
 - `native/nightshade_native/alpaca/src/discovery.rs`
 - `native/nightshade_native/bridge/src/api/discovery.rs`
@@ -204,5 +205,4 @@ git restore --staged --pathspec-from-file=docs/production-readiness/release-pr-p
 - `native/nightshade_native/native/src/vendor/player_one.rs`
 - `native/nightshade_native/native/src/vendor/qhy.rs`
 - `native/nightshade_native/native/src/vendor/sdk_loader.rs`
-- `native/nightshade_native/native/src/vendor/svbony.rs`
-- ... 79 more paths omitted.
+- ... 82 more paths omitted.

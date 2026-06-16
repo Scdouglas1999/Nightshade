@@ -15,13 +15,13 @@ This audit maps each P0 public-release requirement from `goal.txt` to concrete e
 | Artifact | Generated | Decision | Count |
 | --- | --- | --- | --- |
 | `goal.txt` | `unknown` | `` | `` |
-| `docs/production-readiness/public-release-gate.json` | `2026-06-16T19:55:32.483020Z` | `NOT_READY` | `20` |
-| `docs/production-readiness/public-release-blocker-inputs.json` | `2026-06-16T19:55:36.015473Z` | `NOT_READY` | `` |
+| `docs/production-readiness/public-release-gate.json` | `2026-06-16T19:56:19.018486Z` | `NOT_READY` | `20` |
+| `docs/production-readiness/public-release-blocker-inputs.json` | `2026-06-16T19:56:24.825440Z` | `NOT_READY` | `` |
 | `docs/production-readiness/public-release-external-evidence.json` | `2026-06-16T19:55:28.086493Z` | `ready=false` | `1` |
 | `docs/production-readiness/release-staging-audit.json` | `2026-06-16T19:36:20.097609Z` | `` | `0` |
 | `docs/production-readiness/release-pr-split-plan.json` | `2026-06-16T19:35:32.397361Z` | `` | `189` |
 | `docs/production-readiness/release-pr-owner-decision-matrix.json` | `2026-06-16T19:35:32.479571Z` | `` | `189` |
-| `docs/production-readiness/release-pr-staged-branch-validation.json` | `2026-06-16T19:43:31.653388Z` | `` | `` |
+| `docs/production-readiness/release-pr-staged-branch-validation.json` | `2026-06-16T19:56:13.082470Z` | `` | `` |
 | `docs/production-readiness/public-release-checklist-audit.json` | `2026-06-16T19:39:23.130589Z` | `` | `` |
 
 ## Prompt-To-Artifact Checklist
