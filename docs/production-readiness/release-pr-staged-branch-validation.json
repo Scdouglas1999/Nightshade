@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-16T19:42:10.192617Z",
+  "generatedAt": "2026-06-16T19:43:31.653388Z",
   "matrixPath": "docs/production-readiness/release-pr-owner-decision-matrix.json",
   "matrixGeneratedAt": "2026-06-16T19:35:32.479571Z",
   "matrixIntegrity": {
@@ -95,13 +95,13 @@
   "mode": "branch",
   "base": "main",
   "passed": true,
-  "observedPathCount": 195,
+  "observedPathCount": 199,
   "issueCount": 0,
   "warningCount": 2,
   "issues": [],
   "warnings": [
     "Generated Only paths are not included in this validation.",
-    "Unplanned paths are present: `docs/production-readiness/public-release-blocker-inputs.json`, `docs/production-readiness/public-release-blocker-inputs.md`, `docs/production-readiness/public-release-checklist-audit.json`, `docs/production-readiness/public-release-checklist-audit.md`, `docs/production-readiness/public-release-owner-checklist.json`, `docs/production-readiness/public-release-owner-checklist.md`, `tools/production/public_release_gate.dart`"
+    "Unplanned paths are present: `docs/production-readiness/public-release-blocker-inputs.json`, `docs/production-readiness/public-release-blocker-inputs.md`, `docs/production-readiness/public-release-checklist-audit.json`, `docs/production-readiness/public-release-checklist-audit.md`, `docs/production-readiness/public-release-completion-audit.json`, `docs/production-readiness/public-release-completion-audit.md`, `docs/production-readiness/public-release-gate.json`, `docs/production-readiness/public-release-gate.md`, `docs/production-readiness/public-release-owner-checklist.json`, `docs/production-readiness/public-release-owner-checklist.md`, `tools/production/public_release_gate.dart`"
   ],
   "decisionGroupCoverage": [
     {
@@ -249,8 +249,12 @@
     "docs/production-readiness/public-release-blocker-inputs.md",
     "docs/production-readiness/public-release-checklist-audit.json",
     "docs/production-readiness/public-release-checklist-audit.md",
+    "docs/production-readiness/public-release-completion-audit.json",
+    "docs/production-readiness/public-release-completion-audit.md",
     "docs/production-readiness/public-release-external-evidence.json",
     "docs/production-readiness/public-release-external-evidence.md",
+    "docs/production-readiness/public-release-gate.json",
+    "docs/production-readiness/public-release-gate.md",
     "docs/production-readiness/public-release-owner-checklist.json",
     "docs/production-readiness/public-release-owner-checklist.md",
     "docs/production-readiness/release-pr-drafts/01-binary-and-evidence-artifacts.md",
