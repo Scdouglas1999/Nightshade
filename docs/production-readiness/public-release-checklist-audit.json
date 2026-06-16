@@ -1,0 +1,120 @@
+{
+  "generatedAt": "2026-06-16T19:39:23.130589Z",
+  "sourceChecklist": "docs/production-readiness/public-release-master-checklist.md",
+  "totalItemCount": 16,
+  "checkedItemCount": 6,
+  "uncheckedItemCount": 10,
+  "checkedWithoutEvidenceCount": 0,
+  "knownLimitationsReferenced": true,
+  "supportedHardwareByPlatformReferenced": true,
+  "sections": [
+    {
+      "section": "Code Quality Gates",
+      "total": 3,
+      "checked": 3,
+      "unchecked": 0,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Release Branch And Packaging",
+      "total": 4,
+      "checked": 2,
+      "unchecked": 2,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Hardware And Remote Control",
+      "total": 3,
+      "checked": 0,
+      "unchecked": 3,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Mobile And Migration",
+      "total": 4,
+      "checked": 1,
+      "unchecked": 3,
+      "checkedWithoutEvidence": 0
+    },
+    {
+      "section": "Final Sign-Off",
+      "total": 2,
+      "checked": 0,
+      "unchecked": 2,
+      "checkedWithoutEvidence": 0
+    }
+  ],
+  "checkedWithoutEvidence": [],
+  "uncheckedItems": [
+    {
+      "section": "Release Branch And Packaging",
+      "checked": false,
+      "text": "Final release PR branch is clean, non-main, and validated against the",
+      "lineNumber": 27,
+      "hasEvidence": true
+    },
+    {
+      "section": "Release Branch And Packaging",
+      "checked": false,
+      "text": "Linux release package is built and smoke-tested from a real Linux",
+      "lineNumber": 36,
+      "hasEvidence": true
+    },
+    {
+      "section": "Hardware And Remote Control",
+      "checked": false,
+      "text": "Full hardware/control smoke covers required real or simulator-backed",
+      "lineNumber": 44,
+      "hasEvidence": true
+    },
+    {
+      "section": "Hardware And Remote Control",
+      "checked": false,
+      "text": "Second-device LAN/firewall remote access smoke passes from a physical",
+      "lineNumber": 48,
+      "hasEvidence": true
+    },
+    {
+      "section": "Hardware And Remote Control",
+      "checked": false,
+      "text": "Real remote-control actions are proven through dashboard, mobile, or",
+      "lineNumber": 52,
+      "hasEvidence": true
+    },
+    {
+      "section": "Mobile And Migration",
+      "checked": false,
+      "text": "Android emulator remote smoke artifacts exist and show a connected remote",
+      "lineNumber": 59,
+      "hasEvidence": true
+    },
+    {
+      "section": "Mobile And Migration",
+      "checked": false,
+      "text": "Android emulator reconnect smoke records reconnect behavior.",
+      "lineNumber": 64,
+      "hasEvidence": true
+    },
+    {
+      "section": "Mobile And Migration",
+      "checked": false,
+      "text": "Older real Nightshade profile/database migration is verified from a copied",
+      "lineNumber": 69,
+      "hasEvidence": true
+    },
+    {
+      "section": "Final Sign-Off",
+      "checked": false,
+      "text": "Public release external evidence validator passes for Linux build,",
+      "lineNumber": 75,
+      "hasEvidence": true
+    },
+    {
+      "section": "Final Sign-Off",
+      "checked": false,
+      "text": "Final ship/no-ship decision records reviewer, date, commit, version,",
+      "lineNumber": 79,
+      "hasEvidence": true
+    }
+  ]
+}
