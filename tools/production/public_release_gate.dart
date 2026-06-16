@@ -514,14 +514,20 @@ _GateCheck _checkReleaseStaging() {
         )
       : _checkSplitPlanCoverage(stagingAudit: data, splitPlan: splitPlan);
   final stagedBranchValidation = _stagedBranchValidationDetail();
+  final passed = entryCount == 0 && untrackedCritical == 0 && branch != 'main';
   return _GateCheck(
     id: 'release_staging',
     label: 'Clean release branch / PR staging',
-    passed: entryCount == 0 && untrackedCritical == 0 && branch != 'main',
+    passed: passed,
     evidence:
         'docs/production-readiness/release-staging-audit.json; docs/production-readiness/release-pr-split-plan.json; docs/production-readiness/release-pr-staged-branch-validation.json',
-    detail:
-        'branch=$branch entryCount=$entryCount untrackedReleaseCritical=$untrackedCritical. ${splitPlanCoverage.detail} $stagedBranchValidation A clean non-main release branch/PR is still required.',
+    detail: passed
+        ? 'branch=$branch entryCount=0 untrackedReleaseCritical=0. '
+              '$stagedBranchValidation Clean non-main release branch is present.'
+        : 'branch=$branch entryCount=$entryCount '
+              'untrackedReleaseCritical=$untrackedCritical. '
+              '${splitPlanCoverage.detail} $stagedBranchValidation '
+              'A clean non-main release branch/PR is still required.',
   );
 }
 

@@ -1,8 +1,8 @@
 # Release PR Staged Branch Validation
 
-- Generated at: `2026-06-16T19:35:39.096881Z`
+- Generated at: `2026-06-16T19:36:42.170227Z`
 - Matrix: `docs/production-readiness/release-pr-owner-decision-matrix.json`
-- Mode: `index`
+- Mode: `branch`
 - Base: `main`
 - Passed: `true`
 - Observed paths: `188`
