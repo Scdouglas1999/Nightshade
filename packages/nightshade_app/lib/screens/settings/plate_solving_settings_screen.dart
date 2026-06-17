@@ -13,22 +13,43 @@ import 'widgets/plate_solve_parameters_section.dart';
 import 'widgets/settings_widgets.dart';
 import 'widgets/solver_detection_card.dart';
 
-/// Dedicated full-screen Plate Solving settings page (W6-SOLVER-UX §6.1).
-///
-/// Layered above the legacy `PlateSolvingSettings` widget that lives in
-/// the main Settings shell — this screen exposes the new detection /
-/// verify / catalog tooling needed for the centering, framing, and polar
-/// alignment workflows. Reached via `/settings/plate-solving`.
-class PlateSolvingSettingsScreen extends ConsumerStatefulWidget {
+/// Dedicated full-screen Plate Solving route.
+class PlateSolvingSettingsScreen extends ConsumerWidget {
   const PlateSolvingSettingsScreen({super.key});
 
   @override
-  ConsumerState<PlateSolvingSettingsScreen> createState() =>
-      _PlateSolvingSettingsScreenState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
+    return Scaffold(
+      backgroundColor: colors.background,
+      appBar: AppBar(
+        backgroundColor: colors.surface,
+        title: const Text('Plate Solving'),
+        iconTheme: IconThemeData(color: colors.textPrimary),
+        titleTextStyle: TextStyle(
+          color: colors.textPrimary,
+          fontSize: NightshadeTypography.fontSize18,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      body: const PlateSolvingSettings(),
+    );
+  }
 }
 
-class _PlateSolvingSettingsScreenState
-    extends ConsumerState<PlateSolvingSettingsScreen> {
+/// Full plate-solving setup UI shared by the Settings catalog and the
+/// dedicated `/settings/plate-solving` route.
+class PlateSolvingSettings extends ConsumerStatefulWidget {
+  final bool isMobile;
+
+  const PlateSolvingSettings({super.key, this.isMobile = false});
+
+  @override
+  ConsumerState<PlateSolvingSettings> createState() =>
+      _PlateSolvingSettingsState();
+}
+
+class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
   Future<void> _browseAstapExecutable(PlateSolverPreference current) async {
     final typeGroup = XTypeGroup(
       label: 'ASTAP executable',
@@ -111,61 +132,48 @@ class _PlateSolvingSettingsScreenState
     final prefAsync = ref.watch(plateSolverPreferenceProvider);
     final uiState = ref.watch(plateSolverSettingsNotifierProvider);
 
-    return Scaffold(
-      backgroundColor: colors.background,
-      appBar: AppBar(
-        backgroundColor: colors.surface,
-        title: const Text('Plate Solving'),
-        iconTheme: IconThemeData(color: colors.textPrimary),
-        titleTextStyle: TextStyle(
-          color: colors.textPrimary,
-          fontSize: NightshadeTypography.fontSize18,
-          fontWeight: FontWeight.w600,
+    return detectionAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(LucideIcons.alertCircle, color: colors.error, size: 32),
+              const SizedBox(height: 12),
+              Text(
+                'Plate-solver detection failed. Check that your solver is '
+                'installed, then retry.',
+                style: TextStyle(color: colors.textPrimary),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              NightshadeButton(
+                label: 'Retry',
+                onPressed: _rescan,
+                icon: LucideIcons.refreshCw,
+              ),
+            ],
+          ),
         ),
       ),
-      body: detectionAsync.when(
+      data: (detection) => prefAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, stack) => Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(LucideIcons.alertCircle, color: colors.error, size: 32),
-                const SizedBox(height: 12),
-                Text(
-                  'Plate-solver detection failed. Check that your solver is '
-                  'installed, then retry.',
-                  style: TextStyle(color: colors.textPrimary),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 12),
-                NightshadeButton(
-                  label: 'Retry',
-                  onPressed: _rescan,
-                  icon: LucideIcons.refreshCw,
-                ),
-              ],
+            child: Text(
+              'Could not load plate-solver preferences.',
+              style: TextStyle(color: colors.error),
+              textAlign: TextAlign.center,
             ),
           ),
         ),
-        data: (detection) => prefAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stack) => Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text(
-                'Could not load plate-solver preferences.',
-                style: TextStyle(color: colors.error),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
-          data: (pref) => _buildBody(
-            detection: detection,
-            preference: pref,
-            uiState: uiState,
-          ),
+        data: (pref) => _buildBody(
+          detection: detection,
+          preference: pref,
+          uiState: uiState,
         ),
       ),
     );
@@ -181,23 +189,24 @@ class _PlateSolvingSettingsScreenState
       description:
           'Configure ASTAP / Astrometry.net for centering, framing, and '
           'polar alignment.',
+      isMobile: widget.isMobile,
       children: [
         SolverDetectionCard(
           detection: detection,
           astapVerifyInfo: uiState.astapVerifyInfo,
           astapVerifyError: uiState.astapVerifyError,
         ),
-        if (!detection.hasAnySolver) ...[
-          const SizedBox(height: 16),
-          _NoSolverQuickStart(
-            onRescan: uiState.savingPreference ? null : _rescan,
-            isRescanning: uiState.savingPreference,
-          ),
-        ] else if (detection.astapPath != null && !detection.astapReady) ...[
+        if (detection.astapPath != null && !detection.astapReady) ...[
           const SizedBox(height: 12),
           _CatalogMissingHint(
             preference: preference,
             onBrowseCatalog: () => _browseAstapCatalogDirectory(preference),
+          ),
+        ] else if (!detection.hasAnySolver) ...[
+          const SizedBox(height: 16),
+          _NoSolverQuickStart(
+            onRescan: uiState.savingPreference ? null : _rescan,
+            isRescanning: uiState.savingPreference,
           ),
         ],
         const SizedBox(height: 16),
@@ -674,17 +683,43 @@ class _ChoiceRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return SettingRow(
-      icon: icon,
-      title: label,
-      subtitle: subtitle,
-      trailing: Radio<PlateSolverChoice>(
-        value: value,
-        groupValue: groupValue,
-        onChanged: onChanged,
-        activeColor: colors.accent,
+    final selected = value == groupValue;
+    return InkWell(
+      onTap: () => onChanged(value),
+      child: SettingRow(
+        icon: icon,
+        title: label,
+        subtitle: subtitle,
+        trailing: _ChoiceIndicator(selected: selected, colors: colors),
+        isLast: isLast,
       ),
-      isLast: isLast,
+    );
+  }
+}
+
+class _ChoiceIndicator extends StatelessWidget {
+  final bool selected;
+  final NightshadeColors colors;
+
+  const _ChoiceIndicator({
+    required this.selected,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: selected ? colors.accent : colors.border,
+          width: selected ? 6 : 2,
+        ),
+        color: colors.surface,
+      ),
     );
   }
 }

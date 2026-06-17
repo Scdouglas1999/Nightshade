@@ -474,7 +474,6 @@ void main() {
       'science',
       'notifications',
       'integrations',
-      'ai-assistant',
       'remote-access',
       'logs',
       // Merged-away aliases share their combined section's index.

@@ -2,7 +2,7 @@ name: Release
 
 # Builds the Android APK, Linux bundle, and Windows package, then publishes
 # them all to a public GitHub Release. Triggered by pushing a version tag
-# (e.g. `git tag v4.0.0 && git push origin v4.0.0`). Windows desktop cannot be
+# (e.g. `git tag v4.1.0 && git push origin v4.1.0`). Windows desktop cannot be
 # cross-compiled from Linux, so it builds on a Windows runner here.
 #
 # `workflow_dispatch` lets you rebuild artifacts on demand; the publish job
@@ -18,6 +18,9 @@ permissions:
 
 env:
   FLUTTER_VERSION: '3.44.1'
+  # Artifact version. Bump this in lockstep with the app pubspecs and the tag
+  # (e.g. v4.1.0 -> APP_VERSION 4.1.0) so the published file names match.
+  APP_VERSION: '4.1.0'
 
 jobs:
   # --------------------------------------------------------------------------
@@ -82,9 +85,9 @@ jobs:
           set -euo pipefail
           mkdir -p dist
           cp apps/mobile/build/app/outputs/flutter-apk/app-release.apk \
-             dist/nightshade-4.0.0-android-universal.apk
-          (cd dist && sha256sum nightshade-4.0.0-android-universal.apk \
-             > nightshade-4.0.0-android-universal.apk.sha256)
+             "dist/nightshade-${APP_VERSION}-android-universal.apk"
+          (cd dist && sha256sum "nightshade-${APP_VERSION}-android-universal.apk" \
+             > "nightshade-${APP_VERSION}-android-universal.apk.sha256")
           ls -l dist
 
       - name: Upload Android artifact
@@ -170,7 +173,7 @@ jobs:
           # Bookworm-capable (installs Flutter+Rust, runs this same gate) and
           # produces a glibc-2.36 bundle proven to boot on debian:bookworm-slim.
           # Migrating this job to it must preserve the tarball's top-level
-          # `nightshade-4.0.0-linux-x64/` directory that downstream installs expect.
+          # `nightshade-${APP_VERSION}-linux-x64/` directory that downstream installs expect.
           FLOOR="${NIGHTSHADE_GLIBC_FLOOR:-2.36}"
           BUNDLE="apps/desktop/build/linux/x64/release/bundle"
           floor_major=${FLOOR%%.*}; floor_minor=${FLOOR#*.}
@@ -197,11 +200,11 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          tar -czf dist/nightshade-4.0.0-linux-x64.tar.gz \
+          tar -czf "dist/nightshade-${APP_VERSION}-linux-x64.tar.gz" \
             -C apps/desktop/build/linux/x64/release \
-            --transform 's,^bundle,nightshade-4.0.0-linux-x64,' bundle
-          (cd dist && sha256sum nightshade-4.0.0-linux-x64.tar.gz \
-             > nightshade-4.0.0-linux-x64.tar.gz.sha256)
+            --transform "s,^bundle,nightshade-${APP_VERSION}-linux-x64," bundle
+          (cd dist && sha256sum "nightshade-${APP_VERSION}-linux-x64.tar.gz" \
+             > "nightshade-${APP_VERSION}-linux-x64.tar.gz.sha256")
           ls -l dist
 
       - name: Upload Linux artifact
@@ -281,9 +284,9 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           $rel = "apps/desktop/build/windows/x64/runner/Release"
-          $zip = "dist/nightshade-4.0.0-windows-x64.zip"
+          $zip = "dist/nightshade-$($env:APP_VERSION)-windows-x64.zip"
           Compress-Archive -Path "$rel/*" -DestinationPath $zip -Force
-          (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() + "  nightshade-4.0.0-windows-x64.zip" `
+          (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() + "  nightshade-$($env:APP_VERSION)-windows-x64.zip" `
             | Out-File -Encoding ascii "$zip.sha256"
           Get-ChildItem dist
 
@@ -323,7 +326,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: Nightshade ${{ github.ref_name }} — From your couch. Wake up to a finished image.
-          body_path: docs/release/v4.0.0.md
+          body_path: docs/release/${{ github.ref_name }}.md
           files: release-assets/*
           draft: false
           prerelease: false

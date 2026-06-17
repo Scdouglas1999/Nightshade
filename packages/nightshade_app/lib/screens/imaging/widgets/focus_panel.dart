@@ -98,8 +98,6 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
             binning: 1,
           );
 
-      ref.read(autofocusResultProvider.notifier).state = result;
-
       if (mounted) {
         context.showSuccessSnackBar(
             'Autofocus complete! Position: ${result.bestPosition}, HFR: ${result.bestHfr.toStringAsFixed(2)}');

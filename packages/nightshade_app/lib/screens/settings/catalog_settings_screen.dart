@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
@@ -28,18 +30,80 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
   CatalogStatus? _dsoStatus;
   CatalogStatus? _annotationStatus;
   bool _isLoading = true;
+
+  /// UI flag the card builders read to disable controls. Derived from both a
+  /// locally-running download/import method and the manager's in-flight
+  /// registry (see [_recomputeDownloading]), so it stays correct even when a
+  /// download was started by a previous instance of this screen.
   @override
   bool _isDownloading = false;
+
+  /// True while one of this screen's own download/import methods is awaiting.
+  bool _methodRunning = false;
+
+  /// Set when the user taps Cancel; polled by the in-flight download.
+  bool _cancelRequested = false;
   String _downloadStatus = '';
   double _downloadProgress = 0;
   String _currentDownload = '';
   CatalogPackage _selectedPackage = CatalogPackage.standard;
   AnnotationPackage _selectedAnnotationPackage = AnnotationPackage.standard;
 
+  StreamSubscription<DownloadProgress>? _progressSub;
+
   @override
   void initState() {
     super.initState();
+    // Restore the live progress bar if a download is already running (e.g. the
+    // user navigated away and came back) and follow it for the rest of its run.
+    final active = CatalogManager.instance.activeDownloads;
+    if (active.isNotEmpty) {
+      final p = active.values.first;
+      _currentDownload = p.catalogName;
+      _downloadProgress = p.progress;
+      _downloadStatus = p.status;
+    }
+    _recomputeDownloading();
+    _progressSub =
+        CatalogManager.instance.downloadProgress.listen(_onDownloadProgress);
     _loadCatalogStatus();
+  }
+
+  @override
+  void dispose() {
+    _progressSub?.cancel();
+    super.dispose();
+  }
+
+  /// Recompute [_isDownloading] from the two things that can keep a download
+  /// alive: a method running on this screen, or any download in the manager's
+  /// registry (which outlives this widget).
+  void _recomputeDownloading() {
+    _isDownloading =
+        _methodRunning || CatalogManager.instance.activeDownloads.isNotEmpty;
+  }
+
+  void _onDownloadProgress(DownloadProgress p) {
+    if (!mounted) return;
+    setState(() {
+      if (!p.isTerminal) {
+        _currentDownload = p.catalogName;
+        _downloadProgress = p.progress;
+        _downloadStatus = p.status;
+      } else if (p.cancelled) {
+        _downloadStatus = 'Cancelled';
+      } else if (p.error != null) {
+        _downloadStatus = p.error!;
+      } else {
+        _downloadProgress = 1.0;
+        _downloadStatus = 'Complete';
+      }
+      _recomputeDownloading();
+    });
+    // A completed download changes on-disk state; refresh the badges/chips.
+    if (p.isComplete) {
+      _loadCatalogStatus();
+    }
   }
 
   Future<void> _loadCatalogStatus() async {
@@ -58,6 +122,10 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
           _annotationStatus = annotationStatus;
           _isLoading = false;
         });
+        // Keep the shared catalog-state provider (planner empty-state, "needs
+        // download" gating) consistent with what this screen just observed —
+        // covers deletes/imports that don't flow through the download stream.
+        unawaited(ref.read(catalogStateProvider.notifier).refreshStatus());
       }
     } catch (e) {
       if (mounted) {
@@ -70,66 +138,36 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
   }
 
   Future<void> _downloadCatalogs() async {
+    // The live progress bar is driven by the manager's progress stream
+    // (see [_onDownloadProgress]); here we only orchestrate the sequence and
+    // surface the final outcome.
     setState(() {
-      _isDownloading = true;
+      _methodRunning = true;
+      _cancelRequested = false;
       _downloadProgress = 0;
       _downloadStatus = 'Preparing download...';
+      _recomputeDownloading();
     });
 
     try {
-      // Download star catalog
-      setState(() {
-        _currentDownload = 'HYG Star Database';
-        _downloadStatus = 'Downloading star catalog...';
-      });
-
       final starSuccess = await CatalogManager.instance.downloadStarCatalog(
         package: _selectedPackage,
-        onProgress: (progress) {
-          if (mounted) {
-            setState(() {
-              _downloadProgress = progress.progress * 0.5; // First half
-              _downloadStatus = progress.error ??
-                  'Downloading stars: ${(progress.progress * 100).toStringAsFixed(0)}%';
-            });
-          }
-        },
+        isCancelled: () async => _cancelRequested,
       );
-
+      if (_cancelRequested) return _onDownloadCancelled();
       if (!starSuccess) {
         throw Exception('Star catalog download failed');
       }
 
-      // Download DSO catalog
-      setState(() {
-        _currentDownload = 'OpenNGC';
-        _downloadStatus = 'Downloading DSO catalog...';
-      });
-
       final dsoSuccess = await CatalogManager.instance.downloadDsoCatalog(
         package: _selectedPackage,
-        onProgress: (progress) {
-          if (mounted) {
-            setState(() {
-              _downloadProgress =
-                  0.5 + (progress.progress * 0.5); // Second half
-              _downloadStatus = progress.error ??
-                  'Downloading DSOs: ${(progress.progress * 100).toStringAsFixed(0)}%';
-            });
-          }
-        },
+        isCancelled: () async => _cancelRequested,
       );
-
+      if (_cancelRequested) return _onDownloadCancelled();
       if (!dsoSuccess) {
         throw Exception('DSO catalog download failed');
       }
 
-      setState(() {
-        _downloadStatus = 'Download complete!';
-        _downloadProgress = 1.0;
-      });
-
-      // Reload status
       await _loadCatalogStatus();
 
       if (mounted) {
@@ -140,10 +178,27 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
     } finally {
       if (mounted) {
         setState(() {
-          _isDownloading = false;
+          _methodRunning = false;
+          _recomputeDownloading();
         });
       }
     }
+  }
+
+  /// Tear down after the user cancelled an in-flight download: refresh any
+  /// surviving install and let them know nothing was changed.
+  Future<void> _onDownloadCancelled() async {
+    await _loadCatalogStatus();
+    if (mounted) {
+      context.showInfoSnackBar('Download cancelled');
+    }
+  }
+
+  void _requestCancelDownload() {
+    setState(() {
+      _cancelRequested = true;
+      _downloadStatus = 'Cancelling…';
+    });
   }
 
   @override
@@ -160,8 +215,9 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
 
     if (result != null) {
       setState(() {
-        _isDownloading = true;
+        _methodRunning = true;
         _downloadStatus = 'Importing catalog...';
+        _recomputeDownloading();
       });
 
       try {
@@ -183,7 +239,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
       } finally {
         if (mounted) {
           setState(() {
-            _isDownloading = false;
+            _methodRunning = false;
+            _recomputeDownloading();
           });
         }
       }
@@ -285,6 +342,9 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
           status: _starStatus,
           type: 'stars',
           icon: NightshadeIcons.star,
+          usedFor:
+              'Required for plate solving; draws the star field in the planetarium and finder.',
+          latestVersion: '4.2',
         ),
         const SizedBox(height: 16),
 
@@ -300,6 +360,9 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
           // KEEP MATERIAL: no clean Lucide "out-of-focus disc" glyph
           // (icon-migration-map.md flagged exception).
           icon: Icons.blur_circular,
+          usedFor:
+              'Powers deep-sky target search, framing, and on-image NGC/IC labels.',
+          latestVersion: '2023.12',
         ),
         const SizedBox(height: 32),
 
@@ -348,13 +411,26 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                 ),
               ),
               const SizedBox(width: 12),
-              Text(
-                'Downloading: $_currentDownload',
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w600,
+              Expanded(
+                child: Text(
+                  'Downloading: $_currentDownload',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
+              // Cancellation only applies to a real network download in flight
+              // (imports are atomic and finish immediately).
+              if (CatalogManager.instance.activeDownloads.isNotEmpty)
+                TextButton.icon(
+                  onPressed: _cancelRequested ? null : _requestCancelDownload,
+                  icon: const Icon(NightshadeIcons.close, size: 16),
+                  label: Text(_cancelRequested ? 'Cancelling…' : 'Cancel'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: colors.textSecondary,
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 16),
@@ -647,7 +723,27 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(NightshadeIcons.info,
+                  size: 14, color: colors.textSecondary.withValues(alpha: 0.8)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Labels faint galaxies on solved images. Optional — only needed '
+                  'for deep-field annotation, not for capture or plate solving.',
+                  style: TextStyle(
+                    color: colors.textSecondary.withValues(alpha: 0.9),
+                    fontSize: NightshadeTypography.fontSize12,
+                    height: 1.3,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
           Text(
             'Source: glade.elte.hu via vizier.cds.unistra.fr',
             style: TextStyle(
@@ -660,57 +756,34 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
             const SizedBox(height: 12),
             Divider(color: colors.border),
             const SizedBox(height: 12),
-            widget.isMobile
-                ? Wrap(
-                    spacing: 16,
-                    runSpacing: 8,
-                    children: [
-                      _buildStatusChip(
-                        context: context,
-                        label: 'Objects',
-                        value: _annotationStatus!.objectCount?.toString() ??
-                            'Unknown',
-                      ),
-                      _buildStatusChip(
-                        context: context,
-                        label: 'Package',
-                        value:
-                            _annotationStatus!.installedPackage?.displayName ??
-                                'Custom',
-                      ),
-                      if (_annotationStatus!.installedDate != null)
-                        _buildStatusChip(
-                          context: context,
-                          label: 'Installed',
-                          value: _formatDate(_annotationStatus!.installedDate!),
-                        ),
-                    ],
-                  )
-                : Row(
-                    children: [
-                      _buildStatusChip(
-                        context: context,
-                        label: 'Objects',
-                        value: _annotationStatus!.objectCount?.toString() ??
-                            'Unknown',
-                      ),
-                      const SizedBox(width: 16),
-                      _buildStatusChip(
-                        context: context,
-                        label: 'Package',
-                        value:
-                            _annotationStatus!.installedPackage?.displayName ??
-                                'Custom',
-                      ),
-                      const SizedBox(width: 16),
-                      if (_annotationStatus!.installedDate != null)
-                        _buildStatusChip(
-                          context: context,
-                          label: 'Installed',
-                          value: _formatDate(_annotationStatus!.installedDate!),
-                        ),
-                    ],
+            Wrap(
+              spacing: 16,
+              runSpacing: 8,
+              children: [
+                _buildStatusChip(
+                  context: context,
+                  label: 'Objects',
+                  value: _formatCount(_annotationStatus!.objectCount),
+                ),
+                _buildStatusChip(
+                  context: context,
+                  label: 'Size',
+                  value: _formatBytes(_annotationStatus!.fileSizeBytes),
+                ),
+                _buildStatusChip(
+                  context: context,
+                  label: 'Package',
+                  value: _annotationStatus!.installedPackage?.displayName ??
+                      'Custom',
+                ),
+                if (_annotationStatus!.installedDate != null)
+                  _buildStatusChip(
+                    context: context,
+                    label: 'Installed',
+                    value: _formatDate(_annotationStatus!.installedDate!),
                   ),
+              ],
+            ),
           ],
           const SizedBox(height: 20),
           if (!isInstalled) ...[
@@ -853,26 +926,21 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
 
   Future<void> _downloadAnnotationCatalog() async {
     setState(() {
-      _isDownloading = true;
+      _methodRunning = true;
+      _cancelRequested = false;
       _currentDownload = 'GLADE+ Galaxy Catalog';
-      _downloadStatus = 'Downloading annotation catalog...';
+      _downloadStatus = 'Preparing download...';
       _downloadProgress = 0;
+      _recomputeDownloading();
     });
 
     try {
       final success = await CatalogManager.instance.downloadAnnotationCatalog(
         package: _selectedAnnotationPackage,
-        onProgress: (progress) {
-          if (mounted) {
-            setState(() {
-              _downloadProgress = progress.progress;
-              _downloadStatus = progress.error ??
-                  'Downloading: ${(progress.bytesReceived / 1024 / 1024).toStringAsFixed(1)} MB';
-            });
-          }
-        },
+        isCancelled: () async => _cancelRequested,
       );
 
+      if (_cancelRequested) return _onDownloadCancelled();
       if (!success) {
         throw Exception('Annotation catalog download failed');
       }
@@ -887,7 +955,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
     } finally {
       if (mounted) {
         setState(() {
-          _isDownloading = false;
+          _methodRunning = false;
+          _recomputeDownloading();
         });
       }
     }
@@ -906,8 +975,9 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
 
     if (result != null) {
       setState(() {
-        _isDownloading = true;
+        _methodRunning = true;
         _downloadStatus = 'Importing annotation catalog...';
+        _recomputeDownloading();
       });
 
       try {
@@ -931,7 +1001,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
       } finally {
         if (mounted) {
           setState(() {
-            _isDownloading = false;
+            _methodRunning = false;
+            _recomputeDownloading();
           });
         }
       }

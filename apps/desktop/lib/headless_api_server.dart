@@ -103,6 +103,29 @@ class HeadlessApiServer {
   /// GUI desktop bootstrap surfaces the code in its own UI.
   final bool pairingPrintCodes;
 
+  /// Active pairing policy. [PairingMode.lanOpen] (default) lets a device on the
+  /// private LAN pair with one tap and no code; [PairingMode.codeRequired]
+  /// forces the code flow even on the LAN. Remote (tailnet/relay/public) clients
+  /// always use the code flow regardless. Surfaced in `/api/info` so clients
+  /// know whether to auto-claim or prompt for a code.
+  final PairingMode pairingMode;
+
+  /// Remote-access identifiers surfaced via `/api/info` so a client never has
+  /// to read them off the appliance terminal. [tailscaleHost] is discovered
+  /// from local interfaces at [start]; [relayApplianceId] is pushed in by the
+  /// headless entry point via [setRelayApplianceId] when a relay uplink
+  /// connects. Both null until known.
+  String? _tailscaleHost;
+  String? _relayApplianceId;
+
+  /// Live snapshot of the remote-access hints for the `/api/info` view.
+  ({String? tailscaleHost, String? relayApplianceId}) get remoteAccessHints =>
+      (tailscaleHost: _tailscaleHost, relayApplianceId: _relayApplianceId);
+
+  /// Called by the headless entry point when the self-hosted relay uplink
+  /// reports its appliance id, so `/api/info` can surface it.
+  void setRelayApplianceId(String? id) => _relayApplianceId = id;
+
   /// optional TLS context. When supplied, the server is bound with
   /// `shelf_io.serve(..., securityContext: tlsContext)` so the entire
   /// transport (HTTP + WebSocket upgrade) speaks HTTPS/WSS. Plain HTTP
@@ -398,6 +421,7 @@ class HeadlessApiServer {
     this.webSocketHeartbeatTimeout = const Duration(seconds: 90),
     this.corsAllowedOrigins = const [],
     this.pairingPrintCodes = false,
+    this.pairingMode = PairingMode.lanOpen,
     this.tlsContext,
     this.tlsPublicKeyFingerprint,
     this.eventReplayBufferSize = 5000,

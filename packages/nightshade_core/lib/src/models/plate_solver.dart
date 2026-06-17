@@ -41,10 +41,10 @@ class PlateSolverDetection {
     this.catalogPath,
   });
 
-  /// `true` when at least one solver was detected. Used by the settings UI
-  /// to decide between "ASTAP detected at..." and "Plate solver not
-  /// installed" banners.
-  bool get hasAnySolver => astapPath != null || astrometryPath != null;
+  /// `true` when at least one usable solver is configured. ASTAP only counts
+  /// when its star catalog is available; Astrometry.net is self-contained once
+  /// `solve-field` is reachable.
+  bool get hasAnySolver => astapReady || astrometryPath != null;
 
   /// `true` when ASTAP is reachable AND a catalog is configured. ASTAP
   /// without a catalog cannot solve, so this guards the "Plate solver

@@ -10,6 +10,13 @@ class CatalogManager {
   String? _catalogDirectory;
   final _downloadController = StreamController<DownloadProgress>.broadcast();
 
+  /// In-flight legacy downloads keyed by catalog key (`stars`, `dso`,
+  /// `annotation`). Kept on the singleton so download state outlives any
+  /// individual widget: a settings screen can be disposed and recreated while
+  /// a download runs, and read [activeDownloads] on rebuild to restore the
+  /// live progress bar instead of looking idle.
+  final Map<String, DownloadProgress> _activeDownloads = {};
+
   /// Lifecycle events for the unified catalog API used by the
   /// headless `/api/catalog/...` surface. Distinct from
   /// [downloadProgress] because the headless event stream wants
@@ -25,6 +32,38 @@ class CatalogManager {
 
   /// Stream of download progress updates
   Stream<DownloadProgress> get downloadProgress => _downloadController.stream;
+
+  /// Snapshot of legacy downloads currently in flight, keyed by catalog key
+  /// (`stars`, `dso`, `annotation`). A UI subscribing to [downloadProgress]
+  /// should seed itself from this on first build so progress survives
+  /// navigation away from and back to the catalog screen.
+  Map<String, DownloadProgress> get activeDownloads =>
+      Map.unmodifiable(_activeDownloads);
+
+  /// Whether a download for [catalogKey] is currently in flight.
+  bool isDownloading(String catalogKey) =>
+      _activeDownloads.containsKey(catalogKey);
+
+  /// Publish a progress update: update the in-flight registry, fan it out on
+  /// [downloadProgress], and invoke the caller's [onProgress] callback. The
+  /// single choke point that keeps the registry and the stream in lockstep.
+  void _emitProgress(
+    DownloadProgress progress,
+    void Function(DownloadProgress)? onProgress,
+  ) {
+    final key = progress.catalogKey;
+    if (key != null) {
+      if (progress.isTerminal) {
+        _activeDownloads.remove(key);
+      } else {
+        _activeDownloads[key] = progress;
+      }
+    }
+    if (!_downloadController.isClosed) {
+      _downloadController.add(progress);
+    }
+    onProgress?.call(progress);
+  }
 
   /// Stream of structured lifecycle events used by the headless
   /// API. Every catalog install, verify, uninstall, or reload publishes
@@ -83,6 +122,15 @@ class CatalogManager {
       return CatalogStatus.notInstalled();
     }
 
+    // A zero-byte file is the fingerprint of an interrupted or failed
+    // download (a half-written catalog), not a usable install. Report it as
+    // not installed so the UI offers a re-download instead of a broken
+    // "Installed" badge.
+    final fileSize = await file.length();
+    if (fileSize == 0) {
+      return CatalogStatus.notInstalled();
+    }
+
     // Read metadata file if it exists
     final metaPath = path.join(catalogDirectory, '${type}_metadata.json');
     final metaFile = File(metaPath);
@@ -119,6 +167,7 @@ class CatalogManager {
       installedPackage: package,
       objectCount: objectCount,
       version: version,
+      fileSizeBytes: fileSize,
     );
   }
 
@@ -263,13 +312,23 @@ class CatalogManager {
   Future<bool> downloadStarCatalog({
     CatalogPackage package = CatalogPackage.standard,
     void Function(DownloadProgress)? onProgress,
-  }) => _downloadStarCatalog(package: package, onProgress: onProgress);
+    Future<bool> Function()? isCancelled,
+  }) => _downloadStarCatalog(
+    package: package,
+    onProgress: onProgress,
+    isCancelled: isCancelled,
+  );
 
   /// Download and install the DSO catalog.
   Future<bool> downloadDsoCatalog({
     CatalogPackage package = CatalogPackage.standard,
     void Function(DownloadProgress)? onProgress,
-  }) => _downloadDsoCatalog(package: package, onProgress: onProgress);
+    Future<bool> Function()? isCancelled,
+  }) => _downloadDsoCatalog(
+    package: package,
+    onProgress: onProgress,
+    isCancelled: isCancelled,
+  );
 
   /// Import a star or DSO catalog from a custom location.
   Future<bool> importCatalog({
@@ -288,8 +347,12 @@ class CatalogManager {
   Future<bool> downloadAnnotationCatalog({
     AnnotationPackage package = AnnotationPackage.standard,
     void Function(DownloadProgress)? onProgress,
-  }) =>
-      _downloadAnnotationCatalogEntry(package: package, onProgress: onProgress);
+    Future<bool> Function()? isCancelled,
+  }) => _downloadAnnotationCatalogEntry(
+    package: package,
+    onProgress: onProgress,
+    isCancelled: isCancelled,
+  );
 
   /// Import the annotation catalog from a local file.
   Future<bool> importAnnotationCatalog({

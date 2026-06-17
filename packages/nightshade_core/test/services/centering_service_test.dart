@@ -169,7 +169,13 @@ void main() {
         ).thenAnswer((_) async => capturedImage);
 
         when(
-          mockPlateSolveService.solve(any, any),
+          mockPlateSolveService.solveWithFallback(
+            imagePath: anyNamed('imagePath'),
+            hintRaHours: anyNamed('hintRaHours'),
+            hintDecDegrees: anyNamed('hintDecDegrees'),
+            searchRadiusDegrees: anyNamed('searchRadiusDegrees'),
+            timeoutSeconds: anyNamed('timeoutSeconds'),
+          ),
         ).thenAnswer((_) async => solveResult);
 
         // Act
@@ -243,7 +249,15 @@ void main() {
           ),
         ).thenAnswer((_) async => raUnitFixture('/tmp/ra_unit_on.fits'));
 
-        when(mockPlateSolveService.solve(any, any)).thenAnswer(
+        when(
+          mockPlateSolveService.solveWithFallback(
+            imagePath: anyNamed('imagePath'),
+            hintRaHours: anyNamed('hintRaHours'),
+            hintDecDegrees: anyNamed('hintDecDegrees'),
+            searchRadiusDegrees: anyNamed('searchRadiusDegrees'),
+            timeoutSeconds: anyNamed('timeoutSeconds'),
+          ),
+        ).thenAnswer(
           (_) async => const PlateSolveResult(
             success: true,
             ra: solvedRaDeg, // DEGREES
@@ -313,7 +327,15 @@ void main() {
             ),
           ).thenAnswer((_) async => raUnitFixture('/tmp/ra_unit_off.fits'));
 
-          when(mockPlateSolveService.solve(any, any)).thenAnswer(
+          when(
+            mockPlateSolveService.solveWithFallback(
+              imagePath: anyNamed('imagePath'),
+              hintRaHours: anyNamed('hintRaHours'),
+              hintDecDegrees: anyNamed('hintDecDegrees'),
+              searchRadiusDegrees: anyNamed('searchRadiusDegrees'),
+              timeoutSeconds: anyNamed('timeoutSeconds'),
+            ),
+          ).thenAnswer(
             (_) async => const PlateSolveResult(
               success: true,
               ra: solvedRaDeg, // DEGREES
@@ -384,7 +406,15 @@ void main() {
               targetName: anyNamed('targetName'),
             ),
           ).thenAnswer((_) async => raUnitFixture('/tmp/ra_unit_sync.fits'));
-          when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
+          when(
+            mockPlateSolveService.solveWithFallback(
+              imagePath: anyNamed('imagePath'),
+              hintRaHours: anyNamed('hintRaHours'),
+              hintDecDegrees: anyNamed('hintDecDegrees'),
+              searchRadiusDegrees: anyNamed('searchRadiusDegrees'),
+              timeoutSeconds: anyNamed('timeoutSeconds'),
+            ),
+          ).thenAnswer((_) async {
             iter++;
             if (iter == 1) {
               return const PlateSolveResult(
@@ -490,7 +520,15 @@ void main() {
           ),
         ).thenAnswer((_) async => capturedImage);
 
-        when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
+        when(
+          mockPlateSolveService.solveWithFallback(
+            imagePath: anyNamed('imagePath'),
+            hintRaHours: anyNamed('hintRaHours'),
+            hintDecDegrees: anyNamed('hintDecDegrees'),
+            searchRadiusDegrees: anyNamed('searchRadiusDegrees'),
+            timeoutSeconds: anyNamed('timeoutSeconds'),
+          ),
+        ).thenAnswer((_) async {
           iterationCount++;
           if (iterationCount == 1) {
             // First solve: 2 arcmin (120 arcsec) off in RA. Solver RA is in
@@ -587,7 +625,15 @@ void main() {
           ),
         ).thenAnswer((_) async => capturedImage);
 
-        when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
+        when(
+          mockPlateSolveService.solveWithFallback(
+            imagePath: anyNamed('imagePath'),
+            hintRaHours: anyNamed('hintRaHours'),
+            hintDecDegrees: anyNamed('hintDecDegrees'),
+            searchRadiusDegrees: anyNamed('searchRadiusDegrees'),
+            timeoutSeconds: anyNamed('timeoutSeconds'),
+          ),
+        ).thenAnswer((_) async {
           // Solver RA in DEGREES: on-target targetRa*15 plus 300 arcsec
           // (5 arcmin) expressed in degrees (300/3600).
           return const PlateSolveResult(
@@ -760,7 +806,15 @@ void main() {
           ),
         ).thenAnswer((_) async => capturedImage);
 
-        when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
+        when(
+          mockPlateSolveService.solveWithFallback(
+            imagePath: anyNamed('imagePath'),
+            hintRaHours: anyNamed('hintRaHours'),
+            hintDecDegrees: anyNamed('hintDecDegrees'),
+            searchRadiusDegrees: anyNamed('searchRadiusDegrees'),
+            timeoutSeconds: anyNamed('timeoutSeconds'),
+          ),
+        ).thenAnswer((_) async {
           return const PlateSolveResult(
             success: false,
             ra: 0,
@@ -824,7 +878,15 @@ void main() {
           ),
         ).thenAnswer((_) async => capturedImage);
 
-        when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
+        when(
+          mockPlateSolveService.solveWithFallback(
+            imagePath: anyNamed('imagePath'),
+            hintRaHours: anyNamed('hintRaHours'),
+            hintDecDegrees: anyNamed('hintDecDegrees'),
+            searchRadiusDegrees: anyNamed('searchRadiusDegrees'),
+            timeoutSeconds: anyNamed('timeoutSeconds'),
+          ),
+        ).thenAnswer((_) async {
           iterationCount++;
           if (iterationCount == 1) {
             // Solver RA in DEGREES: targetRa*15 + 120 arcsec (in degrees).
@@ -930,7 +992,15 @@ void main() {
             targetName: anyNamed('targetName'),
           ),
         ).thenAnswer((_) async => buildPollFixtureImage());
-        when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
+        when(
+          mockPlateSolveService.solveWithFallback(
+            imagePath: anyNamed('imagePath'),
+            hintRaHours: anyNamed('hintRaHours'),
+            hintDecDegrees: anyNamed('hintDecDegrees'),
+            searchRadiusDegrees: anyNamed('searchRadiusDegrees'),
+            timeoutSeconds: anyNamed('timeoutSeconds'),
+          ),
+        ).thenAnswer((_) async {
           iterationCount++;
           // First poll: 2 arcmin off (forces slew + post-slew poll path).
           // Second poll: on-target (test terminates with success once the
@@ -1060,7 +1130,15 @@ void main() {
             targetName: anyNamed('targetName'),
           ),
         ).thenAnswer((_) async => buildPollFixtureImage());
-        when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
+        when(
+          mockPlateSolveService.solveWithFallback(
+            imagePath: anyNamed('imagePath'),
+            hintRaHours: anyNamed('hintRaHours'),
+            hintDecDegrees: anyNamed('hintDecDegrees'),
+            searchRadiusDegrees: anyNamed('searchRadiusDegrees'),
+            timeoutSeconds: anyNamed('timeoutSeconds'),
+          ),
+        ).thenAnswer((_) async {
           // Solver RA in DEGREES: 2 arcmin off = targetRa*15 + 120/3600.
           return const PlateSolveResult(
             success: true,
@@ -1241,7 +1319,15 @@ void main() {
           ),
         ).thenAnswer((_) async => capturedImage);
 
-        when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
+        when(
+          mockPlateSolveService.solveWithFallback(
+            imagePath: anyNamed('imagePath'),
+            hintRaHours: anyNamed('hintRaHours'),
+            hintDecDegrees: anyNamed('hintDecDegrees'),
+            searchRadiusDegrees: anyNamed('searchRadiusDegrees'),
+            timeoutSeconds: anyNamed('timeoutSeconds'),
+          ),
+        ).thenAnswer((_) async {
           // Solver RA in DEGREES: on-target is targetRa*15 (=150°).
           return const PlateSolveResult(
             success: true,
@@ -1306,7 +1392,15 @@ void main() {
           ),
         ).thenAnswer((_) async => capturedImage);
 
-        when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
+        when(
+          mockPlateSolveService.solveWithFallback(
+            imagePath: anyNamed('imagePath'),
+            hintRaHours: anyNamed('hintRaHours'),
+            hintDecDegrees: anyNamed('hintDecDegrees'),
+            searchRadiusDegrees: anyNamed('searchRadiusDegrees'),
+            timeoutSeconds: anyNamed('timeoutSeconds'),
+          ),
+        ).thenAnswer((_) async {
           // Solver RA in DEGREES: 5 arcmin off = targetRa*15 + 300/3600.
           return const PlateSolveResult(
             success: true,
@@ -1369,7 +1463,15 @@ void main() {
           ),
         ).thenAnswer((_) async => capturedImage);
 
-        when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
+        when(
+          mockPlateSolveService.solveWithFallback(
+            imagePath: anyNamed('imagePath'),
+            hintRaHours: anyNamed('hintRaHours'),
+            hintDecDegrees: anyNamed('hintDecDegrees'),
+            searchRadiusDegrees: anyNamed('searchRadiusDegrees'),
+            timeoutSeconds: anyNamed('timeoutSeconds'),
+          ),
+        ).thenAnswer((_) async {
           // Solver RA in DEGREES: on-target mount RA (10h) = 150°.
           return const PlateSolveResult(
             success: true,

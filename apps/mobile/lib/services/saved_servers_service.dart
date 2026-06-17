@@ -848,12 +848,9 @@ class SavedServersService {
       name: row.displayName,
       host: row.host,
       webPort: row.port,
-      // The remote-protocol package's DiscoveredServer carries a
-      // signalingPort that has been a vestigial 45678 default since
-      // WebRTC was deprecated — keep the same constant the manual-entry
-      // path uses so this round-trips unchanged.
-      signalingPort: 45678,
-      version: '2.0.0',
+      // signalingPort (deprecated WebRTC) and version are left at their model
+      // defaults — they are synthetic for a saved row and the real values
+      // arrive via /api/info enrichment on connect.
       mode: 'headless',
       scheme: row.scheme,
       authToken: token,

@@ -209,6 +209,9 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
     // server restart. Must run AFTER bind so a hydration error doesn't trap
     // operator-facing connect-URL printing in main_headless.dart.
     await _hydratePairedSessionTokens();
+    // Best-effort: learn our own tailnet address so /api/info can hand it to a
+    // remote client (no more reading the MagicDNS name off the appliance log).
+    await _discoverTailscaleHostBestEffort();
     _installRevocationListener();
     _scheduleTokenSweep();
 
@@ -439,6 +442,43 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
         _logWarning('[catalog] event stream error: $e');
       },
     );
+  }
+
+  /// Scan local interfaces for a Tailscale CGNAT address (100.64.0.0/10 IPv4 or
+  /// fd7a:115c::/32 IPv6) and cache it as the rig's tailnet host. Best-effort:
+  /// any failure leaves the hint null and `/api/info` simply omits it.
+  Future<void> _discoverTailscaleHostBestEffort() async {
+    try {
+      final interfaces = await NetworkInterface.list(
+        includeLoopback: false,
+        type: InternetAddressType.any,
+      );
+      for (final iface in interfaces) {
+        for (final addr in iface.addresses) {
+          final bytes = addr.rawAddress;
+          final isTs4 =
+              addr.type == InternetAddressType.IPv4 &&
+              bytes.length == 4 &&
+              bytes[0] == 100 &&
+              bytes[1] >= 64 &&
+              bytes[1] <= 127; // 100.64.0.0/10
+          final isTs6 =
+              addr.type == InternetAddressType.IPv6 &&
+              bytes.length == 16 &&
+              bytes[0] == 0xfd &&
+              bytes[1] == 0x7a &&
+              bytes[2] == 0x11 &&
+              bytes[3] == 0x5c; // fd7a:115c::/32
+          if (isTs4 || isTs6) {
+            _tailscaleHost = addr.address;
+            _logInfo('[remote] tailnet address detected: ${addr.address}');
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      _logWarning('[remote] tailnet address scan failed: $e');
+    }
   }
 
   void _subscribeToBackendEvents() {

@@ -815,30 +815,12 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     }
 
     final appSettings = ref.read(appSettingsProvider).value;
-    // Prefer the freshly-detected ASTAP path (which honours the new
-    // platesolver.json override) over the legacy appSettings field. Fall
-    // back to legacy + auto-detect if the new layer says nothing.
-    final executablePath = detection.astapPath ??
-        await PlateSolverUtils.findAstapExecutable(appSettings?.astapPath);
-
-    if (executablePath == null || executablePath.isEmpty) {
-      if (mounted) {
-        setState(() {
-          _isCentering = false;
-          _solverMissingMessage =
-              'ASTAP path is empty even though detection ran. Configure '
-              'the ASTAP executable in Settings → Plate Solving.';
-        });
-      }
-      return;
-    }
-
     final solverConfig = PlateSolverConfig(
       type: PlateSolverType.astap,
-      executablePath: executablePath,
+      executablePath: detection.astapPath ?? detection.astrometryPath ?? '',
       catalogPath: detection.catalogPath,
-      timeoutSeconds: 60,
-      searchRadius: 30.0,
+      timeoutSeconds: appSettings?.plateSolveTimeout ?? 60,
+      searchRadius: appSettings?.plateSolveSearchRadius,
     );
 
     try {

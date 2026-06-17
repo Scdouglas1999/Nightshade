@@ -21,4 +21,9 @@ List<HeadlessRoute> buildSystemRoutes(SystemHandlers h) => <HeadlessRoute>[
   HeadlessRoute(HttpMethod.get, '/api/status', h.handleStatus),
   HeadlessRoute(HttpMethod.get, '/api/self-test', h.handleSelfTest),
   HeadlessRoute(HttpMethod.get, '/api/openapi.json', h.handleOpenApiSpec),
+  // Public browser pairing page. NOT under /api/ — it is a self-contained
+  // HTML page (auth-exempt, see http_middleware publicPaths) that drives the
+  // already-public pairing endpoints client-side. Deliberately excluded from
+  // availableHeadlessEndpoints() (the API-only, contract-checked catalog).
+  HeadlessRoute(HttpMethod.get, '/pair', h.handlePairPage),
 ];

@@ -305,14 +305,12 @@ class _CenteringDialogWithResultState
 
     final centeringService = ref.read(centeringServiceProvider);
     final appSettings = ref.read(appSettingsProvider).value;
-    final executablePath =
-        await PlateSolverUtils.findAstapExecutable(appSettings?.astapPath);
 
     final solverConfig = PlateSolverConfig(
       type: PlateSolverType.astap,
-      executablePath: executablePath ?? '',
-      timeoutSeconds: 60,
-      searchRadius: 30.0,
+      executablePath: appSettings?.astapPath ?? '',
+      timeoutSeconds: appSettings?.plateSolveTimeout ?? 60,
+      searchRadius: appSettings?.plateSolveSearchRadius,
     );
 
     try {

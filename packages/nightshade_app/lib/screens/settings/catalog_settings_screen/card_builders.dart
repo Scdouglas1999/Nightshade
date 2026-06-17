@@ -18,9 +18,15 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
     required CatalogStatus? status,
     required String type,
     required IconData icon,
+    required String usedFor,
+    String? latestVersion,
   }) {
     final colors = context.nightshadeColors;
     final isInstalled = status?.isInstalled ?? false;
+    final updateAvailable = isInstalled &&
+        latestVersion != null &&
+        status?.version != null &&
+        status!.version != latestVersion;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -52,30 +58,27 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 4,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
                           title,
                           style: NightshadeTypography.h4
                               .copyWith(color: colors.textPrimary),
                         ),
-                        const SizedBox(width: 8),
                         if (isInstalled)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: colors.success.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(
-                                  NightshadeTokens.radiusInline4),
-                            ),
-                            child: Text(
-                              'Installed',
-                              style: NightshadeTypography.labelQuiet
-                                  .copyWith(color: colors.success),
-                            ),
+                          _buildBadge(
+                            context: context,
+                            label: 'Installed',
+                            color: colors.success,
+                          ),
+                        if (updateAvailable)
+                          _buildBadge(
+                            context: context,
+                            label: 'Update available',
+                            color: colors.warning,
                           ),
                       ],
                     ),
@@ -98,7 +101,27 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
+          // What this catalog powers — helps users decide whether they need it.
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(NightshadeIcons.info,
+                  size: 14, color: colors.textSecondary.withValues(alpha: 0.8)),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  usedFor,
+                  style: TextStyle(
+                    color: colors.textSecondary.withValues(alpha: 0.9),
+                    fontSize: NightshadeTypography.fontSize12,
+                    height: 1.3,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
           Text(
             'Source: $sourceUrl',
             style: TextStyle(
@@ -111,55 +134,99 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
             const SizedBox(height: 12),
             Divider(color: colors.border),
             const SizedBox(height: 12),
-            widget.isMobile
-                ? Wrap(
-                    spacing: 16,
-                    runSpacing: 8,
-                    children: [
-                      _buildStatusChip(
-                        context: context,
-                        label: 'Objects',
-                        value: status.objectCount?.toString() ?? 'Unknown',
-                      ),
-                      _buildStatusChip(
-                        context: context,
-                        label: 'Package',
-                        value: status.installedPackage?.displayName ?? 'Custom',
-                      ),
-                      if (status.installedDate != null)
-                        _buildStatusChip(
-                          context: context,
-                          label: 'Installed',
-                          value: _formatDate(status.installedDate!),
-                        ),
-                    ],
-                  )
-                : Row(
-                    children: [
-                      _buildStatusChip(
-                        context: context,
-                        label: 'Objects',
-                        value: status.objectCount?.toString() ?? 'Unknown',
-                      ),
-                      const SizedBox(width: 16),
-                      _buildStatusChip(
-                        context: context,
-                        label: 'Package',
-                        value: status.installedPackage?.displayName ?? 'Custom',
-                      ),
-                      const SizedBox(width: 16),
-                      if (status.installedDate != null)
-                        _buildStatusChip(
-                          context: context,
-                          label: 'Installed',
-                          value: _formatDate(status.installedDate!),
-                        ),
-                    ],
+            Wrap(
+              spacing: 16,
+              runSpacing: 8,
+              children: [
+                _buildStatusChip(
+                  context: context,
+                  label: 'Objects',
+                  value: _formatCount(status.objectCount),
+                ),
+                _buildStatusChip(
+                  context: context,
+                  label: 'Size',
+                  value: _formatBytes(status.fileSizeBytes),
+                ),
+                if (status.version != null)
+                  _buildStatusChip(
+                    context: context,
+                    label: 'Version',
+                    value: status.version!,
                   ),
+                _buildStatusChip(
+                  context: context,
+                  label: 'Package',
+                  value: status.installedPackage?.displayName ?? 'Custom',
+                ),
+                if (_magnitudeDepth(type, status.installedPackage) != null)
+                  _buildStatusChip(
+                    context: context,
+                    label: 'Depth',
+                    value: _magnitudeDepth(type, status.installedPackage)!,
+                  ),
+                if (status.installedDate != null)
+                  _buildStatusChip(
+                    context: context,
+                    label: 'Installed',
+                    value: _formatDate(status.installedDate!),
+                  ),
+              ],
+            ),
           ],
         ],
       ),
     );
+  }
+
+  /// Small rounded status/label badge (e.g. "Installed", "Update available").
+  Widget _buildBadge({
+    required BuildContext context,
+    required String label,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+      ),
+      child: Text(
+        label,
+        style: NightshadeTypography.labelQuiet.copyWith(color: color),
+      ),
+    );
+  }
+
+  /// Human-readable magnitude depth for the installed package, or null when it
+  /// doesn't apply to this catalog type.
+  String? _magnitudeDepth(String type, CatalogPackage? package) {
+    if (package == null) return null;
+    switch (type) {
+      case 'stars':
+        return 'mag ≤ ${package.starMagnitudeLimit.toStringAsFixed(1)}';
+      case 'dso':
+        return 'mag ≤ ${package.dsoMagnitudeLimit.toStringAsFixed(1)}';
+      default:
+        return null;
+    }
+  }
+
+  String _formatCount(int? count) {
+    if (count == null) return 'Unknown';
+    if (count < 1000) return '$count';
+    if (count < 1000000) return '${(count / 1000).toStringAsFixed(1)}k';
+    return '${(count / 1000000).toStringAsFixed(1)}M';
+  }
+
+  String _formatBytes(int? bytes) {
+    if (bytes == null || bytes <= 0) return 'Unknown';
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
+    }
+    return '${(bytes / 1024 / 1024 / 1024).toStringAsFixed(2)} GB';
   }
 
   Widget _buildStatusChip({

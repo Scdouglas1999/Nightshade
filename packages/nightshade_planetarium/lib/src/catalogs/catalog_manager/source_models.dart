@@ -221,6 +221,10 @@ class CatalogStatus {
   final int? objectCount;
   final String? version;
 
+  /// Size of the installed catalog file on disk, in bytes. Null when not
+  /// installed or unknown.
+  final int? fileSizeBytes;
+
   const CatalogStatus({
     required this.isInstalled,
     this.installedPath,
@@ -228,6 +232,7 @@ class CatalogStatus {
     this.installedPackage,
     this.objectCount,
     this.version,
+    this.fileSizeBytes,
   });
 
   factory CatalogStatus.notInstalled() =>
@@ -237,48 +242,87 @@ class CatalogStatus {
 /// Download progress information
 class DownloadProgress {
   final String catalogName;
+
+  /// Stable identity of the catalog being downloaded (`stars`, `dso`,
+  /// `annotation`). Lets a UI attribute progress to a specific card and lets
+  /// [CatalogManager.activeDownloads] key in-flight downloads, where
+  /// [catalogName] is only a human-facing label.
+  final String? catalogKey;
   final double progress; // 0.0 to 1.0
   final int bytesReceived;
   final int totalBytes;
   final String status;
   final bool isComplete;
+
+  /// True when the download was deliberately cancelled by the user (as opposed
+  /// to failing). Terminal, but not an error — the UI should treat it quietly.
+  final bool cancelled;
   final String? error;
 
   const DownloadProgress({
     required this.catalogName,
+    this.catalogKey,
     required this.progress,
     required this.bytesReceived,
     required this.totalBytes,
     required this.status,
     this.isComplete = false,
+    this.cancelled = false,
     this.error,
   });
 
-  factory DownloadProgress.starting(String catalogName) => DownloadProgress(
-    catalogName: catalogName,
-    progress: 0,
-    bytesReceived: 0,
-    totalBytes: 0,
-    status: 'Starting download...',
-  );
+  /// Whether this update is a terminal one (success, cancellation, or failure)
+  /// — i.e. the download is no longer in flight.
+  bool get isTerminal => isComplete || cancelled || error != null;
 
-  factory DownloadProgress.complete(String catalogName, int bytes) =>
+  factory DownloadProgress.starting(String catalogName, {String? catalogKey}) =>
       DownloadProgress(
         catalogName: catalogName,
-        progress: 1.0,
-        bytesReceived: bytes,
-        totalBytes: bytes,
-        status: 'Complete',
-        isComplete: true,
-      );
-
-  factory DownloadProgress.error(String catalogName, String error) =>
-      DownloadProgress(
-        catalogName: catalogName,
+        catalogKey: catalogKey,
         progress: 0,
         bytesReceived: 0,
         totalBytes: 0,
-        status: 'Error',
-        error: error,
+        status: 'Starting download...',
       );
+
+  factory DownloadProgress.complete(
+    String catalogName,
+    int bytes, {
+    String? catalogKey,
+  }) => DownloadProgress(
+    catalogName: catalogName,
+    catalogKey: catalogKey,
+    progress: 1.0,
+    bytesReceived: bytes,
+    totalBytes: bytes,
+    status: 'Complete',
+    isComplete: true,
+  );
+
+  factory DownloadProgress.cancelled(
+    String catalogName, {
+    String? catalogKey,
+  }) => DownloadProgress(
+    catalogName: catalogName,
+    catalogKey: catalogKey,
+    progress: 0,
+    bytesReceived: 0,
+    totalBytes: 0,
+    status: 'Cancelled',
+    cancelled: true,
+  );
+
+  factory DownloadProgress.error(
+    String catalogName,
+    String error, {
+    String? catalogKey,
+  }) => DownloadProgress(
+    catalogName: catalogName,
+    catalogKey: catalogKey,
+    progress: 0,
+    bytesReceived: 0,
+    totalBytes: 0,
+    status: 'Error',
+    error: error,
+  );
 }

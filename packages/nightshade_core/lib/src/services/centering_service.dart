@@ -455,9 +455,12 @@ class CenteringService {
 
       PlateSolveResult? solveResult;
       if (capturedImage.filePath != null) {
-        solveResult = await plateSolveService.solve(
-          capturedImage.filePath!,
-          solverConfig,
+        solveResult = await plateSolveService.solveWithFallback(
+          imagePath: capturedImage.filePath!,
+          hintRaHours: solverConfig.hintRa ?? targetRa,
+          hintDecDegrees: solverConfig.hintDec ?? targetDec,
+          searchRadiusDegrees: solverConfig.searchRadius,
+          timeoutSeconds: solverConfig.timeoutSeconds,
         );
       } else {
         final iter = CenteringIteration(
@@ -742,9 +745,12 @@ class CenteringService {
     }
 
     // Plate solve
-    final solveResult = await plateSolveService.solve(
-      capturedImage.filePath!,
-      solverConfig,
+    final solveResult = await plateSolveService.solveWithFallback(
+      imagePath: capturedImage.filePath!,
+      hintRaHours: solverConfig.hintRa ?? targetRa,
+      hintDecDegrees: solverConfig.hintDec ?? targetDec,
+      searchRadiusDegrees: solverConfig.searchRadius,
+      timeoutSeconds: solverConfig.timeoutSeconds,
     );
 
     if (!solveResult.success) {

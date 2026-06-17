@@ -469,6 +469,9 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
       '/api/info',
       '/api/pairing/start',
       '/api/pairing/verify',
+      // One-tap LAN pairing. Pre-auth like start/verify; the handler enforces
+      // the private-LAN source-address + lanOpen-policy gate itself.
+      '/api/pairing/lan-claim',
       // live-stacking broadcast endpoints. The audience
       // at an outreach event has not paired the device; the
       // LiveStackingNode's own `auth_token` field is the access gate
@@ -480,6 +483,11 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
       '/api/broadcast/live-stack',
       '/api/broadcast/sse',
       '/broadcast',
+      // Public browser pairing page. Auth-exempt like /api/info: it is a
+      // static HTML page that drives the (already-public) pairing endpoints
+      // client-side, so an operator can pair from any LAN browser without the
+      // mobile app or terminal access.
+      '/pair',
     };
 
     // WebSocket paths that support query-param auth (legacy ?token=) or the

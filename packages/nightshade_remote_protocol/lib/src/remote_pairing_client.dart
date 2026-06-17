@@ -248,6 +248,63 @@ class RemotePairingClient {
       body: body,
     );
   }
+
+  /// Attempts one-tap LAN pairing via `POST /api/pairing/lan-claim`.
+  ///
+  /// Returns a success result (with a token) when the appliance grants it — no
+  /// code needed because the request came from the same private LAN. Returns
+  /// `null` when one-tap pairing is unavailable for this connection (the server
+  /// is in `code-required` mode, or we reached it over tailnet/relay/Internet so
+  /// the source isn't a trusted LAN address) — the caller should fall back to
+  /// the code flow. Throws only on transport/unexpected errors.
+  ///
+  /// Honours [pinnedFingerprint] the same way [verify] does: if a pin is set we
+  /// confirm the server identity before trusting its token.
+  Future<RemotePairingVerifyResult?> lanClaim({
+    required String deviceId,
+    required String deviceName,
+    String deviceType = 'mobile',
+  }) async {
+    await _enforcePinning();
+
+    final response = await http
+        .post(
+          _uri('/api/pairing/lan-claim'),
+          headers: _headers,
+          body: jsonEncode({
+            'deviceId': deviceId,
+            'deviceName': deviceName,
+            'deviceType': deviceType,
+          }),
+        )
+        .timeout(timeout);
+
+    final dynamic decoded = response.body.isNotEmpty
+        ? jsonDecode(response.body)
+        : <String, dynamic>{};
+    final body = decoded is Map<String, dynamic>
+        ? decoded
+        : <String, dynamic>{};
+
+    if (response.statusCode == 200) {
+      return RemotePairingVerifyResult.successFromJson(body);
+    }
+    // 403 (not on the LAN / mode disabled) and 404 (older server without the
+    // endpoint) are the expected "fall back to a code" signals — not errors.
+    if (response.statusCode == 403 || response.statusCode == 404) {
+      return null;
+    }
+    if (response.statusCode == 429) {
+      // Rate-limited: surface as a failure so the caller can show the message.
+      return RemotePairingVerifyResult.failure(
+        statusCode: response.statusCode,
+        body: body,
+      );
+    }
+    throw RemotePairingException(
+      'LAN pairing failed (${response.statusCode}): ${response.body}',
+    );
+  }
 }
 
 class RemotePairingException implements Exception {

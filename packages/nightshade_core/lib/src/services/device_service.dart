@@ -10,6 +10,7 @@ import '../providers/ui_notification_provider.dart';
 import '../providers/operation_progress_provider.dart';
 import '../providers/filter_offset_provider.dart';
 import '../providers/current_screen_provider.dart';
+import '../providers/autofocus_progress_provider.dart';
 import '../providers/unified_discovery_provider.dart';
 import 'smart_notification_service.dart';
 import '../backend/network_backend.dart';

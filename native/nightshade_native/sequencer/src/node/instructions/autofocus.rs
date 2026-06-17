@@ -76,7 +76,7 @@ impl InstructionNode for AutofocusInstruction {
 
 /// Parse "step N" and "hfr X.Y" style fragments from the autofocus
 /// instruction's free-form detail string.
-fn parse_autofocus_detail(s: &str) -> (Option<u32>, Option<f64>) {
+pub(crate) fn parse_autofocus_detail(s: &str) -> (Option<u32>, Option<f64>) {
     let lower = s.to_lowercase();
     let step = lower.find("step ").and_then(|idx| {
         let rest = &s[idx + "step ".len()..];

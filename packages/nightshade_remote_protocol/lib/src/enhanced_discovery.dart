@@ -558,7 +558,15 @@ class EnhancedNightshadeDiscovery {
       pairingSupported:
           info['pairingSupported'] as bool? ?? seed.pairingSupported,
       fingerprint: info['fingerprint'] as String? ?? seed.fingerprint,
+      lanPairing: info['lanPairing'] as bool? ?? seed.lanPairing,
       scheme: _normalizeTransportScheme(info['scheme'], fallback: seed.scheme),
+      // /api/info now advertises the rig's tailnet address and relay
+      // appliance id when those uplinks are up. Carry them through so the
+      // connect path can persist them into the saved-server row and the
+      // Tailscale/relay setup sheets prefill them on the next reconnect.
+      tailscaleHost: info['tailscaleHost'] as String? ?? seed.tailscaleHost,
+      relayApplianceId:
+          info['relayApplianceId'] as String? ?? seed.relayApplianceId,
     );
   }
 

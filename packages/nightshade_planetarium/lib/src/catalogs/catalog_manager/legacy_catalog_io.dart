@@ -5,12 +5,14 @@ extension CatalogManagerLegacyIo on CatalogManager {
   Future<bool> _downloadStarCatalog({
     CatalogPackage package = CatalogPackage.standard,
     void Function(DownloadProgress)? onProgress,
+    Future<bool> Function()? isCancelled,
   }) async {
     return _downloadCatalog(
       source: hygStarCatalog,
       type: 'stars',
       package: package,
       onProgress: onProgress,
+      isCancelled: isCancelled,
     );
   }
 
@@ -18,12 +20,14 @@ extension CatalogManagerLegacyIo on CatalogManager {
   Future<bool> _downloadDsoCatalog({
     CatalogPackage package = CatalogPackage.standard,
     void Function(DownloadProgress)? onProgress,
+    Future<bool> Function()? isCancelled,
   }) async {
     return _downloadCatalog(
       source: openNgcCatalog,
       type: 'dso',
       package: package,
       onProgress: onProgress,
+      isCancelled: isCancelled,
     );
   }
 
@@ -32,6 +36,7 @@ extension CatalogManagerLegacyIo on CatalogManager {
     required String type,
     required CatalogPackage package,
     void Function(DownloadProgress)? onProgress,
+    Future<bool> Function()? isCancelled,
   }) async {
     developer.log(
       '[Catalog] Starting download of ${source.name} from ${source.downloadUrl}',
@@ -39,9 +44,18 @@ extension CatalogManagerLegacyIo on CatalogManager {
       level: 800,
     );
 
-    final progress = DownloadProgress.starting(source.name);
-    _downloadController.add(progress);
-    onProgress?.call(progress);
+    _emitProgress(
+      DownloadProgress.starting(source.name, catalogKey: type),
+      onProgress,
+    );
+
+    // Download into a sibling `.partial` file and only promote it onto the
+    // live catalog path once the bytes are fully written and validated. This
+    // keeps an existing install intact if the download fails or is abandoned
+    // mid-flight, and guarantees the final path is never a truncated file.
+    final filePath = path.join(catalogDirectory, source.fileName);
+    final tempPath = '$filePath.partial';
+    final tempFile = File(tempPath);
 
     try {
       // Ensure catalog directory exists
@@ -77,19 +91,16 @@ extension CatalogManagerLegacyIo on CatalogManager {
           final errorMsg =
               'HTTP ${streamedResponse.statusCode}: Failed to download from ${source.downloadUrl}';
           developer.log(errorMsg, name: 'CatalogManager', level: 1000);
-          final error = DownloadProgress.error(source.name, errorMsg);
-          _downloadController.add(error);
-          onProgress?.call(error);
+          _emitProgress(
+            DownloadProgress.error(source.name, errorMsg, catalogKey: type),
+            onProgress,
+          );
           return false;
         }
 
         final contentLength = streamedResponse.contentLength ?? 0;
-        final filePath = path.join(catalogDirectory, source.fileName);
-        final file = File(filePath);
-        final sink = file.openWrite();
-
         developer.log(
-          '[Catalog] Writing to $filePath, expected size: $contentLength bytes',
+          '[Catalog] Writing to $tempPath, expected size: $contentLength bytes',
           name: 'CatalogManager',
           level: 800,
         );
@@ -98,80 +109,94 @@ extension CatalogManagerLegacyIo on CatalogManager {
         final isGzipped = source.downloadUrl.endsWith('.gz');
 
         var bytesReceived = 0;
-        final downloadedBytes = <int>[];
+        var lastEmittedBytes = 0;
+        // Coalesce progress so fast connections don't fire a setState per
+        // network chunk (thousands/sec). Also the natural cadence at which we
+        // poll the cancellation token.
+        const emitThresholdBytes = 512 * 1024;
 
-        await for (final chunk in streamedResponse.stream) {
-          downloadedBytes.addAll(chunk);
-          bytesReceived += chunk.length;
-
-          final prog = DownloadProgress(
-            catalogName: source.name,
-            progress: contentLength > 0 ? bytesReceived / contentLength : 0,
-            bytesReceived: bytesReceived,
-            totalBytes: contentLength,
-            status:
-                'Downloading... ${(bytesReceived / 1024 / 1024).toStringAsFixed(1)} MB',
+        Future<void> onChunk(int length) async {
+          bytesReceived += length;
+          if (bytesReceived - lastEmittedBytes < emitThresholdBytes) return;
+          lastEmittedBytes = bytesReceived;
+          _emitProgress(
+            DownloadProgress(
+              catalogName: source.name,
+              catalogKey: type,
+              progress: contentLength > 0 ? bytesReceived / contentLength : 0,
+              bytesReceived: bytesReceived,
+              totalBytes: contentLength,
+              status:
+                  'Downloading... ${(bytesReceived / 1024 / 1024).toStringAsFixed(1)} MB',
+            ),
+            onProgress,
           );
-          _downloadController.add(prog);
-          onProgress?.call(prog);
+          if (isCancelled != null && await isCancelled()) {
+            throw const CatalogCancelled();
+          }
         }
 
-        // Decompress if needed
-        Uint8List finalBytes;
         if (isGzipped) {
+          // Gzip needs the whole compressed payload before it can decode, so
+          // buffer the (smaller) compressed bytes, then write the inflated
+          // result to the temp file in one shot.
+          final compressed = BytesBuilder(copy: false);
+          await for (final chunk in streamedResponse.stream) {
+            compressed.add(chunk);
+            await onChunk(chunk.length);
+          }
+
           developer.log(
             '[Catalog] Decompressing gzip data...',
             name: 'CatalogManager',
             level: 800,
           );
+          Uint8List finalBytes;
+          final compressedBytes = compressed.takeBytes();
           try {
-            finalBytes = Uint8List.fromList(gzip.decode(downloadedBytes));
-            developer.log(
-              '[Catalog] Decompressed ${downloadedBytes.length} bytes to ${finalBytes.length} bytes',
-              name: 'CatalogManager',
-              level: 800,
-            );
+            finalBytes = Uint8List.fromList(gzip.decode(compressedBytes));
           } catch (e) {
             developer.log(
               '[Catalog] Gzip decompression failed: $e',
               name: 'CatalogManager',
               level: 900,
             );
-            // Try to use the data as-is (maybe it wasn't actually gzipped)
-            finalBytes = Uint8List.fromList(downloadedBytes);
+            // Fall back to the raw payload (maybe it wasn't actually gzipped).
+            finalBytes = Uint8List.fromList(compressedBytes);
           }
+          await tempFile.writeAsBytes(finalBytes, flush: true);
         } else {
-          finalBytes = Uint8List.fromList(downloadedBytes);
+          // Stream straight to disk so we never hold the whole catalog in
+          // memory (the GLADE+ "complete" tier is multiple GB).
+          final sink = tempFile.openWrite();
+          try {
+            await for (final chunk in streamedResponse.stream) {
+              sink.add(chunk);
+              await onChunk(chunk.length);
+            }
+          } finally {
+            await sink.close();
+          }
         }
 
-        // Write to file
-        sink.add(finalBytes);
-        await sink.close();
-
-        developer.log(
-          '[Catalog] Download complete: $bytesReceived bytes written to $filePath',
-          name: 'CatalogManager',
-          level: 800,
-        );
-
-        // Verify file was written
-        if (!await file.exists()) {
+        // Validate the freshly written temp file before promoting it.
+        if (!await tempFile.exists()) {
           throw Exception('File was not created after download');
         }
-
-        final fileSize = await file.length();
+        final fileSize = await tempFile.length();
         if (fileSize == 0) {
           throw Exception('Downloaded file is empty');
         }
 
         developer.log(
-          '[Catalog] File verified: $fileSize bytes',
+          '[Catalog] Temp file verified: $fileSize bytes',
           name: 'CatalogManager',
           level: 800,
         );
 
-        // Count objects and save metadata
-        final objectCount = await _countObjects(filePath);
+        // Count objects, then atomically promote temp -> final.
+        final objectCount = await _countObjects(tempPath);
+        await _promoteTempFile(tempFile, filePath);
         await _saveMetadata(type, source, package, objectCount);
         _invalidateLocalCatalogLoaders(
           stars: type == 'stars',
@@ -179,19 +204,35 @@ extension CatalogManagerLegacyIo on CatalogManager {
         );
 
         developer.log(
-          '[Catalog] Catalog saved with $objectCount objects',
+          '[Catalog] Catalog saved with $objectCount objects ($bytesReceived bytes received)',
           name: 'CatalogManager',
           level: 800,
         );
 
-        final complete = DownloadProgress.complete(source.name, bytesReceived);
-        _downloadController.add(complete);
-        onProgress?.call(complete);
+        _emitProgress(
+          DownloadProgress.complete(
+            source.name,
+            bytesReceived,
+            catalogKey: type,
+          ),
+          onProgress,
+        );
 
         return true;
       } finally {
         client.close();
       }
+    } on CatalogCancelled {
+      developer.log(
+        '[Catalog] Download of ${source.name} cancelled by user',
+        name: 'CatalogManager',
+        level: 800,
+      );
+      _emitProgress(
+        DownloadProgress.cancelled(source.name, catalogKey: type),
+        onProgress,
+      );
+      return false;
     } catch (e, stackTrace) {
       final errorMsg = 'Download error: $e';
       developer.log(
@@ -202,19 +243,55 @@ extension CatalogManagerLegacyIo on CatalogManager {
         stackTrace: stackTrace,
       );
 
-      final error = DownloadProgress.error(source.name, errorMsg);
-      _downloadController.add(error);
-      onProgress?.call(error);
+      _emitProgress(
+        DownloadProgress.error(source.name, errorMsg, catalogKey: type),
+        onProgress,
+      );
       return false;
+    } finally {
+      // Never leave a half-written `.partial` behind, regardless of outcome
+      // (on success it has already been renamed away).
+      await _cleanupTempFile(tempFile);
+    }
+  }
+
+  /// Atomically replace [finalPath] with [tempFile]. POSIX `rename` overwrites
+  /// in place; Windows `rename` throws if the destination exists, so remove it
+  /// first there. The replacement window is microseconds on the success path.
+  Future<void> _promoteTempFile(File tempFile, String finalPath) async {
+    final finalFile = File(finalPath);
+    if (await finalFile.exists()) {
+      await finalFile.delete();
+    }
+    await tempFile.rename(finalPath);
+  }
+
+  Future<void> _cleanupTempFile(File tempFile) async {
+    try {
+      if (await tempFile.exists()) {
+        await tempFile.delete();
+      }
+    } catch (_) {
+      // Best-effort cleanup; a stale `.partial` is harmless and ignored by
+      // status checks (which only look at the final catalog path).
     }
   }
 
   Future<int> _countObjects(String filePath) async {
     try {
-      final file = File(filePath);
-      final lines = await file.readAsLines();
-      // Subtract 1 for header row
-      return lines.length - 1;
+      // Stream the file through a line splitter rather than reading it whole:
+      // catalogs range from a few MB up to multiple GB (GLADE+ complete), and
+      // readAsLines() would load and materialize the entire file in memory.
+      var lineCount = 0;
+      final stream = File(filePath)
+          .openRead()
+          .transform(utf8.decoder)
+          .transform(const LineSplitter());
+      await for (final _ in stream) {
+        lineCount++;
+      }
+      // Subtract 1 for the header row (guard against an empty file).
+      return lineCount > 0 ? lineCount - 1 : 0;
     } catch (e) {
       developer.log(
         '[Catalog] Error counting objects: $e',
@@ -260,18 +337,30 @@ extension CatalogManagerLegacyIo on CatalogManager {
           ? hygStarCatalog.fileName
           : openNgcCatalog.fileName;
       final destPath = path.join(catalogDirectory, fileName);
+      final tempPath = '$destPath.partial';
+      final tempFile = File(tempPath);
 
-      await sourceFile.copy(destPath);
+      try {
+        // Copy to a temp file first, then atomically promote, so a failed copy
+        // can't clobber a good existing catalog.
+        await sourceFile.copy(tempPath);
+        if (await tempFile.length() == 0) {
+          throw Exception('Imported file is empty');
+        }
 
-      final objectCount = await _countObjects(destPath);
-      final source = type == 'stars' ? hygStarCatalog : openNgcCatalog;
-      await _saveMetadata(type, source, CatalogPackage.complete, objectCount);
-      _invalidateLocalCatalogLoaders(
-        stars: type == 'stars',
-        dsos: type == 'dso',
-      );
+        final objectCount = await _countObjects(tempPath);
+        await _promoteTempFile(tempFile, destPath);
+        final source = type == 'stars' ? hygStarCatalog : openNgcCatalog;
+        await _saveMetadata(type, source, CatalogPackage.complete, objectCount);
+        _invalidateLocalCatalogLoaders(
+          stars: type == 'stars',
+          dsos: type == 'dso',
+        );
 
-      return true;
+        return true;
+      } finally {
+        await _cleanupTempFile(tempFile);
+      }
     } catch (e) {
       developer.log(
         '[Catalog] Import error: $e',

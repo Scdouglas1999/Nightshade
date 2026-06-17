@@ -33,6 +33,7 @@ mod runtime_config;
 mod setup;
 
 use crate::device_ops::SharedDeviceOps;
+use crate::node::instructions::autofocus::parse_autofocus_detail;
 use crate::node::{
     CloudMotionSnapshot, ExecutionContext, Node, ProgressDetail, ProgressUpdate, RuntimeNode,
 };
@@ -5082,8 +5083,35 @@ impl SequenceExecutor {
                                                     }
                                                 }
                                             };
+                                            let progress_context =
+                                                custom_recovery_context_for_triggers.clone();
+                                            let progress_node_id =
+                                                format!("trigger:{trigger_id}:autofocus");
+                                            let total_steps = af_config
+                                                .steps_out
+                                                .saturating_mul(2)
+                                                .saturating_add(1);
+                                            let progress_fn =
+                                                move |progress: f64, detail_str: String| {
+                                                    let (step, hfr) =
+                                                        parse_autofocus_detail(&detail_str);
+                                                    progress_context.send_progress(
+                                                        ProgressUpdate::instruction_progress(
+                                                            progress_node_id.clone(),
+                                                            "Autofocus",
+                                                            progress,
+                                                            ProgressDetail::Autofocus {
+                                                                step: step.unwrap_or(0),
+                                                                total_steps,
+                                                                current_hfr: hfr,
+                                                            },
+                                                        ),
+                                                    );
+                                                };
                                             let af_result = crate::instructions::execute_autofocus(
-                                                &af_config, &af_ctx, None,
+                                                &af_config,
+                                                &af_ctx,
+                                                Some(&progress_fn),
                                             )
                                             .await;
 

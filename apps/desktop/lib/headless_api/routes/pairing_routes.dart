@@ -13,6 +13,9 @@ import 'headless_route.dart';
 List<HeadlessRoute> buildPairingRoutes(PairingHandlers h) => <HeadlessRoute>[
   HeadlessRoute(HttpMethod.post, '/api/pairing/start', h.handlePairingStart),
   HeadlessRoute(HttpMethod.post, '/api/pairing/verify', h.handlePairingVerify),
+  // One-tap LAN pairing (no code). Public like start/verify, but the handler
+  // self-gates on a private-LAN source address + the lanOpen policy.
+  HeadlessRoute(HttpMethod.post, '/api/pairing/lan-claim', h.handleLanClaim),
   // admin-only view of currently-valid pairing sessions. Behind
   // the auth middleware (the path is NOT in `publicPaths`) and gated
   // to admin scope via `_adminOnlyPaths`. Lets headless operators on

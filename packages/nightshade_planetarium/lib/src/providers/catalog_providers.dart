@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../catalogs/catalog_manager.dart';
 import '../catalogs/catalog.dart';
@@ -52,7 +54,31 @@ class CatalogState {
 
 /// Notifier for managing catalog state
 class CatalogStateNotifier extends StateNotifier<CatalogState> {
-  CatalogStateNotifier() : super(const CatalogState());
+  CatalogStateNotifier() : super(const CatalogState()) {
+    // The catalog directory is wired up during app bootstrap (before this
+    // notifier is first read), so seed from disk right away instead of waiting
+    // for someone to call initialize(). Without this the provider stays at its
+    // "nothing installed" default forever and screens that key off it (e.g. the
+    // planner empty-state) misreport installed catalogs as missing.
+    if (CatalogManager.instance.isInitialized) {
+      unawaited(refreshStatus());
+    }
+    // Keep in sync with downloads finishing anywhere in the app (settings,
+    // onboarding dialog, headless API) via the shared progress stream.
+    _downloadSub = CatalogManager.instance.downloadProgress.listen((progress) {
+      if (progress.isComplete) {
+        unawaited(refreshStatus());
+      }
+    });
+  }
+
+  StreamSubscription<DownloadProgress>? _downloadSub;
+
+  @override
+  void dispose() {
+    _downloadSub?.cancel();
+    super.dispose();
+  }
 
   /// Initialize the catalog manager and check status
   Future<void> initialize(String catalogDirectory) async {
@@ -70,6 +96,7 @@ class CatalogStateNotifier extends StateNotifier<CatalogState> {
 
   /// Refresh catalog status
   Future<void> refreshStatus() async {
+    if (!CatalogManager.instance.isInitialized) return;
     try {
       final starStatus = await CatalogManager.instance.getStarCatalogStatus();
       final dsoStatus = await CatalogManager.instance.getDsoCatalogStatus();
@@ -77,6 +104,7 @@ class CatalogStateNotifier extends StateNotifier<CatalogState> {
       state = state.copyWith(
         starCatalogStatus: starStatus,
         dsoCatalogStatus: dsoStatus,
+        isInitialized: true,
         downloadError: null,
       );
     } catch (e) {

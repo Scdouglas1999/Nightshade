@@ -9,7 +9,6 @@ import '../../../models/command_action_result.dart';
 import '../../../services/sequence_action_service.dart';
 import '../../../utils/sequence_mutator_helper.dart';
 import '../../../utils/snackbar_helper.dart';
-import 'conversational_builder_dialog.dart';
 import 'preflight_validation_dialog.dart';
 import 'equipment_status_widget.dart';
 import 'quick_start_wizard_dialog.dart';
@@ -91,14 +90,6 @@ class SequenceToolbar extends ConsumerWidget {
           void openSmartNight() => showDialog(
                 context: context,
                 builder: (_) => const SmartNightDialog(),
-              );
-
-          // Conversational sequence builder. Free-text → LLM →
-          // Sequence. The dialog itself handles the "no provider
-          // configured" empty state and the privacy disclosure.
-          void openConversationalBuilder() => showDialog(
-                context: context,
-                builder: (_) => const ConversationalBuilderDialog(),
               );
 
           List<ExposureTriggerConfig> currentExposureTriggers() {
@@ -346,15 +337,6 @@ class SequenceToolbar extends ConsumerWidget {
               icon: LucideIcons.sparkles,
               label: 'Plan Tonight (Smart Night)$lockedTooltipSuffix',
               onPressed: canEdit ? openSmartNight : null,
-            ),
-            // Conversational AI Builder. Sits next to Smart
-            // Night because both are "I want a sequence, fast" entry
-            // points; the wand icon distinguishes the LLM-driven path
-            // from the deterministic Smart Night wizard.
-            _ToolbarAction(
-              icon: LucideIcons.wand2,
-              label: 'Conversational Builder (AI)$lockedTooltipSuffix',
-              onPressed: canEdit ? openConversationalBuilder : null,
             ),
             _ToolbarAction(
               icon: LucideIcons.folderOpen,

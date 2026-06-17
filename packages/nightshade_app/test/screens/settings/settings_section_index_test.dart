@@ -119,7 +119,7 @@ const List<String> _allContractKeys = [
   // Science
   'science',
   // Notifications & Remote
-  'notifications', 'integrations', 'ai-assistant', 'remote-access',
+  'notifications', 'integrations', 'remote-access',
   // Advanced
   'logs',
   // Merged-away aliases
@@ -193,6 +193,11 @@ void main() {
         kSettingsSectionIndex['autofocus']);
     expect(kSettingsSectionIndex['notification-routing'],
         kSettingsSectionIndex['notifications']);
+  });
+
+  test('ai_assistant_section_is_hidden_from_settings_contract', () {
+    expect(resolveSectionKey('ai-assistant'), isNull);
+    expect(kSettingsSectionIndex.containsKey('ai-assistant'), isFalse);
   });
 
   testWidgets(

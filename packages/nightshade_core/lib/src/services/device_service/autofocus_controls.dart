@@ -24,198 +24,212 @@ extension _DeviceServiceAutofocusControls on DeviceService {
     }
     _isAutofocusRunning = true;
 
-    final focuserDeviceId = await _getFocuserDeviceId();
-    if (focuserDeviceId == null || focuserDeviceId.isEmpty) {
-      throw Exception('No focuser connected');
-    }
+    try {
+      final focuserDeviceId = await _getFocuserDeviceId();
+      if (focuserDeviceId == null || focuserDeviceId.isEmpty) {
+        throw Exception('No focuser connected');
+      }
 
-    // Use the connected camera's device ID
-    final cameraDeviceId = await _getCameraDeviceId();
-    if (cameraDeviceId == null || cameraDeviceId.isEmpty) {
-      throw Exception('No camera connected');
-    }
+      // Use the connected camera's device ID
+      final cameraDeviceId = await _getCameraDeviceId();
+      if (cameraDeviceId == null || cameraDeviceId.isEmpty) {
+        throw Exception('No camera connected');
+      }
 
-    // Resolve effective AF parameters from settings or explicit values
-    final appSettings = _ref.read(appSettingsProvider).valueOrNull;
+      // Resolve effective AF parameters from settings or explicit values
+      final appSettings = _ref.read(appSettingsProvider).valueOrNull;
 
-    final double effectiveExposureTime;
-    final int effectiveStepSize;
-    final int effectiveStepsOut;
-    final String effectiveMethod;
-    final int effectiveBinning;
-    final String effectiveCurveFitting;
-    final int effectiveNumberOfAttempts;
-    final int effectiveExposuresPerPoint;
-    final double effectiveRSquaredThreshold;
-    final double effectiveOuterCropRatio;
-    final double effectiveInnerCropRatio;
-    final int effectiveUseBrightestNStars;
-    final int effectiveFocuserSettleTimeMs;
-    final String effectiveBacklashCompMethod;
-    final int effectiveBacklashIn;
-    final int effectiveBacklashOut;
-    final bool disableGuidingDuringAf;
+      final double effectiveExposureTime;
+      final int effectiveStepSize;
+      final int effectiveStepsOut;
+      final String effectiveMethod;
+      final int effectiveBinning;
+      final String effectiveCurveFitting;
+      final int effectiveNumberOfAttempts;
+      final int effectiveExposuresPerPoint;
+      final double effectiveRSquaredThreshold;
+      final double effectiveOuterCropRatio;
+      final double effectiveInnerCropRatio;
+      final int effectiveUseBrightestNStars;
+      final int effectiveFocuserSettleTimeMs;
+      final String effectiveBacklashCompMethod;
+      final int effectiveBacklashIn;
+      final int effectiveBacklashOut;
+      final bool disableGuidingDuringAf;
 
-    if (useSettingsDefaults && appSettings == null) {
-      // Settings not yet loaded from DB — don't silently fall back to hardcoded
-      // defaults because the user's persisted configuration would be ignored.
-      throw Exception(
-        'Cannot run autofocus with settings defaults: AppSettings not yet loaded. '
-        'Wait for the app to finish initializing before running autofocus.',
-      );
-    }
-
-    if (useSettingsDefaults && appSettings != null) {
-      effectiveExposureTime = appSettings.afExposureTime;
-      effectiveStepSize = appSettings.afStepSize;
-      effectiveStepsOut = appSettings.afInitialOffsetSteps;
-      effectiveMethod = appSettings.afMethod;
-      effectiveBinning = appSettings.afBinning;
-      effectiveCurveFitting = appSettings.afCurveFitting;
-      effectiveNumberOfAttempts = appSettings.afNumberOfAttempts;
-      effectiveExposuresPerPoint = appSettings.afExposuresPerPoint;
-      effectiveRSquaredThreshold = appSettings.afRSquaredThreshold;
-      effectiveOuterCropRatio = appSettings.afOuterCropRatio;
-      effectiveInnerCropRatio = appSettings.afInnerCropRatio;
-      effectiveUseBrightestNStars = appSettings.afUseBrightestNStars;
-      effectiveFocuserSettleTimeMs = appSettings.afFocuserSettleTimeMs;
-      effectiveBacklashCompMethod = appSettings.afBacklashCompMethod;
-      effectiveBacklashIn = appSettings.afBacklashIn;
-      effectiveBacklashOut = appSettings.afBacklashOut;
-      disableGuidingDuringAf = appSettings.afDisableGuidingDuringAf;
-    } else {
-      effectiveExposureTime = exposureTime;
-      effectiveStepSize = stepSize;
-      effectiveStepsOut = stepsOut;
-      effectiveMethod = method;
-      effectiveBinning = binning;
-      effectiveCurveFitting = 'Hyperbolic';
-      effectiveNumberOfAttempts = 1;
-      effectiveExposuresPerPoint = 1;
-      effectiveRSquaredThreshold = 0.7;
-      effectiveOuterCropRatio = 1.0;
-      effectiveInnerCropRatio = 0.0;
-      effectiveUseBrightestNStars = 0;
-      effectiveFocuserSettleTimeMs = 500;
-      effectiveBacklashCompMethod = 'Overshoot';
-      effectiveBacklashIn = 350;
-      effectiveBacklashOut = 0;
-      disableGuidingDuringAf = false;
-    }
-
-    final focuserNotifier = _ref.read(focuserStateProvider.notifier);
-    final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
-
-    focuserNotifier.setMoving(true);
-    operationsNotifier.startOperation(
-      type: OperationType.autofocus,
-      description: 'Running autofocus ($effectiveMethod)',
-      currentStep: 'Initializing...',
-      canCancel: true,
-    );
-
-    // Predictive-AF consultation (wire-up). Before running the real
-    // sweep, ask the persisted per-filter model what it would predict for the
-    // current temperature/filter. We log the decision and capture the
-    // predicted position so that — once the sweep converges — we can feed the
-    // model the prediction-vs-actual error for drift tracking. We never let
-    // the prediction REPLACE the Dart sweep here: this path is the explicit
-    // full-sweep request (manual focus tab / Dart-driven AF), so the user
-    // asked for a real measurement. The prediction is advisory + training
-    // input only.
-    final predictiveContext = await _consultPredictiveAf(
-      method: effectiveMethod,
-    );
-
-    // Pause guiding if configured and guiding is active
-    final guiderState = _ref.read(guiderStateProvider);
-    final wasGuiding = disableGuidingDuringAf && guiderState.isGuiding;
-    if (wasGuiding) {
-      try {
-        final loggingService = _ref.read(loggingServiceProvider);
-        loggingService.info(
-          'Pausing guiding for autofocus run',
-          source: 'DeviceService',
-        );
-        await stopGuiding();
-      } catch (e) {
-        final loggingService = _ref.read(loggingServiceProvider);
-        loggingService.warning(
-          'Failed to pause guiding before autofocus: $e',
-          source: 'DeviceService',
+      if (useSettingsDefaults && appSettings == null) {
+        // Settings not yet loaded from DB — don't silently fall back to hardcoded
+        // defaults because the user's persisted configuration would be ignored.
+        throw Exception(
+          'Cannot run autofocus with settings defaults: AppSettings not yet loaded. '
+          'Wait for the app to finish initializing before running autofocus.',
         );
       }
-    }
 
-    try {
-      final result = await _backend.autofocusStart(
-        deviceId: focuserDeviceId,
-        cameraId: cameraDeviceId,
-        exposureTime: effectiveExposureTime,
-        stepSize: effectiveStepSize,
-        stepsOut: effectiveStepsOut,
-        method: effectiveMethod,
-        binning: effectiveBinning,
-        curveFitting: effectiveCurveFitting,
-        numberOfAttempts: effectiveNumberOfAttempts,
-        exposuresPerPoint: effectiveExposuresPerPoint,
-        rSquaredThreshold: effectiveRSquaredThreshold,
-        outerCropRatio: effectiveOuterCropRatio,
-        innerCropRatio: effectiveInnerCropRatio,
-        useBrightestNStars: effectiveUseBrightestNStars,
-        focuserSettleTimeMs: effectiveFocuserSettleTimeMs,
-        backlashCompMethod: effectiveBacklashCompMethod,
-        backlashIn: effectiveBacklashIn,
-        backlashOut: effectiveBacklashOut,
+      if (useSettingsDefaults && appSettings != null) {
+        effectiveExposureTime = appSettings.afExposureTime;
+        effectiveStepSize = appSettings.afStepSize;
+        effectiveStepsOut = appSettings.afInitialOffsetSteps;
+        effectiveMethod = appSettings.afMethod;
+        effectiveBinning = appSettings.afBinning;
+        effectiveCurveFitting = appSettings.afCurveFitting;
+        effectiveNumberOfAttempts = appSettings.afNumberOfAttempts;
+        effectiveExposuresPerPoint = appSettings.afExposuresPerPoint;
+        effectiveRSquaredThreshold = appSettings.afRSquaredThreshold;
+        effectiveOuterCropRatio = appSettings.afOuterCropRatio;
+        effectiveInnerCropRatio = appSettings.afInnerCropRatio;
+        effectiveUseBrightestNStars = appSettings.afUseBrightestNStars;
+        effectiveFocuserSettleTimeMs = appSettings.afFocuserSettleTimeMs;
+        effectiveBacklashCompMethod = appSettings.afBacklashCompMethod;
+        effectiveBacklashIn = appSettings.afBacklashIn;
+        effectiveBacklashOut = appSettings.afBacklashOut;
+        disableGuidingDuringAf = appSettings.afDisableGuidingDuringAf;
+      } else {
+        effectiveExposureTime = exposureTime;
+        effectiveStepSize = stepSize;
+        effectiveStepsOut = stepsOut;
+        effectiveMethod = method;
+        effectiveBinning = binning;
+        effectiveCurveFitting = 'Hyperbolic';
+        effectiveNumberOfAttempts = 1;
+        effectiveExposuresPerPoint = 1;
+        effectiveRSquaredThreshold = 0.7;
+        effectiveOuterCropRatio = 1.0;
+        effectiveInnerCropRatio = 0.0;
+        effectiveUseBrightestNStars = 0;
+        effectiveFocuserSettleTimeMs = 500;
+        effectiveBacklashCompMethod = 'Overshoot';
+        effectiveBacklashIn = 350;
+        effectiveBacklashOut = 0;
+        disableGuidingDuringAf = false;
+      }
+
+      final focuserNotifier = _ref.read(focuserStateProvider.notifier);
+      final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
+      final overlayNotifier = _ref.read(autofocusOverlayProvider.notifier);
+
+      focuserNotifier.setMoving(true);
+      operationsNotifier.startOperation(
+        type: OperationType.autofocus,
+        description: 'Running autofocus ($effectiveMethod)',
+        currentStep: 'Initializing...',
+        canCancel: true,
       );
+      overlayNotifier.onAutofocusStarted();
 
-      // Smart notification for autofocus completion
-      final hfrText = result.bestHfr.toStringAsFixed(2);
-      _ref
-          .read(smartNotificationServiceProvider)
-          .showSuccessIfNotOnScreens(
-            message: 'Autofocus complete (HFR: $hfrText)',
-            relevantScreens: [
-              AppScreen.imaging,
-              AppScreen.equipment,
-              AppScreen.sequencer,
-            ],
-            title: 'Autofocus',
-          );
+      var wasGuiding = false;
+      try {
+        // Predictive-AF consultation (wire-up). Before running the real
+        // sweep, ask the persisted per-filter model what it would predict for the
+        // current temperature/filter. We log the decision and capture the
+        // predicted position so that — once the sweep converges — we can feed the
+        // model the prediction-vs-actual error for drift tracking. We never let
+        // the prediction REPLACE the Dart sweep here: this path is the explicit
+        // full-sweep request (manual focus tab / Dart-driven AF), so the user
+        // asked for a real measurement. The prediction is advisory + training
+        // input only.
+        final predictiveContext = await _consultPredictiveAf(
+          method: effectiveMethod,
+        );
 
-      // Feed the persisted predictive-AF model (wire-up): record this
-      // converged outcome as a training sample and, if we made a prediction
-      // before the sweep, record the prediction-vs-actual error for drift
-      // tracking. Failures here are logged but never abort the AF run — the
-      // user already has their focus result.
-      await _recordPredictiveAfOutcome(
-        context: predictiveContext,
-        result: result,
-      );
+        // Pause guiding if configured and guiding is active
+        final guiderState = _ref.read(guiderStateProvider);
+        wasGuiding = disableGuidingDuringAf && guiderState.isGuiding;
+        if (wasGuiding) {
+          try {
+            final loggingService = _ref.read(loggingServiceProvider);
+            loggingService.info(
+              'Pausing guiding for autofocus run',
+              source: 'DeviceService',
+            );
+            await stopGuiding();
+          } catch (e) {
+            final loggingService = _ref.read(loggingServiceProvider);
+            loggingService.warning(
+              'Failed to pause guiding before autofocus: $e',
+              source: 'DeviceService',
+            );
+          }
+        }
 
-      return result;
-    } finally {
-      _isAutofocusRunning = false;
-      focuserNotifier.setMoving(false);
-      operationsNotifier.completeOperation(OperationType.autofocus);
+        final result = await _backend.autofocusStart(
+          deviceId: focuserDeviceId,
+          cameraId: cameraDeviceId,
+          exposureTime: effectiveExposureTime,
+          stepSize: effectiveStepSize,
+          stepsOut: effectiveStepsOut,
+          method: effectiveMethod,
+          binning: effectiveBinning,
+          curveFitting: effectiveCurveFitting,
+          numberOfAttempts: effectiveNumberOfAttempts,
+          exposuresPerPoint: effectiveExposuresPerPoint,
+          rSquaredThreshold: effectiveRSquaredThreshold,
+          outerCropRatio: effectiveOuterCropRatio,
+          innerCropRatio: effectiveInnerCropRatio,
+          useBrightestNStars: effectiveUseBrightestNStars,
+          focuserSettleTimeMs: effectiveFocuserSettleTimeMs,
+          backlashCompMethod: effectiveBacklashCompMethod,
+          backlashIn: effectiveBacklashIn,
+          backlashOut: effectiveBacklashOut,
+        );
 
-      // Resume guiding if it was paused
-      if (wasGuiding) {
-        try {
-          final loggingService = _ref.read(loggingServiceProvider);
-          loggingService.info(
-            'Resuming guiding after autofocus run',
-            source: 'DeviceService',
-          );
-          await startGuiding();
-        } catch (e) {
-          final loggingService = _ref.read(loggingServiceProvider);
-          loggingService.warning(
-            'Failed to resume guiding after autofocus: $e',
-            source: 'DeviceService',
-          );
+        _ref.read(autofocusResultProvider.notifier).state = result;
+        overlayNotifier.onAutofocusCompleted(result);
+
+        // Smart notification for autofocus completion
+        final hfrText = result.bestHfr.toStringAsFixed(2);
+        _ref
+            .read(smartNotificationServiceProvider)
+            .showSuccessIfNotOnScreens(
+              message: 'Autofocus complete (HFR: $hfrText)',
+              relevantScreens: [
+                AppScreen.imaging,
+                AppScreen.equipment,
+                AppScreen.sequencer,
+              ],
+              title: 'Autofocus',
+            );
+
+        // Feed the persisted predictive-AF model (wire-up): record this
+        // converged outcome as a training sample and, if we made a prediction
+        // before the sweep, record the prediction-vs-actual error for drift
+        // tracking. Failures here are logged but never abort the AF run — the
+        // user already has their focus result.
+        await _recordPredictiveAfOutcome(
+          context: predictiveContext,
+          result: result,
+        );
+
+        return result;
+      } catch (e) {
+        overlayNotifier.onAutofocusFailed('$e');
+        rethrow;
+      } finally {
+        _isAutofocusRunning = false;
+        focuserNotifier.setMoving(false);
+        operationsNotifier.completeOperation(OperationType.autofocus);
+
+        // Resume guiding if it was paused
+        if (wasGuiding) {
+          try {
+            final loggingService = _ref.read(loggingServiceProvider);
+            loggingService.info(
+              'Resuming guiding after autofocus run',
+              source: 'DeviceService',
+            );
+            await startGuiding();
+          } catch (e) {
+            final loggingService = _ref.read(loggingServiceProvider);
+            loggingService.warning(
+              'Failed to resume guiding after autofocus: $e',
+              source: 'DeviceService',
+            );
+          }
         }
       }
+    } catch (_) {
+      _isAutofocusRunning = false;
+      rethrow;
     }
   }
 

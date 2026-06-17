@@ -193,6 +193,8 @@ pub async fn api_run_autofocus(
     // exits naturally.
     let event_tx =
         crate::util::executor_event_bridge::spawn_executor_event_bridge(get_state().clone());
+    let progress_focuser_id = device_id.clone();
+
     let ctx = InstructionContext {
         target_ra: None,
         target_dec: None,
@@ -268,8 +270,22 @@ pub async fn api_run_autofocus(
         dither_barrier: None,
     };
 
-    // Execute (no progress callback when called directly from API)
-    let result = execute_autofocus(&af_config, &ctx, None).await;
+    let progress_fn = |_: f64, detail: String| {
+        if !detail.contains("\"type\":\"autofocus_progress\"") {
+            return;
+        }
+        get_state().publish_equipment_event(
+            EquipmentEvent::PropertyChanged {
+                device_type: "focuser".to_string(),
+                device_id: progress_focuser_id.clone(),
+                property: "AutofocusProgress".to_string(),
+                value: detail,
+            },
+            EventSeverity::Info,
+        );
+    };
+
+    let result = execute_autofocus(&af_config, &ctx, Some(&progress_fn)).await;
 
     // Get current timestamp
     let timestamp = SystemTime::now()

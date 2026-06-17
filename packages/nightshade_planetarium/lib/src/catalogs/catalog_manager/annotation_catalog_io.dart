@@ -15,11 +15,13 @@ extension CatalogManagerAnnotationIo on CatalogManager {
   Future<bool> _downloadAnnotationCatalogEntry({
     AnnotationPackage package = AnnotationPackage.standard,
     void Function(DownloadProgress)? onProgress,
+    Future<bool> Function()? isCancelled,
   }) async {
     return _downloadAnnotationCatalog(
       source: gladePlusCatalog,
       package: package,
       onProgress: onProgress,
+      isCancelled: isCancelled,
     );
   }
 
@@ -27,6 +29,7 @@ extension CatalogManagerAnnotationIo on CatalogManager {
     required CatalogSource source,
     required AnnotationPackage package,
     void Function(DownloadProgress)? onProgress,
+    Future<bool> Function()? isCancelled,
   }) async {
     // Build the VizieR TAP URL based on the selected package tier
     final downloadUrl = buildGladePlusUrl(package);
@@ -42,9 +45,16 @@ extension CatalogManagerAnnotationIo on CatalogManager {
       level: 800,
     );
 
-    final progress = DownloadProgress.starting(source.name);
-    _downloadController.add(progress);
-    onProgress?.call(progress);
+    _emitProgress(
+      DownloadProgress.starting(source.name, catalogKey: 'annotation'),
+      onProgress,
+    );
+
+    // Download to a `.partial` sibling and atomically promote on success so an
+    // existing annotation catalog survives a failed or abandoned download.
+    final filePath = path.join(catalogDirectory, source.fileName);
+    final tempPath = '$filePath.partial';
+    final tempFile = File(tempPath);
 
     try {
       if (!isInitialized) {
@@ -78,70 +88,75 @@ extension CatalogManagerAnnotationIo on CatalogManager {
           final errorMsg =
               'HTTP ${streamedResponse.statusCode}: Failed to download from VizieR TAP';
           developer.log(errorMsg, name: 'CatalogManager', level: 1000);
-          final error = DownloadProgress.error(source.name, errorMsg);
-          _downloadController.add(error);
-          onProgress?.call(error);
+          _emitProgress(
+            DownloadProgress.error(
+              source.name,
+              errorMsg,
+              catalogKey: 'annotation',
+            ),
+            onProgress,
+          );
           return false;
         }
 
         final contentLength = streamedResponse.contentLength ?? 0;
-        final filePath = path.join(catalogDirectory, source.fileName);
-        final file = File(filePath);
-        final sink = file.openWrite();
-
         developer.log(
-          '[Catalog] Writing to $filePath, expected size: $contentLength bytes',
+          '[Catalog] Writing to $tempPath, expected size: $contentLength bytes',
           name: 'CatalogManager',
           level: 800,
         );
 
-        // VizieR TAP returns CSV directly (not gzipped)
+        // VizieR TAP returns CSV directly (not gzipped). Stream straight to
+        // disk — the "complete" tier is multiple GB and must not be buffered.
         var bytesReceived = 0;
-        final downloadedBytes = <int>[];
+        var lastEmittedBytes = 0;
+        const emitThresholdBytes = 512 * 1024;
+        final sink = tempFile.openWrite();
+        try {
+          await for (final chunk in streamedResponse.stream) {
+            sink.add(chunk);
+            bytesReceived += chunk.length;
+            if (bytesReceived - lastEmittedBytes < emitThresholdBytes) {
+              continue;
+            }
+            lastEmittedBytes = bytesReceived;
 
-        await for (final chunk in streamedResponse.stream) {
-          downloadedBytes.addAll(chunk);
-          bytesReceived += chunk.length;
-
-          final prog = DownloadProgress(
-            catalogName: source.name,
-            progress: contentLength > 0 ? bytesReceived / contentLength : 0,
-            bytesReceived: bytesReceived,
-            totalBytes: contentLength,
-            status:
-                'Downloading... ${(bytesReceived / 1024 / 1024).toStringAsFixed(1)} MB',
-          );
-          _downloadController.add(prog);
-          onProgress?.call(prog);
+            _emitProgress(
+              DownloadProgress(
+                catalogName: source.name,
+                catalogKey: 'annotation',
+                progress: contentLength > 0 ? bytesReceived / contentLength : 0,
+                bytesReceived: bytesReceived,
+                totalBytes: contentLength,
+                status:
+                    'Downloading... ${(bytesReceived / 1024 / 1024).toStringAsFixed(1)} MB',
+              ),
+              onProgress,
+            );
+            if (isCancelled != null && await isCancelled()) {
+              throw const CatalogCancelled();
+            }
+          }
+        } finally {
+          await sink.close();
         }
 
-        // Write CSV data directly to file
-        final finalBytes = Uint8List.fromList(downloadedBytes);
-        sink.add(finalBytes);
-        await sink.close();
-
-        developer.log(
-          '[Catalog] Download complete: $bytesReceived bytes written to $filePath',
-          name: 'CatalogManager',
-          level: 800,
-        );
-
-        if (!await file.exists()) {
+        if (!await tempFile.exists()) {
           throw Exception('File was not created after download');
         }
-
-        final fileSize = await file.length();
+        final fileSize = await tempFile.length();
         if (fileSize == 0) {
           throw Exception('Downloaded file is empty');
         }
 
         developer.log(
-          '[Catalog] File verified: $fileSize bytes',
+          '[Catalog] Temp file verified: $fileSize bytes',
           name: 'CatalogManager',
           level: 800,
         );
 
-        final objectCount = await _countObjects(filePath);
+        final objectCount = await _countObjects(tempPath);
+        await _promoteTempFile(tempFile, filePath);
         await _saveAnnotationMetadata(source, package, objectCount);
 
         developer.log(
@@ -150,14 +165,30 @@ extension CatalogManagerAnnotationIo on CatalogManager {
           level: 800,
         );
 
-        final complete = DownloadProgress.complete(source.name, bytesReceived);
-        _downloadController.add(complete);
-        onProgress?.call(complete);
+        _emitProgress(
+          DownloadProgress.complete(
+            source.name,
+            bytesReceived,
+            catalogKey: 'annotation',
+          ),
+          onProgress,
+        );
 
         return true;
       } finally {
         client.close();
       }
+    } on CatalogCancelled {
+      developer.log(
+        '[Catalog] Download of ${source.name} cancelled by user',
+        name: 'CatalogManager',
+        level: 800,
+      );
+      _emitProgress(
+        DownloadProgress.cancelled(source.name, catalogKey: 'annotation'),
+        onProgress,
+      );
+      return false;
     } catch (e, stackTrace) {
       final errorMsg = 'Download error: $e';
       developer.log(
@@ -168,10 +199,13 @@ extension CatalogManagerAnnotationIo on CatalogManager {
         stackTrace: stackTrace,
       );
 
-      final error = DownloadProgress.error(source.name, errorMsg);
-      _downloadController.add(error);
-      onProgress?.call(error);
+      _emitProgress(
+        DownloadProgress.error(source.name, errorMsg, catalogKey: 'annotation'),
+        onProgress,
+      );
       return false;
+    } finally {
+      await _cleanupTempFile(tempFile);
     }
   }
 
@@ -214,20 +248,30 @@ extension CatalogManagerAnnotationIo on CatalogManager {
       }
 
       final destPath = path.join(catalogDirectory, gladePlusCatalog.fileName);
+      final tempPath = '$destPath.partial';
+      final tempFile = File(tempPath);
 
-      // Copy the file
-      await sourceFile.copy(destPath);
+      try {
+        // Copy to temp first, then atomically promote, so a failed copy can't
+        // clobber a good existing annotation catalog.
+        await sourceFile.copy(tempPath);
+        if (await tempFile.length() == 0) {
+          throw Exception('Imported file is empty');
+        }
 
-      // Count objects and save metadata
-      final objectCount = await _countObjects(destPath);
-      await _saveAnnotationMetadata(gladePlusCatalog, package, objectCount);
+        final objectCount = await _countObjects(tempPath);
+        await _promoteTempFile(tempFile, destPath);
+        await _saveAnnotationMetadata(gladePlusCatalog, package, objectCount);
 
-      developer.log(
-        '[Catalog] Annotation catalog imported: $objectCount objects from $sourcePath',
-        name: 'CatalogManager',
-        level: 800,
-      );
-      return true;
+        developer.log(
+          '[Catalog] Annotation catalog imported: $objectCount objects from $sourcePath',
+          name: 'CatalogManager',
+          level: 800,
+        );
+        return true;
+      } finally {
+        await _cleanupTempFile(tempFile);
+      }
     } catch (e) {
       developer.log(
         '[Catalog] Import annotation catalog error: $e',

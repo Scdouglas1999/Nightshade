@@ -161,6 +161,16 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
         },
       );
     } else if (equipmentEvent is bridge.EquipmentEvent_PropertyChanged) {
+      if (equipmentEvent.property == 'AutofocusProgress') {
+        return (
+          'AutofocusProgress',
+          {
+            'device_type': equipmentEvent.deviceType,
+            'device_id': equipmentEvent.deviceId,
+            'detail': equipmentEvent.value,
+          },
+        );
+      }
       return (
         'PropertyChanged',
         {

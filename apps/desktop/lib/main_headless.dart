@@ -12,6 +12,7 @@ import 'desktop_app_bootstrap.dart';
 import 'desktop_logging_init.dart';
 import 'headless_api/auth/pairing_service.dart';
 import 'headless_api/auth_policy.dart';
+import 'headless_api/handlers/pairing_handlers.dart' show PairingMode;
 import 'headless_api/tls_provisioner.dart';
 import 'headless_api/update_wiring.dart';
 import 'headless_api_server.dart';
@@ -177,6 +178,7 @@ void main(List<String> args) async {
       port: authConfig.port,
       corsAllowedOrigins: authConfig.corsAllowedOrigins,
       pairingPrintCodes: authConfig.pairingPrintCodes,
+      pairingMode: authConfig.pairingMode,
       tlsEnabled: authConfig.tlsEnabled,
       tlsCertPath: authConfig.tlsCertPath,
       tlsKeyPath: authConfig.tlsKeyPath,
@@ -196,6 +198,7 @@ void main(List<String> args) async {
       args: args,
       logger: runtimeLogger,
       localPort: apiServer.actualPort,
+      onApplianceId: (id) => apiServer?.setRelayApplianceId(id),
     );
 
     // register `_nightshade._tcp` via mDNS. This MUST happen after
@@ -203,6 +206,18 @@ void main(List<String> args) async {
     // (matters when the caller started us with port 0). Failures here are
     // logged-and-continue — UDP broadcast and manual entry remain available.
     if (!authConfig.bindLocalOnly) {
+      // Refresh the static Avahi service file so the advertised <port> and
+      // scheme= TXT match the actually-bound port/scheme. The file installed
+      // by packaging/appliance/systemd/install.sh hardcodes 8080/http, so a
+      // changed NIGHTSHADE_PORT or `--tls` would otherwise silently break
+      // mDNS discovery. Best-effort: a missing/read-only services dir (i.e.
+      // not running as the appliance) is logged-and-skipped.
+      _refreshAvahiServiceFile(
+        logger: runtimeLogger,
+        port: apiServer.actualPort,
+        scheme: apiServer.isTlsActive ? 'https' : 'http',
+        version: appVersion.version,
+      );
       try {
         _mdnsRegistration = await _startMdnsAdvertisement(
           logger: runtimeLogger,
@@ -461,6 +476,7 @@ class _AuthConfig {
   final Map<String, HeadlessTokenScope> scopedTokens;
   final List<String> corsAllowedOrigins;
   final bool pairingPrintCodes;
+  final PairingMode pairingMode;
   final bool tlsEnabled;
   final String? tlsCertPath;
   final String? tlsKeyPath;
@@ -473,6 +489,7 @@ class _AuthConfig {
     this.scopedTokens = const {},
     this.corsAllowedOrigins = const [],
     this.pairingPrintCodes = false,
+    this.pairingMode = PairingMode.lanOpen,
     this.tlsEnabled = false,
     this.tlsCertPath,
     this.tlsKeyPath,
@@ -489,6 +506,10 @@ _AuthConfig _parseAuthConfig(List<String> args) {
   final scopedTokens = <String, HeadlessTokenScope>{};
   final corsAllowedOrigins = <String>[];
   var pairingPrintCodes = _envFlag('NIGHTSHADE_PAIRING_PRINT_CODES');
+  // Default to one-tap LAN pairing; operators can tighten to code-required.
+  final pairingMode = PairingMode.fromWire(
+    Platform.environment['NIGHTSHADE_PAIRING_MODE'],
+  );
   var tlsEnabled = _envFlag('NIGHTSHADE_TLS');
   String? tlsCertPath = _trimToNull(
     Platform.environment['NIGHTSHADE_TLS_CERT'],
@@ -580,6 +601,7 @@ _AuthConfig _parseAuthConfig(List<String> args) {
     scopedTokens: Map.unmodifiable(scopedTokens),
     corsAllowedOrigins: List.unmodifiable(corsAllowedOrigins),
     pairingPrintCodes: pairingPrintCodes,
+    pairingMode: pairingMode,
     tlsEnabled: tlsEnabled,
     tlsCertPath: tlsCertPath,
     tlsKeyPath: tlsKeyPath,
@@ -627,6 +649,7 @@ Future<HeadlessApiServer> _startHeadlessServices(
   int port = 8080,
   List<String> corsAllowedOrigins = const [],
   bool pairingPrintCodes = false,
+  PairingMode pairingMode = PairingMode.lanOpen,
   bool tlsEnabled = false,
   String? tlsCertPath,
   String? tlsKeyPath,
@@ -690,6 +713,7 @@ Future<HeadlessApiServer> _startHeadlessServices(
     bindLocalOnly: bindLocalOnly,
     corsAllowedOrigins: corsAllowedOrigins,
     pairingPrintCodes: pairingPrintCodes,
+    pairingMode: pairingMode,
     tlsContext: tlsProvision?.securityContext,
     tlsPublicKeyFingerprint: tlsProvision?.publicKeyFingerprintSha256,
     pairingService: pairingService,
@@ -977,6 +1001,7 @@ Future<RelayUplink?> _startRelayUplink({
   required List<String> args,
   required LoggingService logger,
   required int localPort,
+  void Function(String? applianceId)? onApplianceId,
 }) async {
   String? relayUrlRaw = _trimToNull(
     Platform.environment['NIGHTSHADE_RELAY_URL'],
@@ -1029,6 +1054,9 @@ Future<RelayUplink?> _startRelayUplink({
           if (id != null) {
             stdout.writeln('Relay connected — appliance id: $id');
           }
+          // Surface the appliance id via /api/info so the mobile app can show
+          // it instead of the operator reading it off this log.
+          onApplianceId?.call(id);
         case RelayUplinkState.authFailed:
           logger.error(
             'Relay rejected stored credentials (${status.lastError}). '
@@ -1080,6 +1108,98 @@ Future<void> _startDiscoveryServer({
     '${apiServer.actualPort}',
     source: _headlessLogSource,
   );
+}
+
+/// Directory avahi-daemon watches for static service files on the appliance.
+const _avahiServicesDir = '/etc/avahi/services';
+const _avahiServiceFileName = 'nightshade.service';
+
+/// (Re)write `/etc/avahi/services/nightshade.service` so its `<port>` matches
+/// the live bound port and its `scheme=` TXT record matches the active scheme
+/// (https when TLS is on, else http).
+///
+/// WHY: the appliance ships a STATIC Avahi service file (installed by
+/// packaging/appliance/systemd/install.sh) with a hardcoded `<port>8080</port>`
+/// and `scheme=http`. If the operator changes `NIGHTSHADE_PORT` or enables
+/// `--tls`, that file no longer reflects reality and the mobile client's
+/// `_nightshade._tcp` discovery connects to the wrong port/scheme. Rewriting it
+/// at boot from the live values keeps mDNS discovery correct.
+///
+/// BEST-EFFORT: the services dir only exists (and is only writable) when
+/// running as the packaged appliance. Anywhere else — dev desktop, CI, a host
+/// without Avahi, or a read-only `/etc` — we log-and-continue. This must NEVER
+/// crash the daemon: every failure mode is caught and downgraded to a log line.
+void _refreshAvahiServiceFile({
+  required LoggingService logger,
+  required int port,
+  required String scheme,
+  required String version,
+}) {
+  try {
+    final dir = Directory(_avahiServicesDir);
+    if (!dir.existsSync()) {
+      // Not the appliance (or Avahi not installed). Nothing to refresh.
+      logger.info(
+        'Avahi services dir $_avahiServicesDir absent; skipping static mDNS '
+        'service-file refresh (not running as the appliance).',
+        source: _headlessLogSource,
+      );
+      return;
+    }
+    final contents = _renderAvahiServiceFile(
+      port: port,
+      scheme: scheme,
+      version: version,
+    );
+    final file = File('$_avahiServicesDir/$_avahiServiceFileName');
+    file.writeAsStringSync(contents, flush: true);
+    logger.info(
+      'Refreshed Avahi service file ${file.path}: port=$port scheme=$scheme. '
+      'avahi-daemon picks up the change automatically.',
+      source: _headlessLogSource,
+    );
+  } catch (e, st) {
+    // Read-only /etc, permission denied, races with the installer, etc. The
+    // UDP broadcast beacon and any in-process mDNS remain; discovery is
+    // degraded but the daemon keeps running.
+    logger.warning(
+      'Could not refresh Avahi service file (best-effort): $e\n$st',
+      source: _headlessLogSource,
+    );
+  }
+}
+
+/// Render the `_nightshade._tcp` Avahi service-group XML with the live [port],
+/// [scheme] and [version]. Mirrors packaging/appliance/avahi/nightshade.service
+/// (same service type + name/version/scheme/pairingSupported/name TXT records)
+/// but with the runtime values substituted.
+String _renderAvahiServiceFile({
+  required int port,
+  required String scheme,
+  required String version,
+}) {
+  return '''
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<!--
+  GENERATED AT BOOT by the Nightshade headless daemon (main_headless.dart,
+  _refreshAvahiServiceFile). Do not edit by hand — it is overwritten on every
+  start so the advertised <port> and scheme= TXT track the live bound port and
+  TLS state. The static template lives at
+  packaging/appliance/avahi/nightshade.service.
+-->
+<service-group>
+  <name replace-wildcards="yes">Nightshade on %h</name>
+  <service>
+    <type>_nightshade._tcp</type>
+    <port>$port</port>
+    <txt-record>version=$version</txt-record>
+    <txt-record>scheme=$scheme</txt-record>
+    <txt-record>pairingSupported=true</txt-record>
+    <txt-record>name=Nightshade</txt-record>
+  </service>
+</service-group>
+''';
 }
 
 /// register `_nightshade._tcp` via mDNS so phones on modern Wi-Fi

@@ -311,14 +311,21 @@ void main() {
 
     test('astapReady requires both executable and catalog', () {
       const noCatalog = PlateSolverDetection(astapPath: '/opt/astap/astap');
-      expect(noCatalog.hasAnySolver, true);
+      expect(noCatalog.hasAnySolver, false);
       expect(noCatalog.astapReady, false);
 
       const ready = PlateSolverDetection(
         astapPath: '/opt/astap/astap',
         catalogPath: '/opt/astap',
       );
+      expect(ready.hasAnySolver, true);
       expect(ready.astapReady, true);
+    });
+
+    test('astrometry counts as a usable solver without ASTAP', () {
+      const det = PlateSolverDetection(astrometryPath: '/usr/bin/solve-field');
+      expect(det.hasAnySolver, true);
+      expect(det.astapReady, false);
     });
   });
 }

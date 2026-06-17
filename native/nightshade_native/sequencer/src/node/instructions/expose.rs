@@ -9,6 +9,7 @@ use crate::instructions::{
     execute_autofocus, execute_exposure_with_renderer, FrameSavePathRenderer, InstructionResult,
 };
 use crate::node::context::ExecutionContext;
+use crate::node::instructions::autofocus::parse_autofocus_detail;
 use crate::node::progress::{ProgressDetail, ProgressUpdate};
 use crate::node::registry::InstructionNode;
 use crate::scheduling::{
@@ -695,7 +696,25 @@ async fn check_exposure_triggers(
                 };
 
                 let inst_ctx = context.to_instruction_context().await;
-                let af_result = execute_autofocus(&af_config, &inst_ctx, None).await;
+                let progress_cb = context.progress_callback.clone();
+                let progress_node_id = node_id.to_string();
+                let total_steps = af_config.steps_out.saturating_mul(2).saturating_add(1);
+                let progress_fn = move |progress: f64, detail_str: String| {
+                    if let Some(cb) = progress_cb.as_ref() {
+                        let (step, hfr) = parse_autofocus_detail(&detail_str);
+                        cb(ProgressUpdate::instruction_progress(
+                            progress_node_id.clone(),
+                            "Autofocus",
+                            progress,
+                            ProgressDetail::Autofocus {
+                                step: step.unwrap_or(0),
+                                total_steps,
+                                current_hfr: hfr,
+                            },
+                        ));
+                    }
+                };
+                let af_result = execute_autofocus(&af_config, &inst_ctx, Some(&progress_fn)).await;
 
                 if af_result.status == NodeStatus::Success {
                     if let Some(best_hfr) = af_result.hfr_values.first() {

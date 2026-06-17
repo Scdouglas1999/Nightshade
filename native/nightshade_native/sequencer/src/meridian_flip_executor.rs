@@ -620,7 +620,7 @@ impl MeridianFlipExecutor {
                         Err(e) => Err(e),
                     }
                 }
-                FlipStep::Refocusing => self.run_autofocus(ctx).await,
+                FlipStep::Refocusing => self.run_autofocus(ctx, idx, total_steps).await,
                 FlipStep::ResumingGuider => self.resume_guider(ctx).await,
                 FlipStep::Settling => self.wait_settle(ctx).await,
             };
@@ -981,7 +981,12 @@ impl MeridianFlipExecutor {
         Ok(())
     }
 
-    async fn run_autofocus(&self, ctx: &FlipContext) -> Result<(), String> {
+    async fn run_autofocus(
+        &self,
+        ctx: &FlipContext,
+        step_index: usize,
+        total_steps: u8,
+    ) -> Result<(), String> {
         if ctx.simulate {
             tracing::info!(
                 "[MERIDIAN] (dry-run) Would run post-flip autofocus — skipping exposures and \
@@ -1114,7 +1119,17 @@ impl MeridianFlipExecutor {
             af_config.backlash_compensation
         );
 
-        let result = execute_autofocus(&af_config, &instruction_ctx, None).await;
+        let step_start_percent = (step_index as f64 / f64::from(total_steps)) * 100.0;
+        let step_span_percent = 100.0 / f64::from(total_steps);
+        let progress_fn = |progress: f64, _detail: String| {
+            let percent = (step_start_percent
+                + (progress.clamp(0.0, 100.0) / 100.0) * step_span_percent)
+                .round()
+                .clamp(0.0, 100.0) as u8;
+            self.emit_event(MeridianFlipEvent::Progress { percent });
+        };
+
+        let result = execute_autofocus(&af_config, &instruction_ctx, Some(&progress_fn)).await;
 
         match result.status {
             crate::NodeStatus::Success => {

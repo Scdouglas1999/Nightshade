@@ -50,6 +50,7 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
       },
       rateLimitClientKey: _rateLimitClientKey,
       pairingPrintCodes: pairingPrintCodes,
+      pairingMode: () => pairingMode,
       logger: container.read(loggingServiceProvider),
     );
     // Phase D — push token/preference endpoints. Reuses `_ensurePairingService`
@@ -75,6 +76,9 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
         bindLocalOnly: () => bindLocalOnly,
         authRequired: () => _effectiveAuthTokensByValue.isNotEmpty,
         availableAuthScopes: _availableAuthScopes,
+        pairingModeWire: () => pairingMode.wire,
+        tailscaleHost: () => remoteAccessHints.tailscaleHost,
+        relayApplianceId: () => remoteAccessHints.relayApplianceId,
       ),
       staticFileHandlers: _staticFileHandlers,
       logger: container.read(loggingServiceProvider),

@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -8,6 +6,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../../services/mount_command_service.dart';
 import '../../../utils/snackbar_helper.dart';
+import '../../imaging/centering_dialog.dart';
 import 'glass_card.dart';
 
 /// Quick Actions card with responsive layout.
@@ -70,7 +69,9 @@ class QuickActionsCard extends ConsumerWidget {
                 try {
                   await ref.read(mountCommandServiceProvider).park();
                 } catch (e) {
-                  context.showErrorSnackBar('Failed to park mount: $e');
+                  if (context.mounted) {
+                    context.showErrorSnackBar('Failed to park mount: $e');
+                  }
                 }
               }
             : null,
@@ -307,12 +308,10 @@ class QuickActionsCard extends ConsumerWidget {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (ctx) => _CenteringDialog(
-          ref: ref,
+        builder: (ctx) => CenteringDialog(
           targetRa: targetRa,
           targetDec: targetDec,
           targetName: session.targetName ?? 'Target',
-          colors: colors,
         ),
       );
     }
@@ -423,314 +422,6 @@ class _ActionButtonState extends State<_ActionButton> {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// Centering dialog for plate solving and centering on target
-class _CenteringDialog extends StatefulWidget {
-  final WidgetRef ref;
-  final double targetRa;
-  final double targetDec;
-  final String targetName;
-  final NightshadeColors colors;
-
-  const _CenteringDialog({
-    required this.ref,
-    required this.targetRa,
-    required this.targetDec,
-    required this.targetName,
-    required this.colors,
-  });
-
-  @override
-  State<_CenteringDialog> createState() => _CenteringDialogState();
-}
-
-class _CenteringDialogState extends State<_CenteringDialog> {
-  String _status = 'Initializing...';
-  bool _isRunning = true;
-  int _iteration = 0;
-  static const int _maxIterations = 3;
-  double? _lastRaError;
-  double? _lastDecError;
-  bool _success = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _runCentering();
-  }
-
-  Future<void> _runCentering() async {
-    try {
-      final imagingService = widget.ref.read(imagingServiceProvider);
-      final mountService = widget.ref.read(mountCommandServiceProvider);
-      final settings = widget.ref.read(appSettingsProvider).value;
-      final astapPath = settings?.astapPath ?? '';
-
-      // Use user-configured exposure settings for centering captures
-      final userSettings = widget.ref.read(exposureSettingsProvider);
-      final centeringSettings = ExposureSettings(
-        exposureTime:
-            userSettings.exposureTime > 0 ? userSettings.exposureTime : 5.0,
-        gain: userSettings.gain,
-        offset: userSettings.offset,
-        binningX: userSettings.binningX > 0 ? userSettings.binningX : 2,
-        binningY: userSettings.binningY > 0 ? userSettings.binningY : 2,
-      );
-
-      while (_iteration < _maxIterations && _isRunning) {
-        _iteration++;
-
-        // Step 1: Take an image
-        setState(() => _status =
-            'Capturing image (attempt $_iteration/$_maxIterations)...');
-
-        final image = await imagingService.captureImage(
-          settings: centeringSettings,
-          targetName: 'center_${widget.targetName}',
-        );
-
-        if (image == null || image.filePath == null) {
-          setState(() => _status = 'Failed to capture image');
-          return;
-        }
-
-        // Step 2: Plate solve
-        setState(() => _status = 'Plate solving...');
-
-        // PlateSolveService tries backend.plateSolve() first (works for both local and remote)
-        // Only falls back to local solver if backend fails
-        final executablePath =
-            await PlateSolverUtils.findAstapExecutable(astapPath);
-
-        final result = await widget.ref.read(plateSolveServiceProvider).solve(
-              image.filePath!,
-              PlateSolverConfig(
-                type: PlateSolverType.astap,
-                hintRa: widget.targetRa,
-                hintDec: widget.targetDec,
-                searchRadius: 15.0,
-                // Provide path for local fallback - backend is tried first
-                executablePath: executablePath ?? '',
-              ),
-            );
-
-        if (!result.success) {
-          setState(() => _status =
-              'Plate solve failed: ${result.error ?? "Unknown error"}');
-          return;
-        }
-
-        // Step 3: Calculate error
-        // RA is in hours, Dec is in degrees. Convert both to arcsec for display.
-        // 1 hour RA = 15 degrees = 54000 arcsec
-        final raErrorArcsec =
-            (result.ra - widget.targetRa) * 15.0 * 3600.0; // hours to arcsec
-        final decErrorArcsec =
-            (result.dec - widget.targetDec) * 3600.0; // degrees to arcsec
-        final totalErrorArcsec = math.sqrt(
-            raErrorArcsec * raErrorArcsec + decErrorArcsec * decErrorArcsec);
-
-        setState(() {
-          _lastRaError = raErrorArcsec;
-          _lastDecError = decErrorArcsec;
-          _status =
-              'Error: ${totalErrorArcsec.toStringAsFixed(1)}" (RA: ${raErrorArcsec.toStringAsFixed(1)}", Dec: ${decErrorArcsec.toStringAsFixed(1)}")';
-        });
-
-        // Check if centered enough (within 30 arcseconds)
-        if (totalErrorArcsec < 30.0) {
-          setState(() {
-            _success = true;
-            _status =
-                'Centered! Error: ${totalErrorArcsec.toStringAsFixed(1)}"';
-          });
-          break;
-        }
-
-        // Step 4: Slew to corrected position
-        setState(() => _status = 'Slewing to corrected position...');
-
-        // Convert arcsec error back to coordinate units for correction
-        // RA: arcsec / (15 * 3600) = hours, Dec: arcsec / 3600 = degrees
-        final newRa = widget.targetRa -
-            (raErrorArcsec / (15.0 * 3600.0)); // Correct for offset (hours)
-        final newDec = widget.targetDec -
-            (decErrorArcsec / 3600.0); // Correct for offset (degrees)
-
-        // Use service without feedback - dialog shows its own status
-        await mountService.slewTo(newRa, newDec, showFeedback: false);
-
-        // Wait for slew to complete by polling mount status
-        final mountNotifierState = widget.ref.read(mountStateProvider);
-        if (mountNotifierState.deviceId != null) {
-          final backend = widget.ref.read(deviceBackendProvider);
-          await Future.delayed(const Duration(milliseconds: 500));
-          int pollCount = 0;
-          while (pollCount < 120 && _isRunning) {
-            try {
-              final status =
-                  await backend.getMountStatus(mountNotifierState.deviceId!);
-              if (!status.slewing) {
-                break;
-              }
-            } catch (e) {
-              debugPrint('Error getting mount status: $e');
-            }
-            await Future.delayed(const Duration(milliseconds: 500));
-            pollCount++;
-          }
-        } else {
-          await Future.delayed(const Duration(seconds: 2));
-        }
-
-        // Small delay before next iteration
-        await Future.delayed(const Duration(milliseconds: 500));
-      }
-
-      if (!_success && _iteration >= _maxIterations) {
-        setState(() {
-          _status =
-              'Max iterations reached. Last error: RA ${_lastRaError?.toStringAsFixed(1)}", Dec ${_lastDecError?.toStringAsFixed(1)}"';
-        });
-      }
-    } catch (e) {
-      setState(() => _status = 'Error: $e');
-    } finally {
-      setState(() => _isRunning = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final screenSize = MediaQuery.sizeOf(context);
-    final isSmallScreen = screenSize.width < 400;
-
-    return AlertDialog(
-      backgroundColor: widget.colors.surface,
-      insetPadding: EdgeInsets.symmetric(
-        horizontal: isSmallScreen ? 16 : 40,
-        vertical: 24,
-      ),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        side: BorderSide(color: widget.colors.border),
-      ),
-      title: Row(
-        children: [
-          Icon(
-            _success ? LucideIcons.checkCircle : LucideIcons.crosshair,
-            color: _success ? widget.colors.success : widget.colors.primary,
-            size: isSmallScreen ? 20 : 24,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              isSmallScreen ? 'Centering' : 'Centering on ${widget.targetName}',
-              style: TextStyle(
-                color: widget.colors.textPrimary,
-                fontSize: isSmallScreen ? 16 : 18,
-                fontWeight: FontWeight.w600,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (_isRunning)
-            const LinearProgressIndicator()
-          else if (_success)
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: NightshadeDecorations.emphasisSurface(
-                widget.colors.success,
-                borderRadius:
-                    BorderRadius.circular(NightshadeTokens.radiusInline8),
-              ),
-              child: Row(
-                children: [
-                  Icon(LucideIcons.checkCircle,
-                      color: widget.colors.success, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Target centered successfully!',
-                      style: TextStyle(
-                          color: widget.colors.success,
-                          fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          const SizedBox(height: 16),
-          Text(
-            _status,
-            style: TextStyle(
-                color: widget.colors.textSecondary,
-                fontSize: NightshadeTypography.fontSize14),
-          ),
-          if (_lastRaError != null || _lastDecError != null) ...[
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('RA Error:',
-                    style: TextStyle(
-                        color: widget.colors.textMuted,
-                        fontSize: NightshadeTypography.fontSize12)),
-                Text('${_lastRaError?.toStringAsFixed(1) ?? "---"}"',
-                    style: NightshadeTypography.labelSm
-                        .copyWith(color: widget.colors.textPrimary)),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Dec Error:',
-                    style: TextStyle(
-                        color: widget.colors.textMuted,
-                        fontSize: NightshadeTypography.fontSize12)),
-                Text('${_lastDecError?.toStringAsFixed(1) ?? "---"}"',
-                    style: NightshadeTypography.labelSm
-                        .copyWith(color: widget.colors.textPrimary)),
-              ],
-            ),
-          ],
-          const SizedBox(height: 8),
-          Text(
-            'Iteration: $_iteration / $_maxIterations',
-            style: TextStyle(
-                color: widget.colors.textMuted,
-                fontSize: NightshadeTypography.fontSize12),
-          ),
-        ],
-      ),
-      actions: [
-        if (_isRunning)
-          NightshadeButton(
-            onPressed: () {
-              setState(() => _isRunning = false);
-            },
-            label: 'Cancel',
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
-          )
-        else
-          NightshadeButton(
-            onPressed: () => Navigator.of(context).pop(),
-            label: 'Close',
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
-          ),
-      ],
     );
   }
 }

@@ -650,6 +650,20 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
                       size: ButtonSize.small,
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  // Saved Servers entry point on the DEFAULT connection screen
+                  // (previously reachable only from the legacy companion
+                  // dashboard). Lets an operator who manages multiple rigs roam
+                  // between previously-paired hosts without re-discovering.
+                  Center(
+                    child: NightshadeButton(
+                      onPressed: _openSavedServers,
+                      icon: LucideIcons.server,
+                      label: l10n.text('savedServersTitle'),
+                      variant: ButtonVariant.ghost,
+                      size: ButtonSize.small,
+                    ),
+                  ),
                 ],
 
                 // Manual IP entry field

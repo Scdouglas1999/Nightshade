@@ -71,6 +71,26 @@ class MobilePairingService {
     );
   }
 
+  /// Attempts one-tap LAN pairing against `POST /api/pairing/lan-claim`.
+  ///
+  /// Returns a success [RemotePairingVerifyResult] (with a token) when the
+  /// appliance grants it — no code, because the request came from a trusted
+  /// private-LAN source and the appliance is in `lan-open` mode. Returns
+  /// `null` when one-tap pairing is unavailable for this connection (server in
+  /// `code-required` mode, or reached over tailnet/relay so the source is not a
+  /// trusted LAN address, or an older server without the endpoint) — the caller
+  /// should fall back to [pairWithCode]. Honours [pinnedFingerprint] the same
+  /// way [pairWithCode] does: when a pin is set the server identity is verified
+  /// before the minted token is trusted.
+  Future<RemotePairingVerifyResult?> lanClaim() async {
+    final id = await deviceId();
+    return _client.lanClaim(
+      deviceId: id,
+      deviceName: deviceName(),
+      deviceType: 'mobile',
+    );
+  }
+
   /// Opens a pairing session on the host (code is shown on desktop / QR).
   Future<RemotePairingStartResult> startRemoteSession() => _client.start();
 

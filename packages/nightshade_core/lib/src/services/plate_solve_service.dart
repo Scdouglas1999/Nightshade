@@ -654,6 +654,19 @@ class PlateSolveService {
           error: 'ASTAP not installed at any known location.',
         );
       }
+      if (!detection.astapReady) {
+        return const PlateSolveResult(
+          success: false,
+          ra: 0,
+          dec: 0,
+          pixelScale: 0,
+          rotation: 0,
+          fieldWidth: 0,
+          fieldHeight: 0,
+          solveTimeSecs: 0,
+          error: 'ASTAP star catalog not configured.',
+        );
+      }
       final config = PlateSolverConfig(
         type: PlateSolverType.astap,
         executablePath: detection.astapPath!,
@@ -693,9 +706,10 @@ class PlateSolveService {
 
     switch (pref.choice) {
       case ps_model.PlateSolverChoice.astap:
-        if (detection.astapPath == null) {
+        if (!detection.astapReady) {
           throw const SolverNotAvailableError(
-            'ASTAP is selected but not installed. Configure it in '
+            'ASTAP is selected but its executable or star catalog is not '
+            'configured. Configure it in '
             'Settings → Plate Solving.',
           );
         }
@@ -711,11 +725,11 @@ class PlateSolveService {
       case ps_model.PlateSolverChoice.auto:
         if (!detection.hasAnySolver) {
           throw const SolverNotAvailableError(
-            'No plate solver installed. Set one up in Settings → Plate '
+            'No usable plate solver configured. Set one up in Settings → Plate '
             'Solving.',
           );
         }
-        if (detection.astapPath != null) {
+        if (detection.astapReady) {
           final astapResult = await runAstap();
           if (astapResult.success) return astapResult;
           if (detection.astrometryPath != null) {

@@ -138,7 +138,14 @@ AVAHI_SRC="$SCRIPT_DIR/../avahi/nightshade.service"
 if [ -d /etc/avahi/services ] || command -v avahi-daemon >/dev/null 2>&1; then
   install -d -m 0755 /etc/avahi/services
   install -m 0644 "$AVAHI_SRC" /etc/avahi/services/nightshade.service
-  echo "Installed Avahi mDNS advertisement (/etc/avahi/services/nightshade.service)."
+  # The template carries a @PORT@ placeholder. Substitute the configured
+  # NIGHTSHADE_PORT (default 8080) so the seed advertisement is correct before
+  # the first daemon start; the daemon then rewrites this file on every boot to
+  # track the live bound port + scheme (see main_headless.dart).
+  AVAHI_PORT="$( (grep -E '^NIGHTSHADE_PORT=' "$ENV_FILE" 2>/dev/null | tail -n1 | cut -d= -f2) || true )"
+  AVAHI_PORT="${AVAHI_PORT:-8080}"
+  sed -i "s/@PORT@/$AVAHI_PORT/" /etc/avahi/services/nightshade.service
+  echo "Installed Avahi mDNS advertisement (/etc/avahi/services/nightshade.service, port $AVAHI_PORT)."
   if command -v systemctl >/dev/null 2>&1; then
     systemctl reload avahi-daemon 2>/dev/null \
       || systemctl restart avahi-daemon 2>/dev/null || true

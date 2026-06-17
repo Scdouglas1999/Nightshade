@@ -36,6 +36,7 @@
 // if an active run is happening we overlay that parabola as the "live curve"
 // in addition to the model trend line.
 
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -219,17 +220,33 @@ class _FocusModelCurveCardState extends ConsumerState<FocusModelCurveCard> {
     // behaves identically to the autofocus action elsewhere in the app.
     try {
       final deviceService = ref.read(deviceServiceProvider);
-      // Fire and forget — the autofocus result is captured by the
-      // autofocusOverlayProvider via the event stream and the card will
-      // rebuild when new data points are persisted.
+      final messenger = ScaffoldMessenger.of(context);
+      // Fire and forget — DeviceService owns the overlay/result lifecycle and
+      // the card will rebuild when the new focus sample is persisted.
       // We don't await here because autofocus runs for minutes and we
       // want the empty-state button tap to feel snappy.
       // Settings defaults are read inside runAutofocus().
-      unawaited(deviceService.runAutofocus(
-        exposureTime: 3.0,
-        stepSize: 50,
-        stepsOut: 5,
-      ));
+      unawaited(
+        deviceService
+            .runAutofocus(
+          exposureTime: 3.0,
+          stepSize: 50,
+          stepsOut: 5,
+        )
+            .then<void>((_) {
+          if (messenger.mounted) {
+            messenger.showSnackBar(
+              const SnackBar(content: Text('Autofocus complete')),
+            );
+          }
+        }).catchError((Object e, StackTrace st) {
+          if (messenger.mounted) {
+            messenger.showSnackBar(
+              SnackBar(content: Text('Autofocus failed: $e')),
+            );
+          }
+        }),
+      );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Autofocus started')),

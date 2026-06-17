@@ -7,8 +7,17 @@ import 'dart:convert';
 class DiscoveredServer {
   final String host;
   final int webPort;
+
+  /// Deprecated WebRTC signalling port. WebRTC was removed; nothing dials this
+  /// any more. Kept only so the legacy UDP/QR wire shapes still round-trip.
+  /// Synthetic [DiscoveredServer]s should leave it at its default rather than
+  /// repeating the old `45678` literal.
   final int signalingPort;
   final String name;
+
+  /// Human-facing server version string. Defaults to `unknown` for synthetic
+  /// records built before `/api/info` enrichment fills the real value —
+  /// callers should not hard-code a placeholder version.
   final String version;
   final String? apiVersion;
   final String mode;
@@ -18,6 +27,15 @@ class DiscoveredServer {
   final String? authToken;
   final String? fingerprint;
 
+  /// `true` when the appliance advertises one-tap LAN pairing (`lanPairing`
+  /// in `/api/info`): it is in `lan-open` mode and will mint a scoped token
+  /// for a request that arrives from a trusted private-LAN source, with no
+  /// pairing code. Discovery seeds this `false` (UDP/mDNS can't tell); the
+  /// `/api/info` enrichment fills the canonical value. The connect flow uses
+  /// it to try `POST /api/pairing/lan-claim` before falling back to the code
+  /// dialog.
+  final bool lanPairing;
+
   /// Transport scheme. Either `http` (plain) or `https` (TLS). Defaults to
   /// `http` because UDP-broadcast discovery cannot tell the difference — the
   /// mDNS browse path populates this from the server's `scheme` TXT record so
@@ -25,12 +43,26 @@ class DiscoveredServer {
   /// when the operator has TLS enabled.
   final String scheme;
 
+  /// The rig's Tailscale (MagicDNS / `100.x`) address as advertised by
+  /// `/api/info` (`tailscaleHost`) when the appliance is on a tailnet. `null`
+  /// for rigs that aren't dual-homed onto a tailnet. The connect flow records
+  /// this so a returning operator can reach the rig over Tailscale from
+  /// off-site without hand-typing the MagicDNS name off the desktop — the
+  /// Tailscale setup sheet prefills it.
+  final String? tailscaleHost;
+
+  /// The appliance id the rig's relay uplink minted (`relayApplianceId` in
+  /// `/api/info`) when a relay tunnel is up. `null` when the rig has no relay
+  /// uplink. Surfaced so the relay-connect dialog prefills the id instead of
+  /// forcing the operator to read it off the headless daemon's log.
+  final String? relayApplianceId;
+
   DiscoveredServer({
     required this.host,
     required this.webPort,
-    required this.signalingPort,
+    this.signalingPort = 45678,
     required this.name,
-    required this.version,
+    this.version = 'unknown',
     this.apiVersion,
     this.mode = 'desktop',
     this.authRequired = false,
@@ -38,7 +70,10 @@ class DiscoveredServer {
     this.pairingSupported = false,
     this.authToken,
     this.fingerprint,
+    this.lanPairing = false,
     this.scheme = 'http',
+    this.tailscaleHost,
+    this.relayApplianceId,
   });
 
   /// `true` when the server advertised TLS via mDNS. UDP-broadcast discovery
@@ -62,7 +97,10 @@ class DiscoveredServer {
     bool? pairingSupported,
     String? authToken,
     String? fingerprint,
+    bool? lanPairing,
     String? scheme,
+    String? tailscaleHost,
+    String? relayApplianceId,
   }) {
     return DiscoveredServer(
       host: host ?? this.host,
@@ -77,7 +115,10 @@ class DiscoveredServer {
       pairingSupported: pairingSupported ?? this.pairingSupported,
       authToken: authToken ?? this.authToken,
       fingerprint: fingerprint ?? this.fingerprint,
+      lanPairing: lanPairing ?? this.lanPairing,
       scheme: scheme ?? this.scheme,
+      tailscaleHost: tailscaleHost ?? this.tailscaleHost,
+      relayApplianceId: relayApplianceId ?? this.relayApplianceId,
     );
   }
 

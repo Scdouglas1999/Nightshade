@@ -14,7 +14,6 @@ import 'widgets/captured_images_settings.dart';
 import 'widgets/focus_model_settings.dart';
 import 'widgets/rig_catalog_settings.dart';
 import 'widgets/update_settings.dart';
-import 'widgets/ai_assistant_settings.dart';
 import 'widgets/annotation_settings.dart';
 import 'widgets/appearance_settings.dart';
 import 'widgets/calibration_library_settings.dart';
@@ -31,7 +30,7 @@ import 'widgets/notification_settings.dart';
 import 'widgets/observation_log_settings.dart';
 import 'widgets/observing_lists_settings.dart';
 import 'widgets/phd2_guiding_settings.dart';
-import 'widgets/plate_solving_settings.dart';
+import 'plate_solving_settings_screen.dart';
 import 'widgets/preflight_settings.dart';
 import 'widgets/remote_access_settings.dart';
 import 'widgets/replay_debug_settings.dart';
@@ -540,20 +539,6 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
           build: (isMobile) => IntegrationsSettings(isMobile: isMobile),
         ),
         SettingsSectionDef(
-          key: 'ai-assistant',
-          label: t('settingsAiAssistant'),
-          icon: LucideIcons.sparkles,
-          keywords: const [
-            'ai',
-            'assistant',
-            'llm',
-            'chat',
-            'suggestions',
-            'api key',
-          ],
-          build: (isMobile) => AiAssistantSettings(isMobile: isMobile),
-        ),
-        SettingsSectionDef(
           key: 'remote-access',
           label: t('settingsRemoteAccess'),
           icon: LucideIcons.globe,
@@ -801,6 +786,6 @@ const List<List<String>> _structuralGroups = [
   ],
   ['sequencer', 'preflight', 'weather-safety', 'adaptive-conditions'],
   ['science', 'observation-log', 'observing-lists'],
-  ['notifications', 'integrations', 'ai-assistant', 'remote-access'],
+  ['notifications', 'integrations', 'remote-access'],
   ['logs', 'replay-debug'],
 ];

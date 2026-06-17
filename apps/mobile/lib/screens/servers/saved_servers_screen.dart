@@ -281,8 +281,6 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
         name: server.displayName,
         host: host,
         webPort: server.port,
-        signalingPort: 45678,
-        version: '2.0.0',
         mode: 'headless',
         scheme: scheme,
         authToken: token,

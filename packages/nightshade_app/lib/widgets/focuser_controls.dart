@@ -63,8 +63,6 @@ class _FocuserControlsState extends ConsumerState<FocuserControls> {
   Future<void> _runAutofocus() async {
     setState(() => _isRunningAutofocus = true);
     ref.read(sessionStateProvider.notifier).setAutofocusing(true);
-    // Notify overlay that AF is starting
-    ref.read(autofocusOverlayProvider.notifier).onAutofocusStarted();
     try {
       final settings = ref.read(focusSettingsProvider);
       final result = await ref.read(deviceServiceProvider).runAutofocus(
@@ -74,17 +72,12 @@ class _FocuserControlsState extends ConsumerState<FocuserControls> {
             method: settings.method,
             binning: 1,
           );
-      ref.read(autofocusResultProvider.notifier).state = result;
-      // Notify overlay of completion
-      ref.read(autofocusOverlayProvider.notifier).onAutofocusCompleted(result);
       if (mounted) {
         context.showSuccessSnackBar(
             'Autofocus complete! Position: ${result.bestPosition}, HFR: ${result.bestHfr.toStringAsFixed(2)}');
         widget.onAutofocusComplete?.call();
       }
     } catch (e) {
-      // Notify overlay of failure
-      ref.read(autofocusOverlayProvider.notifier).onAutofocusFailed('$e');
       if (mounted) context.showErrorSnackBar('Autofocus failed: $e');
     } finally {
       if (mounted) {

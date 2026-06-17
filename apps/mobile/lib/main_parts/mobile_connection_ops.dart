@@ -323,8 +323,10 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Enter the pairing code shown on the desktop '
-                    '(Remote Access settings or pairing screen).',
+                    'Enter the pairing code shown on the appliance. Read it '
+                    'from the pairing page in a browser — open '
+                    'http://$host:$port/pair — or from the desktop\'s Remote '
+                    'Access screen.',
                     style: TextStyle(fontSize: 13, color: colors.textSecondary),
                   ),
                   const SizedBox(height: 12),
@@ -517,7 +519,6 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
         host: '127.0.0.1',
         webPort: tunnel.localPort,
         signalingPort: tunnel.localPort,
-        version: '2.0.0',
         mode: 'headless',
         scheme: 'http',
         authRequired: true,
@@ -608,11 +609,38 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
   /// Uses the connection-screen navigator context (the same one the QR scanner
   /// and pairing dialogs use) so the dialog mounts inside the MaterialApp.
   Future<void> _showRelayConnectDialog() async {
+    // Prefill the relay URL + appliance id from a previously-connected relay
+    // row so a returning operator taps Connect instead of re-reading the id
+    // off the headless daemon. loadAll() is sorted most-recent-first. Done
+    // before grabbing the UI context so the context is fetched fresh on the
+    // far side of this await.
+    String initialRelayUrl = '';
+    String initialApplianceId = '';
+    bool initialAllowInsecure = false;
+    try {
+      final saved = await ref.read(savedServersServiceProvider).loadAll();
+      for (final s in saved) {
+        if (s.isRelay) {
+          initialRelayUrl = s.relayUrl ?? '';
+          initialApplianceId = s.relayApplianceId ?? '';
+          initialAllowInsecure = s.relayAllowInsecureTls;
+          break;
+        }
+      }
+    } catch (e) {
+      developer.log(
+        'relay prefill lookup failed: $e',
+        name: 'Relay',
+        level: 900,
+      );
+    }
+    if (!mounted) return;
+
     final dialogContext = _connectionUiContext;
-    if (dialogContext == null) return;
-    final relayController = TextEditingController();
-    final idController = TextEditingController();
-    var allowInsecure = false;
+    if (dialogContext == null || !dialogContext.mounted) return;
+    final relayController = TextEditingController(text: initialRelayUrl);
+    final idController = TextEditingController(text: initialApplianceId);
+    var allowInsecure = initialAllowInsecure;
 
     final submitted = await showDialog<bool>(
       context: dialogContext,
@@ -692,6 +720,88 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
     );
   }
 
+  /// Open the Saved Servers screen from the connection screen.
+  ///
+  /// This is the DEFAULT-UI entry point into the roaming list (previously it
+  /// was reachable only from the legacy companion dashboard). The screen's
+  /// "Add server" FAB routes back here via [onAddServer]: rather than forking
+  /// the QR / manual-entry / discovery plumbing, the callback simply pops the
+  /// list so the operator lands back on the connection screen and uses its
+  /// existing Search / Scan QR / Enter manually / Tailscale / Relay actions.
+  /// Each of those now upserts the rig into Saved Servers on a successful
+  /// connect, so the new row appears the next time the list is opened.
+  ///
+  /// Tapping a saved row connects through the screen's own activate path,
+  /// which swaps the backend; [_connectedServer] is repopulated on the next
+  /// build via the backend listener, so we simply pop back to the connection
+  /// screen here.
+  Future<void> _openSavedServers() async {
+    final uiContext = _connectionUiContext;
+    if (uiContext == null || !uiContext.mounted) {
+      setState(() {
+        _error = 'Connection UI is not ready yet. Try again in a moment.';
+      });
+      return;
+    }
+    await Navigator.of(uiContext).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => SavedServersScreen(
+          // "Add server" returns to the connection screen so the operator can
+          // use the existing pairing flows. Returning null means "no row added
+          // inline" — the screen just closes without a spurious snackbar.
+          onAddServer: (screenContext) async {
+            Navigator.of(screenContext).pop();
+            return null;
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Mirror a freshly-connected direct (LAN / Tailscale) server into the
+  /// roaming Saved Servers list so it stays in sync with the legacy
+  /// single-slot last-server record. Keyed on host:port by
+  /// [SavedServersService.upsert] so reconnecting the same rig updates the
+  /// existing row rather than duplicating it. The bearer goes to secure
+  /// storage; non-secret fields (host/port/scheme/fingerprint/name) live in
+  /// the JSON blob. The rig's advertised [DiscoveredServer.tailscaleHost]
+  /// (from /api/info) is recorded when it is a genuine tailnet endpoint so
+  /// the off-site "Connect over Tailscale" path can prefill it later.
+  ///
+  /// Best-effort: a persistence failure must not drop the live session, so we
+  /// log and carry on — the backend is already connected.
+  Future<void> _upsertSavedServer(DiscoveredServer server) async {
+    final tailscaleHost = server.tailscaleHost;
+    final validTailscaleHost =
+        tailscaleHost != null &&
+            tailscaleHost.isNotEmpty &&
+            SavedServer.isTailscaleEndpoint(tailscaleHost)
+        ? tailscaleHost
+        : null;
+    try {
+      await ref
+          .read(savedServersServiceProvider)
+          .upsert(
+            displayName: server.name,
+            host: server.host,
+            port: server.webPort,
+            authToken: server.authToken,
+            pinnedFingerprint: server.fingerprint,
+            scheme: server.scheme,
+            lastConnectedAt: DateTime.now(),
+            tailscaleHost: validTailscaleHost,
+          );
+    } catch (e, st) {
+      developer.log(
+        'saved_servers: failed to upsert connected server: $e',
+        name: 'Discovery',
+        level: 1000,
+        error: e,
+        stackTrace: st,
+      );
+    }
+  }
+
   Future<void> _connectToServer(DiscoveredServer server) async {
     setState(() {
       _statusMessage = 'Connecting to ${server.name}...';
@@ -721,20 +831,79 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
       if (enrichedServer.authRequired &&
           (authToken == null || authToken.isEmpty) &&
           enrichedServer.pairingSupported) {
-        final pairedToken = await _pairWithServer(
-          host: enrichedServer.host,
-          port: enrichedServer.webPort,
-          scheme: enrichedServer.scheme,
-          // Pin the server identity (when known from /api/info) so the pairing
-          // pre-flight verifies it before the code is sent — the MITM defense
-          // matters most on the Tailscale / Internet-reachable path.
-          pinnedFingerprint: enrichedServer.fingerprint,
-        );
-        if (pairedToken == null) {
-          return;
+        // One-tap LAN pairing: when /api/info advertised lan-open mode
+        // (lanPairing == true), try POST /api/pairing/lan-claim first. The
+        // appliance mints a scoped token for a request from a trusted
+        // private-LAN source with NO code. The pinnedFingerprint (when known
+        // from a saved server / QR / prior /api/info) is threaded into the
+        // pairing service so the lan-claim pre-flight pins the server identity
+        // before the minted token is trusted — exactly like the code path.
+        // A null result (server in code-required mode, reached over
+        // tailnet/relay so the source isn't a trusted LAN address, or an older
+        // server without the endpoint) or any pairing exception falls through
+        // to the unchanged code-dialog path below.
+        if (enrichedServer.lanPairing) {
+          try {
+            final lanPairing = MobilePairingService(
+              host: enrichedServer.host,
+              port: enrichedServer.webPort,
+              scheme: enrichedServer.scheme,
+              pinnedFingerprint: enrichedServer.fingerprint,
+            );
+            final lanResult = await lanPairing.lanClaim();
+            if (lanResult != null &&
+                lanResult.success &&
+                lanResult.token != null &&
+                lanResult.token!.isNotEmpty) {
+              developer.log(
+                'One-tap LAN pairing succeeded for '
+                '${enrichedServer.host}:${enrichedServer.webPort} — '
+                'no code needed',
+                name: 'Discovery',
+                level: 800,
+              );
+              authToken = lanResult.token;
+              enrichedServer = enrichedServer.copyWith(authToken: authToken);
+            }
+          } on RemotePairingFingerprintMismatch catch (e) {
+            // Fail-closed: the lan-claim pre-flight refused the identity.
+            // Surface it rather than silently dropping to the code dialog —
+            // a mismatch means the host we reached is not the one we trust.
+            if (!mounted) return;
+            setState(() {
+              _isDiscovering = false;
+              _statusMessage = '';
+              _error = e.message;
+            });
+            return;
+          } on RemotePairingException catch (e) {
+            // Transport / unexpected error from the one-tap path. Log and fall
+            // through to the code dialog — the operator can still pair by code.
+            developer.log(
+              'One-tap LAN pairing unavailable, falling back to code: $e',
+              name: 'Discovery',
+              level: 900,
+            );
+          }
         }
-        authToken = pairedToken;
-        enrichedServer = enrichedServer.copyWith(authToken: authToken);
+
+        if (authToken == null || authToken.isEmpty) {
+          final pairedToken = await _pairWithServer(
+            host: enrichedServer.host,
+            port: enrichedServer.webPort,
+            scheme: enrichedServer.scheme,
+            // Pin the server identity (when known from /api/info) so the
+            // pairing pre-flight verifies it before the code is sent — the
+            // MITM defense matters most on the Tailscale / Internet-reachable
+            // path.
+            pinnedFingerprint: enrichedServer.fingerprint,
+          );
+          if (pairedToken == null) {
+            return;
+          }
+          authToken = pairedToken;
+          enrichedServer = enrichedServer.copyWith(authToken: authToken);
+        }
       }
 
       // Test connection first
@@ -757,9 +926,20 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
 
         if (fetched != null) {
           // Only persist after fetchServerInfo confirmed real metadata.
-          // Otherwise we'd cache the manual-entry
-          // hardcoded version='2.0.0' / signalingPort=45678 lies.
+          // Otherwise we'd cache the synthetic manual-entry defaults
+          // (version='unknown' / placeholder signalingPort) rather than the
+          // server's real values.
           await EnhancedNightshadeDiscovery.saveLastServer(enrichedServer);
+          // Saved Servers is the single source of truth for the roaming list:
+          // mirror the same record there so a rig paired through the normal
+          // connect flow shows up in the Saved Servers screen, not just in the
+          // legacy single "last server" slot. A relay session is persisted
+          // separately by _connectViaRelay via upsertRelay (keyed on the
+          // relay URL + appliance id), so skip the direct upsert for the
+          // synthetic loopback host a relay tunnel exposes.
+          if (_activeRelayTunnel == null) {
+            await _upsertSavedServer(enrichedServer);
+          }
         } else {
           developer.log(
             'Skipping saveLastServer — /api/info did not return metadata',
@@ -963,6 +1143,37 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
   /// broadcast domain, so the operator reaches the rig by its MagicDNS
   /// name / 100.x address.
   Future<void> _connectViaTailscale() async {
+    // Prefill the host from a previously-connected rig's recorded tailnet
+    // address so a returning operator taps Connect instead of retyping the
+    // MagicDNS name. We pick the most-recently-connected saved server that
+    // carries a tailscaleHost (loadAll() is sorted most-recent-first). Done
+    // before grabbing the UI context so the context is fetched fresh on the
+    // far side of this await.
+    String? initialHost;
+    try {
+      final saved = await ref.read(savedServersServiceProvider).loadAll();
+      for (final s in saved) {
+        if (s.hasTailscaleHost) {
+          initialHost = s.tailscaleHost;
+          break;
+        }
+        // A rig whose primary host is itself a tailnet endpoint also seeds the
+        // field — it is already a usable Tailscale address.
+        if (s.isPrimaryTailscale) {
+          initialHost = s.host;
+          break;
+        }
+      }
+    } catch (e) {
+      // Best-effort prefill — fall through to an empty field on any failure.
+      developer.log(
+        'tailscale prefill lookup failed: $e',
+        name: 'Discovery',
+        level: 900,
+      );
+    }
+    if (!mounted) return;
+
     final uiContext = _connectionUiContext;
     if (uiContext == null || !uiContext.mounted) {
       setState(() {
@@ -970,7 +1181,10 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
       });
       return;
     }
-    final result = await TailscaleSetupSheet.show(uiContext);
+    final result = await TailscaleSetupSheet.show(
+      uiContext,
+      initialHost: initialHost,
+    );
     if (result == null || !mounted) return;
 
     setState(() {
@@ -986,8 +1200,6 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
       name: result.host,
       host: result.host,
       webPort: result.port,
-      signalingPort: 45678,
-      version: '2.0.0',
       mode: 'headless',
       scheme: result.scheme,
       authToken: result.authToken,
@@ -1031,8 +1243,6 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
       name: 'Nightshade Server',
       host: host,
       webPort: port,
-      signalingPort: 45678,
-      version: '2.0.0',
       mode: 'headless',
       authToken: authToken,
       pairingSupported: true,

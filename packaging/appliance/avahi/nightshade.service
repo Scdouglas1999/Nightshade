@@ -17,9 +17,14 @@
   the service over real mDNS, which is exactly what the mobile client's
   `discoverViaMdns()` (startDiscovery('_nightshade._tcp')) already looks for.
 
-  PORT: must match NIGHTSHADE_PORT in /etc/nightshade/headless.env. 8080 is the
-  default; if you change the port, update <port> below and reload avahi
-  (systemctl reload avahi-daemon).
+  PORT / SCHEME ARE TEMPLATED AT BOOT. This file is only the initial seed that
+  install.sh drops into /etc/avahi/services/. On every start the headless daemon
+  (apps/desktop/lib/main_headless.dart, _refreshAvahiServiceFile) REWRITES the
+  installed copy so <port> matches the actually-bound port and the scheme= TXT
+  matches http/https — so changing NIGHTSHADE_PORT or enabling --tls no longer
+  silently breaks mDNS discovery. install.sh also substitutes @PORT@ below with
+  NIGHTSHADE_PORT from headless.env at install time so the seed is correct even
+  before the first daemon start. 8080 is the default if neither runs.
 
   FINGERPRINT: deliberately NOT advertised here — it is per-appliance and
   generated at runtime. The client treats the TXT fingerprint as an optional
@@ -30,7 +35,7 @@
   <name replace-wildcards="yes">Nightshade on %h</name>
   <service>
     <type>_nightshade._tcp</type>
-    <port>8080</port>
+    <port>@PORT@</port>
     <txt-record>version=4.0.0</txt-record>
     <txt-record>scheme=http</txt-record>
     <txt-record>pairingSupported=true</txt-record>
