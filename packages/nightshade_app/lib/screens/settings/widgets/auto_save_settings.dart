@@ -12,9 +12,14 @@ import 'settings_widgets.dart';
 class AutoSaveSettings extends ConsumerStatefulWidget {
   final bool isMobile;
 
+  /// When true, render without an own scroll view / header (embedded in a
+  /// merged section's single outer scroll).
+  final bool embedded;
+
   const AutoSaveSettings({
     super.key,
     this.isMobile = false,
+    this.embedded = false,
   });
 
   @override
@@ -124,7 +129,8 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
       title: 'Auto-Save',
       description: 'Configure automatic sequence saving and backups',
       isMobile: isMobile,
-      hideHeader: isMobile,
+      hideHeader: isMobile || widget.embedded,
+      scrollable: !widget.embedded,
       children: [
         // Sequence auto-save section
         SettingsSection(

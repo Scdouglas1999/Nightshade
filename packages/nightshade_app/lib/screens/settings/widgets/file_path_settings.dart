@@ -12,7 +12,15 @@ import 'settings_widgets.dart';
 class FilePathSettings extends ConsumerWidget {
   final bool isMobile;
 
-  const FilePathSettings({super.key, this.isMobile = false});
+  /// When true, render without an own scroll view / header (embedded in a
+  /// merged section's single outer scroll).
+  final bool embedded;
+
+  const FilePathSettings({
+    super.key,
+    this.isMobile = false,
+    this.embedded = false,
+  });
 
   Future<void> _selectPath(
     BuildContext context,
@@ -90,7 +98,8 @@ class FilePathSettings extends ConsumerWidget {
     final settingsAsync = ref.watch(appSettingsProvider);
 
     return settingsAsync.when(
-      loading: () => SettingsLoadingState(isMobile: isMobile),
+      loading: () =>
+          SettingsLoadingState(isMobile: isMobile, scrollable: !embedded),
       error: (error, stack) => SettingsErrorState(
         isMobile: isMobile,
         error: error,
@@ -105,6 +114,9 @@ class FilePathSettings extends ConsumerWidget {
           description: isRemoteMode
               ? 'Storage locations on the connected imaging host'
               : 'Configure storage locations',
+          isMobile: isMobile,
+          hideHeader: embedded,
+          scrollable: !embedded,
           children: [
             SettingsSection(
               title: 'Storage',

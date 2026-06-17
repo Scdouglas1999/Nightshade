@@ -156,14 +156,37 @@ jobs:
             exit 1
           fi
           # The bridge dynamically links libraw; ship it so the release is
-          # self-contained (executable rpath = $ORIGIN/lib).
+          # self-contained (bridge rpath = $ORIGIN).
           LIBRAW_PATH="$(ldconfig -p | awk '/libraw\.so/ {print $NF; exit}')"
           if [ -z "${LIBRAW_PATH:-}" ] || [ ! -e "$LIBRAW_PATH" ]; then
             echo "libraw shared object not found via ldconfig" >&2
             exit 1
           fi
           cp -Lv "$LIBRAW_PATH" "$BUNDLE_LIB/"
-          ls -l "$BUNDLE_LIB"
+          # Bundle sqlite too. sqlite3_flutter_libs dynamically links the host's
+          # libsqlite3.so.0; a bundle compiled against this runner's sqlite ABI
+          # crashes in sqlite3_initialize when loaded against a *different*
+          # system sqlite on the user's distro (e.g. a rolling-release desktop
+          # with a much newer sqlite). Ship the matching sqlite and load it via
+          # the launcher below so the app is ABI-consistent everywhere.
+          SQLITE_PATH="$(ldconfig -p | awk '/libsqlite3\.so\.0/ {print $NF; exit}')"
+          if [ -z "${SQLITE_PATH:-}" ] || [ ! -e "$SQLITE_PATH" ]; then
+            echo "libsqlite3.so.0 not found via ldconfig" >&2
+            exit 1
+          fi
+          cp -Lv "$SQLITE_PATH" "$BUNDLE_LIB/libsqlite3.so.0"
+          # Launcher: prepend the bundled lib/ to the loader path so the
+          # ABI-matched sqlite/libraw win over whatever the host ships. This is
+          # the recommended entry point for the desktop bundle. Written with
+          # printf (not a heredoc) so YAML block-indentation can't corrupt it.
+          {
+            printf '%s\n' '#!/usr/bin/env bash'
+            printf '%s\n' 'HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]:-$0}")")" && pwd)"'
+            printf '%s\n' 'export LD_LIBRARY_PATH="$HERE/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"'
+            printf '%s\n' 'exec "$HERE/nightshade_desktop" "$@"'
+          } > "$BUNDLE/nightshade"
+          chmod +x "$BUNDLE/nightshade"
+          ls -l "$BUNDLE_LIB" "$BUNDLE/nightshade"
 
       - name: Verify glibc floor (Bookworm / Raspberry Pi OS compatibility)
         run: |

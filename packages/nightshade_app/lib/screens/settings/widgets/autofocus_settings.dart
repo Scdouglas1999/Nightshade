@@ -12,7 +12,15 @@ part 'autofocus_settings/filter_settings_mobile_card.dart';
 class AutofocusSettingsPage extends ConsumerStatefulWidget {
   final bool isMobile;
 
-  const AutofocusSettingsPage({super.key, this.isMobile = false});
+  /// When true, render without an own scroll view (embedded in a merged
+  /// section's single outer scroll) and without the page header.
+  final bool embedded;
+
+  const AutofocusSettingsPage({
+    super.key,
+    this.isMobile = false,
+    this.embedded = false,
+  });
 
   @override
   ConsumerState<AutofocusSettingsPage> createState() =>
@@ -87,6 +95,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
     return settingsAsync.when(
       loading: () => SettingsLoadingState(
         isMobile: widget.isMobile,
+        scrollable: !widget.embedded,
       ),
       error: (error, stack) => SettingsErrorState(
         isMobile: widget.isMobile,
@@ -102,7 +111,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           description:
               'Configure autofocus behavior, curve fitting, and per-filter settings',
           isMobile: widget.isMobile,
-          hideHeader: widget.isMobile,
+          hideHeader: widget.isMobile || widget.embedded,
+          scrollable: !widget.embedded,
           children: [
             SettingsSection(
               title: 'Autofocus',

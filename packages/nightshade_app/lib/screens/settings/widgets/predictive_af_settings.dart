@@ -28,9 +28,14 @@ import 'settings_widgets.dart';
 class PredictiveAfSettingsPage extends ConsumerStatefulWidget {
   final bool isMobile;
 
+  /// When true, render without an own scroll view / header (embedded in a
+  /// merged section's single outer scroll).
+  final bool embedded;
+
   const PredictiveAfSettingsPage({
     super.key,
     this.isMobile = false,
+    this.embedded = false,
   });
 
   @override
@@ -80,7 +85,8 @@ class _PredictiveAfSettingsPageState
           'Learn per-filter focus/temperature slope across sessions and skip '
           'manual autofocus when the model is confident.',
       isMobile: widget.isMobile,
-      hideHeader: widget.isMobile,
+      hideHeader: widget.isMobile || widget.embedded,
+      scrollable: !widget.embedded,
       children: [
         if (_latestDriftWarning != null)
           _DriftWarningBanner(

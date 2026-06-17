@@ -6,16 +6,14 @@ import 'widgets/autofocus_settings.dart';
 import 'widgets/file_path_settings.dart';
 import 'widgets/predictive_af_settings.dart';
 
-/// Stacks two existing settings widgets into one section without nesting two
-/// competing scroll views.
+/// Stacks two existing settings widgets into one continuously-scrolling section.
 ///
-/// Each child page already manages its own vertical scroll (most return a
-/// `SettingsPage`, i.e. a `SingleChildScrollView`; one returns a plain column we
-/// wrap below). Placing two scrollables in the same unbounded outer column would
-/// throw an unbounded-height error, and a single outer scroll wrapping them
-/// would nest same-axis viewports. Instead we give each child an [Expanded]
-/// slot of the available height with a labelled divider between them, so each
-/// scrolls within its own region and nothing overflows.
+/// Each child page is rendered in embedded mode (`SettingsPage.scrollable:
+/// false`), so it contributes a bounded-height column instead of its own scroll
+/// view. We then wrap both — with a labelled divider between them — in a single
+/// outer scroll view. (An earlier version gave each child an [Expanded] scroll
+/// region, which split the page into two half-height, independently-scrolling
+/// panes — the thing this avoids.)
 class _MergedSection extends StatelessWidget {
   const _MergedSection({
     required this.isMobile,
@@ -33,14 +31,17 @@ class _MergedSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _SubHeader(label: firstLabel, isMobile: isMobile),
-        Expanded(child: first),
-        _SubHeader(label: secondLabel, isMobile: isMobile, withTopBorder: true),
-        Expanded(child: second),
-      ],
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _SubHeader(label: firstLabel, isMobile: isMobile),
+          first,
+          _SubHeader(
+              label: secondLabel, isMobile: isMobile, withTopBorder: true),
+          second,
+        ],
+      ),
     );
   }
 }
@@ -98,9 +99,9 @@ class FilesAndStorageSettings extends StatelessWidget {
     return _MergedSection(
       isMobile: isMobile,
       firstLabel: 'FILE PATHS',
-      first: FilePathSettings(isMobile: isMobile),
+      first: FilePathSettings(isMobile: isMobile, embedded: true),
       secondLabel: 'AUTO-SAVE & BACKUPS',
-      second: AutoSaveSettings(isMobile: isMobile),
+      second: AutoSaveSettings(isMobile: isMobile, embedded: true),
     );
   }
 }
@@ -116,9 +117,9 @@ class AutofocusMergedSettings extends StatelessWidget {
     return _MergedSection(
       isMobile: isMobile,
       firstLabel: 'AUTOFOCUS',
-      first: AutofocusSettingsPage(isMobile: isMobile),
+      first: AutofocusSettingsPage(isMobile: isMobile, embedded: true),
       secondLabel: 'PREDICTIVE AUTOFOCUS',
-      second: PredictiveAfSettingsPage(isMobile: isMobile),
+      second: PredictiveAfSettingsPage(isMobile: isMobile, embedded: true),
     );
   }
 }

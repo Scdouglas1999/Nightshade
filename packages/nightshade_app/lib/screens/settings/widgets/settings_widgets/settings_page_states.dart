@@ -13,6 +13,12 @@ class SettingsPage extends StatelessWidget {
 
   final bool hideHeader;
 
+  /// When false, the page renders without its own scroll view — used when it's
+  /// embedded inside another scrolling container (e.g. a merged section) so two
+  /// same-axis viewports don't fight and split the view into independent panes.
+
+  final bool scrollable;
+
   const SettingsPage({
     super.key,
     required this.title,
@@ -20,6 +26,7 @@ class SettingsPage extends StatelessWidget {
     required this.children,
     this.isMobile = false,
     this.hideHeader = false,
+    this.scrollable = true,
   });
 
   @override
@@ -30,38 +37,40 @@ class SettingsPage extends StatelessWidget {
         ? NightshadeTokens.paddingLg
         : const EdgeInsets.all(NightshadeTokens.space3xl);
 
-    return SingleChildScrollView(
-      padding: padding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (!hideHeader) ...[
-            Text(
-              title,
-              style:
-                  (isMobile ? NightshadeTypography.h3 : NightshadeTypography.h2)
-                      .copyWith(
-                fontWeight: FontWeight.w700,
-                color: colors.textPrimary,
-              ),
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (!hideHeader) ...[
+          Text(
+            title,
+            style:
+                (isMobile ? NightshadeTypography.h3 : NightshadeTypography.h2)
+                    .copyWith(
+              fontWeight: FontWeight.w700,
+              color: colors.textPrimary,
             ),
-            const SizedBox(height: NightshadeTokens.spaceXs),
-            Text(
-              description,
-              style: (isMobile
-                      ? NightshadeTypography.caption
-                      : NightshadeTypography.bodySm)
-                  .copyWith(color: colors.textSecondary),
-            ),
-            SizedBox(
-                height: isMobile
-                    ? NightshadeTokens.spaceXl
-                    : NightshadeTokens.space3xl),
-          ],
-          ...children,
+          ),
+          const SizedBox(height: NightshadeTokens.spaceXs),
+          Text(
+            description,
+            style: (isMobile
+                    ? NightshadeTypography.caption
+                    : NightshadeTypography.bodySm)
+                .copyWith(color: colors.textSecondary),
+          ),
+          SizedBox(
+              height: isMobile
+                  ? NightshadeTokens.spaceXl
+                  : NightshadeTokens.space3xl),
         ],
-      ),
+        ...children,
+      ],
     );
+
+    if (!scrollable) {
+      return Padding(padding: padding, child: content);
+    }
+    return SingleChildScrollView(padding: padding, child: content);
   }
 }
 
@@ -70,10 +79,14 @@ class SettingsLoadingState extends StatelessWidget {
 
   final String message;
 
+  /// See [SettingsPage.scrollable] — false when embedded in another scroll view.
+  final bool scrollable;
+
   const SettingsLoadingState({
     super.key,
     this.isMobile = false,
     this.message = 'Loading settings...',
+    this.scrollable = true,
   });
 
   @override
@@ -84,72 +97,73 @@ class SettingsLoadingState extends StatelessWidget {
         ? NightshadeTokens.paddingLg
         : const EdgeInsets.all(NightshadeTokens.space3xl);
 
-    return SingleChildScrollView(
-      padding: padding,
-      child: ShimmerLoading(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 220,
-              height: isMobile ? 24 : 28,
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: NightshadeTokens.borderRadiusMd,
-              ),
+    final shimmer = ShimmerLoading(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 220,
+            height: isMobile ? 24 : 28,
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: NightshadeTokens.borderRadiusMd,
             ),
-            const SizedBox(height: NightshadeTokens.spaceSm),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          Container(
+            width: 320,
+            height: 14,
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
+            ),
+          ),
+          SizedBox(
+              height: isMobile
+                  ? NightshadeTokens.spaceXl
+                  : NightshadeTokens.space3xl),
+          for (var i = 0; i < 2; i++) ...[
             Container(
-              width: 320,
-              height: 14,
+              width: 140,
+              height: 18,
               decoration: BoxDecoration(
                 color: colors.surface,
                 borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
               ),
             ),
-            SizedBox(
-                height: isMobile
-                    ? NightshadeTokens.spaceXl
-                    : NightshadeTokens.space3xl),
-            for (var i = 0; i < 2; i++) ...[
-              Container(
-                width: 140,
-                height: 18,
-                decoration: BoxDecoration(
-                  color: colors.surface,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusSm),
-                ),
-              ),
-              const SizedBox(height: NightshadeTokens.spaceMd),
-              Container(
-                width: double.infinity,
-                height: isMobile ? 164 : 188,
-                decoration: BoxDecoration(
-                  color: colors.surface,
-                  borderRadius: BorderRadius.circular(
-                      isMobile ? 10 : NightshadeTokens.radiusLg),
-                  border: Border.all(color: colors.border),
-                ),
-              ),
-              SizedBox(height: isMobile ? NightshadeTokens.spaceXl : 28),
-            ],
-            Center(
-              child: Padding(
-                padding: const EdgeInsets.only(top: NightshadeTokens.spaceSm),
-                child: Text(
-                  message,
-                  style: (isMobile
-                          ? NightshadeTypography.caption
-                          : NightshadeTypography.bodySm)
-                      .copyWith(color: colors.textMuted),
-                ),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            Container(
+              width: double.infinity,
+              height: isMobile ? 164 : 188,
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(
+                    isMobile ? 10 : NightshadeTokens.radiusLg),
+                border: Border.all(color: colors.border),
               ),
             ),
+            SizedBox(height: isMobile ? NightshadeTokens.spaceXl : 28),
           ],
-        ),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(top: NightshadeTokens.spaceSm),
+              child: Text(
+                message,
+                style: (isMobile
+                        ? NightshadeTypography.caption
+                        : NightshadeTypography.bodySm)
+                    .copyWith(color: colors.textMuted),
+              ),
+            ),
+          ),
+        ],
       ),
     );
+
+    if (!scrollable) {
+      return Padding(padding: padding, child: shimmer);
+    }
+    return SingleChildScrollView(padding: padding, child: shimmer);
   }
 }
 
