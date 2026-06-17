@@ -79,9 +79,7 @@ Stream<List<NarratorEvent>> _remoteNarratorStream(
   Future<void> refetch() async {
     try {
       final raw = await fetch();
-      final events = raw
-          .map(narratorEventFromWireJson)
-          .toList(growable: false);
+      final events = raw.map(narratorEventFromWireJson).toList(growable: false);
       if (!controller.isClosed) controller.add(events);
     } catch (_) {
       // Transient (reconnect / host busy): keep the last good snapshot rather

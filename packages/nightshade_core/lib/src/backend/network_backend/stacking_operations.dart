@@ -23,7 +23,8 @@ mixin _NetworkBackendStackingOperations on _NetworkBackendTransport {
     if (json == null) return const LiveStackingStats();
     return LiveStackingStats(
       stackedFrameCount: (json['stackedFrameCount'] as num?)?.toInt() ?? 0,
-      totalFramesAttempted: (json['totalFramesAttempted'] as num?)?.toInt() ?? 0,
+      totalFramesAttempted:
+          (json['totalFramesAttempted'] as num?)?.toInt() ?? 0,
       rejectedAlignmentFailures:
           (json['rejectedAlignmentFailures'] as num?)?.toInt() ?? 0,
       avgMatchedPairs: (json['avgMatchedPairs'] as num?)?.toDouble() ?? 0.0,
@@ -45,9 +46,7 @@ mixin _NetworkBackendStackingOperations on _NetworkBackendTransport {
       'config': _stackingConfigToJson(config),
       if (referencePath != null) 'referencePath': referencePath,
     });
-    return _stackingStatsFromJson(
-      response['stats'] as Map<String, dynamic>?,
-    );
+    return _stackingStatsFromJson(response['stats'] as Map<String, dynamic>?);
   }
 
   /// Push the host config to apply on the next start.
@@ -75,7 +74,9 @@ mixin _NetworkBackendStackingOperations on _NetworkBackendTransport {
     final width = (meta['width'] as num).toInt();
     final height = (meta['height'] as num).toInt();
     final channels = (meta['channels'] as num?)?.toInt() ?? 1;
-    final stats = _stackingStatsFromJson(meta['stats'] as Map<String, dynamic>?);
+    final stats = _stackingStatsFromJson(
+      meta['stats'] as Map<String, dynamic>?,
+    );
 
     final bytes = await _downloadBytes('stacking/preview');
     // Decode little-endian u16 samples. The host writes native (LE) order and

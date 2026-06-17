@@ -174,7 +174,10 @@ extension CalibrationDefectMapHandlers on CalibrationHandlers {
     final payload = await readJsonObject(request);
 
     final cameraId = requireString(payload, 'cameraId');
-    final temperatureCelsius = requireDouble(payload, 'sensorTemperatureCelsius');
+    final temperatureCelsius = requireDouble(
+      payload,
+      'sensorTemperatureCelsius',
+    );
 
     final explicitPaths = optionalList<String>(payload, 'darkFramePaths');
     final directory = optionalString(payload, 'darkFramesDirectory');
@@ -187,8 +190,7 @@ extension CalibrationDefectMapHandlers on CalibrationHandlers {
       if (darkFramePaths.isEmpty) {
         throw HandlerFailure(
           code: 'defect_map_no_darks_in_directory',
-          message:
-              'No dark frames (.fits/.fit/.fts/.xisf) found in $directory',
+          message: 'No dark frames (.fits/.fit/.fts/.xisf) found in $directory',
           statusCode: 409,
           details: {'darkFramesDirectory': directory},
         );

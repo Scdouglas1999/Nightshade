@@ -283,10 +283,9 @@ extension CatalogManagerLegacyIo on CatalogManager {
       // catalogs range from a few MB up to multiple GB (GLADE+ complete), and
       // readAsLines() would load and materialize the entire file in memory.
       var lineCount = 0;
-      final stream = File(filePath)
-          .openRead()
-          .transform(utf8.decoder)
-          .transform(const LineSplitter());
+      final stream = File(
+        filePath,
+      ).openRead().transform(utf8.decoder).transform(const LineSplitter());
       await for (final _ in stream) {
         lineCount++;
       }

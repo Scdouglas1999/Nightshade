@@ -108,7 +108,8 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
           _Info(
             colors: colors,
             icon: LucideIcons.info,
-            text: 'Connect to a remote appliance to manage its catalogs. This is '
+            text:
+                'Connect to a remote appliance to manage its catalogs. This is '
                 'separate from the phone\'s own planetarium catalogs.',
           )
         else ...[
@@ -180,7 +181,8 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
   }
 
   Widget _installedTile(NightshadeColors colors, RemoteCatalogStatus c) {
-    final ok = c.status.toLowerCase() == 'ok' || c.status.toLowerCase() == 'installed';
+    final ok =
+        c.status.toLowerCase() == 'ok' || c.status.toLowerCase() == 'installed';
     return NightshadeCard(
       padding: const EdgeInsets.all(12),
       child: Column(
@@ -201,7 +203,8 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
               NightshadeButton(
                 onPressed: _busy
                     ? null
-                    : () => _run('Verify', () => _backend!.verifyCatalog(name: c.name)),
+                    : () => _run(
+                        'Verify', () => _backend!.verifyCatalog(name: c.name)),
                 label: 'Verify',
                 variant: ButtonVariant.ghost,
                 size: ButtonSize.small,
@@ -209,7 +212,8 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
               NightshadeButton(
                 onPressed: _busy
                     ? null
-                    : () => _run('Uninstall', () => _backend!.uninstallCatalog(c.name)),
+                    : () => _run(
+                        'Uninstall', () => _backend!.uninstallCatalog(c.name)),
                 label: 'Remove',
                 variant: ButtonVariant.ghost,
                 size: ButtonSize.small,
@@ -260,7 +264,8 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
                   ],
                 ),
                 const SizedBox(height: 2),
-                Text('${a.version} · ${_fmtBytes(a.sizeBytes)} · ${a.description}',
+                Text(
+                    '${a.version} · ${_fmtBytes(a.sizeBytes)} · ${a.description}',
                     style: TextStyle(
                         color: colors.textMuted,
                         fontSize: NightshadeTypography.fontSize12)),
@@ -271,7 +276,8 @@ class _RigCatalogSettingsState extends ConsumerState<RigCatalogSettings> {
           NightshadeButton(
             onPressed: (_busy || installed)
                 ? null
-                : () => _run('Download', () => _backend!.downloadCatalog(a.name)),
+                : () =>
+                    _run('Download', () => _backend!.downloadCatalog(a.name)),
             label: installed ? 'Installed' : 'Download',
             icon: installed ? LucideIcons.check : LucideIcons.download,
             variant: installed ? ButtonVariant.ghost : ButtonVariant.primary,

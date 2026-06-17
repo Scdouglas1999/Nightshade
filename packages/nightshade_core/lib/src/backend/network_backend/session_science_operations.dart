@@ -7,7 +7,9 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   /// has no such file.
   Future<({int width, int height})?> getFitsDimensions(String hostPath) async {
     try {
-      final response = await _get('imaging/fits-dimensions', {'path': hostPath});
+      final response = await _get('imaging/fits-dimensions', {
+        'path': hostPath,
+      });
       return (
         width: (response['width'] as num).toInt(),
         height: (response['height'] as num).toInt(),
@@ -213,7 +215,10 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   /// Permanently remove every untracked library target on the host and return
   /// the number deleted. Irreversible — the caller confirms with the user first.
   Future<int> removeUntrackedTargets() async {
-    final response = await _post('analytics/untracked-targets/remove', const {});
+    final response = await _post(
+      'analytics/untracked-targets/remove',
+      const {},
+    );
     return (response['deleted'] as num?)?.toInt() ?? 0;
   }
 

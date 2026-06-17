@@ -64,11 +64,7 @@ void main() {
         'POST',
         Uri.parse('http://localhost/api/settings/location'),
         body: jsonEncode({
-          'location': {
-            'latitude': 40.0,
-            'longitude': -74.0,
-            'elevation': 50.0,
-          },
+          'location': {'latitude': 40.0, 'longitude': -74.0, 'elevation': 50.0},
         }),
       ),
     );

@@ -24,10 +24,7 @@ void main() {
       expect(DeviceId.parse('sim:mount').kind, DeviceDriverKind.simulator);
       // Legacy bare simulator ids (the native bridge's `sim_` convention,
       // emitted by discovery) classify as simulator, not unknown.
-      expect(
-        DeviceId.parse('sim_camera_1').kind,
-        DeviceDriverKind.simulator,
-      );
+      expect(DeviceId.parse('sim_camera_1').kind, DeviceDriverKind.simulator);
       expect(DeviceId.parse('sim_mount_1').kind, DeviceDriverKind.simulator);
       expect(
         DeviceId.parse('builtin_guider').kind,

@@ -40,11 +40,13 @@ void main() {
       expect(d.version, gladePlusCatalog.version);
     });
 
-    test('metadata sidecar names follow the "{key}_metadata.json" convention',
-        () {
-      for (final entry in CatalogManager.knownCatalogs.entries) {
-        expect(entry.value.metadataFileName, '${entry.key}_metadata.json');
-      }
-    });
+    test(
+      'metadata sidecar names follow the "{key}_metadata.json" convention',
+      () {
+        for (final entry in CatalogManager.knownCatalogs.entries) {
+          expect(entry.value.metadataFileName, '${entry.key}_metadata.json');
+        }
+      },
+    );
   });
 }

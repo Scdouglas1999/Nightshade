@@ -79,9 +79,7 @@ mixin _NetworkBackendPostSessionOperations on _NetworkBackendTransport {
   /// Integrate a session's subs into a linear FITS master on the host. [args] is
   /// the `IntegrateSessionArgs` JSON shape (host paths). Returns the
   /// `IntegrateSessionResult` envelope.
-  Future<Map<String, dynamic>> postSessionIntegrate(
-    Map<String, dynamic> args,
-  ) {
+  Future<Map<String, dynamic>> postSessionIntegrate(Map<String, dynamic> args) {
     return _runPostSessionJob(
       'post-session/integrate',
       args,

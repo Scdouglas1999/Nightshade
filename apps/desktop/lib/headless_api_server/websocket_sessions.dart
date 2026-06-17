@@ -373,7 +373,8 @@ extension _HeadlessApiServerWebSocketSessions on HeadlessApiServer {
         socket.sink.add(
           jsonEncode({
             'type': 'error',
-            'message': 'Unknown collaboration message type: '
+            'message':
+                'Unknown collaboration message type: '
                 '${type ?? '(missing "type")'}',
           }),
         );

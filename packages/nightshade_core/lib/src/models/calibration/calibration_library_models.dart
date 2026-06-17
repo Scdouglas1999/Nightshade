@@ -220,9 +220,7 @@ class CalibrationMasterRecord {
       createdAt:
           DateTime.tryParse('${json['createdAt']}')?.toLocal() ??
           DateTime.now(),
-      tags: [
-        for (final t in (json['tags'] as List? ?? const [])) t.toString(),
-      ],
+      tags: [for (final t in (json['tags'] as List? ?? const [])) t.toString()],
       notes: json['notes'] as String?,
     );
   }
@@ -393,12 +391,10 @@ class CalibrationMatch {
         ),
         score: (json['score'] as num?)?.toDouble() ?? 0.0,
         reasons: [
-          for (final r in (json['reasons'] as List? ?? const []))
-            r.toString(),
+          for (final r in (json['reasons'] as List? ?? const [])) r.toString(),
         ],
         warnings: [
-          for (final w in (json['warnings'] as List? ?? const []))
-            w.toString(),
+          for (final w in (json['warnings'] as List? ?? const [])) w.toString(),
         ],
         exposureScaled: json['exposureScaled'] as bool? ?? false,
         exposureScaleFactor: (json['exposureScaleFactor'] as num?)?.toDouble(),

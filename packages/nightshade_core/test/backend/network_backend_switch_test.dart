@@ -29,7 +29,8 @@ void main() {
         ..setResponse(
           '/api/switch/status',
           method: 'GET',
-          body: '{"switchCount":1,"switches":[{"id":0,"name":"Dew A",'
+          body:
+              '{"switchCount":1,"switches":[{"id":0,"name":"Dew A",'
               '"type":"boolean","value":true}]}',
         );
       final backend = _backend(fake);
@@ -56,7 +57,11 @@ void main() {
     test('setSwitch sends deviceId + switchId + value (server requires '
         'deviceId)', () async {
       final fake = FakeNetworkClient()
-        ..setResponse('/api/switch/set', method: 'POST', body: '{"status":"ok"}');
+        ..setResponse(
+          '/api/switch/set',
+          method: 'POST',
+          body: '{"status":"ok"}',
+        );
       final backend = _backend(fake);
 
       await backend.setSwitch(

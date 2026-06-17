@@ -467,14 +467,11 @@ Middleware errorTranslationMiddleware({
             },
           );
         }
-        return jsonResponse(
-          {
-            'error': statusCode >= 500 ? 'internal_error' : 'device_error',
-            'message': message,
-            'requestId': requestId,
-          },
-          statusCode: statusCode,
-        );
+        return jsonResponse({
+          'error': statusCode >= 500 ? 'internal_error' : 'device_error',
+          'message': message,
+          'requestId': requestId,
+        }, statusCode: statusCode);
       } catch (e, stackTrace) {
         final requestId = requestIdFor(request);
         logError(

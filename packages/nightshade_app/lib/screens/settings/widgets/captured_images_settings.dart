@@ -256,8 +256,7 @@ class _GalleryTile extends StatelessWidget {
                           : const SizedBox(
                               width: 18,
                               height: 18,
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2)),
+                              child: CircularProgressIndicator(strokeWidth: 2)),
                     );
                   }
                   return Image.memory(bytes, fit: BoxFit.cover);
@@ -268,8 +267,7 @@ class _GalleryTile extends StatelessWidget {
               right: 0,
               bottom: 0,
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                 color: Colors.black54,
                 child: Text(
                   label,
@@ -283,8 +281,7 @@ class _GalleryTile extends StatelessWidget {
               Positioned(
                 top: 4,
                 right: 4,
-                child: Icon(LucideIcons.xCircle,
-                    size: 14, color: colors.error),
+                child: Icon(LucideIcons.xCircle, size: 14, color: colors.error),
               ),
           ],
         ),

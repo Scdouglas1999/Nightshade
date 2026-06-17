@@ -69,8 +69,7 @@ class SequencerHandlers {
     //    (load → start) always failed with "No sequence loaded", which meant a
     //    tablet/desktop client could not run an imaging sequence on the rig at
     //    all — the appliance's core purpose.
-    final hasInEditorSequence =
-        container.read(currentSequenceProvider) != null;
+    final hasInEditorSequence = container.read(currentSequenceProvider) != null;
     try {
       if (hasInEditorSequence) {
         final executor = container.read(sequenceExecutorProvider);

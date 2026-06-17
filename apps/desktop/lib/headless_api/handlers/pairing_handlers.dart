@@ -258,14 +258,17 @@ class PairingHandlers {
     }
 
     if (pairingMode() != PairingMode.lanOpen) {
-      return jsonForbidden({
-        'error': 'lan_pairing_disabled',
-        'message':
-            'One-tap LAN pairing is disabled on this appliance. Pair with a '
-            'code instead.',
-        'pairingMode': pairingMode().wire,
-        'requestId': requestId,
-      }, headers: {requestIdHeader: requestId});
+      return jsonForbidden(
+        {
+          'error': 'lan_pairing_disabled',
+          'message':
+              'One-tap LAN pairing is disabled on this appliance. Pair with a '
+              'code instead.',
+          'pairingMode': pairingMode().wire,
+          'requestId': requestId,
+        },
+        headers: {requestIdHeader: requestId},
+      );
     }
 
     final source = lanTrustedSourceAddress(request);
@@ -274,13 +277,16 @@ class PairingHandlers {
         '[PAIR][$requestId] lan-claim refused: source $clientKey is not a '
         'trusted private-LAN address',
       );
-      return jsonForbidden({
-        'error': 'not_local_network',
-        'message':
-            'One-tap pairing is only available from the local network. For '
-            'remote access, pair with a code.',
-        'requestId': requestId,
-      }, headers: {requestIdHeader: requestId});
+      return jsonForbidden(
+        {
+          'error': 'not_local_network',
+          'message':
+              'One-tap pairing is only available from the local network. For '
+              'remote access, pair with a code.',
+          'requestId': requestId,
+        },
+        headers: {requestIdHeader: requestId},
+      );
     }
 
     final payload = await _readJsonBodyTolerant(request);
@@ -308,11 +314,14 @@ class PairingHandlers {
       _logError(
         '[PAIR][$requestId] lan-claim internal mint failed: ${verify.outcome}',
       );
-      return jsonInternalServerError({
-        'error': 'lan_claim_failed',
-        'message': 'Could not complete LAN pairing.',
-        'requestId': requestId,
-      }, headers: {requestIdHeader: requestId});
+      return jsonInternalServerError(
+        {
+          'error': 'lan_claim_failed',
+          'message': 'Could not complete LAN pairing.',
+          'requestId': requestId,
+        },
+        headers: {requestIdHeader: requestId},
+      );
     }
 
     final token = verify.sessionToken!;
@@ -322,12 +331,15 @@ class PairingHandlers {
       '[PAIR][$requestId] LAN one-tap pairing granted to device=$deviceId '
       'from ${source.address}',
     );
-    return jsonOk({
-      'token': token,
-      'tokenScope': headlessTokenScopeName(HeadlessTokenScope.control),
-      'expiresAt': verify.expiresAt!.toUtc().toIso8601String(),
-      'pairing': 'lan',
-    }, headers: {requestIdHeader: requestId});
+    return jsonOk(
+      {
+        'token': token,
+        'tokenScope': headlessTokenScopeName(HeadlessTokenScope.control),
+        'expiresAt': verify.expiresAt!.toUtc().toIso8601String(),
+        'pairing': 'lan',
+      },
+      headers: {requestIdHeader: requestId},
+    );
   }
 
   /// Reads a JSON object body, tolerating an empty/absent body (every field on

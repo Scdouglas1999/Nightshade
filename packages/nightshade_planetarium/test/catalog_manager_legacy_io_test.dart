@@ -36,7 +36,9 @@ void main() {
 
     test('zero-byte catalog file is not reported as installed', () async {
       // Simulate a download that was interrupted mid-write.
-      await File(CatalogManager.instance.starCatalogPath).writeAsBytes(const []);
+      await File(
+        CatalogManager.instance.starCatalogPath,
+      ).writeAsBytes(const []);
 
       final status = await CatalogManager.instance.getStarCatalogStatus();
       expect(status.isInstalled, isFalse);
@@ -48,8 +50,10 @@ void main() {
       final srcFile = File('${src.path}/stars.csv');
       await srcFile.writeAsString(csv);
 
-      final ok = await CatalogManager.instance
-          .importCatalog(sourcePath: srcFile.path, type: 'stars');
+      final ok = await CatalogManager.instance.importCatalog(
+        sourcePath: srcFile.path,
+        type: 'stars',
+      );
       expect(ok, isTrue);
 
       final status = await CatalogManager.instance.getStarCatalogStatus();
@@ -58,8 +62,9 @@ void main() {
       expect(status.objectCount, 1); // one data row past the header
 
       // The atomic-promote temp file must not be left behind.
-      final partial =
-          File('${CatalogManager.instance.starCatalogPath}.partial');
+      final partial = File(
+        '${CatalogManager.instance.starCatalogPath}.partial',
+      );
       expect(await partial.exists(), isFalse);
 
       await src.delete(recursive: true);
@@ -70,17 +75,22 @@ void main() {
       final src = await Directory.systemTemp.createTemp('ns_src_good_');
       final goodFile = File('${src.path}/good.csv');
       await goodFile.writeAsString(_miniHygCsv());
-      await CatalogManager.instance
-          .importCatalog(sourcePath: goodFile.path, type: 'stars');
-      final goodSize = await File(CatalogManager.instance.starCatalogPath)
-          .length();
+      await CatalogManager.instance.importCatalog(
+        sourcePath: goodFile.path,
+        type: 'stars',
+      );
+      final goodSize = await File(
+        CatalogManager.instance.starCatalogPath,
+      ).length();
 
       // Now attempt to import an empty file — this must fail and preserve the
       // existing install rather than overwriting it with garbage.
       final emptyFile = File('${src.path}/empty.csv');
       await emptyFile.writeAsBytes(const []);
-      final ok = await CatalogManager.instance
-          .importCatalog(sourcePath: emptyFile.path, type: 'stars');
+      final ok = await CatalogManager.instance.importCatalog(
+        sourcePath: emptyFile.path,
+        type: 'stars',
+      );
       expect(ok, isFalse);
 
       final status = await CatalogManager.instance.getStarCatalogStatus();

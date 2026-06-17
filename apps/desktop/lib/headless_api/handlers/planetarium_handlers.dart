@@ -577,5 +577,4 @@ class PlanetariumHandlers {
       'elevation': location.elevation,
     });
   }
-
 }

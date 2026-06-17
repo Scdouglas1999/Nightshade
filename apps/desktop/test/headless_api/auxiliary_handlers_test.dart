@@ -59,7 +59,9 @@ void main() {
         // same graceful "not connected" 404 the switch/dome handlers return.
         final scoped = ProviderContainer(
           overrides: [
-            deviceBackendProvider.overrideWithValue(_FakeDeviceBackend(const [])),
+            deviceBackendProvider.overrideWithValue(
+              _FakeDeviceBackend(const []),
+            ),
           ],
         );
         addTearDown(scoped.dispose);

@@ -139,8 +139,7 @@ class _FocusModelSettingsState extends ConsumerState<FocusModelSettings> {
                     ],
                   ),
                   const SizedBox(height: 10),
-                  _row(colors, 'Slope',
-                      '${_num(m['slope'])} steps/°C'),
+                  _row(colors, 'Slope', '${_num(m['slope'])} steps/°C'),
                   _row(colors, 'R²', _num(m['rSquared'])),
                   _row(colors, 'Data points', '${m['dataPointCount'] ?? '—'}'),
                   if (model?['description'] != null)

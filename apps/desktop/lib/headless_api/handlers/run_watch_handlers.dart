@@ -265,16 +265,19 @@ class RunWatchHandlers {
     // ("Converting object to an encodable object failed: Instance of
     // '_BigIntImpl'"). Applied once to the whole bundle so every sub-block is
     // covered, not just the one that happens to carry a BigInt today.
-    return jsonOk(_jsonSafe(<String, Object?>{
-      'serverTime': DateTime.now().toUtc().toIso8601String(),
-      'sequencer': {...sequencerStatus, 'progress': progressBlock},
-      'activeTarget': activeTargetBlock,
-      'guiding': guidingBlock,
-      'weather': weatherBlock,
-      'recovery': recovery,
-      'devices': devices,
-      'recentEvents': recentEvents,
-    }) as Map<String, Object?>);
+    return jsonOk(
+      _jsonSafe(<String, Object?>{
+            'serverTime': DateTime.now().toUtc().toIso8601String(),
+            'sequencer': {...sequencerStatus, 'progress': progressBlock},
+            'activeTarget': activeTargetBlock,
+            'guiding': guidingBlock,
+            'weather': weatherBlock,
+            'recovery': recovery,
+            'devices': devices,
+            'recentEvents': recentEvents,
+          })
+          as Map<String, Object?>,
+    );
   }
 
   /// Recursively replace BigInt with int (or String when it exceeds the
@@ -286,9 +289,7 @@ class RunWatchHandlers {
       return value.isValidInt ? value.toInt() : value.toString();
     }
     if (value is Map) {
-      return value.map(
-        (k, v) => MapEntry(k.toString(), _jsonSafe(v)),
-      );
+      return value.map((k, v) => MapEntry(k.toString(), _jsonSafe(v)));
     }
     if (value is List) {
       return value.map(_jsonSafe).toList(growable: false);
