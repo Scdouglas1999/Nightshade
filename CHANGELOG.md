@@ -9,6 +9,59 @@ Engineering cross-references in the form `(§N.M)` point at the
 `docs/plans/2026-05-09-v250-audit-fixes.md` v2.5.0 pre-release audit and are
 intended for code reviewers rather than end users.
 
+## [4.1.0] — Solid from the couch. (build 20)
+
+A hardening follow-up to 4.0: the catalog experience was rebuilt, the remote and
+appliance paths got sturdier, a real-time insight feed and a new weather source
+landed, and a long tail of crashes and races was fixed. Full notes:
+`docs/release/v4.1.0.md`. What's actually been run on real hardware versus
+code-only: `docs/release-evidence/4.1.0.md`.
+
+### Added
+
+- **Night Narrator** — a real-time, plain-language session insight feed surfaced
+  across the relevant screens.
+- Narrower `nightshade_core` barrels
+  (`nightshade_core_{models,backend,database,services,providers}.dart`) alongside
+  the retained aggregate barrel, so new imports can pull a single layer.
+- Headless API: more desktop-parity endpoints (defect mapping, post-session,
+  live-stacking, session-science, sequencer/planetarium handlers) and an
+  always-on `/api/system/version` route.
+
+### Changed
+
+- **Catalog management rebuilt:** downloads stage to a temp file and swap in only
+  once complete and verified, cancel mid-flight, stream multi-gigabyte files
+  (and count objects) straight to disk, and keep their progress when you leave
+  the screen; catalog cards now show size, version, object count, depth, and use.
+- More reliable mDNS discovery and pairing; updated Avahi/systemd packaging for
+  the dedicated-box appliance; smoother mobile reconnect to a known rig.
+- Headless API fails closed on unknown auth scopes; `/api/info` advertises every
+  registered route; handler errors are logged explicitly instead of swallowed.
+- Headless settings now persist through the DB-backed settings store (full
+  round-trip) instead of the 7-field bridge subset.
+- Self-contained Linux bundle: ubuntu-22.04 glibc floor, bundled libraw and
+  sqlite, `$ORIGIN` RUNPATH.
+
+### Fixed
+
+- Autopilot/sequencer hardening across autofocus, exposure, meridian-flip, and
+  fault-recovery.
+- Catalog download no longer truncates the installed catalog on a dropped
+  connection; the planner empty-state no longer falsely reports a catalog as not
+  installed.
+- LX200 serial-handle leak on probe-timeout that locked the COM port against
+  later connects.
+- Device-name control-character sanitization on discovery; a missing `deviceId`
+  now returns a structured 400 instead of an opaque 500.
+
+### Known limitations
+
+- Fully-unattended **headless** acquisition on real ASCOM hardware is still being
+  hardened — headless COM-session issues (the desktop GUI path works for the same
+  operations). See `docs/release-evidence/4.1.0.md` and `docs/known-limitations.md`.
+  Supervise early nights.
+
 ## [4.0.0] — From your couch. Wake up to a finished image. (build 17)
 
 The headline release: run your whole rig from your phone like an ASIAIR — but

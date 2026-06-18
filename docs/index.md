@@ -1,12 +1,12 @@
-# Nightshade 2.0 User Documentation
+# Nightshade User Documentation
 
-Welcome to the Nightshade 2.0 user documentation. Use these guides to install,
+Welcome to the Nightshade user documentation. Use these guides to install,
 configure, and operate Nightshade within the platform and hardware scope listed
 for the release candidate you are testing.
 
-## What is Nightshade 2.0?
+## What is Nightshade?
 
-Nightshade 2.0 is an astrophotography application for controlling cameras,
+Nightshade is an astrophotography application for controlling cameras,
 mounts, focusers, and related observatory equipment where the release package
 and connected driver backend support those capabilities. Built with Flutter and
 Rust, it is designed for desktop imaging workflows, with platform support
@@ -407,7 +407,7 @@ We value your feedback!
 
 ## About
 
-Nightshade 2.0 is developed by astrophotographers for the astrophotography
+Nightshade is developed by astrophotographers for the astrophotography
 community. Its public release scope is intentionally conservative: use the
 release notes, support matrix, and known limitations to decide which workflows
 are supported by the artifact you install.

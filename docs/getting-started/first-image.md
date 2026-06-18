@@ -1,6 +1,6 @@
 # Capturing Your First Image
 
-This guide walks through a conservative first imaging run with Nightshade 2.0.
+This guide walks through a conservative first imaging run with Nightshade.
 Start with a short, low-risk exposure and verify each device before moving to
 long sequences or unattended automation.
 

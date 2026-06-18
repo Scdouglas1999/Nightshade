@@ -1,4 +1,4 @@
-/// Nightshade 2.0 OTA Update System
+/// Nightshade OTA Update System
 ///
 /// Provides self-hosted OTA updates with two mechanisms:
 /// - LAN Push: Dev machine pushes updates directly to targets on local network

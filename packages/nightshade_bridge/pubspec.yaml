@@ -1,5 +1,5 @@
 name: nightshade_bridge
-description: Nightshade 2.0 Bridge - Dart FFI bindings to Rust native code
+description: Nightshade Bridge - Dart FFI bindings to Rust native code
 version: 1.0.0
 publish_to: 'none'
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Nightshade 2.0 includes comprehensive performance optimizations to handle large astrophotography images and catalogs efficiently. This guide documents the optimizations and how to use them.
+Nightshade includes comprehensive performance optimizations to handle large astrophotography images and catalogs efficiently. This guide documents the optimizations and how to use them.
 
 ## Problem Statement
 
@@ -438,7 +438,7 @@ await processImageAsync(image, onProgress: (p) {
 
 ## Summary
 
-These optimizations enable Nightshade 2.0 to handle:
+These optimizations enable Nightshade to handle:
 
 - ✅ **60MP+ images** without UI freeze
 - ✅ **Multi-GB FITS files** with <100MB RAM

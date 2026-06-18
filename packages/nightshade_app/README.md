@@ -1,6 +1,6 @@
 # Nightshade App
 
-The unified application UI shell for Nightshade 2.0, containing all screens, routing, and application-level widgets.
+The unified application UI shell for Nightshade, containing all screens, routing, and application-level widgets.
 
 ## Overview
 
@@ -75,4 +75,4 @@ Uses Riverpod for state management with go_router for navigation. Screens access
 
 ## License
 
-Part of Nightshade 2.0 - see LICENSE file in repository root.
+Part of Nightshade - see LICENSE file in repository root.

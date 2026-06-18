@@ -1,6 +1,6 @@
 # Flutter Rust Bridge Troubleshooting Guide
 
-This document captures known issues with flutter_rust_bridge code generation in the Nightshade 2.0 project and their solutions.
+This document captures known issues with flutter_rust_bridge code generation in the Nightshade project and their solutions.
 
 ## Environment
 - Flutter: 3.44.1

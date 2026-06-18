@@ -1,6 +1,6 @@
 # Installation Guide
 
-Welcome to Nightshade 2.0. This guide explains the expected install flow, but
+Welcome to Nightshade. This guide explains the expected install flow, but
 the release notes are the source of truth for which platform artifacts are
 actually shipped and verified for a given release candidate.
 
@@ -50,7 +50,7 @@ Linux or macOS package/runtime support.
 
 ## Download
 
-1. Visit the [Nightshade 2.0 releases page](https://github.com/Scodouglas1999/Nightshade/releases)
+1. Visit the [Nightshade releases page](https://github.com/Scodouglas1999/Nightshade/releases)
 2. Open the release notes for the build you plan to install.
 3. Download only the artifact listed as supported or limited for your platform.
    Example artifact names may include:
@@ -163,7 +163,7 @@ For equipment control on Linux, you'll need INDI:
 
 ## First Launch
 
-When you first launch Nightshade 2.0:
+When you first launch Nightshade:
 
 1. **Welcome Screen**
    - You'll see a brief welcome message

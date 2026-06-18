@@ -34,7 +34,7 @@ void main(List<String> args) async {
     backgroundColor: Colors.transparent,
     skipTaskbar: false,
     titleBarStyle: TitleBarStyle.hidden,
-    title: 'Nightshade 2.0',
+    title: 'Nightshade',
   );
 
   final container = ProviderContainer(

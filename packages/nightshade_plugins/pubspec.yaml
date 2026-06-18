@@ -1,5 +1,5 @@
 name: nightshade_plugins
-description: Nightshade 2.0 Plugins - Plugin host and API
+description: Nightshade Plugins - Plugin host and API
 version: 1.0.0
 publish_to: 'none'
 

@@ -1,6 +1,6 @@
 # Connecting Your First Device
 
-This guide walks through connecting your camera and mount to Nightshade 2.0 for
+This guide walks through connecting your camera and mount to Nightshade for
 the first time. Start with one device, verify each connection, and keep
 unsupported or unsafe equipment disconnected until its release support status is
 clear.
@@ -54,7 +54,7 @@ setup:
 
 ### Step 1: Navigate to Equipment
 
-1. Launch Nightshade 2.0
+1. Launch Nightshade
 2. Click **Equipment** in the left sidebar (plug icon)
 3. The Equipment screen will open
 

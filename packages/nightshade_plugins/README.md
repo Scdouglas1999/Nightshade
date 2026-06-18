@@ -1,6 +1,6 @@
 # Nightshade Plugins
 
-The plugin system for Nightshade 2.0, allowing developers to extend the application with custom functionality.
+The plugin system for Nightshade, allowing developers to extend the application with custom functionality.
 
 ## Overview
 
@@ -348,4 +348,4 @@ To contribute plugin examples or improvements:
 
 ## License
 
-Part of Nightshade 2.0 - see LICENSE file in repository root.
+Part of Nightshade - see LICENSE file in repository root.

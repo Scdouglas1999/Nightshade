@@ -395,4 +395,4 @@ if (powerService.shouldPauseForBattery()) {
 
 ## License
 
-Part of the Nightshade 2.0 project.
+Part of the Nightshade project.

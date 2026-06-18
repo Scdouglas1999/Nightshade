@@ -1,6 +1,6 @@
 # Troubleshooting Common Issues
 
-This guide covers common Nightshade 2.0 problems and first-pass fixes.
+This guide covers common Nightshade problems and first-pass fixes.
 
 For public-release validation, confirm the feature is in scope before treating a
 failure as a defect. Platform support, native SDK support, remote access, and

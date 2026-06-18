@@ -400,4 +400,4 @@ class MobileRemoteClient {
 
 ---
 
-*Nightshade 2.0 - Secure Remote Control*
+*Nightshade - Secure Remote Control*

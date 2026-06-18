@@ -358,4 +358,4 @@ These are **nice-to-have** features, not requirements for production.
 ---
 
 *Generated: 2025-12-02*
-*Nightshade 2.0 - Astrophotography Suite*
+*Nightshade - Astrophotography Suite*

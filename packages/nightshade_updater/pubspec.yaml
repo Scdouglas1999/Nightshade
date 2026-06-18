@@ -1,5 +1,5 @@
 name: nightshade_updater
-description: Nightshade 2.0 OTA Update System - Self-hosted updates with LAN push support
+description: Nightshade OTA Update System - Self-hosted updates with LAN push support
 version: 1.0.0
 publish_to: 'none'
 

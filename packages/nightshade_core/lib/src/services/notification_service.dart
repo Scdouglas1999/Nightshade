@@ -308,7 +308,7 @@ class NotificationService {
                   'description': message,
                   'color': _getDiscordColor(event),
                   'timestamp': DateTime.now().toUtc().toIso8601String(),
-                  'footer': {'text': 'Nightshade 2.0'},
+                  'footer': {'text': 'Nightshade'},
                 },
               ],
             }),
@@ -449,10 +449,10 @@ class NotificationService {
                 {
                   'title': 'Test Notification',
                   'description':
-                      'This is a test notification from Nightshade 2.0. If you see this, your Discord webhook is configured correctly!',
+                      'This is a test notification from Nightshade. If you see this, your Discord webhook is configured correctly!',
                   'color': 0x22C55E,
                   'timestamp': DateTime.now().toUtc().toIso8601String(),
-                  'footer': {'text': 'Nightshade 2.0 - Test'},
+                  'footer': {'text': 'Nightshade - Test'},
                 },
               ],
             }),
@@ -489,7 +489,7 @@ class NotificationService {
               'user': user,
               'title': 'Test Notification',
               'message':
-                  'This is a test notification from Nightshade 2.0. If you see this, your Pushover is configured correctly!',
+                  'This is a test notification from Nightshade. If you see this, your Pushover is configured correctly!',
               'priority': '0',
             },
           )
