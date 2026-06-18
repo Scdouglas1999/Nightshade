@@ -81,7 +81,7 @@ impl AscomSwitchWrapper {
 
             let _ = init_tx.send(Ok((name, max_switch)));
 
-            while let Some(cmd) = super::pump_blocking_recv(&mut rx) {
+            while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
                 match cmd {
                     AscomSwitchCommand::Connect(reply) => {
                         let _ = reply.send(switch.connect());

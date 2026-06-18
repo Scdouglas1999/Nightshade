@@ -81,7 +81,7 @@ impl AscomDomeWrapper {
 
             let _ = init_tx.send(Ok(name));
 
-            while let Some(cmd) = super::pump_blocking_recv(&mut rx) {
+            while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
                 match cmd {
                     AscomDomeCommand::Connect(reply) => {
                         let _ = reply.send(dome.connect());
@@ -361,7 +361,7 @@ mod tests {
         let (tx, mut rx) = mpsc::channel(8);
         let handle = thread::spawn(move || {
             let mut handler = handler;
-            while let Some(cmd) = super::pump_blocking_recv(&mut rx) {
+            while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
                 if handler(cmd) {
                     break;
                 }

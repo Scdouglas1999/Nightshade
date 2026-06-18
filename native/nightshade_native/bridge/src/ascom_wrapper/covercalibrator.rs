@@ -76,7 +76,7 @@ impl AscomCoverCalibratorWrapper {
 
             let _ = init_tx.send(Ok((name, max_brightness)));
 
-            while let Some(cmd) = super::pump_blocking_recv(&mut rx) {
+            while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
                 match cmd {
                     AscomCoverCalibratorCommand::Connect(reply) => {
                         let _ = reply.send(cover_cal.connect());

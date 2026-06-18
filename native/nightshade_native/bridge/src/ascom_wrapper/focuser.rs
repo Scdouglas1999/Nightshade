@@ -87,7 +87,7 @@ impl AscomFocuserWrapper {
             // Signal successful initialization (we don't fetch properties here anymore)
             let _ = init_tx.send(Ok(()));
 
-            while let Some(cmd) = super::pump_blocking_recv(&mut rx) {
+            while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
                 match cmd {
                     AscomFocuserCommand::Connect(reply) => {
                         // Connect first, then fetch properties that require connection
@@ -469,7 +469,7 @@ mod tests {
         let (tx, mut rx) = mpsc::channel(8);
         let handle = thread::spawn(move || {
             let mut handler = handler;
-            while let Some(cmd) = super::pump_blocking_recv(&mut rx) {
+            while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
                 if handler(cmd) {
                     break;
                 }

@@ -109,7 +109,7 @@ impl AscomMountWrapper {
                 Err(e) => tracing::error!("Failed to create ASCOM mount {}: {}", prog_id_clone, e),
             }
 
-            while let Some(cmd) = super::pump_blocking_recv(&mut rx) {
+            while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
                 match cmd {
                     AscomMountCommand::Connect(reply) => {
                         if let Some(m) = &mut mount {
@@ -873,7 +873,7 @@ pub(crate) mod test_support {
     pub fn build_test_mount_wrapper(responses: TestMountResponses) -> AscomMountWrapper {
         let (tx, mut rx) = mpsc::channel(8);
         let handle = thread::spawn(move || {
-            while let Some(cmd) = super::pump_blocking_recv(&mut rx) {
+            while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
                 match cmd {
                     AscomMountCommand::GetCoordinates(reply) => {
                         let _ = reply.send(Ok(responses.coordinates));
@@ -933,7 +933,7 @@ mod tests {
         let (tx, mut rx) = mpsc::channel(8);
         let handle = thread::spawn(move || {
             let mut handler = handler;
-            while let Some(cmd) = super::pump_blocking_recv(&mut rx) {
+            while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
                 if handler(cmd) {
                     break;
                 }

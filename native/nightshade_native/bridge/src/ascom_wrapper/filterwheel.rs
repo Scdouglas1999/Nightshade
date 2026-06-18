@@ -76,7 +76,7 @@ impl AscomFilterWheelWrapper {
                 prog_id_clone
             );
 
-            while let Some(cmd) = super::pump_blocking_recv(&mut rx) {
+            while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
                 match cmd {
                     AscomFilterWheelCommand::Connect(reply) => {
                         let result = fw.connect().map_err(|e| e.to_string()).and_then(|()| {
@@ -389,7 +389,7 @@ mod tests {
         let (tx, mut rx) = mpsc::channel(8);
         let handle = thread::spawn(move || {
             let mut handler = handler;
-            while let Some(cmd) = super::pump_blocking_recv(&mut rx) {
+            while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
                 if handler(cmd) {
                     break;
                 }

@@ -61,7 +61,7 @@ impl AscomObservingConditionsWrapper {
 
             let _ = init_tx.send(Ok(()));
 
-            while let Some(command) = super::pump_blocking_recv(&mut rx) {
+            while let Some(command) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
                 match command {
                     AscomWeatherCommand::Connect(reply) => {
                         let _ = reply.send(weather.connect());
@@ -288,7 +288,7 @@ mod tests {
         let (tx, mut rx) = mpsc::channel(8);
         let handle = thread::spawn(move || {
             let mut handler = handler;
-            while let Some(cmd) = super::pump_blocking_recv(&mut rx) {
+            while let Some(cmd) = crate::ascom_wrapper::pump_blocking_recv(&mut rx) {
                 if handler(cmd) {
                     break;
                 }
