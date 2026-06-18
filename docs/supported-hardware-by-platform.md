@@ -9,6 +9,29 @@ The same backend availability is surfaced in-app under
 Settings > Connection > Platform Capabilities and through
 `/api/info.platformCapabilities` in headless mode.
 
+## Verified Hardware (4.1.0)
+
+This table records devices that have actually been run against Nightshade, and at
+what level — **separate from, and narrower than, the backend-availability tables
+below.** A device appearing in a backend column below means Nightshade can
+*attempt* it; a row here means it was *exercised*. Code presence never implies
+support. Source: [`release-evidence/4.1.0.md`](release-evidence/4.1.0.md) (rig
+test, 2026-06-17, shipped 4.1.0 Windows binary).
+
+| Device | Backend | OS | Driver/SDK | Tested workflow | Release status | Notes |
+| --- | --- | --- | --- | --- | --- | --- |
+| ZWO ASI1600 (camera) | ASCOM COM | Windows 10/11 | Vendor ASCOM driver | Desktop GUI: full. Headless: connect, status, 16 MP capture, JPEG, cooling | Verified (desktop); headless capture verified, long-session stability **in hardening** | Driver degraded over a long headless session (B18); fix implemented, runtime-pending on rig |
+| ZWO EAF (focuser) | ASCOM COM | Windows 10/11 | Vendor ASCOM driver | Connect, telemetry, single absolute moves | Verified | Rapid back-to-back moves wedged the driver headless (B6); single moves with settle are clean |
+| ZWO EFW (filter wheel) | ASCOM COM | Windows 10/11 | Vendor ASCOM driver | Connect, 8 named slots read | Partial | Headless set-position is a no-op (B5); fix implemented, runtime-pending |
+| PegasusAstro NYX-101 (mount) | ASCOM COM / native serial | Windows 10/11 | ASCOM + OnStep/LX200 | Desktop GUI connect works | **Not verified headless** | Headless connect fails `0x80020009` (B2); fix implemented, runtime-pending |
+| PHD2 (guider) | PHD2 process | Windows 10/11 | PHD2 | Connect | Partial | Connect verified; a full guide+dither loop was not exercised in this evidence pass |
+| ASTAP (plate solver) | Local solver | Windows 10/11 | ASTAP | Async solve + graceful no-solution | Verified | Invoked as an async job (~7.4 s) |
+
+The desktop GUI path is the verified one; the headless gaps above are
+headless-mode COM-session issues, not device or pipeline faults. Until the
+headless fixes are runtime-confirmed on the rig, treat **unattended headless
+acquisition** as experimental. Linux and macOS have no hardware rows yet.
+
 ## Driver Backend Availability
 
 | Driver backend | Windows | Linux | macOS | Notes |

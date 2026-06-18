@@ -1,6 +1,8 @@
-# Contributing to Nightshade 2.0
+# Contributing to Nightshade
 
 Welcome. This document covers the local setup steps every contributor should run once, plus the conventions CI enforces.
+
+Nightshade is a Flutter front end over a Rust core, bridged with flutter_rust_bridge (FRB). The Dart bindings and the native library must stay in sync, so the toolchain and dev scripts exist to keep them aligned. See [README](README.md#build-from-source) for the full build matrix.
 
 ## One-time setup
 
@@ -21,6 +23,60 @@ melos bootstrap
 ```
 
 The pre-commit hook checks only staged files, so it stays fast on partially-staged worktrees. If you ever need to bypass it (emergency hotfix), run `SKIP_PRECOMMIT=1 git commit ...` — CI will still gate the same checks on the PR.
+
+## Toolchain and Rust build
+
+| Tool | Version |
+|---|---|
+| Flutter | 3.44.1 (CI pins this on every OS; match it locally so `dart format` and `dart analyze` agree with CI) |
+| Dart | 3.12 / analyzer 10 (ships with the pinned Flutter) |
+| Rust | stable toolchain, **2021 edition** |
+| Melos | via `dart pub global activate melos` |
+
+The native crates live under `native/nightshade_native/` (device drivers under `ascom/`, `indi/`, `alpaca/`, `native/`; automation under `sequencer/`). They build as a Rust workspace.
+
+Run the front end with the dev script, **not** plain `flutter run`:
+
+```bash
+melos run dev          # FRB codegen + Rust build + copy native libs (DLL/so) + run desktop
+```
+
+`melos run dev` regenerates the FRB bindings, builds the native bridge, and stages the compiled library next to the app. Plain `flutter run` skips all three steps, so it loads stale bindings and fails at runtime with a binding/library hash mismatch.
+
+Useful variants:
+
+| Command | When to use |
+|---|---|
+| `melos run dev:quick` | Rust/Dart implementation changed but the FFI API surface is unchanged (skips FRB regen). |
+| `melos run dev:norun` | Rebuild the native bridge + bindings without launching Flutter. |
+| `melos run dev:clean` | Clean all build artifacts and rebuild from scratch. |
+
+If codegen or the FFI boundary misbehaves, start with [docs/FRB_TROUBLESHOOTING.md](docs/FRB_TROUBLESHOOTING.md).
+
+## Regenerating code
+
+After editing models or the FFI API, regenerate the derived sources:
+
+```bash
+melos run generate     # freezed + drift + json_serializable + FRB bindings (build_runner)
+```
+
+Commit the regenerated output in its own commit (see [Generated code](#generated-code) below) so reviewers can skip it.
+
+## Running tests
+
+```bash
+melos run test                                              # Dart/Flutter tests across all packages
+cd native/nightshade_native && cargo test --all-features --workspace   # Rust tests
+```
+
+`melos run test` excludes the `golden` tag on purpose. Golden (pixel-diff / perceptual) baselines are host-specific — the GPU rasteriser and font hinting differ across OSes, so the committed baselines (rendered on the canonical Windows host) produce false-positive diffs anywhere else. CI (ubuntu-latest) excludes the golden tag for the same reason. To run them, do so on the baseline host:
+
+```bash
+melos run test:golden  # runs ONLY the golden tests; re-baseline with flutter test --update-goldens --tags golden
+```
+
+See `docs/testing/golden-tests.md` for the re-baselining workflow.
 
 ## What CI enforces (and what the hook mirrors)
 
@@ -62,3 +118,26 @@ Generated files are committed but tagged `linguist-generated=true` in `.gitattri
 When in doubt, follow the package layering: `apps` depend on `packages`,
 `nightshade_app` depends on `nightshade_core`, and `nightshade_core` is the
 only Dart package that talks to the Rust bridge directly.
+
+## Adding a backend method
+
+The backend is split into role interfaces under `packages/nightshade_core/lib/src/backend/roles/` (`DeviceBackend`, `ImagingBackend`, `GuidingBackend`, `SequencerBackend`, `ProfileSettingsBackend`, `DiagnosticsBackend`). The marker interface `NightshadeBackend` composes all of them, and three concrete backends implement it: `FfiBackend` (local, talks to the Rust bridge), `NetworkBackend` (remote client over the wire), and `DisconnectedBackend` (no-op fallback).
+
+To add a method:
+
+1. Declare it on the narrowest role interface that fits (e.g. a capture call goes on `ImagingBackend`, not the full `NightshadeBackend`).
+2. Implement it in `FfiBackend` (`backend/ffi_backend/`). If the call touches the Rust boundary, add or extend the corresponding native API, then run `melos run generate` (or `melos run dev`) to regenerate the FRB bindings.
+3. If the method crosses the wire — anything a remote client needs — implement it in `NetworkBackend` (`backend/network_backend/`) and wire the matching headless-API endpoint under `apps/desktop/lib/headless_api/`. Desktop and remote behavior must stay at parity.
+4. Provide a sensible no-op or thrown-`NightshadeException` in `DisconnectedBackend`.
+5. Run `melos run analyze` and `melos run test` before pushing.
+
+## Updating the support matrix
+
+Code that compiles is **not** the same as supported hardware. A device counts as supported only when it has been exercised against a real rig and the result is recorded. When you add or verify hardware support, update all of these together so they agree:
+
+- `docs/supported-hardware-by-platform.md` — the per-platform support matrix.
+- `docs/known-limitations.md` — anything that works partially or not at all.
+- The in-app **Platform Capabilities** surface.
+- `/api/info`'s `platformCapabilities` field (headless API), so remote clients see the same answer.
+
+Record the real test evidence (rig, driver, observed behavior) under `docs/release-evidence/`. If you cannot point to evidence, the entry stays out of the matrix.

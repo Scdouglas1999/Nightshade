@@ -5,6 +5,23 @@ for a release candidate. Do not use it to hide blockers. An accepted limitation
 must be documented, understandable to users, paired with a workaround when one
 exists, and reflected in release notes.
 
+## 4.1.0 Verified Scope
+
+This is the scoped capability statement that must match the README "First public
+beta" callout, the release notes, and `supported-hardware-by-platform.md` word
+for word:
+
+> Nightshade is verified on **Windows**, where the desktop app drives ASCOM/Alpaca
+> cameras, focuser, filter wheel, and PHD2, with plate-solving and planning. Remote
+> **monitoring and planning** over the LAN — from the web dashboard and the Android
+> companion — are verified. Fully-unattended **headless** acquisition on real ASCOM
+> hardware is **still being hardened** and should be supervised. **Linux** is in
+> early testing; **macOS** builds in CI with no hardware soak. Every other device
+> path is **capability-gated** — present in the app but not a support guarantee
+> until verified per rig.
+
+Evidence: [`release-evidence/4.1.0.md`](release-evidence/4.1.0.md).
+
 ## Acceptance Rules
 
 A limitation can be accepted only when all of these are true:
@@ -31,6 +48,7 @@ text in the published release.
 | Hardware/platform | ASCOM COM is Windows-only. | Linux and macOS users cannot use local ASCOM COM drivers directly. | Use ASCOM Alpaca/ASCOM Remote, INDI, or another supported backend. | No. | Track in `docs/production-readiness/feature-parity-matrix.md` and platform-capability verification. |
 | Hardware/platform | Native DSLR control for Canon/Nikon is not a public-release guarantee. | DSLR users may need an external driver/backend. | Use supported ASCOM, INDI, or Alpaca workflows where available. | No, if docs and release notes do not advertise native DSLR support. | Track in `docs/supported-hardware-by-platform.md` and release notes scope review. |
 | Hardware/platform | INDI weather and switch parity is not fully verified for release-critical safety. | Linux/macOS observatory safety may require another backend. | Use a verified Alpaca or ASCOM safety/weather path for unattended operation. | Yes for unattended safety claims unless verified. | Track in hardware smoke evidence and `docs/production-readiness/feature-parity-matrix.md`. |
+| Remote/headless | Fully-unattended **headless** acquisition on real ASCOM hardware is still being hardened: headless COM-session issues affect mount connect, filter-wheel set, mid-session camera stability, and the sequence start-gate (B1–B6, B18, B19). | Unattended *headless* nights on a Windows ASCOM rig may stall or mis-capture; the desktop GUI path performs the same operations correctly. | Use the desktop app for unattended runs, or supervise headless nights. Remote monitoring and planning over the LAN are reliable. | Yes for an *unattended-headless* acquisition claim; No for monitoring/planning and the desktop scope. | Tracked in `docs/release-evidence/4.1.0.md` and GitHub issues [#1–#6](https://github.com/Scdouglas1999/Nightshade/issues?q=label%3Abeta-gap) (B1/B2/B5/B18/B19 + umbrella); fixes implemented, runtime-pending on the rig. |
 | Remote/headless | Scoped tokens are coarse-grained (`view`, `control`, `admin`) rather than custom per-route roles. | Operators cannot yet define custom roles for a specific device or workflow. | Issue separate view/control/admin tokens and keep admin tokens limited to trusted operators. | No, if coarse scopes meet the release security model. | Track in Remote Access and Security sections of `docs/production-readiness/public-release-master-checklist.md`. |
 
 ## Unsupported By Platform

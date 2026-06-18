@@ -4,13 +4,14 @@
 
 # Nightshade
 
-**Run an entire unattended deep-sky night from one app.**
+**Plan, capture, guide, and watch your deep-sky night — from one app.**
 
 [![Latest release](https://img.shields.io/github/v/release/Scdouglas1999/Nightshade?label=release)](https://github.com/Scdouglas1999/Nightshade/releases/latest)
+[![Status: public beta](https://img.shields.io/badge/status-public%20beta-orange)](#-first-public-beta--whats-verified)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS%20%7C%20Android-blue)](#platforms)
 [![License](https://img.shields.io/badge/license-source--available-lightgrey)](LICENSE)
 
-[**Download**](https://github.com/Scdouglas1999/Nightshade/releases/latest) · [**Documentation**](docs/index.md) · [**Changelog**](CHANGELOG.md) · [**Release notes (3.1.0)**](docs/releases/3.1.0.md)
+[**Download**](https://github.com/Scdouglas1999/Nightshade/releases/latest) · [**Documentation**](docs/index.md) · [**Changelog**](CHANGELOG.md) · [**Release notes (4.1.0)**](docs/release/v4.1.0.md)
 
 <img src="assets/screenshots/desktop-dashboard.png?v=20260608" width="860" alt="Nightshade live dashboard with preview, equipment, guiding, and weather tiles">
 
@@ -20,7 +21,15 @@
 
 A clear-sky imaging night usually means a stack of programs: one to drive the camera, one to plan targets, a planetarium to frame, a sequencer to automate, a guider, and something to watch the weather. Each keeps its own profiles. Each fails in its own way. When a USB cable hiccups at 2 a.m., you find out in the morning.
 
-Nightshade runs the whole night from a single program. Connect the rig, plan targets, frame and plate-solve, build the sequence, capture, guide, and watch the sky. Pick a target in the planner and it runs in the sequencer without re-typing coordinates. It targets the unattended night: it parks safely and recovers from disconnects on its own. The desktop app is the control surface. A LAN web dashboard and an Android companion supervise the same live session while you sleep.
+Nightshade runs the whole night from a single program. Connect the rig, plan targets, frame and plate-solve, build the sequence, capture, guide, and watch the sky. Pick a target in the planner and it runs in the sequencer without re-typing coordinates. It is built for the unattended night — parking safely and recovering from disconnects — but that goal is reached path-by-path against real hardware, so read what's verified below before you leave it alone. The desktop app is the control surface. A LAN web dashboard and an Android companion supervise the same live session.
+
+> ### 🔭 First public beta — what's verified
+>
+> Nightshade is verified on **Windows**, where the desktop app drives ASCOM/Alpaca cameras, focuser, filter wheel, and PHD2, with plate-solving and planning. Remote **monitoring and planning** over the LAN — from the web dashboard and the Android companion — are verified. Fully-unattended **headless** acquisition on real ASCOM hardware is **still being hardened** and should be supervised. **Linux** is in early testing; **macOS** builds in CI with no hardware soak. Every other device path is **capability-gated** — present in the app but not a support guarantee until verified per rig.
+>
+> **Recommended tested setup:** Windows 10/11 desktop app + ASCOM/Alpaca drivers + a supported camera, focuser, filter wheel, and PHD2. **Experimental / supervise closely:** unattended *headless* nights, Linux, macOS, and native-SDK device paths. See [release evidence](docs/release-evidence/4.1.0.md), [supported hardware](docs/supported-hardware-by-platform.md), and [known limitations](docs/known-limitations.md). Test reports from real rigs are the most useful thing you can send — name the gear, the backend (ASCOM/Alpaca/INDI/native), the OS, and where it went sideways.
+>
+> ⚠️ **Do not leave an expensive rig running unattended until your specific setup has passed a supervised first-night validation.** Watch the first full sessions end to end — connect, slew, focus, guide, capture, meridian flip, and park — and confirm each step on *your* hardware before you trust it to run while you sleep.
 
 ## What it does
 
@@ -86,24 +95,18 @@ Then step away. Supervise or drive the same live session from a LAN browser or t
 </tr>
 </table>
 
-## What's new in 3.1.0
+## What's new in 4.1.0
 
-3.1.0 finishes the unattended night.
+4.0 was the "run your rig from the couch" release; 4.1 makes the whole thing feel solid.
 
-- **Safe-state on abort and park** now closes the cover and dome and brings the rig to a genuine safe state, not only halting the mount.
-- **Disconnect, reconnect, resume.** A device dropping mid-sequence reconnects, re-acquires the guide star, and retries the interrupted instruction.
-- A single weather-verdict authority with a real abstain channel, so "unknown" never reads as "safe." The Rust executor enforces the pause/park/close action as a second check.
-- **Per-azimuth horizon mask** honored by both the runnable gate and the AltitudeAbove/Below loop conditions, plus count-based filter completion.
-- **The planner is now a read-only preview** of the live autopilot, after three separate target-selectors were unified into one engine.
-- **Per-sub eccentricity** computed from real star-shape moments, used to fire the grade gate, and shown as a color-graded cockpit overlay.
-- **Live-stacking auto-feed.** Accepted frames build the live stack during sequencer runs and broadcast over the LAN.
-- **Real per-cell radar** (RainViewer, NOAA, GOES) drives cloud-motion prediction, replacing the uniform-field placeholder and reporting honest reasons when data is absent.
-- **Plate solving** unified RA to degrees across every solve path and made the local ASTAP fallback functional and fail-loud.
-- **Slew-and-center converges** after fixing the solved-RA degrees-to-hours conversion. PHD2 dither waits for a real settle and fails closed.
-- **Mobile remote parity** across the full unattended-night control set, with shortest-side device-class detection so foldables lay out correctly in landscape.
-- **No daylight imaging.** The live scheduler gates on twilight and Sun altitude and parks at dawn through a distinct end-of-night hook.
+- **Catalogs, rebuilt.** Downloads stage to a temp file and swap in only once complete and verified (no more truncating your working catalog on a dropped connection); multi-gigabyte catalogs stream straight to disk, downloads cancel mid-flight, and progress survives leaving the screen.
+- **Night Narrator.** A real-time, plain-language insight feed on your session — what just happened, what's drifting, what needs attention — surfaced across the relevant screens instead of buried in logs.
+- **Sturdier remote & appliance paths.** More reliable mDNS discovery and pairing between the app and a headless rig, updated Avahi/systemd packaging for the dedicated-box setup, and smoother mobile reconnect to a known rig.
+- **Headless API parity & safety.** More desktop-parity endpoints, fails closed on unknown auth scopes, `/api/info` advertises every registered route, and handler errors are logged explicitly instead of swallowed.
+- **Autopilot hardening.** Refinements across autofocus, exposure, meridian-flip, and fault-recovery in the native sequencer.
+- **Self-contained Linux bundle.** Cross-distro packaging fixes (glibc floor, bundled libraw and sqlite) so the Linux artifact runs on a clean box.
 
-Full detail: [docs/releases/3.1.0.md](docs/releases/3.1.0.md).
+Full detail: [docs/release/v4.1.0.md](docs/release/v4.1.0.md). Honest verification status — what's been run on real hardware versus code-only — is in [docs/release-evidence/4.1.0.md](docs/release-evidence/4.1.0.md).
 
 ## Hardware support
 
@@ -139,11 +142,13 @@ Download the latest release: **[github.com/Scdouglas1999/Nightshade/releases/lat
 
 | Platform | Asset |
 |---|---|
-| Windows installer | `Nightshade-3.1.0-Windows-Setup.exe` |
-| Linux x64 | `Nightshade-3.1.0-Linux-x64.tar.gz` |
-| Android companion | `Nightshade-3.1.0-Android.apk` |
-| macOS desktop | Not shipped for 3.1.0 (build from source) |
+| Windows x64 | `nightshade-4.1.0-windows-x64.zip` (portable build — unzip and run) |
+| Linux x64 | `nightshade-4.1.0-linux-x64.tar.gz` |
+| Android companion | `nightshade-4.1.0-android-universal.apk` (debug-signed sideload beta — see note) |
+| macOS desktop | Not shipped (build from source) |
 | iOS companion | Build from source (requires signing) |
+
+> **Android APK is a debug-signed sideload beta.** It is built with `flutter build apk --release` but signed with the standard Android debug key, not a production release key, so Android may warn on install and Play-Store distribution is not configured. It is for sideloading to pair with your rig, not a polished store release. Install via "unknown sources."
 
 The Android and iOS apps pair to a running desktop or headless instance by QR code over your LAN. They supervise and lightly control the live session; the desktop app remains the full control surface.
 
@@ -163,7 +168,10 @@ New to Nightshade? Start with the [installation guide](docs/getting-started/inst
 - [Known limitations](docs/known-limitations.md)
 - [Headless / remote setup](docs/headless-secure-setup.md)
 - [FFI troubleshooting](docs/FRB_TROUBLESHOOTING.md)
-- [Release notes 3.1.0](docs/releases/3.1.0.md)
+- [Release notes 4.1.0](docs/release/v4.1.0.md)
+- [Release evidence (what's verified) 4.1.0](docs/release-evidence/4.1.0.md)
+- [Architecture overview](docs/architecture.md)
+- [No-silent-fake-hardware policy](docs/no-fake-hardware-policy.md)
 - [Changelog](CHANGELOG.md)
 
 ## Build from source
