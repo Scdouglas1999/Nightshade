@@ -27,6 +27,31 @@ import 'package:nightshade_ui/nightshade_ui.dart';
   );
 }
 
+({
+  Sequence sequence,
+  String containerId,
+  String firstChildId,
+  String secondChildId
+}) _containerWithTwoChildren() {
+  final first = ExposureNode(name: 'first', durationSecs: 1, count: 1);
+  final second = ExposureNode(name: 'second', durationSecs: 1, count: 1);
+  final container = InstructionSetNode(name: 'container');
+  final root = InstructionSetNode(name: 'Root');
+  final tree = <String, SequenceNode>{
+    first.id: first.copyWith(parentId: container.id, orderIndex: 0),
+    second.id: second.copyWith(parentId: container.id, orderIndex: 1),
+    container.id:
+        container.copyWith(parentId: root.id, childIds: [first.id, second.id]),
+    root.id: root.copyWith(childIds: [container.id]),
+  };
+  return (
+    sequence: Sequence.create(name: 'T', nodes: tree, rootNodeId: root.id),
+    containerId: container.id,
+    firstChildId: first.id,
+    secondChildId: second.id,
+  );
+}
+
 ProviderContainer _seed(Sequence seq) {
   final notifier = CurrentSequenceNotifier();
   // ignore: invalid_use_of_protected_member
@@ -156,7 +181,13 @@ void main() {
     expect(newParent.parentId, t.containerId);
   });
 
-  testWidgets('Group into Parallel Container wraps the node', (tester) async {
+  testWidgets(
+      'Group into Parallel Container is disabled for a single node and '
+      'leaves the tree unchanged', (tester) async {
+    // A parallel branch of one is semantically a no-op, so the menu now
+    // gates "Group into Parallel Container" behind a 2+ contiguous-sibling
+    // selection. With only the right-clicked node "selected", the entry is
+    // disabled and tapping it must not mutate the sequence.
     final t = _containerWithOneChild();
     final container = _seed(t.sequence);
 
@@ -172,12 +203,52 @@ void main() {
     );
 
     await _openMenu(tester, find.text('row'));
+
+    // The disabled PopupMenuItem renders its label muted; tapping it is a
+    // no-op (Flutter swallows taps on disabled menu items).
     await tester.tap(find.text('Group into Parallel Container'));
     await tester.pumpAndSettle();
 
     final seq = container.read(currentSequenceProvider)!;
-    final wrappedChild = seq.nodes[t.childId]!;
-    expect(seq.nodes[wrappedChild.parentId!], isA<ParallelNode>());
+    final child = seq.nodes[t.childId]!;
+    // Parent is still the original Sequential container — nothing wrapped.
+    expect(child.parentId, t.containerId);
+    expect(seq.nodes[t.containerId], isA<InstructionSetNode>());
+  });
+
+  testWidgets(
+      'Group into Parallel Container wraps a 2+ contiguous sibling selection',
+      (tester) async {
+    final t = _containerWithTwoChildren();
+    final container = _seed(t.sequence);
+    // Multi-select both siblings so the parallel grouping is enabled and
+    // wraps the whole subset into a single ParallelNode.
+    container
+        .read(multiSelectedNodeIdsProvider.notifier)
+        .selectAll([t.firstChildId, t.secondChildId]);
+
+    await _pump(
+      tester,
+      container,
+      SequenceTreeContextMenu(
+        nodeId: t.firstChildId,
+        colors: _colors(),
+        child: const SizedBox(
+            width: 200, height: 40, child: Center(child: Text('row'))),
+      ),
+    );
+
+    await _openMenu(tester, find.text('row'));
+    await tester.tap(find.text('Group into Parallel Container'));
+    await tester.pumpAndSettle();
+
+    final seq = container.read(currentSequenceProvider)!;
+    final wrappedChild = seq.nodes[t.firstChildId]!;
+    final newParent = seq.nodes[wrappedChild.parentId!]!;
+    expect(newParent, isA<ParallelNode>());
+    // Both originally selected siblings now live under the same new parent.
+    expect(seq.nodes[t.secondChildId]!.parentId, wrappedChild.parentId);
+    expect(newParent.parentId, t.containerId);
   });
 
   testWidgets('Disable toggles isEnabled', (tester) async {

@@ -94,7 +94,7 @@ class RunDashboardQualityPanel extends ConsumerWidget {
               ),
               const SizedBox(width: NightshadeTokens.spaceXs),
               Text(
-                '/ ${summary.total} rejected',
+                'rejected of ${summary.total} graded',
                 style: NightshadeTypography.withTabular(
                   NightshadeTypography.labelSm.copyWith(
                     color: colors.textSecondary,
@@ -240,9 +240,9 @@ class _AdaptiveExposureInline extends StatelessWidget {
         isAdjusted ? colors.primary : colors.textPrimary,
     };
     final skyLabel = event.skyBrightnessMag != null
-        ? '${event.skyBrightnessMag!.toStringAsFixed(2)} mag/arcsecÂ²'
+        ? '${event.skyBrightnessMag!.toStringAsFixed(2)} mag/arcsec²'
         : 'sky brightness unavailable';
-    final filterLabel = event.filter == null ? '' : '${event.filter} Â· ';
+    final filterLabel = event.filter == null ? '' : '${event.filter} · ';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,

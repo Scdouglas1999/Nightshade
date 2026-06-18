@@ -8,7 +8,7 @@ class _VisualMosaicPlanner extends StatefulWidget {
   final double panelWidthArcmin;
   final double panelHeightArcmin;
   final double rotation;
-  final ValueChanged<int> onPanelToggle;
+  final ValueChanged<_PanelPosition> onPanelToggle;
 
   /// Drag callback: (deltaRaHours, deltaDecDegrees).
   final void Function(double dRaHours, double dDecDeg) onDragCenter;
@@ -244,7 +244,7 @@ class _PanelLayer extends StatelessWidget {
   final double panelHeightArcmin;
   final double rotation;
   final double pxPerDeg;
-  final ValueChanged<int> onPanelToggle;
+  final ValueChanged<_PanelPosition> onPanelToggle;
   final void Function(double dRaHours, double dDecDeg) onDragCenter;
 
   const _PanelLayer({
@@ -328,7 +328,7 @@ class _PanelLayer extends StatelessWidget {
       child: Transform.rotate(
         angle: rotation * math.pi / 180.0,
         child: GestureDetector(
-          onTap: () => onPanelToggle(p.index),
+          onTap: () => onPanelToggle(p),
           child: Container(
             width: pxWidth,
             height: pxHeight,

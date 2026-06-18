@@ -313,10 +313,11 @@ class ExposureNode extends SequenceNode {
     // Plain `?? this.X` semantics: passing `adaptiveExposure: someConfig`
     // installs an explicit per-node override; omitting it keeps the
     // current value. To CLEAR the override (reset to "use global default"),
-    // callers must build a new node directly — see
-    // `_AdaptiveExposureSectionState._clearOverride` in the editor for
-    // the canonical rebuild-explicit pattern.
+    // pass `clearAdaptiveExposure: true` — this wins over `adaptiveExposure`
+    // and nulls the field, so the editor's "use global default" reset is a
+    // single `copyWith` call rather than a hand-rebuilt node.
     AdaptiveExposureConfig? adaptiveExposure,
+    bool clearAdaptiveExposure = false,
   }) {
     return ExposureNode(
       id: id ?? this.id,
@@ -336,7 +337,9 @@ class ExposureNode extends SequenceNode {
       binning: binning ?? this.binning,
       ditherEvery: ditherEvery ?? this.ditherEvery,
       triggers: triggers ?? this.triggers,
-      adaptiveExposure: adaptiveExposure ?? this.adaptiveExposure,
+      adaptiveExposure: clearAdaptiveExposure
+          ? null
+          : (adaptiveExposure ?? this.adaptiveExposure),
     );
   }
 

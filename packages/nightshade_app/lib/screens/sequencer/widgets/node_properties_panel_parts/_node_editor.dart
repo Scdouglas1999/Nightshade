@@ -79,10 +79,10 @@ class _NodeEditor extends ConsumerWidget {
             const SizedBox(height: 16),
 
             // Name field
-            _PropertyField(
+            NodePropertyField(
               colors: colors,
               label: 'Name',
-              child: _TextInput(
+              child: NodeTextInput(
                 colors: colors,
                 value: node.name,
                 onChanged: (value) {
@@ -94,10 +94,10 @@ class _NodeEditor extends ConsumerWidget {
             ),
 
             // Enabled toggle
-            _PropertyField(
+            NodePropertyField(
               colors: colors,
               label: 'Enabled',
-              child: _ToggleSwitch(
+              child: NodeToggleSwitch(
                 colors: colors,
                 value: node.isEnabled,
                 onChanged: (value) {
@@ -121,7 +121,7 @@ class _NodeEditor extends ConsumerWidget {
             // helper handles both the prompt and the selection cleanup.
             SizedBox(
               width: double.infinity,
-              child: _DangerButton(
+              child: NodeDangerButton(
                 colors: colors,
                 label: 'Delete Node',
                 icon: LucideIcons.trash2,
@@ -192,14 +192,16 @@ class _NodeEditor extends ConsumerWidget {
       _ => _UnknownNodeProperties(colors: colors, node: node),
     };
 
-    // Add timing section for nodes with meaningful duration
-    if (_hasMeaningfulDuration(node)) {
+    // Add timing section for nodes with meaningful duration. Uses the public
+    // NodeTimingSection (single source of truth) — the formerly-duplicated
+    // private _TimingSection has been removed.
+    if (hasMeaningfulDuration(node)) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           propertiesWidget,
           const SizedBox(height: 16),
-          _TimingSection(colors: colors, node: node),
+          NodeTimingSection(colors: colors, node: node),
         ],
       );
     }

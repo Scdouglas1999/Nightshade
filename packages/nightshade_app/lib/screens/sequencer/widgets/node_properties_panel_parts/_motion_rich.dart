@@ -17,14 +17,7 @@ class _CenterProperties extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Centering Settings',
-          style: TextStyle(
-            fontSize: Responsive.fontSize(context, 13),
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
-        ),
+        NodeSectionHeader(colors: colors, label: 'Centering Settings'),
         const SizedBox(height: 12),
         NodePropertyField(
           colors: colors,
@@ -83,10 +76,21 @@ class _CenterProperties extends ConsumerWidget {
               ),
             ],
           ),
+          _CoordinateReadout(
+            colors: colors,
+            raHours: node.customRa ?? 0,
+            decDeg: node.customDec ?? 0,
+          ),
         ],
+        if (node.useTargetCoords)
+          _TargetResolutionPreview(colors: colors, nodeId: node.id),
         NodePropertyField(
           colors: colors,
           label: 'Accuracy',
+          helpText:
+              'How close the plate-solve centre must land to the target before '
+              'centering is considered done. Smaller = tighter framing but more '
+              'solve/slew iterations.',
           child: NodeNumberInput(
             colors: colors,
             value: node.accuracyArcsec,
@@ -165,14 +169,7 @@ class _AutofocusProperties extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Autofocus Settings',
-          style: TextStyle(
-            fontSize: Responsive.fontSize(context, 13),
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
-        ),
+        NodeSectionHeader(colors: colors, label: 'Autofocus Settings'),
         const SizedBox(height: 12),
         // Use Settings Defaults toggle
         NodePropertyField(
@@ -367,6 +364,10 @@ class _AutofocusProperties extends ConsumerWidget {
               child: NodePropertyField(
                 colors: colors,
                 label: 'Steps Out',
+                helpText:
+                    'How many focuser steps to move outward from the centre on '
+                    'each side when sampling the V-curve. More steps span a '
+                    'wider focus range but take longer.',
                 child: NodeNumberInput(
                   colors: colors,
                   value: node.stepsOut.toDouble(),
@@ -441,14 +442,7 @@ class _RotatorProperties extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Rotator Settings',
-          style: TextStyle(
-            fontSize: Responsive.fontSize(context, 13),
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
-        ),
+        NodeSectionHeader(colors: colors, label: 'Rotator Settings'),
         const SizedBox(height: 12),
         NodePropertyField(
           colors: colors,
@@ -506,14 +500,7 @@ class _SlewProperties extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Slew Settings',
-          style: TextStyle(
-            fontSize: Responsive.fontSize(context, 13),
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
-        ),
+        NodeSectionHeader(colors: colors, label: 'Slew Settings'),
         const SizedBox(height: 12),
         NodePropertyField(
           colors: colors,
@@ -573,70 +560,138 @@ class _SlewProperties extends ConsumerWidget {
               ),
             ],
           ),
-        ],
-        if (node.useTargetCoords) ...[
-          Builder(
-            builder: (context) {
-              final sequence = ref.watch(currentSequenceProvider);
-              TargetHeaderNode? targetGroup;
-
-              if (sequence != null) {
-                // Try to find parent target group first
-                try {
-                  targetGroup = sequence.nodes.values
-                      .whereType<TargetHeaderNode>()
-                      .where((n) => n.childIds.contains(node.id))
-                      .first;
-                } catch (e) {
-                  // No direct parent found
-                }
-
-                // If no direct parent, use first target group in sequence
-                if (targetGroup == null && sequence.targetHeaders.isNotEmpty) {
-                  targetGroup = sequence.targetHeaders.first;
-                }
-              }
-
-              return Container(
-                padding: const EdgeInsets.all(12),
-                decoration: NightshadeDecorations.tintedBadge(
-                  targetGroup != null ? colors.success : colors.warning,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusInline8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      targetGroup != null
-                          ? LucideIcons.checkCircle
-                          : LucideIcons.alertCircle,
-                      size: 14,
-                      color:
-                          targetGroup != null ? colors.success : colors.warning,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        targetGroup != null
-                            ? 'Will use target: ${targetGroup.targetName}\nRA: ${targetGroup.raHours.toStringAsFixed(4)}h, Dec: ${targetGroup.decDegrees.toStringAsFixed(4)}\u00B0'
-                            : 'No target group found in sequence',
-                        style: TextStyle(
-                          fontSize: Responsive.fontSize(context, 12),
-                          color: targetGroup != null
-                              ? colors.success
-                              : colors.warning,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
+          _CoordinateReadout(
+            colors: colors,
+            raHours: node.customRa ?? 0,
+            decDeg: node.customDec ?? 0,
           ),
         ],
+        if (node.useTargetCoords)
+          _TargetResolutionPreview(colors: colors, nodeId: node.id),
       ],
     );
   }
+}
+
+/// Live HMS/DMS readout shown beneath a decimal RA/Dec entry pair so the user
+/// can sanity-check that "5.5754h" really is the Orion-nebula RA they meant.
+class _CoordinateReadout extends StatelessWidget {
+  final NightshadeColors colors;
+  final double raHours;
+  final double decDeg;
+
+  const _CoordinateReadout({
+    required this.colors,
+    required this.raHours,
+    required this.decDeg,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        '${formatRaHoursAsHms(raHours)}   ${formatDecDegAsDms(decDeg)}',
+        style: TextStyle(
+          fontSize: Responsive.fontSize(context, 11),
+          color: colors.textMuted,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
+    );
+  }
+}
+
+/// Mount-target resolution preview shared by the Slew and Center editors.
+///
+/// When "Use Target Coordinates" is on, the node inherits RA/Dec from its
+/// parent (or the first) [TargetHeaderNode]. This card shows which target will
+/// be used (green) or warns when none can be found (amber) so the user isn't
+/// left guessing whether the slew/center has anything to aim at.
+class _TargetResolutionPreview extends ConsumerWidget {
+  final NightshadeColors colors;
+  final String nodeId;
+
+  const _TargetResolutionPreview({required this.colors, required this.nodeId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sequence = ref.watch(currentSequenceProvider);
+    TargetHeaderNode? targetGroup;
+
+    if (sequence != null) {
+      targetGroup = sequence.nodes.values
+          .whereType<TargetHeaderNode>()
+          .where((n) => n.childIds.contains(nodeId))
+          .firstOrNull;
+      // If no direct parent owns this node, fall back to the first target
+      // group in the sequence.
+      targetGroup ??= sequence.targetHeaders.isNotEmpty
+          ? sequence.targetHeaders.first
+          : null;
+    }
+
+    final resolved = targetGroup != null;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: NightshadeDecorations.tintedBadge(
+          resolved ? colors.success : colors.warning,
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              resolved ? LucideIcons.checkCircle : LucideIcons.alertCircle,
+              size: 14,
+              color: resolved ? colors.success : colors.warning,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                targetGroup != null
+                    ? 'Will use target: ${targetGroup.targetName}\n'
+                        '${formatRaHoursAsHms(targetGroup.raHours)}   '
+                        '${formatDecDegAsDms(targetGroup.decDegrees)}'
+                    : 'No target group found in sequence',
+                style: TextStyle(
+                  fontSize: Responsive.fontSize(context, 12),
+                  color: resolved ? colors.success : colors.warning,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Format decimal RA hours as `HHh MMm SS.Ss`.
+String formatRaHoursAsHms(double hours) {
+  var h = hours % 24;
+  if (h < 0) h += 24;
+  final hh = h.floor();
+  final remMin = (h - hh) * 60;
+  final mm = remMin.floor();
+  final ss = (remMin - mm) * 60;
+  return '${hh.toString().padLeft(2, '0')}h '
+      '${mm.toString().padLeft(2, '0')}m '
+      '${ss.toStringAsFixed(1).padLeft(4, '0')}s';
+}
+
+/// Format decimal declination degrees as `\u00B1DD\u00B0 MM' SS"`.
+String formatDecDegAsDms(double degrees) {
+  final sign = degrees < 0 ? '-' : '+';
+  final abs = degrees.abs();
+  final dd = abs.floor();
+  final remMin = (abs - dd) * 60;
+  final mm = remMin.floor();
+  final ss = (remMin - mm) * 60;
+  return '$sign${dd.toString().padLeft(2, '0')}\u00B0 '
+      "${mm.toString().padLeft(2, '0')}' "
+      '${ss.toStringAsFixed(0).padLeft(2, '0')}"';
 }
 
 class _MeridianFlipProperties extends ConsumerWidget {
@@ -650,14 +705,7 @@ class _MeridianFlipProperties extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Meridian Flip Settings',
-          style: TextStyle(
-            fontSize: Responsive.fontSize(context, 13),
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
-        ),
+        NodeSectionHeader(colors: colors, label: 'Meridian Flip Settings'),
         const SizedBox(height: 12),
         NodePropertyField(
           colors: colors,
@@ -739,15 +787,37 @@ class _MeridianFlipProperties extends ConsumerWidget {
               },
             ),
           ),
-        const SizedBox(height: 8),
-        Text(
-          'Flip Sequence',
-          style: TextStyle(
-            fontSize: Responsive.fontSize(context, 13),
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
+        if (node.triggerMethod == MeridianTriggerMethod.onTrackingLimitHit)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: NightshadeDecorations.tintedBadge(
+                colors.info,
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(LucideIcons.info, size: 14, color: colors.info),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Flip is triggered when the mount reports it has reached '
+                      'its tracking / meridian limit — no threshold needed.',
+                      style: TextStyle(
+                        fontSize: Responsive.fontSize(context, 12),
+                        color: colors.info,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
+        const SizedBox(height: 8),
+        NodeSectionHeader(colors: colors, label: 'Flip Sequence'),
         const SizedBox(height: 8),
         NodePropertyField(
           colors: colors,
@@ -804,6 +874,9 @@ class _MeridianFlipProperties extends ConsumerWidget {
         NodePropertyField(
           colors: colors,
           label: 'Settle Time',
+          helpText:
+              'How long to wait after the flip for the mount to mechanically '
+              'settle before resuming guiding/imaging.',
           child: NodeNumberInput(
             colors: colors,
             value: node.settleTime,
@@ -819,14 +892,7 @@ class _MeridianFlipProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 8),
-        Text(
-          'Error Handling',
-          style: TextStyle(
-            fontSize: Responsive.fontSize(context, 13),
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
-        ),
+        NodeSectionHeader(colors: colors, label: 'Error Handling'),
         const SizedBox(height: 8),
         NodePropertyField(
           colors: colors,
@@ -904,14 +970,7 @@ class _PolarAlignmentProperties extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Polar Alignment Settings',
-          style: TextStyle(
-            fontSize: Responsive.fontSize(context, 13),
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
-        ),
+        NodeSectionHeader(colors: colors, label: 'Polar Alignment Settings'),
         const SizedBox(height: 12),
         NodePropertyField(
           colors: colors,

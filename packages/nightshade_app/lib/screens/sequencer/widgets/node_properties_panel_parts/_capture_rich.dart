@@ -15,14 +15,7 @@ class _CoolCameraProperties extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Cooling Settings',
-          style: TextStyle(
-            fontSize: Responsive.fontSize(context, 13),
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
-        ),
+        NodeSectionHeader(colors: colors, label: 'Cooling Settings'),
         const SizedBox(height: 12),
         NodePropertyField(
           colors: colors,
@@ -49,6 +42,9 @@ class _CoolCameraProperties extends ConsumerWidget {
             suffix: 'min',
             min: 1,
             max: 60,
+            // Surface that 10 is the implicit fallback (not an explicit choice)
+            // when the field has never been set.
+            helperText: node.durationMins == null ? 'Default: 10 min' : null,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
                     node.copyWith(durationMins: value),
@@ -80,25 +76,29 @@ class _FilterChangeProperties extends ConsumerWidget {
         (index: i, name: filterNames[i]),
     ];
 
-    // Find current selection, or default to first if not found
-    final currentFilter = filterOptions.isEmpty
-        ? null
-        : filterOptions.firstWhere(
-            (f) => f.name == node.filterName || f.index == node.filterPosition,
-            orElse: () => filterOptions.first,
-          );
+    // Find current selection. If the stored filter is no longer in the profile
+    // we surface it as an explicit "(not in profile)" option and select it,
+    // rather than silently snapping to the first filter (which would quietly
+    // rewrite the node's filter on open).
+    final matched = filterOptions.firstWhereOrNull(
+      (f) => f.name == node.filterName || f.index == node.filterPosition,
+    );
+    final bool missingFromProfile = filterOptions.isNotEmpty &&
+        matched == null &&
+        node.filterName.isNotEmpty;
+    if (missingFromProfile) {
+      filterOptions.add((
+        index: _kMissingFilterSentinel,
+        name: '${node.filterName} (not in profile)'
+      ));
+    }
+    final currentFilter =
+        filterOptions.isEmpty ? null : (matched ?? filterOptions.last);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Filter Settings',
-          style: TextStyle(
-            fontSize: Responsive.fontSize(context, 13),
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
-        ),
+        NodeSectionHeader(colors: colors, label: 'Filter Settings'),
         const SizedBox(height: 12),
         NodePropertyField(
           colors: colors,
@@ -144,6 +144,8 @@ class _FilterChangeProperties extends ConsumerWidget {
                       }).toList(),
                       onChanged: (newValue) {
                         if (newValue != null) {
+                          // The synthetic "not in profile" row is display-only.
+                          if (newValue.index == _kMissingFilterSentinel) return;
                           // Set BOTH name and position for reliable filter changes
                           ref.read(currentSequenceProvider.notifier).updateNode(
                                 node.copyWith(
@@ -157,6 +159,26 @@ class _FilterChangeProperties extends ConsumerWidget {
                   ),
                 ),
         ),
+        if (missingFromProfile) ...[
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(LucideIcons.alertTriangle, size: 12, color: colors.warning),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  'Stored filter no longer in this profile — pick a current '
+                  'filter or edit the profile.',
+                  style: TextStyle(
+                    fontSize: Responsive.fontSize(context, 11),
+                    color: colors.warning,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 4),
         InkWell(
           onTap: () => ProfileEditorDialog.show(
@@ -197,14 +219,7 @@ class _WarmCameraProperties extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Warming Settings',
-          style: TextStyle(
-            fontSize: Responsive.fontSize(context, 13),
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
-        ),
+        NodeSectionHeader(colors: colors, label: 'Warming Settings'),
         const SizedBox(height: 12),
         NodePropertyField(
           colors: colors,

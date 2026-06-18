@@ -125,12 +125,14 @@ class _NoteTile extends StatelessWidget {
               onTapLink: (_, href, __) {
                 // Notes are local journal entries; opening external
                 // links from a non-trusted source unilaterally would be
-                // a UX surprise. Defer to the editor where the user can
-                // copy URLs manually if they need to.
+                // a UX surprise. Copy the href to the clipboard instead so
+                // the affordance is honest — the user can paste it into a
+                // browser if they choose.
                 if (href != null && href.isNotEmpty) {
+                  Clipboard.setData(ClipboardData(text: href));
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Open in editor to follow: $href'),
+                      content: Text('Link copied: $href'),
                       duration: const Duration(seconds: 2),
                     ),
                   );
@@ -214,7 +216,21 @@ String _truncateForPreview(String body, int maxLines) {
   // markdown structure (bullet, table row, fenced block).
   var cut = body.lastIndexOf('\n', softLimit);
   if (cut < softLimit ~/ 2) cut = softLimit; // give up on line-aware cut
-  return '${body.substring(0, cut).trimRight()}…';
+  final truncated = '${body.substring(0, cut).trimRight()}…';
+  return _balanceMarkdownFences(truncated);
+}
+
+/// Repair markdown structures the [_truncateForPreview] cut may have left
+/// open. An unbalanced ``` fence makes [MarkdownBody] swallow everything
+/// after it as code (and can break rendering of the surrounding tile), so
+/// when the truncated string has an odd number of fences we append a
+/// closing fence on its own line.
+String _balanceMarkdownFences(String text) {
+  final fenceCount = '```'.allMatches(text).length;
+  if (fenceCount.isOdd) {
+    return '$text\n```';
+  }
+  return text;
 }
 
 /// Build a [MarkdownStyleSheet] that pulls from the design-system

@@ -168,7 +168,7 @@ class _Header extends StatelessWidget {
         ),
         const Spacer(),
         Text(
-          filter == null ? target : '$target Â· $filter',
+          filter == null ? target : '$target · $filter',
           style: NightshadeTypography.labelStrongSm
               .copyWith(color: colors.textPrimary),
         ),
@@ -201,7 +201,7 @@ class _SummaryRow extends StatelessWidget {
         _Metric(label: 'frames', value: '${points.length}', colors: colors),
         const SizedBox(width: NightshadeTokens.spaceLg),
         _Metric(
-          label: 'Î”mag',
+          label: 'Δmag',
           value: mag == 0 ? '—' : mag.toStringAsFixed(3),
           colors: colors,
         ),
@@ -273,7 +273,7 @@ class _Metric extends StatelessWidget {
 }
 
 // ============================================================================
-// Painter — magnitude (Î”mag) vs time
+// Painter — magnitude (Δmag) vs time
 // ============================================================================
 
 class _LightCurvePainter extends CustomPainter {

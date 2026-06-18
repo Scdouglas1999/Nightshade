@@ -14,15 +14,12 @@ class _ScriptProperties extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Script Settings',
-          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
-        ),
+        NodeSectionHeader(colors: colors, label: 'Script Settings'),
         const SizedBox(height: 12),
-        _PropertyField(
+        NodePropertyField(
           colors: colors,
           label: 'Script Path',
-          child: _TextInput(
+          child: NodeTextInput(
             colors: colors,
             value: node.scriptPath,
             hint: 'Path to script file',
@@ -33,28 +30,24 @@ class _ScriptProperties extends ConsumerWidget {
             },
           ),
         ),
-        _PropertyField(
+        NodePropertyField(
           colors: colors,
           label: 'Arguments',
-          child: _TextInput(
+          child: NodeTextInput(
             colors: colors,
-            value: node.arguments.join(' '),
-            hint: 'Space-separated arguments',
+            value: _joinScriptArgs(node.arguments),
+            hint: 'Space-separated; quote values with spaces',
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(
-                        arguments: value
-                            .split(' ')
-                            .where((s) => s.isNotEmpty)
-                            .toList()),
+                    node.copyWith(arguments: _tokenizeScriptArgs(value)),
                   );
             },
           ),
         ),
-        _PropertyField(
+        NodePropertyField(
           colors: colors,
           label: 'Timeout',
-          child: _NumberInput(
+          child: NodeNumberInput(
             colors: colors,
             value: (node.timeoutSecs ?? 300).toDouble(),
             suffix: 's',
@@ -177,15 +170,12 @@ class _DomeProperties extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
-        ),
+        NodeSectionHeader(colors: colors, label: title),
         const SizedBox(height: 12),
-        _PropertyField(
+        NodePropertyField(
           colors: colors,
           label: 'Shutter Only',
-          child: _ToggleSwitch(
+          child: NodeToggleSwitch(
             colors: colors,
             value: shutterOnly,
             onChanged: (value) {
@@ -371,7 +361,7 @@ class _CalibratorOnProperties extends ConsumerWidget {
       description:
           'Turns on the flat panel light at the specified brightness. Use with flat frame sequences.',
       children: [
-        _PropertyField(
+        NodePropertyField(
           colors: colors,
           label: 'Brightness',
           child: Column(
@@ -479,10 +469,7 @@ class _CoverCalibratorScaffold extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
-        ),
+        NodeSectionHeader(colors: colors, label: title),
         const SizedBox(height: 12),
         ...children,
         const SizedBox(height: 16),
@@ -527,10 +514,10 @@ class _CoverCalibratorTimeoutField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _PropertyField(
+    return NodePropertyField(
       colors: colors,
       label: 'Timeout (seconds)',
-      child: _NumberInput(
+      child: NodeNumberInput(
         colors: colors,
         value: timeoutSecs.toDouble(),
         min: min,
@@ -578,4 +565,61 @@ class _InstructionSetInfo extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Split a command-line argument string into tokens, honouring single and
+/// double quotes (and backslash escapes) so paths/values containing spaces
+/// survive as one argument: `--out "my dir" -v` → `[--out, my dir, -v]`.
+List<String> _tokenizeScriptArgs(String input) {
+  final tokens = <String>[];
+  final buffer = StringBuffer();
+  var inSingle = false;
+  var inDouble = false;
+  var hasToken = false;
+
+  for (var i = 0; i < input.length; i++) {
+    final ch = input[i];
+    if (ch == '\\' && !inSingle && i + 1 < input.length) {
+      // Backslash escapes the next char outside single quotes.
+      buffer.write(input[i + 1]);
+      hasToken = true;
+      i++;
+      continue;
+    }
+    if (ch == "'" && !inDouble) {
+      inSingle = !inSingle;
+      hasToken = true;
+      continue;
+    }
+    if (ch == '"' && !inSingle) {
+      inDouble = !inDouble;
+      hasToken = true;
+      continue;
+    }
+    if ((ch == ' ' || ch == '\t') && !inSingle && !inDouble) {
+      if (hasToken) {
+        tokens.add(buffer.toString());
+        buffer.clear();
+        hasToken = false;
+      }
+      continue;
+    }
+    buffer.write(ch);
+    hasToken = true;
+  }
+  if (hasToken) tokens.add(buffer.toString());
+  return tokens;
+}
+
+/// Re-join argument tokens for display, quoting any token that contains
+/// whitespace or quote characters so the round-trip is faithful.
+String _joinScriptArgs(List<String> args) {
+  return args.map((arg) {
+    if (arg.isEmpty) return '""';
+    final needsQuote =
+        arg.contains(' ') || arg.contains('\t') || arg.contains('"');
+    if (!needsQuote) return arg;
+    final escaped = arg.replaceAll(r'\', r'\\').replaceAll('"', r'\"');
+    return '"$escaped"';
+  }).join(' ');
 }

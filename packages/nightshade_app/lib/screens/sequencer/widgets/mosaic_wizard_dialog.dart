@@ -67,12 +67,14 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
   int _panelsVertical = 3;
   bool _advancedExpanded = false;
 
-  /// Indices of panels the user has disabled by tapping. The
-  /// canonical recipe (3x3) still generates 9 panels but disabled
-  /// entries are skipped when the sequence is built. This lets users
-  /// drop the corner panel that intersects with a tree without
-  /// rebuilding the grid.
-  final Set<int> _disabledPanels = <int>{};
+  /// Grid cells the user has disabled by tapping, keyed by (row, col) rather
+  /// than flat index. Keying by position means a grid resize drops only the
+  /// cells that genuinely no longer exist (row/col out of range) instead of
+  /// silently re-pointing a flat index at a different physical panel. The
+  /// canonical recipe still generates every panel; disabled cells are skipped
+  /// when the sequence is built. This lets users drop the corner panel that
+  /// intersects with a tree without rebuilding the grid.
+  final Set<({int row, int col})> _disabledPanels = <({int row, int col})>{};
 
   /// Holds the resumable checkpoint info when an interrupted mosaic
   /// sequence is detected. `null` while loading and when no mosaic
@@ -143,6 +145,13 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
     }
   }
 
+  /// Memoised spherical panel geometry (centre/row/col, WITHOUT the
+  /// disabled overlay). Recomputed only when a geometry input changes, since
+  /// [build] runs [_calculatePanels] on every frame and the planner does real
+  /// spherical trig per panel.
+  List<_PanelPosition>? _cachedGeometry;
+  String? _cachedGeometryKey;
+
   /// Compute panel positions for the visual planner.
   ///
   /// Delegates to the planetarium's `MosaicPlanner.generateRectangularMosaic`
@@ -152,45 +161,93 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
   /// preview). The wizard then maps those panels into the local
   /// `_PanelPosition` shape and overlays the user's enable/disable
   /// toggles.
+  ///
+  /// The geometry is memoised on its inputs; the disabled-state overlay is a
+  /// cheap per-call post-map (it can change every tap without recomputing the
+  /// trig) so it stays outside the cache.
   List<_PanelPosition> _calculatePanels() {
-    final overlapFraction = _overlapPercent / 100.0;
-    final panelFovWidthDeg = _panelWidthArcmin / 60.0;
-    final panelFovHeightDeg = _panelHeightArcmin / 60.0;
+    final key = '$_centerRa|$_centerDec|$_panelWidthArcmin|'
+        '$_panelHeightArcmin|$_overlapPercent|$_rotation|'
+        '$_panelsVertical|$_panelsHorizontal';
+    var geometry = _cachedGeometry;
+    if (geometry == null || _cachedGeometryKey != key) {
+      final overlapFraction = _overlapPercent / 100.0;
+      final panelFovWidthDeg = _panelWidthArcmin / 60.0;
+      final panelFovHeightDeg = _panelHeightArcmin / 60.0;
 
-    final plan = planetarium.MosaicPlanner.generateRectangularMosaic(
-      center: planetarium.CelestialCoordinate(
-        ra: _centerRa,
-        dec: _centerDec,
-      ),
-      rows: _panelsVertical,
-      columns: _panelsHorizontal,
-      panelFovWidth: panelFovWidthDeg,
-      panelFovHeight: panelFovHeightDeg,
-      overlap: planetarium.MosaicOverlap(
-        horizontal: overlapFraction,
-        vertical: overlapFraction,
-      ),
-      rotation: _rotation,
-    );
+      final plan = planetarium.MosaicPlanner.generateRectangularMosaic(
+        center: planetarium.CelestialCoordinate(
+          ra: _centerRa,
+          dec: _centerDec,
+        ),
+        rows: _panelsVertical,
+        columns: _panelsHorizontal,
+        panelFovWidth: panelFovWidthDeg,
+        panelFovHeight: panelFovHeightDeg,
+        overlap: planetarium.MosaicOverlap(
+          horizontal: overlapFraction,
+          vertical: overlapFraction,
+        ),
+        rotation: _rotation,
+      );
+      geometry = plan.panels
+          .map((p) => _PanelPosition(
+                ra: p.center.ra,
+                dec: p.center.dec,
+                index: p.index,
+                row: p.row,
+                col: p.column,
+                enabled: true,
+              ))
+          .toList();
+      _cachedGeometry = geometry;
+      _cachedGeometryKey = key;
+    }
 
-    return plan.panels
+    // Cheap disabled overlay — recomputed each call without touching the trig.
+    return geometry
         .map((p) => _PanelPosition(
-              ra: p.center.ra,
-              dec: p.center.dec,
+              ra: p.ra,
+              dec: p.dec,
               index: p.index,
               row: p.row,
-              col: p.column,
-              enabled: !_disabledPanels.contains(p.index),
+              col: p.col,
+              enabled: !_disabledPanels.contains((row: p.row, col: p.col)),
             ))
         .toList();
   }
 
+  /// Number of panels that will actually be captured (grid minus disabled
+  /// cells that still exist in the current grid).
+  int get _activePanelCount =>
+      _panelsHorizontal * _panelsVertical - _disabledPanels.length;
+
+  // Per-panel overhead model. These reflect the [MosaicSequenceOptions] the
+  // generator actually emits in [_createSequence] (centerAfterSlew: true,
+  // autofocusPerPanel: false) so the preview's estimate agrees with the built
+  // sequence instead of using one opaque 60 s lump.
+  static const double _slewSecsPerPanel = 30.0;
+  static const double _centerSecsPerPanel = 30.0; // plate-solve + recenter
+  static const double _autofocusSecsPerPanel = 60.0;
+
+  double _perPanelOverheadSecs({
+    required bool centerAfterSlew,
+    required bool autofocusPerPanel,
+  }) {
+    var overhead = _slewSecsPerPanel;
+    if (centerAfterSlew) overhead += _centerSecsPerPanel;
+    if (autofocusPerPanel) overhead += _autofocusSecsPerPanel;
+    return overhead;
+  }
+
   double _calculateTotalTime(double exposureSecs, int exposuresPerPanel) {
-    final activePanels =
-        _panelsHorizontal * _panelsVertical - _disabledPanels.length;
     final timePerPanel = exposureSecs * exposuresPerPanel;
-    const overheadPerPanel = 60.0;
-    return activePanels * (timePerPanel + overheadPerPanel);
+    // Mirror the options used by _createSequence so preview == built sequence.
+    final overheadPerPanel = _perPanelOverheadSecs(
+      centerAfterSlew: true,
+      autofocusPerPanel: false,
+    );
+    return _activePanelCount * (timePerPanel + overheadPerPanel);
   }
 
   void _generateMosaic() {
@@ -282,8 +339,8 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
     Navigator.of(context).pop();
 
     if (mounted) {
-      final activePanels = config.totalPanels - _disabledPanels.length;
-      context.showSuccessSnackBar('Generated mosaic with $activePanels panels');
+      context.showSuccessSnackBar(
+          'Generated mosaic with $_activePanelCount panels');
     }
   }
 
@@ -359,9 +416,10 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
 
   /// Find the set of node IDs that correspond to user-disabled panels
   /// in the visual planner. MosaicService labels its per-panel
-  /// TargetHeaders deterministically via MosaicPanelInfo.panelIndex
-  /// (0-based, row-major), so we walk the generated node map and
-  /// match by panelIndex.
+  /// TargetHeaders with MosaicPanelInfo carrying row/column, so we walk the
+  /// generated node map and match disabled cells by (row, col) — the same
+  /// position key the visual planner uses — so a grid resize can never
+  /// re-point a stale flat index at the wrong physical panel.
   Set<String> _disabledTargetSubtreeIds(
     Map<String, SequenceNode> nodes,
     SequenceNode rootNode,
@@ -371,8 +429,9 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
     final disabled = <String>{};
     for (final node in nodes.values) {
       if (node is TargetHeaderNode) {
-        final panelIndex = node.mosaicPanel?.panelIndex;
-        if (panelIndex != null && _disabledPanels.contains(panelIndex)) {
+        final panel = node.mosaicPanel;
+        if (panel != null &&
+            _disabledPanels.contains((row: panel.row, col: panel.column))) {
           disabled.add(node.id);
           _collectDescendants(nodes, node.id, disabled);
         }
@@ -521,24 +580,31 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
           size: ButtonSize.small,
         ),
         // Secondary path, unchanged: expand the grid into the live sequencer's
-        // capture tree (no durable project row).
-        NightshadeButton(
-          key: const ValueKey('mosaic_generate_sequence_btn'),
-          onPressed: _generateMosaic,
-          icon: NightshadeIcons.add,
-          label: 'Load into Sequencer',
-          variant: ButtonVariant.outline,
-          size: ButtonSize.small,
+        // capture tree (no durable project row). Tooltip disambiguates the two
+        // near-identical primary actions for the user, not just in code.
+        Tooltip(
+          message: 'Add these panels to the current sequence now',
+          child: NightshadeButton(
+            key: const ValueKey('mosaic_generate_sequence_btn'),
+            onPressed: _generateMosaic,
+            icon: NightshadeIcons.add,
+            label: 'Load into Sequencer',
+            variant: ButtonVariant.outline,
+            size: ButtonSize.small,
+          ),
         ),
         // Primary path: persist the design as a durable mosaic project and open
         // the project screen (/mosaic/:id).
-        NightshadeButton(
-          key: const ValueKey('mosaic_create_project_btn'),
-          onPressed: () => unawaited(_createMosaicProject()),
-          icon: NightshadeIcons.layoutGrid,
-          label: 'Create mosaic project',
-          variant: ButtonVariant.primary,
-          size: ButtonSize.small,
+        Tooltip(
+          message: 'Save a reusable project and track its progress',
+          child: NightshadeButton(
+            key: const ValueKey('mosaic_create_project_btn'),
+            onPressed: () => unawaited(_createMosaicProject()),
+            icon: NightshadeIcons.layoutGrid,
+            label: 'Create mosaic project',
+            variant: ButtonVariant.primary,
+            size: ButtonSize.small,
+          ),
         ),
       ],
       child: Row(
@@ -574,16 +640,20 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
                         if (cols != null) _panelsHorizontal = cols;
                         if (overlap != null) _overlapPercent = overlap;
                         if (rotation != null) _rotation = rotation;
-                        _disabledPanels.removeWhere(
-                            (i) => i >= _panelsHorizontal * _panelsVertical);
+                        // Drop disabled cells whose row/col no longer exist in
+                        // the resized grid (semantically correct — that
+                        // physical panel is gone). Surviving cells keep their
+                        // disabled state because they are keyed by position.
+                        _disabledPanels.removeWhere((cell) =>
+                            cell.row >= _panelsVertical ||
+                            cell.col >= _panelsHorizontal);
                       });
                     },
                   ),
                   const SizedBox(height: 16),
                   _StatsCard(
                     colors: colors,
-                    activePanels: _panelsHorizontal * _panelsVertical -
-                        _disabledPanels.length,
+                    activePanels: _activePanelCount,
                     gridLabel: '$_panelsHorizontal×$_panelsVertical',
                     panelArcminLabel:
                         '${(_panelWidthArcmin / 60).toStringAsFixed(2)}° × ${(_panelHeightArcmin / 60).toStringAsFixed(2)}°',
@@ -595,9 +665,8 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
                           exposure.exposuresPerPanel,
                         ) /
                         3600,
-                    totalExposures: (_panelsHorizontal * _panelsVertical -
-                            _disabledPanels.length) *
-                        exposure.exposuresPerPanel,
+                    totalExposures:
+                        _activePanelCount * exposure.exposuresPerPanel,
                   ),
                   const SizedBox(height: 16),
                   _AdvancedPanel(
@@ -650,12 +719,13 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
                 panelWidthArcmin: _panelWidthArcmin,
                 panelHeightArcmin: _panelHeightArcmin,
                 rotation: _rotation,
-                onPanelToggle: (idx) {
+                onPanelToggle: (panel) {
+                  final cell = (row: panel.row, col: panel.col);
                   setState(() {
-                    if (_disabledPanels.contains(idx)) {
-                      _disabledPanels.remove(idx);
+                    if (_disabledPanels.contains(cell)) {
+                      _disabledPanels.remove(cell);
                     } else {
-                      _disabledPanels.add(idx);
+                      _disabledPanels.add(cell);
                     }
                   });
                 },

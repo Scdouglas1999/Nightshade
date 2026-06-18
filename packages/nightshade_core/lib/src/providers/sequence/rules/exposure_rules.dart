@@ -53,6 +53,54 @@ class ExposureParamsRule implements SequenceValidator {
           ),
         );
       }
+      // Negative gain/offset is physically invalid — no sensor accepts a
+      // negative analogue gain or bias offset, and the driver would reject
+      // it at runtime. Catch it at edit time as an error.
+      final gain = node.gain;
+      if (gain != null && gain < 0) {
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.exposures,
+            title: 'Invalid Gain',
+            description:
+                'Exposure "${node.name}" has a negative gain ($gain). Gain '
+                'cannot be negative.',
+            affectedNodeId: node.id,
+            resolutionHint: 'Set a gain of 0 or higher.',
+          ),
+        );
+      } else if (gain != null && gain == 0) {
+        // Gain 0 is legal on many cameras (unity / minimum), but it is also
+        // the value you get from a blank field, so flag it as info so the
+        // user can confirm it was intentional.
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.info,
+            category: ValidationCategory.exposures,
+            title: 'Gain Is Zero',
+            description:
+                'Exposure "${node.name}" uses a gain of 0. Confirm this is '
+                'your camera\'s intended minimum gain and not a blank field.',
+            affectedNodeId: node.id,
+          ),
+        );
+      }
+      final offset = node.offset;
+      if (offset != null && offset < 0) {
+        issues.add(
+          ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.exposures,
+            title: 'Invalid Offset',
+            description:
+                'Exposure "${node.name}" has a negative offset ($offset). '
+                'Offset cannot be negative.',
+            affectedNodeId: node.id,
+            resolutionHint: 'Set an offset of 0 or higher.',
+          ),
+        );
+      }
     }
     return issues;
   }

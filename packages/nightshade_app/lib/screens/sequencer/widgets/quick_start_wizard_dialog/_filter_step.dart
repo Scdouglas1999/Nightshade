@@ -184,8 +184,7 @@ extension _FilterStep on _QuickStartWizardDialogState {
               SizedBox(
                 width: 120,
                 child: TextField(
-                  controller:
-                      TextEditingController(text: _loopCount.toString()),
+                  controller: _loopCountController,
                   style: TextStyle(
                       color: colors.textPrimary,
                       fontSize: NightshadeTypography.fontSize13),
@@ -226,6 +225,7 @@ extension _FilterStep on _QuickStartWizardDialogState {
 
   Widget _buildFilterRow(
       _FilterExposureConfig config, NightshadeColors colors) {
+    final controllers = _filterControllers[config.filterIndex];
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -258,8 +258,7 @@ extension _FilterStep on _QuickStartWizardDialogState {
             child: SizedBox(
               height: 32,
               child: TextField(
-                controller: TextEditingController(
-                    text: config.exposureSecs.round().toString()),
+                controller: controllers?.exp,
                 enabled: config.enabled,
                 style: TextStyle(
                     color: colors.textPrimary,
@@ -302,8 +301,7 @@ extension _FilterStep on _QuickStartWizardDialogState {
             child: SizedBox(
               height: 32,
               child: TextField(
-                controller:
-                    TextEditingController(text: config.count.toString()),
+                controller: controllers?.count,
                 enabled: config.enabled,
                 style: TextStyle(
                     color: colors.textPrimary,

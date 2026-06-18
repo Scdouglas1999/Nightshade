@@ -20,6 +20,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import 'sequence_status_visuals.dart';
+
 /// Persistent banner that renders the in-flight recovery context. Returns
 /// an empty widget when [currentRecoveryProvider] is `null`.
 ///
@@ -52,7 +54,8 @@ class _RunDashboardRecoveryBannerState
       _elapsed = d;
       if (mounted) setState(() {});
     });
-    _ticker.start();
+    // Don't start here — the ticker is driven from build() so it only runs
+    // while a recovery is actively counting down (see _syncTicker).
   }
 
   @override
@@ -61,13 +64,34 @@ class _RunDashboardRecoveryBannerState
     super.dispose();
   }
 
+  /// Start/stop the countdown ticker to match whether a recovery is
+  /// actively waiting for its next retry. Mirrors the `_syncPulse` pattern
+  /// in `sequence_progress_bar.dart` so the 500ms rebuild loop is idle when
+  /// there is nothing to count down (no recovery, or recovery attempting /
+  /// recovered / gave-up).
+  void _syncTicker({required bool needsCountdown}) {
+    if (needsCountdown) {
+      if (!_ticker.isActive) _ticker.start();
+    } else {
+      if (_ticker.isActive) {
+        _ticker.stop();
+        _elapsed = Duration.zero;
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ctx = ref.watch(currentRecoveryProvider);
+    // Only run the countdown ticker while a recovery is waiting for its next
+    // retry; otherwise the 500ms setState loop runs for nothing.
+    _syncTicker(needsCountdown: ctx != null && ctx.isWaiting);
     if (ctx == null) return const SizedBox.shrink();
 
     final colors = NightshadeColors.of(context);
-    final control = ref.read(recoveryControlProvider);
+    // Watch (not read) so the buttons always hold the current control if the
+    // recovery control provider is ever re-created (e.g. a backend swap).
+    final control = ref.watch(recoveryControlProvider);
     final now = DateTime.now().toUtc();
     final nextAttemptSecs = ctx.nextAttemptInSecs(now);
     final remainingBudgetSecs =
@@ -353,41 +377,12 @@ class SequencerStatusLed extends ConsumerWidget {
     final colors = NightshadeColors.of(context);
     final state = progress.state;
 
-    Color color;
-    String label;
-    StatusDotVariant variant = StatusDotVariant.static;
-    switch (state) {
-      case SequenceExecutionState.idle:
-        color = colors.textMuted;
-        label = 'Idle';
-        break;
-      case SequenceExecutionState.running:
-        color = colors.success;
-        label = 'Running';
-        break;
-      case SequenceExecutionState.paused:
-        color = colors.warning;
-        label = 'Paused';
-        break;
-      case SequenceExecutionState.stopping:
-        color = colors.warning;
-        label = 'Stopping';
-        break;
-      case SequenceExecutionState.completed:
-        color = colors.success;
-        label = 'Completed';
-        break;
-      case SequenceExecutionState.failed:
-        color = colors.error;
-        label = 'Failed';
-        variant = StatusDotVariant.urgent;
-        break;
-      case SequenceExecutionState.recovering:
-        color = colors.error;
-        label = 'Recovering';
-        variant = StatusDotVariant.urgent;
-        break;
-    }
+    // Single source of truth for color/label/variant so the LED can never
+    // diverge from the toolbar/mobile status badges.
+    final visuals = SequenceStatusVisuals.of(state, colors);
+    final color = visuals.color;
+    final label = visuals.label;
+    final variant = visuals.variant;
 
     final dot = StatusDot(color: color, size: size, variant: variant);
 

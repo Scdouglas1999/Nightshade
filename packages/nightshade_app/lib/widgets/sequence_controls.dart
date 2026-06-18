@@ -22,15 +22,17 @@ class SequenceControls extends ConsumerWidget {
     final successColor = colors.success;
     final errorColor = colors.error;
 
-    // Don't show controls if sequence is idle or completed
-    if (state == SequenceExecutionState.idle ||
-        state == SequenceExecutionState.completed) {
-      return const SizedBox.shrink();
-    }
-
+    // §15: show run controls only while actively running / paused. Idle and
+    // the terminal completed / failed states hide them, matching
+    // MobileSequenceOverlay so the controls and the progress card appear and
+    // disappear together. The end-of-session report dialog is the post-run
+    // surface, so there is no terminal control state to linger here.
     final isRunning = state == SequenceExecutionState.running;
     final isPaused = state == SequenceExecutionState.paused;
     final canControl = isRunning || isPaused;
+    if (!canControl) {
+      return const SizedBox.shrink();
+    }
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),

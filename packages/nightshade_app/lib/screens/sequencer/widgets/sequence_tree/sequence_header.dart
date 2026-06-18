@@ -41,6 +41,11 @@ class _SequenceHeader extends ConsumerWidget {
           final showTargetCount = constraints.maxWidth > 280;
           final showNodeCount = constraints.maxWidth > 380;
           final showValidation = constraints.maxWidth > 320;
+          // The 160px search field is the widest trailing control; only
+          // surface it once the header is wide enough to host it alongside
+          // the badges, counts, and toggle cluster without overflowing the
+          // row. Below this it stays hidden (the minimap/jump still work).
+          final showSearch = constraints.maxWidth > 920;
           return Padding(
             padding: padding,
             child: _buildRow(
@@ -54,6 +59,7 @@ class _SequenceHeader extends ConsumerWidget {
               showTargetCount: showTargetCount,
               showNodeCount: showNodeCount,
               showValidation: showValidation,
+              showSearch: showSearch,
             ),
           );
         },
@@ -72,6 +78,7 @@ class _SequenceHeader extends ConsumerWidget {
     required bool showTargetCount,
     required bool showNodeCount,
     required bool showValidation,
+    required bool showSearch,
   }) {
     return Row(
       children: [
@@ -99,6 +106,12 @@ class _SequenceHeader extends ConsumerWidget {
             ),
           ),
         ),
+
+        // In-tree search / jump field (desktop, when there's room)
+        if (!isMobile && showSearch && sequence.nodes.length > 1) ...[
+          const SizedBox(width: 8),
+          _TreeSearchField(colors: colors, sequence: sequence),
+        ],
 
         // Validation issue badges
         if (showValidation && validation.totalCount > 0) ...[
@@ -211,6 +224,12 @@ class _SequenceHeader extends ConsumerWidget {
           ),
         ],
 
+        // Collapse-all / Expand-all
+        if (!isMobile) ...[
+          const SizedBox(width: 8),
+          _CollapseAllToggle(colors: colors, sequence: sequence),
+        ],
+
         // Timeline toggle
         if (!isMobile) ...[
           const SizedBox(width: 8),
@@ -267,9 +286,17 @@ class _SequenceHeader extends ConsumerWidget {
           ),
           NightshadeButton(
             onPressed: () {
-              ref
-                  .read(currentSequenceProvider.notifier)
-                  .setName(controller.text);
+              final name = controller.text.trim();
+              if (name.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Name cannot be empty'),
+                    backgroundColor: colors.error,
+                  ),
+                );
+                return;
+              }
+              ref.read(currentSequenceProvider.notifier).setName(name);
               Navigator.pop(context);
             },
             label: 'Rename',

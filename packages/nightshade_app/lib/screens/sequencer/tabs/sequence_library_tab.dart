@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -6,6 +8,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import '../sequencer_screen.dart';
+import '../../../utils/sequence_mutator_helper.dart';
 import '../../../utils/snackbar_helper.dart';
 
 part 'sequence_library_tab/library_header.dart';
@@ -35,15 +38,69 @@ final sequenceSortOrderProvider = StateProvider.autoDispose<SequenceSortOrder>(
   (ref) => SequenceSortOrder.dateModified,
 );
 
+/// Derived list of non-template sequences with the active search filter
+/// and sort order applied. Memoizes the filter+sort work outside of
+/// `build` so a rebuild from an unrelated provider (e.g. hover state on a
+/// card) doesn't re-run the whole pipeline. Recomputes only when the
+/// underlying list, the (debounced) query, or the sort order changes.
+final filteredSequencesProvider =
+    Provider.autoDispose<AsyncValue<List<Sequence>>>((ref) {
+  final sequencesAsync = ref.watch(savedSequencesProvider);
+  final query = ref.watch(sequenceSearchProvider).trim().toLowerCase();
+  final order = ref.watch(sequenceSortOrderProvider);
+
+  return sequencesAsync.whenData((sequences) {
+    var filtered = sequences.where((s) => !s.isTemplate).toList();
+
+    if (query.isNotEmpty) {
+      filtered = filtered
+          .where((s) =>
+              s.name.toLowerCase().contains(query) ||
+              s.description.toLowerCase().contains(query))
+          .toList();
+    }
+
+    switch (order) {
+      case SequenceSortOrder.name:
+        filtered.sort((a, b) => a.name.compareTo(b.name));
+        break;
+      case SequenceSortOrder.dateModified:
+        filtered.sort((a, b) => b.modifiedAt.compareTo(a.modifiedAt));
+        break;
+      case SequenceSortOrder.dateCreated:
+        filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        break;
+      case SequenceSortOrder.nodeCount:
+        filtered.sort((a, b) => b.nodes.length.compareTo(a.nodes.length));
+        break;
+    }
+    return filtered;
+  });
+});
+
+/// Run-history rollup for a saved sequence, keyed on its database id.
+/// Backed by [SequenceRunsDao.runSummaryForSequence] (a single grouped
+/// COUNT/MAX query) so the library card can show "N runs · last DATE"
+/// without loading the full run list.
+final sequenceRunSummaryProvider = FutureProvider.autoDispose
+    .family<({int runCount, DateTime? lastRunAt}), int>((ref, dbId) async {
+  final dao = ref.watch(sequenceRunsDaoProvider);
+  return dao.runSummaryForSequence(dbId);
+});
+
+/// Optional incoming sequence-id filter the library "history" link writes
+/// before switching to the History tab, so the History tab can pre-filter
+/// to just that sequence's runs.
+final historyFilterSequenceIdProvider = StateProvider<int?>((ref) => null);
+
 class SequenceLibraryTab extends ConsumerWidget {
   const SequenceLibraryTab({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
-    final sequencesAsync = ref.watch(savedSequencesProvider);
+    final filteredAsync = ref.watch(filteredSequencesProvider);
     final searchQuery = ref.watch(sequenceSearchProvider);
-    final sortOrder = ref.watch(sequenceSortOrderProvider);
 
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -56,41 +113,8 @@ class SequenceLibraryTab extends ConsumerWidget {
 
           // Content
           Expanded(
-            child: sequencesAsync.when(
-              data: (sequences) {
-                var filtered = sequences.where((s) => !s.isTemplate).toList();
-
-                // Apply search filter
-                if (searchQuery.isNotEmpty) {
-                  filtered = filtered
-                      .where((s) =>
-                          s.name
-                              .toLowerCase()
-                              .contains(searchQuery.toLowerCase()) ||
-                          s.description
-                              .toLowerCase()
-                              .contains(searchQuery.toLowerCase()))
-                      .toList();
-                }
-
-                // Apply sort
-                switch (sortOrder) {
-                  case SequenceSortOrder.name:
-                    filtered.sort((a, b) => a.name.compareTo(b.name));
-                    break;
-                  case SequenceSortOrder.dateModified:
-                    filtered
-                        .sort((a, b) => b.modifiedAt.compareTo(a.modifiedAt));
-                    break;
-                  case SequenceSortOrder.dateCreated:
-                    filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-                    break;
-                  case SequenceSortOrder.nodeCount:
-                    filtered.sort(
-                        (a, b) => b.nodes.length.compareTo(a.nodes.length));
-                    break;
-                }
-
+            child: filteredAsync.when(
+              data: (filtered) {
                 if (filtered.isEmpty) {
                   final hasSearch = searchQuery.isNotEmpty;
                   return EmptyState(
@@ -103,7 +127,16 @@ class SequenceLibraryTab extends ConsumerWidget {
                         ? 'Try a different search term'
                         : 'Save your sequences to access them later',
                     action: hasSearch
-                        ? null
+                        ? NightshadeButton(
+                            label: 'Clear search',
+                            icon: LucideIcons.x,
+                            variant: ButtonVariant.ghost,
+                            size: ButtonSize.small,
+                            onPressed: () {
+                              ref.read(sequenceSearchProvider.notifier).state =
+                                  '';
+                            },
+                          )
                         : NightshadeCard(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 16,

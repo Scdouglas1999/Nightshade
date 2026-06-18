@@ -22,10 +22,10 @@ class _DitherProperties extends ConsumerWidget {
           style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
-        _PropertyField(
+        NodePropertyField(
           colors: colors,
           label: 'Dither Amount',
-          child: _NumberInput(
+          child: NodeNumberInput(
             colors: colors,
             value: node.pixels,
             suffix: 'px',
@@ -43,10 +43,10 @@ class _DitherProperties extends ConsumerWidget {
             },
           ),
         ),
-        _PropertyField(
+        NodePropertyField(
           colors: colors,
           label: 'Settle Time',
-          child: _NumberInput(
+          child: NodeNumberInput(
             colors: colors,
             value: node.settleTime,
             suffix: 's',
@@ -64,10 +64,10 @@ class _DitherProperties extends ConsumerWidget {
             },
           ),
         ),
-        _PropertyField(
+        NodePropertyField(
           colors: colors,
           label: 'Settle Threshold',
-          child: _NumberInput(
+          child: NodeNumberInput(
             colors: colors,
             value: node.settlePixels,
             suffix: 'px',
@@ -81,10 +81,10 @@ class _DitherProperties extends ConsumerWidget {
             },
           ),
         ),
-        _PropertyField(
+        NodePropertyField(
           colors: colors,
           label: 'Settle Timeout',
-          child: _NumberInput(
+          child: NodeNumberInput(
             colors: colors,
             value: node.settleTimeout,
             suffix: 's',
@@ -101,10 +101,10 @@ class _DitherProperties extends ConsumerWidget {
             },
           ),
         ),
-        _PropertyField(
+        NodePropertyField(
           colors: colors,
           label: 'RA Only',
-          child: _ToggleSwitch(
+          child: NodeToggleSwitch(
             colors: colors,
             value: node.raOnly,
             onChanged: (value) {
@@ -117,10 +117,10 @@ class _DitherProperties extends ConsumerWidget {
             },
           ),
         ),
-        _PropertyField(
+        NodePropertyField(
           colors: colors,
           label: 'Pattern',
-          child: _Dropdown<DitherPattern>(
+          child: NodeDropdown<DitherPattern>(
             colors: colors,
             value: node.pattern,
             items: const [DitherPattern.random, DitherPattern.grid],
@@ -136,10 +136,10 @@ class _DitherProperties extends ConsumerWidget {
           ),
         ),
         if (node.pattern == DitherPattern.grid)
-          _PropertyField(
+          NodePropertyField(
             colors: colors,
             label: 'Grid Size (N)',
-            child: _NumberInput(
+            child: NodeNumberInput(
               colors: colors,
               value: node.gridSize.toDouble(),
               min: 2,

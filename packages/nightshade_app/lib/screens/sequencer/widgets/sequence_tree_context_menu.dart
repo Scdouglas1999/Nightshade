@@ -5,6 +5,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'delete_node_confirmation.dart';
+import 'palette_icon_map.dart';
 
 /// Right-click / long-press context menu for nodes in the sequencer tree.
 ///
@@ -79,7 +80,13 @@ class SequenceTreeContextMenu extends ConsumerWidget {
       // Container" and triggers Flex overflow warnings in tests on
       // narrow surfaces.
       constraints: const BoxConstraints(minWidth: 260, maxWidth: 320),
-      items: _buildMenuItems(node, canEdit: canEdit, isRunning: isRunning),
+      items: _buildMenuItems(
+        node,
+        sequence: sequence,
+        selectedIds: ref.read(multiSelectedNodeIdsProvider),
+        canEdit: canEdit,
+        isRunning: isRunning,
+      ),
     );
 
     if (selected == null) return;
@@ -87,8 +94,13 @@ class SequenceTreeContextMenu extends ConsumerWidget {
     await _handleSelection(context, ref, sequence, node, selected);
   }
 
-  List<PopupMenuEntry<_TreeMenuAction>> _buildMenuItems(SequenceNode node,
-      {required bool canEdit, required bool isRunning}) {
+  List<PopupMenuEntry<_TreeMenuAction>> _buildMenuItems(
+    SequenceNode node, {
+    required Sequence sequence,
+    required Set<String> selectedIds,
+    required bool canEdit,
+    required bool isRunning,
+  }) {
     // Same compact style as the existing more-actions menu in _NodeItem.
     // When `canEdit` is false (sequence is running/paused/stopping) we
     // gray out every mutating entry so the user sees them but can't fire
@@ -170,6 +182,15 @@ class SequenceTreeContextMenu extends ConsumerWidget {
     final groupDisabledReason =
         isRoot ? 'Cannot group the root sequence node into a container.' : null;
 
+    // "Group into Parallel" only makes sense for 2+ adjacent siblings —
+    // wrapping a single node in a Parallel container is a no-op semantically
+    // (a parallel branch of one). Sequential grouping stays meaningful for a
+    // single node (it's still a labelled container), so it is not gated.
+    final parallelGroupDisabledReason = groupDisabledReason ??
+        (_contiguousSiblingSelectionCount(sequence, node, selectedIds) >= 2
+            ? null
+            : 'Select 2+ adjacent nodes to group in parallel.');
+
     // Duplicate / Delete also don't make sense for the root — the editor
     // ignores `removeNode(root)` silently which is the same audit
     // complaint. Surface the same way.
@@ -221,7 +242,7 @@ class SequenceTreeContextMenu extends ConsumerWidget {
         _TreeMenuAction.groupParallel,
         LucideIcons.gitBranch,
         'Group into Parallel Container',
-        disabledReason: groupDisabledReason,
+        disabledReason: parallelGroupDisabledReason,
       ),
       const PopupMenuDivider(height: 8),
       entry(
@@ -238,6 +259,39 @@ class SequenceTreeContextMenu extends ConsumerWidget {
         disabledReason: rootOnlyDisabledReason,
       ),
     ];
+  }
+
+  /// Count of selected nodes that form a contiguous run of siblings sharing
+  /// the right-clicked node's parent (and including that node). Returns 0
+  /// when the selection doesn't include [node], spans multiple parents, or
+  /// is not contiguous — i.e. the conditions under which `wrapChildrenSubset`
+  /// would refuse. Used to gate "Group into Parallel" (requires >= 2).
+  int _contiguousSiblingSelectionCount(
+    Sequence sequence,
+    SequenceNode node,
+    Set<String> selectedIds,
+  ) {
+    final parentId = node.parentId;
+    if (parentId == null) return 0;
+    if (!selectedIds.contains(node.id)) return 0;
+
+    final parent = sequence.nodes[parentId];
+    if (parent == null) return 0;
+
+    final indices = <int>[];
+    for (final id in selectedIds) {
+      final n = sequence.nodes[id];
+      if (n == null) return 0;
+      if (n.parentId != parentId) return 0; // spans parents
+      final idx = parent.childIds.indexOf(id);
+      if (idx < 0) return 0;
+      indices.add(idx);
+    }
+    indices.sort();
+    for (int i = 1; i < indices.length; i++) {
+      if (indices[i] != indices[i - 1] + 1) return 0; // not contiguous
+    }
+    return indices.length;
   }
 
   Future<void> _handleSelection(
@@ -476,7 +530,7 @@ enum _TreeMenuAction {
 /// to delegate into the existing palette + carry an "insert at index"
 /// callback. We reuse [nodePaletteProvider] as the data source so any
 /// node type the user can drag is also reachable from this menu.
-class _InsertNodePicker extends ConsumerWidget {
+class _InsertNodePicker extends ConsumerStatefulWidget {
   const _InsertNodePicker({
     required this.colors,
     required this.parentId,
@@ -490,8 +544,59 @@ class _InsertNodePicker extends ConsumerWidget {
   final VoidCallback onDismiss;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_InsertNodePicker> createState() => _InsertNodePickerState();
+}
+
+class _InsertNodePickerState extends ConsumerState<_InsertNodePicker> {
+  String _query = '';
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _insert(NodePaletteItem item) {
+    final newNode = item.createNode();
+    final notifier = ref.read(currentSequenceProvider.notifier);
+    notifier.addNode(
+      newNode,
+      parentId: widget.parentId,
+      index: widget.index,
+    );
+    final children = item.createChildren?.call();
+    if (children != null) {
+      for (final c in children) {
+        notifier.addNode(c, parentId: newNode.id);
+      }
+    }
+    ref.read(selectedNodeIdProvider.notifier).state = newNode.id;
+    widget.onDismiss();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
     final categories = ref.watch(nodePaletteProvider);
+
+    // Same per-keystroke filter as the palette: lower-case the query once,
+    // match name + description, drop categories that end up empty.
+    final q = _query.toLowerCase();
+    final filtered = q.isEmpty
+        ? categories
+        : categories
+            .map((category) => NodePaletteCategory(
+                  name: category.name,
+                  icon: category.icon,
+                  items: category.items
+                      .where((item) =>
+                          item.name.toLowerCase().contains(q) ||
+                          item.description.toLowerCase().contains(q))
+                      .toList(),
+                ))
+            .where((c) => c.items.isNotEmpty)
+            .toList();
 
     return DraggableScrollableSheet(
       expand: false,
@@ -526,12 +631,62 @@ class _InsertNodePicker extends ConsumerWidget {
                     ],
                   ),
                 ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: colors.surfaceAlt,
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusInline8),
+                      border: Border.all(color: colors.border),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(LucideIcons.search,
+                            size: 15, color: colors.textMuted),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextField(
+                            controller: _searchController,
+                            onChanged: (value) =>
+                                setState(() => _query = value),
+                            style: TextStyle(
+                              fontSize: NightshadeTypography.fontSize13,
+                              color: colors.textPrimary,
+                            ),
+                            decoration: InputDecoration(
+                              hintText: 'Search nodes...',
+                              hintStyle: TextStyle(
+                                fontSize: NightshadeTypography.fontSize13,
+                                color: colors.textMuted,
+                              ),
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding:
+                                  const EdgeInsets.symmetric(vertical: 10),
+                            ),
+                          ),
+                        ),
+                        if (_query.isNotEmpty)
+                          GestureDetector(
+                            onTap: () {
+                              _searchController.clear();
+                              setState(() => _query = '');
+                            },
+                            child: Icon(LucideIcons.x,
+                                size: 15, color: colors.textMuted),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
                 Expanded(
                   child: ListView(
                     controller: scrollController,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     children: [
-                      for (final category in categories) ...[
+                      for (final category in filtered) ...[
                         Padding(
                           padding: const EdgeInsets.fromLTRB(4, 12, 4, 6),
                           child: Text(
@@ -545,76 +700,63 @@ class _InsertNodePicker extends ConsumerWidget {
                           ),
                         ),
                         for (final item in category.items)
-                          InkWell(
-                            borderRadius: BorderRadius.circular(
-                                NightshadeTokens.radiusInline8),
-                            onTap: () {
-                              final newNode = item.createNode();
-                              final notifier =
-                                  ref.read(currentSequenceProvider.notifier);
-                              notifier.addNode(
-                                newNode,
-                                parentId: parentId,
-                                index: index,
-                              );
-                              final children = item.createChildren?.call();
-                              if (children != null) {
-                                for (final c in children) {
-                                  notifier.addNode(c, parentId: newNode.id);
-                                }
-                              }
-                              ref.read(selectedNodeIdProvider.notifier).state =
-                                  newNode.id;
-                              onDismiss();
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 10),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 28,
-                                    height: 28,
-                                    decoration: BoxDecoration(
-                                      color: colors.surfaceAlt,
-                                      borderRadius: BorderRadius.circular(
-                                          NightshadeTokens.radiusMd),
+                          Builder(builder: (context) {
+                            final categoryColor =
+                                nodePaletteCategoryColor(category.name, colors);
+                            return InkWell(
+                              borderRadius: BorderRadius.circular(
+                                  NightshadeTokens.radiusInline8),
+                              onTap: () => _insert(item),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 10),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 28,
+                                      height: 28,
+                                      decoration:
+                                          NightshadeDecorations.tintedBadge(
+                                        categoryColor,
+                                        borderRadius: BorderRadius.circular(
+                                            NightshadeTokens.radiusMd),
+                                      ),
+                                      child: Icon(
+                                        nodePaletteIconFor(item.icon),
+                                        size: 14,
+                                        color: categoryColor,
+                                      ),
                                     ),
-                                    child: Icon(
-                                      LucideIcons.box,
-                                      size: 14,
-                                      color: colors.textSecondary,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          item.name,
-                                          style: NightshadeTypography.label
-                                              .copyWith(
-                                                  color: colors.textPrimary),
-                                        ),
-                                        Text(
-                                          item.description,
-                                          style: TextStyle(
-                                            fontSize:
-                                                NightshadeTypography.fontSize11,
-                                            color: colors.textMuted,
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            item.name,
+                                            style: NightshadeTypography.label
+                                                .copyWith(
+                                                    color: colors.textPrimary),
                                           ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
+                                          Text(
+                                            item.description,
+                                            style: TextStyle(
+                                              fontSize: NightshadeTypography
+                                                  .fontSize11,
+                                              color: colors.textMuted,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                          ),
+                            );
+                          }),
                       ],
                       const SizedBox(height: 16),
                     ],

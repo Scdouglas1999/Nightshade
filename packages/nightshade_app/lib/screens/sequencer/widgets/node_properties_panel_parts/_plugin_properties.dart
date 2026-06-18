@@ -111,14 +111,15 @@ class _PluginInstructionPropertiesState
           ),
         ),
         const SizedBox(height: 16),
-        _PropertyField(
+        NodePropertyField(
           colors: colors,
           label: 'Configuration (JSON)',
-          child: _TextInput(
+          child: NodeTextInput(
             colors: colors,
             value: node.configJson,
             hint: '{}',
             maxLines: 6,
+            hasError: _jsonError != null,
             onChanged: _onConfigChanged,
           ),
         ),
@@ -141,10 +142,10 @@ class _PluginInstructionPropertiesState
               ],
             ),
           ),
-        _PropertyField(
+        NodePropertyField(
           colors: colors,
           label: 'Timeout',
-          child: _NumberInput(
+          child: NodeNumberInput(
             colors: colors,
             value: (node.timeoutSecs ?? 600).toDouble(),
             suffix: 's',

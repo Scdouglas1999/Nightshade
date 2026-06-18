@@ -5,6 +5,16 @@
 // the adaptive-exposure sub-section, and a Run Test Exposure action.
 part of '../node_properties_panel.dart';
 
+/// Marker index for the synthetic "stored filter not in this profile" dropdown
+/// row. It is display-only — selecting it never rewrites the node.
+const int _kMissingFilterSentinel = -999;
+
+/// Soft thresholds above which the editor surfaces a non-blocking "this is
+/// unusually long" warning under a duration/delay field. The values are still
+/// accepted; the note just nudges the user to confirm it was intentional.
+const double _kLongExposureWarnSecs = 1200;
+const double _kLongDelayWarnSecs = 1800;
+
 class _ExposureProperties extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final ExposureNode node;
@@ -45,23 +55,23 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
     final profile = ref.read(activeEquipmentProfileProvider);
     final node = widget.node;
 
-    // Gain: null means "use profile default". A non-null value that differs
-    // from the profile default is an explicit override.
-    if (node.gain != null && node.gain != 0) {
-      if (profile?.defaultGain == null || node.gain != profile!.defaultGain) {
-        _userOverrides.add('gain');
-      }
+    // Gain/offset use null == "inherit profile default". Any *non-null* stored
+    // value is, by definition, an explicit override — even when it happens to
+    // equal the current profile default or zero. The old heuristic (treating
+    // gain==0 or gain==profileDefault as "inherited") silently demoted real
+    // overrides to defaults on reopen, so a deliberate gain of 0 looked
+    // inherited and would drift if the profile changed.
+    if (node.gain != null) {
+      _userOverrides.add('gain');
+    }
+    if (node.offset != null) {
+      _userOverrides.add('offset');
     }
 
-    // Offset: same logic
-    if (node.offset != null && node.offset != 0) {
-      if (profile?.defaultOffset == null ||
-          node.offset != profile!.defaultOffset) {
-        _userOverrides.add('offset');
-      }
-    }
-
-    // Binning: compare against profile default binning
+    // Binning is a non-nullable BinningMode and so can't express "inherit" at
+    // the model level (see modelChangeRequests). Until a nullable
+    // binningOverride lands we keep the value-compare heuristic: a node whose
+    // binning differs from the profile default is treated as an override.
     final profileBinning = profile?.defaultBinX ?? 1;
     final nodeBinning = _binningModeToInt(node.binning);
     if (nodeBinning != profileBinning) {
@@ -131,6 +141,11 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
       binningX: _effectiveBinningX(profile),
       binningY: _effectiveBinningY(profile),
       filter: node.filter,
+      // A test exposure is an out-of-sequence preview, so it captures as a
+      // SNAPSHOT (not written into the sequence's frame set). Honouring the
+      // node's frameType here is desirable but is currently asserted as
+      // snapshot by exposure_properties_recommendation_test.dart, which lives
+      // outside this area's edit scope — see skipped item #26.
       frameType: FrameType.snapshot,
       fastReadout: false,
     );
@@ -191,14 +206,7 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Exposure Settings',
-            style: TextStyle(
-              fontSize: Responsive.fontSize(context, 13),
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
-          ),
+          NodeSectionHeader(colors: colors, label: 'Exposure Settings'),
           const SizedBox(height: 12),
 
           NodePropertyField(
@@ -210,7 +218,9 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
               suffix: 's',
               min: 0.001,
               max: 3600,
-              decimals: 1,
+              // 3 decimals to match the inline editor; sub-second exposures
+              // matter for lucky imaging / fast photometry.
+              decimals: 3,
               onChanged: (value) {
                 ref.read(currentSequenceProvider.notifier).updateNode(
                       node.copyWith(durationSecs: value),
@@ -224,6 +234,14 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
               },
             ),
           ),
+
+          if (node.durationSecs > _kLongExposureWarnSecs)
+            _LongValueWarning(
+              colors: colors,
+              message:
+                  'This is an unusually long sub-exposure — confirm this is '
+                  'intentional.',
+            ),
 
           if (exposureRecommendation != null) ...[
             const SizedBox(height: 8),
@@ -480,20 +498,40 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
     ];
 
     // Find current selection
-    developer.log(
-        '_buildFilterDropdown: node.filter="${node.filter}" node.filterIndex=${node.filterIndex} filterNames=$filterNames',
-        name: 'InstructionNodeProperties',
-        level: 500);
-    final currentFilter = filterOptions.firstWhere(
+    if (kDebugMode) {
+      developer.log(
+          '_buildFilterDropdown: node.filter="${node.filter}" node.filterIndex=${node.filterIndex} filterNames=$filterNames',
+          name: 'InstructionNodeProperties',
+          level: 500);
+    }
+    final matched = filterOptions.firstWhereOrNull(
       (f) =>
           (node.filterIndex != null && f.index == node.filterIndex) ||
           (node.filterIndex == null && f.name == (node.filter ?? '')),
-      orElse: () => filterOptions.first,
     );
-    developer.log(
-        '_buildFilterDropdown: currentFilter=(index:${currentFilter.index}, name:"${currentFilter.name}")',
-        name: 'InstructionNodeProperties',
-        level: 500);
+
+    // If the stored filter is no longer in the profile, surface it as an
+    // explicit "(not in profile)" option and select it, rather than silently
+    // snapping to the first filter (which would quietly rewrite the node).
+    // `_kMissingFilterSentinel` marks that synthetic row so the renderer and
+    // onChanged handler can treat it specially.
+    final storedFilterName = node.filter ?? '';
+    final bool missingFromProfile = matched == null &&
+        (node.filterIndex != null || storedFilterName.isNotEmpty);
+    if (missingFromProfile) {
+      final label = storedFilterName.isNotEmpty
+          ? '$storedFilterName (not in profile)'
+          : 'Filter #${node.filterIndex} (not in profile)';
+      filterOptions.add((index: _kMissingFilterSentinel, name: label));
+    }
+    final currentFilter = matched ??
+        (missingFromProfile ? filterOptions.last : filterOptions.first);
+    if (kDebugMode) {
+      developer.log(
+          '_buildFilterDropdown: currentFilter=(index:${currentFilter.index}, name:"${currentFilter.name}")',
+          name: 'InstructionNodeProperties',
+          level: 500);
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -541,14 +579,24 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
                         color: colors.textPrimary,
                       ),
                       items: filterOptions.map((filter) {
+                        final String label;
+                        if (filter.index == _kMissingFilterSentinel) {
+                          label = filter.name;
+                        } else if (filter.index < 0) {
+                          label = '(None)';
+                        } else {
+                          label = filter.name;
+                        }
                         return DropdownMenuItem(
                           value: filter,
-                          child:
-                              Text(filter.index < 0 ? '(None)' : filter.name),
+                          child: Text(label),
                         );
                       }).toList(),
                       onChanged: (newValue) {
                         if (newValue != null) {
+                          // The synthetic "not in profile" row is display-only;
+                          // re-selecting it must not rewrite the node.
+                          if (newValue.index == _kMissingFilterSentinel) return;
                           final filter =
                               newValue.index < 0 ? null : newValue.name;
                           final filterIndex =
@@ -570,6 +618,26 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
                   ),
                 ),
         ),
+        if (missingFromProfile) ...[
+          const SizedBox(height: 4),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(LucideIcons.alertTriangle, size: 12, color: colors.warning),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  'Stored filter no longer in this profile — pick a current '
+                  'filter or edit the profile.',
+                  style: TextStyle(
+                    fontSize: Responsive.fontSize(context, 11),
+                    color: colors.warning,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
         const SizedBox(height: 4),
         InkWell(
           onTap: () => ProfileEditorDialog.show(
@@ -709,6 +777,47 @@ class _ExposureRecommendationCard extends StatelessWidget {
       return '${rounded.toInt()}s';
     }
     return '${seconds.toStringAsFixed(1)}s';
+  }
+}
+
+/// Non-blocking amber notice shown under a duration/delay field whose value is
+/// unusually large. The value is still accepted — this just asks the user to
+/// confirm intent.
+class _LongValueWarning extends StatelessWidget {
+  final NightshadeColors colors;
+  final String message;
+
+  const _LongValueWarning({required this.colors, required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: colors.warning.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+          border: Border.all(color: colors.warning.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(LucideIcons.alertTriangle, size: 14, color: colors.warning),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  fontSize: Responsive.fontSize(context, 11),
+                  color: colors.warning,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

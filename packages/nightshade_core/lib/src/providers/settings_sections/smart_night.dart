@@ -164,6 +164,21 @@ extension SmartNightSettingsSection on AppSettingsNotifier {
     _patchState((s) => s.copyWith(smartNightAutoPromptEnabled: value));
   }
 
+  /// Whether the Smart Night wizard defaults to auto-picking the top N
+  /// targets. Persisted so the choice survives across launches.
+  Future<void> setSmartNightAutoSelect(bool value) async {
+    await _saveSetting('smart_night.auto_select', value.toString());
+    _patchState((s) => s.copyWith(smartNightAutoSelect: value));
+  }
+
+  /// How many targets the Smart Night wizard auto-picks. Clamped to a
+  /// sane lower bound of 1 so an auto-select run always picks at least one.
+  Future<void> setSmartNightAutoSelectCount(int value) async {
+    final clamped = value < 1 ? 1 : value;
+    await _saveSetting('smart_night.auto_select_count', clamped.toString());
+    _patchState((s) => s.copyWith(smartNightAutoSelectCount: clamped));
+  }
+
   /// Whether the auto-prompt note dialog appears after a sequence run
   /// completes. Stored under the same `notes.prompt_after_run` key the
   /// NotesService reads via `promptForNotesAfterRunProvider`, so the

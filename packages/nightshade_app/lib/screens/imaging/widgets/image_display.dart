@@ -9,11 +9,22 @@ class ImageDisplayWidget extends ConsumerStatefulWidget {
   final double zoomLevel;
   final Offset panOffset;
 
+  /// Optional decode-time downscale targets. When set, the engine decodes the
+  /// RGBA buffer straight to (at most) these dimensions instead of allocating
+  /// the full sensor-resolution texture. Used by the dashboard live-frame tile
+  /// — a ~300px panel never needs a 6000px decode. Both are clamped to the
+  /// source dimensions (no upscaling). Leave null for the full-screen Imaging
+  /// viewer, which decodes at native resolution for pixel-peeping.
+  final int? targetWidth;
+  final int? targetHeight;
+
   const ImageDisplayWidget({
     super.key,
     required this.imageData,
     required this.zoomLevel,
     required this.panOffset,
+    this.targetWidth,
+    this.targetHeight,
   });
 
   @override
@@ -24,6 +35,8 @@ class _ImageDisplayWidgetState extends ConsumerState<ImageDisplayWidget> {
   ui.Image? _decodedImage;
   bool _isDecoding = false;
   Uint8List? _lastDecodedPixels;
+  int? _lastDecodedTargetWidth;
+  int? _lastDecodedTargetHeight;
 
   @override
   void initState() {
@@ -34,7 +47,11 @@ class _ImageDisplayWidgetState extends ConsumerState<ImageDisplayWidget> {
   @override
   void didUpdateWidget(ImageDisplayWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.imageData != oldWidget.imageData) {
+    // Re-decode on a new frame, or when the requested decode target changes
+    // (the live-frame panel feeds the viewport width, which moves on resize).
+    if (widget.imageData != oldWidget.imageData ||
+        widget.targetWidth != oldWidget.targetWidth ||
+        widget.targetHeight != oldWidget.targetHeight) {
       _decodeImage();
     }
   }
@@ -52,12 +69,24 @@ class _ImageDisplayWidgetState extends ConsumerState<ImageDisplayWidget> {
       // stretched data), so no per-pixel loop is needed here.
       final Uint8List rgbaBytes = stretchedData ?? widget.imageData.displayData;
 
-      // Skip re-decoding if pixels haven't changed
-      if (_lastDecodedPixels != null && _lastDecodedPixels == rgbaBytes) {
+      // Resolve the decode-time downscale target. Clamp to the source
+      // dimensions so we never ask the engine to upscale.
+      final int? targetW = widget.targetWidth?.clamp(1, width);
+      final int? targetH = widget.targetHeight?.clamp(1, height);
+
+      // Skip re-decoding only when both the pixels AND the decode target are
+      // unchanged — a resize that moves the target must re-decode even if the
+      // underlying buffer is identical.
+      if (_lastDecodedPixels != null &&
+          _lastDecodedPixels == rgbaBytes &&
+          _lastDecodedTargetWidth == targetW &&
+          _lastDecodedTargetHeight == targetH) {
         _isDecoding = false;
         return;
       }
       _lastDecodedPixels = rgbaBytes;
+      _lastDecodedTargetWidth = targetW;
+      _lastDecodedTargetHeight = targetH;
 
       ui.decodeImageFromPixels(
         rgbaBytes,
@@ -72,6 +101,9 @@ class _ImageDisplayWidgetState extends ConsumerState<ImageDisplayWidget> {
             });
           }
         },
+        targetWidth: targetW,
+        targetHeight: targetH,
+        allowUpscaling: false,
       );
     } catch (e) {
       ref.read(loggingServiceProvider).warning(

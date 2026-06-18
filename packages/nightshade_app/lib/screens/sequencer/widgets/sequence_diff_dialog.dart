@@ -523,16 +523,27 @@ class _ValueChip extends StatelessWidget {
     required this.colors,
   });
 
+  /// Max characters shown inline before the value is clamped with an
+  /// ellipsis. Large opaque values (e.g. plugin config JSON) would
+  /// otherwise blow out the chip width and overflow the row.
+  static const int _maxInlineChars = 60;
+
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final isTruncated = value.length > _maxInlineChars;
+    final displayValue =
+        isTruncated ? '${value.substring(0, _maxInlineChars)}…' : value;
+    final chip = Container(
+      constraints: const BoxConstraints(maxWidth: 240),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: NightshadeDecorations.tintedBadge(
         color,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
       ),
       child: Text(
-        value,
+        displayValue,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontSize: NightshadeTypography.fontSize11,
           color: color,
@@ -540,5 +551,7 @@ class _ValueChip extends StatelessWidget {
         ),
       ),
     );
+    if (!isTruncated) return chip;
+    return Tooltip(message: value, child: chip);
   }
 }

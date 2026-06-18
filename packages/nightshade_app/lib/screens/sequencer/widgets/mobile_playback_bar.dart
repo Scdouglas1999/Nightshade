@@ -7,6 +7,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../services/sequence_action_service.dart';
 import '../../../utils/snackbar_helper.dart';
 import 'preflight_validation_dialog.dart';
+import 'pulse_lifecycle_mixin.dart';
+import 'run_dashboard/sequence_status_visuals.dart';
 
 /// Compact playback control bar for mobile devices.
 /// Shows playback controls and current status in a single horizontal row.
@@ -305,42 +307,11 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color badgeColor;
-    IconData icon;
-
-    switch (state) {
-      case SequenceExecutionState.idle:
-        badgeColor = colors.textMuted;
-        icon = LucideIcons.circleOff;
-        break;
-      case SequenceExecutionState.running:
-        badgeColor = colors.success;
-        icon = LucideIcons.activity;
-        break;
-      case SequenceExecutionState.paused:
-        badgeColor = colors.warning;
-        icon = LucideIcons.pauseCircle;
-        break;
-      case SequenceExecutionState.stopping:
-        badgeColor = colors.warning;
-        icon = LucideIcons.loader;
-        break;
-      case SequenceExecutionState.completed:
-        badgeColor = colors.info;
-        icon = LucideIcons.checkCircle;
-        break;
-      case SequenceExecutionState.failed:
-        badgeColor = colors.error;
-        icon = LucideIcons.xCircle;
-        break;
-      case SequenceExecutionState.recovering:
-        // Distinct visual treatment so the mobile bar surfaces
-        // recovery as "the sequence is in trouble but trying to recover"
-        // instead of showing the same icon as a normal Running run.
-        badgeColor = colors.error;
-        icon = LucideIcons.rotateCw;
-        break;
-    }
+    // Single source of truth for color/icon so the mobile badge cannot
+    // diverge from the toolbar badge and recovery LED.
+    final visuals = SequenceStatusVisuals.of(state, colors);
+    final badgeColor = visuals.color;
+    final icon = visuals.icon;
 
     final badgeSize = isCompact ? 28.0 : 32.0;
     final iconSize = isCompact ? 12.0 : 14.0;
@@ -371,8 +342,14 @@ class _PulsingIcon extends StatefulWidget {
 }
 
 class _PulsingIconState extends State<_PulsingIcon>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, PulseLifecycleMixin {
   late AnimationController _controller;
+
+  @override
+  AnimationController get pulseController => _controller;
+
+  @override
+  bool get pulseReverses => true;
 
   @override
   void initState() {
@@ -380,11 +357,13 @@ class _PulsingIconState extends State<_PulsingIcon>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
-    )..repeat(reverse: true);
+    );
+    startPulse();
   }
 
   @override
   void dispose() {
+    stopPulseLifecycle();
     _controller.dispose();
     super.dispose();
   }

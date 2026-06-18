@@ -6,6 +6,10 @@ extension _SequenceExecutorCheckpointWatchdogOperations on SequenceExecutor {
     _checkpointTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
       if (_ref.read(sequenceExecutionStateProvider) ==
           SequenceExecutionState.running) {
+        // Serialise saves: skip this tick if the previous save is still
+        // running so two writers never race the same checkpoint file.
+        if (_checkpointSaveInFlight) return;
+        _checkpointSaveInFlight = true;
         try {
           final backend = _ref.read(backendProvider);
           await backend.saveCheckpoint();
@@ -16,6 +20,8 @@ extension _SequenceExecutorCheckpointWatchdogOperations on SequenceExecutor {
             'Failed to save checkpoint: $e',
             source: 'SequenceExecutor',
           );
+        } finally {
+          _checkpointSaveInFlight = false;
         }
       }
     });
@@ -78,6 +84,22 @@ extension _SequenceExecutorCheckpointWatchdogOperations on SequenceExecutor {
         }
       }
     });
+  }
+
+  /// Tear down the per-run timers + transient run state in one place so the
+  /// terminal event handlers (`SequenceCompleted` / `SequenceStopped` /
+  /// `SequenceFailed`) and `stop()` stay in lockstep. Previously the event
+  /// handlers only cancelled `_progressTimer` and left `_checkpointTimer`,
+  /// `_startTime`, and `_isPaused` dangling — so a sequence that ended via a
+  /// backend event (not the Stop button) kept a live checkpoint timer and a
+  /// stale `_startTime`, which then mis-seeded the next run's elapsed clock.
+  void _resetRunTimers() {
+    _progressTimer?.cancel();
+    _progressTimer = null;
+    _checkpointTimer?.cancel();
+    _checkpointTimer = null;
+    _startTime = null;
+    _isPaused = false;
   }
 
   void _stopDiskSpaceWatchdog() {

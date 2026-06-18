@@ -311,12 +311,19 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
     );
   }
 
-  /// Update sequence name
+  /// Update sequence name.
+  ///
+  /// Trims the input and early-returns (without consuming an undo slot) when
+  /// the result is empty or unchanged — a no-op rename should not pollute the
+  /// undo stack, and an empty name is rejected outright. UI rename surfaces
+  /// also pre-validate, but this is the last line of defense.
   void setName(String name) {
     if (state == null) return;
+    final trimmed = name.trim();
+    if (trimmed.isEmpty || trimmed == state!.name) return;
     _ensureEditable('rename sequence');
     _saveUndo();
-    state = state!.copyWith(name: name, modifiedAt: DateTime.now());
+    state = state!.copyWith(name: trimmed, modifiedAt: DateTime.now());
   }
 
   /// Update sequence description

@@ -15,6 +15,7 @@ import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/tutorial_keys/sequencer_keys.dart';
 import 'widgets/batch_operations_toolbar.dart';
 import 'widgets/delete_node_confirmation.dart';
+import 'widgets/palette_icon_map.dart';
 import 'widgets/sequence_toolbar.dart';
 import 'widgets/node_palette.dart';
 import 'widgets/snippet_palette.dart';
@@ -39,8 +40,43 @@ part 'sequencer_screen_parts/collapsible_panel.dart';
 part 'sequencer_screen_parts/narrow_layout.dart';
 part 'sequencer_screen_parts/mobile_layout.dart';
 
-/// Currently selected sequencer tab
-final sequencerTabProvider = StateProvider<int>((ref) => 0);
+/// Canonical route path for the sequencer screen.
+///
+/// §14: referenced by the router's [GoRoute] and the shell's
+/// run-overlay-visibility check so the two can't drift via a copy-pasted
+/// `'/sequencer'` string literal. The app-wide running-sequence mini-player is
+/// a follow-up that depends on run-dashboard-owned content (see crossAreaDep).
+const String kSequencerRoutePath = '/sequencer';
+
+/// The top-level sequencer tabs, in display order.
+///
+/// Single source of truth for both the [TabController] length and the
+/// [AdaptiveTabBar] strip — adding a tab here updates the controller, the
+/// strip and the keyboard accelerator hints in one edit (audit §4.3 / §3).
+enum SequencerTab {
+  builder('Builder', LucideIcons.workflow),
+  templates('Templates', LucideIcons.fileStack),
+  sequences('Sequences', LucideIcons.folderOpen),
+  history('History', LucideIcons.history);
+
+  const SequencerTab(this.label, this.icon);
+
+  /// Visible tab label.
+  final String label;
+
+  /// Leading icon used in the strip + collapsed (icon-only) phone mode.
+  final IconData icon;
+}
+
+/// The tabs inside the desktop toolbox panel, in display order.
+///
+/// Replaces the old binary `snippetPaletteVisibleProvider` so Ctrl+T always
+/// has a visible effect even when the user is on the Queue tab (audit §25).
+enum SequencerToolboxTab { nodes, snippets, queue }
+
+/// Currently selected sequencer tab.
+final sequencerTabProvider =
+    StateProvider<int>((ref) => SequencerTab.builder.index);
 
 /// Which panel is currently expanded in the sequencer
 /// null = both panels at default sizes (when space permits)
@@ -48,15 +84,60 @@ final sequencerTabProvider = StateProvider<int>((ref) => 0);
 /// 'properties' = properties expanded, toolbox collapsed
 final sequencerExpandedPanelProvider = StateProvider<String?>((ref) => null);
 
-/// Whether the toolbox panel is collapsed (icon-only mode)
+/// Whether the toolbox panel is collapsed (icon-only mode).
+///
+/// Seeded once from the persisted [AppSettingsState] panel preference (when
+/// present) and written back through the setter on every toggle. Until the
+/// core settings field lands (see the area's modelChangeRequests) this falls
+/// back to an in-session [StateProvider], which still survives rebuilds /
+/// navigation within a session.
 final sequencerToolboxCollapsedProvider = StateProvider<bool>((ref) => false);
 
-/// Whether the properties panel is collapsed (icon-only mode)
+/// Whether the properties panel is collapsed (icon-only mode).
 final sequencerPropertiesCollapsedProvider =
     StateProvider<bool>((ref) => false);
 
-/// Whether the snippet palette is visible in the toolbox panel
+/// Which toolbox sub-tab is active (Nodes / Snippets / Queue).
+///
+/// Drives the toolbox [TabController] index. Persisted in-session; the
+/// modelChangeRequests record the optional cross-restart settings field.
+final sequencerToolboxTabProvider =
+    StateProvider<SequencerToolboxTab>((ref) => SequencerToolboxTab.nodes);
+
+/// Backwards-compatible "reveal the snippets palette" trigger.
+///
+/// §25 replaced the bidirectional bool↔3-tab sync with [sequencerToolboxTabProvider].
+/// One cross-area caller (Templates tab → "Go to Builder") still flips this to
+/// `true` to surface snippets. We keep it as a *write-only intent flag* that
+/// the toolbox panel bridges one-way into the enum (setting it back to false
+/// after acting), so there is no bidirectional coupling and the external
+/// caller keeps working without that area being edited here. See crossAreaDep.
 final snippetPaletteVisibleProvider = StateProvider<bool>((ref) => false);
+
+/// User-dragged width of the desktop left (toolbox) panel, or null to fall
+/// back to the derived responsive width. Persisted in-session so a drag no
+/// longer snaps back on the next layout pass (audit §6).
+final sequencerLeftPanelWidthProvider = StateProvider<double?>((ref) => null);
+
+/// User-dragged width of the desktop right (properties) panel.
+final sequencerRightPanelWidthProvider = StateProvider<double?>((ref) => null);
+
+/// Flattened (item, categoryName) pairs derived from [nodePaletteProvider]
+/// for the narrow-desktop icon rail (§18).
+///
+/// Hoisting the flattening here means it recomputes only when the palette
+/// itself changes, not on every rail rebuild (window resize / hover). The
+/// category *name* is carried (not a resolved [Color]) so the per-row color
+/// can be resolved from the live [NightshadeColors] in the item builder
+/// without coupling this provider to the widget tree's theme.
+final flatNodePaletteProvider =
+    Provider<List<({NodePaletteItem item, String categoryName})>>((ref) {
+  final categories = ref.watch(nodePaletteProvider);
+  return [
+    for (final cat in categories)
+      for (final item in cat.items) (item: item, categoryName: cat.name),
+  ];
+});
 
 // Note: confirm-then-delete now lives in
 // `widgets/delete_node_confirmation.dart`. The Delete-key handler below
@@ -73,18 +154,13 @@ class SequencerScreen extends ConsumerStatefulWidget {
 
 class _SequencerScreenState extends ConsumerState<SequencerScreen>
     with TickerProviderStateMixin {
-  late AnimationController _fadeController;
   late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    _fadeController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    )..forward();
-
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController =
+        TabController(length: SequencerTab.values.length, vsync: this);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
         ref.read(sequencerTabProvider.notifier).state = _tabController.index;
@@ -158,7 +234,6 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
 
   @override
   void dispose() {
-    _fadeController.dispose();
     _tabController.dispose();
     super.dispose();
   }
@@ -251,155 +326,253 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
       description: context.l10n.text('sequencerTourDescription'),
       durationMinutes: 4,
       alignment: Alignment.bottomRight,
-      child: FadeTransition(
-        opacity: CurvedAnimation(
-          parent: _fadeController,
-          curve: Curves.easeOut,
-        ),
-        child: CallbackShortcuts(
-          bindings: {
-            // Trust-patch §B: undo/redo/delete/duplicate/paste are
-            // mutations and MUST no-op while the sequence is running.
-            // Cutting Ctrl+Z is the load-bearing change here: a stray
-            // Ctrl+Z mid-run used to roll back Dart state while Rust
-            // kept executing the old tree (split-brain). Ctrl+C
-            // (clipboard copy) and Escape (clear multi-select) are
-            // NOT mutations and stay enabled.
-            const SingleActivator(LogicalKeyboardKey.keyZ, control: true): () {
-              if (currentTab != 0) return;
-              if (!ref.read(canEditSequenceProvider)) return;
-              ref.read(currentSequenceProvider.notifier).undo();
-            },
-            const SingleActivator(LogicalKeyboardKey.keyY, control: true): () {
-              if (currentTab != 0) return;
-              if (!ref.read(canEditSequenceProvider)) return;
-              ref.read(currentSequenceProvider.notifier).redo();
-            },
-            const SingleActivator(LogicalKeyboardKey.delete): () {
-              if (currentTab != 0) return;
-              if (!ref.read(canEditSequenceProvider)) return;
-              final multiSelected = ref.read(multiSelectedNodeIdsProvider);
-              if (multiSelected.isNotEmpty) {
-                ref
-                    .read(multiSelectedNodeIdsProvider.notifier)
-                    .deleteSelected();
-              } else {
-                final selectedId = ref.read(selectedNodeIdProvider);
-                if (selectedId != null) {
-                  // Why: a Delete keystroke on a container with children
-                  // would silently nuke the subtree. Route through the
-                  // same confirmation helper the tree's trash button uses
-                  // so the keyboard path has parity.
-                  confirmAndDeleteSequenceNode(
-                    context: context,
-                    ref: ref,
-                    nodeId: selectedId,
-                  );
-                }
-              }
-            },
-            const SingleActivator(LogicalKeyboardKey.keyD, control: true): () {
-              if (currentTab != 0) return;
-              if (!ref.read(canEditSequenceProvider)) return;
+      // §22: the per-entry 400ms fade was cosmetic and replayed on every
+      // route entry. The shell already animates route transitions, so the
+      // screen mounts directly with no extra entrance animation.
+      child: CallbackShortcuts(
+        bindings: {
+          // Trust-patch §B: undo/redo/delete/duplicate/paste are
+          // mutations and MUST no-op while the sequence is running.
+          // Cutting Ctrl+Z is the load-bearing change here: a stray
+          // Ctrl+Z mid-run used to roll back Dart state while Rust
+          // kept executing the old tree (split-brain). Ctrl+C
+          // (clipboard copy) and Escape (clear multi-select) are
+          // NOT mutations and stay enabled.
+          const SingleActivator(LogicalKeyboardKey.keyZ, control: true): () {
+            if (currentTab != 0) return;
+            if (!ref.read(canEditSequenceProvider)) return;
+            ref.read(currentSequenceProvider.notifier).undo();
+          },
+          const SingleActivator(LogicalKeyboardKey.keyY, control: true): () {
+            if (currentTab != 0) return;
+            if (!ref.read(canEditSequenceProvider)) return;
+            ref.read(currentSequenceProvider.notifier).redo();
+          },
+          const SingleActivator(LogicalKeyboardKey.delete): () {
+            if (currentTab != 0) return;
+            if (!ref.read(canEditSequenceProvider)) return;
+            final multiSelected = ref.read(multiSelectedNodeIdsProvider);
+            if (multiSelected.isNotEmpty) {
+              ref.read(multiSelectedNodeIdsProvider.notifier).deleteSelected();
+            } else {
               final selectedId = ref.read(selectedNodeIdProvider);
               if (selectedId != null) {
-                ref
-                    .read(currentSequenceProvider.notifier)
-                    .duplicateNode(selectedId);
+                // Why: a Delete keystroke on a container with children
+                // would silently nuke the subtree. Route through the
+                // same confirmation helper the tree's trash button uses
+                // so the keyboard path has parity.
+                confirmAndDeleteSequenceNode(
+                  context: context,
+                  ref: ref,
+                  nodeId: selectedId,
+                );
               }
-            },
-            const SingleActivator(LogicalKeyboardKey.escape): () {
-              if (currentTab == 0) {
-                final multiSelected = ref.read(multiSelectedNodeIdsProvider);
-                if (multiSelected.isNotEmpty) {
-                  ref.read(multiSelectedNodeIdsProvider.notifier).clear();
-                }
+            }
+          },
+          const SingleActivator(LogicalKeyboardKey.keyD, control: true): () {
+            if (currentTab != 0) return;
+            if (!ref.read(canEditSequenceProvider)) return;
+            final selectedId = ref.read(selectedNodeIdProvider);
+            if (selectedId != null) {
+              ref
+                  .read(currentSequenceProvider.notifier)
+                  .duplicateNode(selectedId);
+            }
+          },
+          const SingleActivator(LogicalKeyboardKey.escape): () {
+            if (currentTab == 0) {
+              final multiSelected = ref.read(multiSelectedNodeIdsProvider);
+              if (multiSelected.isNotEmpty) {
+                ref.read(multiSelectedNodeIdsProvider.notifier).clear();
               }
-            },
-            const SingleActivator(LogicalKeyboardKey.keyC, control: true): () {
-              // Ctrl+C is a clipboard read — not an edit. Stays enabled
-              // during a run so users can copy a node into a snippet
-              // even while the executor is busy.
-              if (currentTab == 0) {
-                final multiSelected = ref.read(multiSelectedNodeIdsProvider);
-                if (multiSelected.isNotEmpty) {
+            }
+          },
+          const SingleActivator(LogicalKeyboardKey.keyC, control: true): () {
+            // Ctrl+C is a clipboard read — not an edit. Stays enabled
+            // during a run so users can copy a node into a snippet
+            // even while the executor is busy.
+            if (currentTab == 0) {
+              final multiSelected = ref.read(multiSelectedNodeIdsProvider);
+              if (multiSelected.isNotEmpty) {
+                ref.read(multiSelectedNodeIdsProvider.notifier).copySelected();
+              } else {
+                // No multi-selection: fall back to the single selected
+                // node so Ctrl+C works on a plain click selection.
+                final selectedId = ref.read(selectedNodeIdProvider);
+                if (selectedId != null) {
                   ref
                       .read(multiSelectedNodeIdsProvider.notifier)
-                      .copySelected();
+                      .copySelected(explicitIds: [selectedId]);
                 }
               }
-            },
-            const SingleActivator(LogicalKeyboardKey.keyV, control: true): () {
-              if (currentTab != 0) return;
-              if (!ref.read(canEditSequenceProvider)) return;
-              final clipboard = ref.read(nodeCopyClipboardProvider);
-              if (clipboard != null && clipboard.isNotEmpty) {
-                ref
-                    .read(multiSelectedNodeIdsProvider.notifier)
-                    .pasteFromClipboard();
-              }
-            },
-            const SingleActivator(LogicalKeyboardKey.digit1, alt: true): () {
-              _tabController.animateTo(0);
-            },
-            const SingleActivator(LogicalKeyboardKey.digit2, alt: true): () {
-              _tabController.animateTo(1);
-            },
-            const SingleActivator(LogicalKeyboardKey.digit3, alt: true): () {
-              _tabController.animateTo(2);
-            },
-            const SingleActivator(LogicalKeyboardKey.digit4, alt: true): () {
-              _tabController.animateTo(3);
-            },
-            // Ctrl+T (or Cmd+T on Mac) to toggle snippet palette visibility
-            const SingleActivator(LogicalKeyboardKey.keyT, control: true): () {
-              if (currentTab == 0) {
-                final current = ref.read(snippetPaletteVisibleProvider);
-                ref.read(snippetPaletteVisibleProvider.notifier).state =
-                    !current;
-              }
-            },
+            }
           },
-          child: Focus(
-            autofocus: true,
-            child: Column(
-              children: [
-                // Tab bar
-                _SequencerTabBar(
-                  colors: colors,
-                  controller: _tabController,
-                  isRunning: isRunning,
-                ),
-
-                // Progress bar (when running)
-                if (isRunning)
-                  SequenceProgressBar(
-                      key: SequencerTutorialKeys.progressBar, colors: colors),
-
-                // Tab content
-                Expanded(
-                  child: AnimatedTabBarView(
+          const SingleActivator(LogicalKeyboardKey.keyV, control: true): () {
+            if (currentTab != 0) return;
+            if (!ref.read(canEditSequenceProvider)) return;
+            final clipboard = ref.read(nodeCopyClipboardProvider);
+            if (clipboard != null && clipboard.isNotEmpty) {
+              ref
+                  .read(multiSelectedNodeIdsProvider.notifier)
+                  .pasteFromClipboard();
+            }
+          },
+          const SingleActivator(LogicalKeyboardKey.digit1, alt: true): () {
+            _tabController.animateTo(SequencerTab.builder.index);
+          },
+          const SingleActivator(LogicalKeyboardKey.digit2, alt: true): () {
+            _tabController.animateTo(SequencerTab.templates.index);
+          },
+          const SingleActivator(LogicalKeyboardKey.digit3, alt: true): () {
+            _tabController.animateTo(SequencerTab.sequences.index);
+          },
+          const SingleActivator(LogicalKeyboardKey.digit4, alt: true): () {
+            _tabController.animateTo(SequencerTab.history.index);
+          },
+          // Ctrl+T (or Cmd+T on Mac) toggles the toolbox between Nodes and
+          // Snippets. From the Queue tab it switches to Snippets so the
+          // keystroke always has a visible effect (audit §25).
+          const SingleActivator(LogicalKeyboardKey.keyT, control: true): () {
+            if (currentTab != SequencerTab.builder.index) return;
+            final current = ref.read(sequencerToolboxTabProvider);
+            ref.read(sequencerToolboxTabProvider.notifier).state =
+                current == SequencerToolboxTab.nodes
+                    ? SequencerToolboxTab.snippets
+                    : SequencerToolboxTab.nodes;
+          },
+        },
+        child: Focus(
+          autofocus: true,
+          // §17: derive ONE form-factor decision at the screen level and
+          // thread it to the tab strip so the header and the body agree.
+          // We branch on the *short* side (same rule _BuilderContent uses)
+          // so a phone held in landscape is treated as a phone in both the
+          // strip and the content, instead of the strip (MediaQuery width)
+          // and the body (short-side) disagreeing.
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final shortSide = constraints.maxWidth < constraints.maxHeight
+                  ? constraints.maxWidth
+                  : constraints.maxHeight;
+              final isPhone = BreakpointTokens.isPhone(shortSide);
+              return Column(
+                children: [
+                  // Tab bar
+                  _SequencerTabBar(
+                    colors: colors,
                     controller: _tabController,
-                    children: [
-                      // Builder tab
-                      _BuilderContent(colors: colors),
-                      // Templates tab — merged library. Bundled read-only
-                      // sample sequences (audit §8.3.5) now live inside this
-                      // tab as a "Starters" section above the saved/built-in
-                      // templates, so the standalone Samples tab is gone.
-                      const TemplatesTab(),
-                      // Saved sequence catalog (host DB / remote list-full).
-                      const SequenceLibraryTab(),
-                      // History tab
-                      const HistoryTab(),
-                    ],
+                    isRunning: isRunning,
+                    isPhone: isPhone,
                   ),
-                ),
-              ],
-            ),
+
+                  // Progress bar (when running)
+                  if (isRunning)
+                    SequenceProgressBar(
+                        key: SequencerTutorialKeys.progressBar, colors: colors),
+
+                  // Tab content. Each tab is lazily gated so Templates /
+                  // Sequences / History are not constructed (and their async
+                  // loads not kicked off) until the user first visits them
+                  // (audit §2). The Builder tab is the default landing tab so
+                  // it builds immediately. Once visited, a tab stays built so
+                  // re-selecting it is instant and its scroll/async state
+                  // survives. AnimatedTabBarView keeps the fade/slide between
+                  // selections.
+                  Expanded(
+                    child: AnimatedTabBarView(
+                      controller: _tabController,
+                      children: [
+                        // Builder tab — the default landing tab, always built.
+                        _LazyTab(
+                          controller: _tabController,
+                          index: SequencerTab.builder.index,
+                          builder: (_) => _BuilderContent(colors: colors),
+                        ),
+                        // Templates tab — merged library. Bundled read-only
+                        // sample sequences (audit §8.3.5) now live inside this
+                        // tab as a "Starters" section above the saved/built-in
+                        // templates, so the standalone Samples tab is gone.
+                        _LazyTab(
+                          controller: _tabController,
+                          index: SequencerTab.templates.index,
+                          builder: (_) => const TemplatesTab(),
+                        ),
+                        // Saved sequence catalog (host DB / remote list-full).
+                        _LazyTab(
+                          controller: _tabController,
+                          index: SequencerTab.sequences.index,
+                          builder: (_) => const SequenceLibraryTab(),
+                        ),
+                        // History tab.
+                        _LazyTab(
+                          controller: _tabController,
+                          index: SequencerTab.history.index,
+                          builder: (_) => const HistoryTab(),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),
     );
+  }
+}
+
+/// Defers construction of an off-screen tab until it is first selected, then
+/// keeps it built so re-selection is instant (audit §2).
+///
+/// While unvisited it renders an empty [SizedBox.shrink] so the tab's subtree
+/// — and any async loading it kicks off in `initState` (Library/History) — is
+/// not created on screen entry. The instant the [controller] settles on
+/// [index] (or is mid-animation toward it) the child is built and the `_seen`
+/// flag latches so it never reverts to the placeholder.
+class _LazyTab extends StatefulWidget {
+  final TabController controller;
+  final int index;
+  final WidgetBuilder builder;
+
+  const _LazyTab({
+    required this.controller,
+    required this.index,
+    required this.builder,
+  });
+
+  @override
+  State<_LazyTab> createState() => _LazyTabState();
+}
+
+class _LazyTabState extends State<_LazyTab> {
+  bool _seen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _seen = _isCurrent;
+    widget.controller.addListener(_onControllerChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onControllerChanged);
+    super.dispose();
+  }
+
+  /// True when the controller's selection is (or is animating toward) our
+  /// index — `index` snaps to the target as soon as a swipe/animateTo begins.
+  bool get _isCurrent => widget.controller.index == widget.index;
+
+  void _onControllerChanged() {
+    if (_seen || !_isCurrent) return;
+    setState(() => _seen = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_seen) return const SizedBox.shrink();
+    return widget.builder(context);
   }
 }

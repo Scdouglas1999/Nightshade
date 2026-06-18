@@ -360,7 +360,11 @@ extension CurrentSequenceSnippetEditing on CurrentSequenceNotifier {
     final childIds =
         (json['childIds'] as List<dynamic>?)?.cast<String>() ?? const [];
     final orderIndex = (json['orderIndex'] as num?)?.toInt() ?? 0;
-    final isEnabled = json['isEnabled'] as bool? ?? false;
+    // Match the SequenceNode model default (isEnabled defaults to true).
+    // Legacy snippet JSON that predates the flag must deserialize enabled,
+    // not silently disabled — a disabled node is skipped at execution and
+    // gives the user a "why didn't my pasted snippet run?" surprise.
+    final isEnabled = json['isEnabled'] as bool? ?? true;
 
     switch (nodeType) {
       case 'targetheader':

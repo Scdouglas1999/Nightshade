@@ -27,7 +27,11 @@ class _AutofocusProgressPanelState
     // Try to parse structured JSON progress data
     final afData = AutofocusProgressData.tryParse(widget.detail);
 
-    // Fallback to legacy parsing if not structured data
+    // Compatibility fallback: older / remote backends that have not been
+    // upgraded to the structured autofocus payload still emit a plain
+    // "Point 5/9: HFR=..., Stars=..." string. The structured path is
+    // preferred; the legacy regex panel only runs when parsing fails. Kept
+    // until every shipped backend is confirmed to emit the structured data.
     if (afData == null) {
       return _buildLegacyPanel();
     }

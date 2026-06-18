@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -9,6 +10,7 @@ part 'notes_panel/target_notes_dialog.dart';
 part 'notes_panel/note_tile.dart';
 part 'notes_panel/note_editor_dialog.dart';
 part 'notes_panel/sentiment_and_prompt.dart';
+part 'notes_panel/global_notes_dialog.dart';
 
 /// Embeddable notes UI used by the target header card,
 /// the session report dialog, and the history tab.
@@ -27,6 +29,48 @@ part 'notes_panel/sentiment_and_prompt.dart';
 /// timestamp, edit/delete). Keeping the layout primitives co-located
 /// means a future tweak to the markdown renderer or tag chip styling
 /// only has one place to land.
+
+/// Shared "delete this note?" confirmation used by every notes surface
+/// (target section, run section, target dialog). Standardizes on
+/// [NightshadeDialog] and the single delete-on-confirm path so the three
+/// previously copy-pasted variants can't drift.
+Future<void> confirmDeleteNote(
+  BuildContext context,
+  WidgetRef ref,
+  JournalNote note,
+) async {
+  final colors = NightshadeColors.of(context);
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => NightshadeDialog(
+      title: 'Delete note?',
+      icon: LucideIcons.trash2,
+      width: 420,
+      bodyPadding: const EdgeInsets.all(NightshadeTokens.spaceXl),
+      actions: [
+        NightshadeButton(
+          label: 'Cancel',
+          variant: ButtonVariant.ghost,
+          size: ButtonSize.small,
+          onPressed: () => Navigator.of(ctx).pop(false),
+        ),
+        NightshadeButton(
+          label: 'Delete',
+          variant: ButtonVariant.destructive,
+          size: ButtonSize.small,
+          onPressed: () => Navigator.of(ctx).pop(true),
+        ),
+      ],
+      child: Text(
+        'This note will be permanently removed.',
+        style: TextStyle(color: colors.textSecondary),
+      ),
+    ),
+  );
+  if (confirmed == true) {
+    await ref.read(notesServiceProvider).deleteNote(note.id);
+  }
+}
 
 // =============================================================================
 // Section widgets (embedded in TargetHeaderCard / SessionReportDialog / HistoryTab)
@@ -155,7 +199,7 @@ class TargetNotesSection extends ConsumerWidget {
               colors: colors,
               maxBodyLines: 3,
               onEdit: () => _openEditDialog(context, ref, note),
-              onDelete: () => _confirmDelete(context, ref, note),
+              onDelete: () => confirmDeleteNote(context, ref, note),
             ),
             const SizedBox(height: 6),
           ],
@@ -223,34 +267,6 @@ class TargetNotesSection extends ConsumerWidget {
       ),
     );
   }
-
-  Future<void> _confirmDelete(
-      BuildContext context, WidgetRef ref, JournalNote note) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete note?'),
-        content: const Text('This note will be permanently removed.'),
-        actions: [
-          NightshadeButton(
-            label: 'Cancel',
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
-            onPressed: () => Navigator.of(ctx).pop(false),
-          ),
-          NightshadeButton(
-            label: 'Delete',
-            variant: ButtonVariant.destructive,
-            size: ButtonSize.small,
-            onPressed: () => Navigator.of(ctx).pop(true),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true) {
-      await ref.read(notesServiceProvider).deleteNote(note.id);
-    }
-  }
 }
 
 /// Notes section scoped to a single sequence run. Renders identically
@@ -285,7 +301,7 @@ class RunNotesSection extends ConsumerWidget {
         emptyHint: 'No notes for this run yet. Add one to record what worked.',
         onAdd: () => _openCreateDialog(context, ref),
         onEdit: (n) => _openEditDialog(context, ref, n),
-        onDelete: (n) => _confirmDelete(context, ref, n),
+        onDelete: (n) => confirmDeleteNote(context, ref, n),
       ),
       loading: () => const SizedBox.shrink(),
       error: (e, _) => Text(
@@ -316,34 +332,6 @@ class RunNotesSection extends ConsumerWidget {
         existing: note,
       ),
     );
-  }
-
-  Future<void> _confirmDelete(
-      BuildContext context, WidgetRef ref, JournalNote note) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete note?'),
-        content: const Text('This note will be permanently removed.'),
-        actions: [
-          NightshadeButton(
-            label: 'Cancel',
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
-            onPressed: () => Navigator.of(ctx).pop(false),
-          ),
-          NightshadeButton(
-            label: 'Delete',
-            variant: ButtonVariant.destructive,
-            size: ButtonSize.small,
-            onPressed: () => Navigator.of(ctx).pop(true),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true) {
-      await ref.read(notesServiceProvider).deleteNote(note.id);
-    }
   }
 }
 

@@ -142,29 +142,50 @@ class TargetWindow {
 /// identifies timing conflicts where nodes may execute outside their target's
 /// visibility window.
 class SequenceTimeEstimator {
-  const SequenceTimeEstimator();
+  /// Per-operation overhead model. Single source of truth shared with the
+  /// tree-row rollup ([nodeRollupDurationProvider]) and
+  /// [Sequence.estimateWithOverhead] so the node chip, the timeline, and the
+  /// run-dashboard total all agree. Construct via [SequenceTimeEstimator.new]
+  /// with a config derived from the user's `SequencerDefaults` (see the app
+  /// call sites); the no-arg `const` form keeps the estimator's historical
+  /// defaults so existing tests and zero-config callers behave unchanged.
+  final SequenceOverheadConfig overhead;
+
+  /// Construct with an explicit overhead model. Defaults to
+  /// [defaultEstimatorOverhead], which preserves the estimator's historical
+  /// timing constants (2 s download, 5 s dither, 30 s slew/center, 120 s
+  /// meridian-flip base, 10 min cooling) rather than the
+  /// [SequenceOverheadConfig] field defaults, so the long-standing unit
+  /// tests and goldens keep passing.
+  const SequenceTimeEstimator({this.overhead = defaultEstimatorOverhead});
 
   // ============================================================================
   // Default timing constants (in seconds unless noted)
   // ============================================================================
 
-  /// Download overhead per exposure in seconds (for CCD readout and save)
-  static const double _downloadOverheadSecs = 2.0;
+  /// The estimator's historical overhead constants, expressed as a
+  /// [SequenceOverheadConfig]. These differ from the
+  /// [SequenceOverheadConfig] field defaults on purpose — the estimator has
+  /// always used lighter assumptions (2 s download, 5 s dither/settle, 30 s
+  /// slew + center, 120 s meridian-flip base) and the time-estimator tests +
+  /// timeline goldens are pinned to them. App call sites override this with a
+  /// config built from `SequencerDefaults` so the live estimate honours the
+  /// user's real cadence.
+  static const SequenceOverheadConfig defaultEstimatorOverhead =
+      SequenceOverheadConfig(
+        downloadOverheadPerExposureSecs: 2.0,
+        ditherSecs: 5.0,
+        slewSecs: 30.0,
+        centerTargetSecs: 30.0,
+        meridianFlipSecs: 120.0,
+        // 10 minutes, in seconds, for camera cooling.
+        coolingSecs: 600.0,
+      );
 
-  /// Default dither duration in seconds
-  static const double _ditherDurationSecs = 5.0;
+  /// Default cooling duration in minutes, derived from [overhead.coolingSecs]
+  /// so a custom config flows through to the CoolCamera estimate.
+  double get _defaultCoolingMins => overhead.coolingSecs / 60.0;
 
-  /// Default slew duration in seconds
-  static const double _slewDurationSecs = 30.0;
-
-  /// Default centering duration in seconds (includes plate solve + slew)
-  static const double _centerDurationSecs = 30.0;
-
-  /// Default meridian flip duration in seconds
-  static const double _meridianFlipDurationSecs = 120.0;
-
-  /// Default cooling duration in minutes
-  static const double _defaultCoolingMins = 10.0;
   static const int _defaultScriptTimeoutSecs = 60;
 
   /// Minimum altitude for target visibility calculations (degrees)
@@ -451,7 +472,7 @@ class SequenceTimeEstimator {
       ExposureNode() => Duration(
         milliseconds:
             ((node.count * node.durationSecs +
-                        node.count * _downloadOverheadSecs) *
+                        node.count * overhead.downloadOverheadPerExposureSecs) *
                     1000)
                 .round(),
       ),
@@ -467,23 +488,21 @@ class SequenceTimeEstimator {
         double secs = 0.0;
         for (final p in node.plans) {
           secs += p.count * p.durationSecs;
-          secs += p.count * _downloadOverheadSecs;
+          secs += p.count * overhead.downloadOverheadPerExposureSecs;
           // Dither cost: one settle cycle per ditherEvery frames (treat
           // 0 / null as "no dither"). Same heuristic as ExposureNode but
           // applied per-plan.
           final every = p.ditherEvery ?? 0;
           if (every > 0) {
             final ditherCount = (p.count / every).floor();
-            secs += ditherCount * _ditherDurationSecs;
+            secs += ditherCount * overhead.ditherSecs;
           }
         }
         // One filter change per plan (skipped only if two consecutive
         // plans share the same filter — the estimator can't tell which
         // ones will overlap with the live current-filter state, so we
-        // assume worst case). 10s mirrors the FilterChangeNode case
-        // below.
-        const filterChangeDurationSecs = 10.0;
-        secs += node.plans.length * filterChangeDurationSecs;
+        // assume worst case). Mirrors the FilterChangeNode case below.
+        secs += node.plans.length * overhead.filterChangeSecs;
         // Clamp to the integration budget when one is set. The budget
         // measures *integration* not wall-clock — we approximate by
         // capping the integration component only.
@@ -496,16 +515,18 @@ class SequenceTimeEstimator {
         return Duration(milliseconds: (secs * 1000).round());
       }(),
       AutofocusNode() => Duration(
-        milliseconds:
-            (((node.stepsOut * 2 + 1) *
-                        node.exposuresPerPoint *
-                        node.exposureDuration) *
-                    1000)
-                .round(),
+        // The Rust executor's AutofocusConfig has no exposures-per-point
+        // field — the serializer never sends `node.exposuresPerPoint`, and
+        // the runtime captures exactly one exposure per focus point. Estimate
+        // against that authoritative per-point count of 1 so the timeline
+        // matches what actually runs, rather than referencing an unsent
+        // field that would over-estimate whenever the user set it > 1.
+        milliseconds: (((node.stepsOut * 2 + 1) * node.exposureDuration) * 1000)
+            .round(),
       ),
       DitherNode() => Duration(
         milliseconds:
-            (((node.settleTime > 0 ? node.settleTime : _ditherDurationSecs)) *
+            (((node.settleTime > 0 ? node.settleTime : overhead.ditherSecs)) *
                     1000)
                 .round(),
       ),
@@ -515,26 +536,33 @@ class SequenceTimeEstimator {
         currentTime,
         locationContext,
       ),
-      SlewNode() => const Duration(seconds: 30),
+      SlewNode() => Duration(milliseconds: (overhead.slewSecs * 1000).round()),
       CenterNode() => () {
         // Centering involves multiple plate solves and slews. Estimate:
         // maxAttempts iterations of (expose + solve + slew). In practice,
-        // usually succeeds in 1-3 attempts.
+        // usually succeeds in 1-3 attempts. Per-attempt cost is the node's
+        // real exposure duration plus a plate-solve + half-slew overhead
+        // drawn from the shared config (no magic 10 + slew/2 literal).
         final estimatedAttempts = (node.maxAttempts / 2).ceil();
-        const secsPerAttempt = 10.0 + _slewDurationSecs / 2;
+        final secsPerAttempt =
+            node.exposureDuration +
+            overhead.plateSolveSecs +
+            overhead.slewSecs / 2;
         final totalSecs = estimatedAttempts * secsPerAttempt;
         return Duration(milliseconds: (totalSecs * 1000).round());
       }(),
       MeridianFlipNode() => () {
         // Flip includes: stop guiding, slew, recenter, restart guiding.
-        double totalSecs = _meridianFlipDurationSecs;
+        double totalSecs = overhead.meridianFlipSecs;
         if (node.autoCenter) {
-          totalSecs += _centerDurationSecs;
+          totalSecs += overhead.centerTargetSecs;
         }
         totalSecs += node.settleTime;
         return Duration(milliseconds: (totalSecs * 1000).round());
       }(),
-      FilterChangeNode() => const Duration(seconds: 10),
+      FilterChangeNode() => Duration(
+        milliseconds: (overhead.filterChangeSecs * 1000).round(),
+      ),
       RotatorNode() => const Duration(seconds: 15),
       ParkNode() || UnparkNode() => const Duration(seconds: 30),
       CoolCameraNode() => Duration(
@@ -542,9 +570,13 @@ class SequenceTimeEstimator {
       ),
       WarmCameraNode() => () {
         // Estimate warming time using a typical 30 C delta (e.g., -10 to +20)
-        // at the configured rate.
+        // at the configured rate. Guard the divisor: a zero / negative
+        // ratePerMin (blank field, bad import) would otherwise produce
+        // Infinity / NaN and a garbage Duration. Fall back to the model's
+        // default rate of 2 C/min.
         const deltaTemp = 30.0;
-        final mins = deltaTemp / node.ratePerMin;
+        final rate = node.ratePerMin > 0 ? node.ratePerMin : 2.0;
+        final mins = deltaTemp / rate;
         return Duration(minutes: mins.round());
       }(),
       StartGuidingNode() => Duration(
@@ -589,8 +621,8 @@ class SequenceTimeEstimator {
       SciencePhotometryNode() => Duration(
         milliseconds:
             ((node.count * node.exposureSecs +
-                        node.count * _downloadOverheadSecs +
-                        10.0 /* filter change */ ) *
+                        node.count * overhead.downloadOverheadPerExposureSecs +
+                        overhead.filterChangeSecs) *
                     1000)
                 .round(),
       ),
@@ -905,17 +937,78 @@ class SequenceTimeEstimator {
     return (timings: timings, windows: windows, conflicts: conflicts);
   }
 
+  /// Extra overhead (seconds) from autofocus runs the executor will splice in
+  /// at runtime but which never appear as nodes in the sequence tree, so no
+  /// per-node timing entry exists for them.
+  ///
+  /// Two synthetic-AF sources, both driven by app settings (mirroring the
+  /// serializer's [_sequenceToJson] injection logic):
+  ///
+  ///   * [autoFocusOnFilterChange] — one AF run is injected after every
+  ///     [FilterChangeNode] that is NOT already immediately followed by an
+  ///     [AutofocusNode] sibling. We count those filter changes across the
+  ///     whole tree and charge [overhead.autofocusSecs] each.
+  ///   * [autoFocusEveryMinutes] — the AF-interval trigger fires roughly
+  ///     every N minutes of run time. We approximate the count as
+  ///     floor(estimatedTotalMinutes / N) and charge [overhead.autofocusSecs]
+  ///     each. `0` (or negative) disables this term.
+  ///
+  /// This is read-only: it never mutates the [Sequence] (no synthetic nodes
+  /// are inserted), matching how the estimator stays a pure function of the
+  /// tree. Returns 0 when neither setting is active.
+  double injectedAutofocusSecs(
+    Sequence sequence, {
+    required bool autoFocusOnFilterChange,
+    int autoFocusEveryMinutes = 0,
+    Duration? estimatedTotal,
+  }) {
+    double secs = 0.0;
+
+    if (autoFocusOnFilterChange) {
+      var injectedFilterChangeAf = 0;
+      for (final node in sequence.nodes.values) {
+        for (var i = 0; i < node.childIds.length; i++) {
+          final child = sequence.nodes[node.childIds[i]];
+          if (child is! FilterChangeNode || !child.isEnabled) continue;
+          final nextId = i + 1 < node.childIds.length
+              ? node.childIds[i + 1]
+              : null;
+          final next = nextId == null ? null : sequence.nodes[nextId];
+          if (next is AutofocusNode) continue; // user already arranged AF
+          injectedFilterChangeAf++;
+        }
+      }
+      secs += injectedFilterChangeAf * overhead.autofocusSecs;
+    }
+
+    if (autoFocusEveryMinutes > 0 && estimatedTotal != null) {
+      final totalMins = estimatedTotal.inSeconds / 60.0;
+      final intervalRuns = (totalMins / autoFocusEveryMinutes).floor();
+      if (intervalRuns > 0) {
+        secs += intervalRuns * overhead.autofocusSecs;
+      }
+    }
+
+    return secs;
+  }
+
   /// Calculate the total estimated duration of a sequence.
   ///
   /// Note: For unbounded loops (forever, whileDark), this returns the duration
   /// of a single iteration only.
   ///
-  /// [latitude] and [longitude] are optional but required for accurate twilight wait estimates.
+  /// [latitude] and [longitude] are optional but required for accurate twilight
+  /// wait estimates. When [autoFocusOnFilterChange] / [autoFocusEveryMinutes]
+  /// are supplied (from app settings), the runtime-injected autofocus runs the
+  /// executor splices in are added on top (see [injectedAutofocusSecs]) so the
+  /// run-dashboard total matches what actually executes.
   Duration estimateTotalDuration(
     Sequence sequence,
     DateTime startTime, {
     double? latitude,
     double? longitude,
+    bool autoFocusOnFilterChange = false,
+    int autoFocusEveryMinutes = 0,
   }) {
     final timings = estimateSequenceTiming(
       sequence,
@@ -944,7 +1037,21 @@ class SequenceTimeEstimator {
     final end = lastTiming.estimatedEnd.isAfter(walkEnd)
         ? lastTiming.estimatedEnd
         : walkEnd;
-    return end.difference(startTime);
+    final baseTotal = end.difference(startTime);
+
+    // Add runtime-injected autofocus overhead (filter-change AF + AF-interval
+    // cadence) that has no node in the tree. Off unless the caller threads the
+    // app's autofocus settings through.
+    if (!autoFocusOnFilterChange && autoFocusEveryMinutes <= 0) {
+      return baseTotal;
+    }
+    final afSecs = injectedAutofocusSecs(
+      sequence,
+      autoFocusOnFilterChange: autoFocusOnFilterChange,
+      autoFocusEveryMinutes: autoFocusEveryMinutes,
+      estimatedTotal: baseTotal,
+    );
+    return baseTotal + Duration(milliseconds: (afSecs * 1000).round());
   }
 
   /// Walks the sequence the same way [estimateSequenceTiming] does but returns

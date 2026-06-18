@@ -61,19 +61,30 @@ class OrphanedNodesRule implements SequenceValidator {
 
   @override
   List<ValidationIssue> validate(Sequence sequence) {
-    if (sequence.rootNodeId == null) {
+    final rootId = sequence.rootNodeId;
+    if (rootId == null) {
       // Can't compute reachability without a root. The MissingRootNodeRule
       // handles that case.
       return const [];
     }
 
-    final referenced = <String>{sequence.rootNodeId!};
-    for (final node in sequence.nodes.values) {
-      referenced.addAll(node.childIds);
+    // True root-reachability walk. The previous flat "any node references
+    // this id" set masked transitively-unreachable orphans: a detached
+    // subtree whose nodes cross-reference each other (parent lists each
+    // other's ids) all appeared "referenced" even though none of them hang
+    // off the root. Walk the tree from the root following childIds and
+    // collect only the genuinely-reachable ids.
+    final reachable = <String>{};
+    final queue = <String>[rootId];
+    while (queue.isNotEmpty) {
+      final id = queue.removeLast();
+      if (!sequence.nodes.containsKey(id)) continue;
+      if (!reachable.add(id)) continue; // already visited
+      queue.addAll(sequence.nodes[id]!.childIds);
     }
 
     final orphaned = sequence.nodes.keys
-        .where((id) => !referenced.contains(id))
+        .where((id) => !reachable.contains(id))
         .toList();
     if (orphaned.isEmpty) return const [];
 

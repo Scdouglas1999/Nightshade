@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:math' as math;
 
+import 'package:collection/collection.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -14,6 +16,7 @@ import 'delete_node_confirmation.dart';
 import 'live_stacking_properties.dart';
 import 'meridian_flip_edit_helper.dart';
 import 'node_property_widgets.dart';
+import 'node_timing_section.dart';
 import 'smart_exposure_properties.dart';
 import 'target_node_properties.dart';
 import 'target_scheduler_properties.dart';
@@ -37,7 +40,6 @@ part 'node_properties_panel_parts/_motion_rich.dart';
 part 'node_properties_panel_parts/_flow_properties.dart';
 part 'node_properties_panel_parts/_misc_properties.dart';
 part 'node_properties_panel_parts/_plugin_properties.dart';
-part 'node_properties_panel_parts/_timing_section.dart';
 
 class NodePropertiesPanel extends ConsumerWidget {
   final NightshadeColors colors;

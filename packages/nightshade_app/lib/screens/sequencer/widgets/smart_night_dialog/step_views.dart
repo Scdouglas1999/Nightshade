@@ -74,12 +74,20 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
         ),
         const SizedBox(width: 10),
         FilledButton.icon(
-          icon: Icon(
-            isLast ? LucideIcons.play : LucideIcons.chevronRight,
-            size: 16,
-          ),
-          label: Text(isLast ? 'Start Sequence' : 'Next'),
-          onPressed: _onPrimaryPressed,
+          icon: _isBuildingPreview
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Icon(
+                  isLast ? LucideIcons.play : LucideIcons.chevronRight,
+                  size: 16,
+                ),
+          label: Text(_isBuildingPreview
+              ? 'Building…'
+              : (isLast ? 'Start Sequence' : 'Next')),
+          onPressed: _isBuildingPreview ? null : _onPrimaryPressed,
         ),
       ],
     );
@@ -306,6 +314,20 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
               ],
             ),
           ),
+          const SizedBox(height: 10),
+          // Inline fix path: edit the active profile without leaving the
+          // wizard. The step ref.watch(activeEquipmentProfileProvider), so it
+          // auto-refreshes once the editor closes.
+          Align(
+            alignment: Alignment.centerLeft,
+            child: NightshadeButton(
+              onPressed: () => ProfileEditorDialog.show(context),
+              icon: LucideIcons.settings2,
+              label: 'Edit profile',
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+            ),
+          ),
           const SizedBox(height: 16),
           _SettingsRow(
             label: 'Cool to',
@@ -348,16 +370,42 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
 
   Widget _buildTargetsStep(NightshadeColors colors) {
     final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
+    final plannedCount = _plannedTargetCount(suggestionsAsync.valueOrNull);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Pick tonight\'s targets',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize15,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Pick tonight\'s targets',
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize15,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textPrimary,
+                ),
+              ),
+            ),
+            if (plannedCount != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: NightshadeDecorations.statusChip(
+                  plannedCount == 0 ? colors.warning : colors.primary,
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
+                ),
+                child: Text(
+                  plannedCount == 0
+                      ? 'None will be planned'
+                      : '$plannedCount will be planned',
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    fontWeight: FontWeight.w600,
+                    color: plannedCount == 0 ? colors.warning : colors.primary,
+                  ),
+                ),
+              ),
+          ],
         ),
         if (widget.seedSourceLabel != null) ...[
           const SizedBox(height: 8),
@@ -479,6 +527,22 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
       missing.add('#$id');
     }
     return missing;
+  }
+
+  /// How many targets will actually be planned given the current selection
+  /// mode and tonight's ranking. In auto mode that's min(count, available);
+  /// in hand-pick mode it's the number of selected ids that appear in the
+  /// ranking (the ranking is the source of truth for imageable-tonight).
+  /// Returns null until suggestions have loaded.
+  int? _plannedTargetCount(List<TargetSuggestion>? suggestions) {
+    if (suggestions == null) return null;
+    if (_autoSelect) {
+      return _autoSelectCount < suggestions.length
+          ? _autoSelectCount
+          : suggestions.length;
+    }
+    final upIds = suggestions.map((s) => s.targetId).toSet();
+    return _selectedTargetIds.where(upIds.contains).length;
   }
 
   // ---------- Step 4: strategy -----------------------------------------
@@ -787,6 +851,17 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
             style: TextStyle(
               color: colors.textSecondary,
               fontSize: NightshadeTypography.fontSize12,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: NightshadeButton(
+              onPressed: () => unawaited(_savePlanAsTemplate(plan)),
+              icon: LucideIcons.save,
+              label: 'Save as template instead',
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
             ),
           ),
         ],

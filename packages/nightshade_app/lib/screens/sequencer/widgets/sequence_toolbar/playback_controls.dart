@@ -58,12 +58,14 @@ class _PlaybackControls extends StatelessWidget {
 
         const SizedBox(width: 8),
 
-        // Skip button
+        // Skip button — enabled while paused too: the backend skip simply
+        // advances the node pointer, which is valid in both running and
+        // paused states (matches the Stop gate above).
         _ControlButton(
           icon: LucideIcons.skipForward,
           tooltip: 'Skip to Next',
           colors: colors,
-          onPressed: isRunning ? onSkip : null,
+          onPressed: (isRunning || isPaused) ? onSkip : null,
         ),
 
         const SizedBox(width: 8),

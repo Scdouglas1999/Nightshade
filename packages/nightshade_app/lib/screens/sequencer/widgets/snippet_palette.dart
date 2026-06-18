@@ -145,20 +145,18 @@ class _SnippetPaletteState extends ConsumerState<SnippetPalette> {
   Widget build(BuildContext context) {
     final snippetsByCategory = ref.watch(snippetsByCategoryProvider);
 
-    // Filter snippets based on search query
+    // Filter snippets based on search query. Lower-case the query once up
+    // front rather than per-snippet, and reuse it across name + description.
     final filteredByCategory = <SnippetCategory, List<TemplateSnippet>>{};
+    final q = _searchQuery.toLowerCase();
     for (final entry in snippetsByCategory.entries) {
       if (_searchQuery.isEmpty) {
         filteredByCategory[entry.key] = entry.value;
       } else {
         final filtered = entry.value
             .where((snippet) =>
-                snippet.name
-                    .toLowerCase()
-                    .contains(_searchQuery.toLowerCase()) ||
-                snippet.description
-                    .toLowerCase()
-                    .contains(_searchQuery.toLowerCase()))
+                snippet.name.toLowerCase().contains(q) ||
+                snippet.description.toLowerCase().contains(q))
             .toList();
         if (filtered.isNotEmpty) {
           filteredByCategory[entry.key] = filtered;

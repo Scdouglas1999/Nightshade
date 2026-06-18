@@ -205,25 +205,36 @@ class _SessionInsightTileState extends ConsumerState<_SessionInsightTile> {
         );
         return;
       }
-      final targetId = widget.insight.targetId;
+      final headers = sequence.targetHeaders;
+      // The insight's target name (when the optimizer attached one via
+      // applyHint) is the only reliable join key — the in-editor node tree
+      // doesn't carry the Drift `targetId`. The previous logic stamped the
+      // FIRST header whenever the insight carried any targetId, which
+      // mutated the wrong target on a multi-target sequence.
+      final hintTargetName = hint['targetName'] as String?;
       TargetHeaderNode? match;
-      for (final h in sequence.targetHeaders) {
-        // The targetId in the optimizer maps to the Drift targets row;
-        // for now we match by display name (`targetName`) when present.
-        // The Drift id is not stored on the in-editor node tree so
-        // name-matching is the canonical join key.
-        if (targetId != null && h.targetName.isNotEmpty) {
-          match = h;
-          break;
+      if (hintTargetName != null && hintTargetName.isNotEmpty) {
+        for (final h in headers) {
+          if (h.targetName == hintTargetName) {
+            match = h;
+            break;
+          }
         }
       }
-      if (match == null && sequence.targetHeaders.isNotEmpty) {
-        match = sequence.targetHeaders.first;
+      // Only fall back to .first when the insight is target-agnostic AND
+      // there is exactly one target — otherwise we can't safely guess
+      // which target the suggestion was about.
+      if (match == null &&
+          (hintTargetName == null || hintTargetName.isEmpty) &&
+          headers.length == 1) {
+        match = headers.first;
       }
       if (match == null) {
         messenger?.showSnackBar(
           const SnackBar(
-            content: Text('No target header to apply altitude to.'),
+            content: Text(
+              'Could not resolve which target to apply altitude to.',
+            ),
           ),
         );
         return;

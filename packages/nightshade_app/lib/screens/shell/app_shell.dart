@@ -13,6 +13,7 @@ import '../../widgets/catalog_setup_dialog.dart';
 import '../../widgets/onboarding_tour_replay_launcher.dart';
 import '../../widgets/tutorial_overlay.dart';
 import '../../widgets/mobile_sequence_overlay.dart';
+import '../sequencer/sequencer_screen.dart' show kSequencerRoutePath;
 import '../../widgets/notification_toast_overlay.dart';
 import '../../widgets/autofocus_progress_overlay.dart';
 import '../../widgets/connection_stale_banner.dart';
@@ -542,10 +543,15 @@ class _AppShellState extends ConsumerState<AppShell> {
                                   bottom: false,
                                   child: widget.child,
                                 ),
-                                // Mobile sequence overlay (only on mobile and sequencer screen)
+                                // Mobile sequence overlay (only on mobile and
+                                // sequencer screen). §14: gated on the shared
+                                // route constant instead of a literal string so
+                                // the router and this check stay in sync. An
+                                // app-wide running-sequence mini-player is a
+                                // tracked follow-up (see crossAreaDep).
                                 if (useBottomNav &&
                                     currentLocation.split('?').first ==
-                                        '/sequencer')
+                                        kSequencerRoutePath)
                                   const MobileSequenceOverlay(),
                                 // Autofocus progress overlay
                                 const AutofocusProgressOverlay(),

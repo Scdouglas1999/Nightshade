@@ -108,6 +108,22 @@ class SequenceRunsDao extends DatabaseAccessor<NightshadeDatabase>
     return query.get();
   }
 
+  /// Roll-up of run history for a single sequence: the total number of
+  /// runs and the most recent `startedAt`. Returns `(0, null)` for a
+  /// sequence that has never run. One grouped query rather than fetching
+  /// every row, so the library card can show "N runs · last DATE" cheaply.
+  Future<({int runCount, DateTime? lastRunAt})> runSummaryForSequence(
+    int sequenceId,
+  ) async {
+    final countExpr = sequenceRuns.id.count();
+    final maxExpr = sequenceRuns.startedAt.max();
+    final query = selectOnly(sequenceRuns)
+      ..addColumns([countExpr, maxExpr])
+      ..where(sequenceRuns.sequenceId.equals(sequenceId));
+    final row = await query.getSingle();
+    return (runCount: row.read(countExpr) ?? 0, lastRunAt: row.read(maxExpr));
+  }
+
   /// Row count for the same filter set [listPaginated] uses; the
   /// handler returns this in the `total` field so the phone can render a
   /// progress indicator.

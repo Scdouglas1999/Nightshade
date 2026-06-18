@@ -473,10 +473,11 @@ class NotificationNode extends SequenceNode {
   /// semantics:
   ///   * leave alone     → pass nothing (or `null`)
   ///   * set to a value  → pass the new list
+  ///   * clear to default → pass `clearExplicitTransports: true`
   ///
-  /// To CLEAR (back to matrix-default), build a fresh NotificationNode
-  /// directly without the `explicitTransports` arg — see the editor's
-  /// `_TransportsRow` for the canonical rebuild-explicit recipe.
+  /// `clearExplicitTransports` wins over `explicitTransports` and nulls the
+  /// field back to the matrix-default, so the editor's "use defaults" reset
+  /// is a single `copyWith` call rather than a hand-rebuilt node.
   @override
   NotificationNode copyWith({
     String? id,
@@ -490,6 +491,7 @@ class NotificationNode extends SequenceNode {
     String? message,
     NotificationLevel? level,
     List<NotificationTransportKind>? explicitTransports,
+    bool clearExplicitTransports = false,
   }) {
     return NotificationNode(
       id: id ?? this.id,
@@ -502,7 +504,9 @@ class NotificationNode extends SequenceNode {
       title: title ?? this.title,
       message: message ?? this.message,
       level: level ?? this.level,
-      explicitTransports: explicitTransports ?? this.explicitTransports,
+      explicitTransports: clearExplicitTransports
+          ? null
+          : (explicitTransports ?? this.explicitTransports),
     );
   }
 

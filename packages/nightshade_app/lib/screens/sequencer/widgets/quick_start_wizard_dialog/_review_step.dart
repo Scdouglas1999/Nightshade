@@ -43,13 +43,34 @@ extension _ReviewStep on _QuickStartWizardDialogState {
           icon: LucideIcons.camera,
           title:
               'Exposures (${enabledFilters.length} filter${enabledFilters.length != 1 ? "s" : ""})',
-          children: enabledFilters.map((f) {
-            return _reviewRow(
-              colors,
-              f.filterName,
-              '${f.count}x ${f.exposureSecs.round()}s (${f.binning.label})',
-            );
-          }).toList(),
+          children: [
+            for (final f in enabledFilters) ...[
+              _reviewRow(
+                colors,
+                f.filterName,
+                '${f.count}x ${f.exposureSecs.round()}s (${f.binning.label})',
+              ),
+              _buildExposureRationale(colors, f),
+            ],
+            const SizedBox(height: 6),
+            // Re-preview: regenerate the recommended exposures after the user
+            // changed knobs, without leaving the Review step. User-edited
+            // rows are preserved.
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _rePreviewExposures,
+                icon: Icon(LucideIcons.refreshCw,
+                    size: 14, color: colors.primary),
+                label: Text(
+                  'Re-preview recommended exposures',
+                  style: TextStyle(
+                      color: colors.primary,
+                      fontSize: NightshadeTypography.fontSize12),
+                ),
+              ),
+            ),
+          ],
         ),
 
         const SizedBox(height: 12),
@@ -148,9 +169,59 @@ extension _ReviewStep on _QuickStartWizardDialogState {
 
         const SizedBox(height: 12),
 
+        // Opt-in: persist these choices as the user's new defaults.
+        InkWell(
+          onTap: () => _update(() => _saveAsDefaults = !_saveAsDefaults),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                NightshadeCheckbox(
+                  value: _saveAsDefaults,
+                  onChanged: (v) => _update(() => _saveAsDefaults = v ?? false),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Save these as my defaults (autofocus cadence, dither, '
+                    'exposure count, meridian flip, weather and dawn safety)',
+                    style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: NightshadeTypography.fontSize12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
         // Tree preview
         _buildTreePreview(colors, enabledFilters),
       ],
+    );
+  }
+
+  /// Render the smart exposure recommendation's rationale under a filter row
+  /// when a recommendation is available for that filter. Read-only — surfaces
+  /// the "why this exposure" already computed in [_exposureContext].
+  Widget _buildExposureRationale(
+      NightshadeColors colors, _FilterExposureConfig config) {
+    final context = _exposureContext;
+    if (context == null) return const SizedBox.shrink();
+    final rec = context.recommendForFilter(config.filterName);
+    if (rec.rationale.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(left: 120, bottom: 4),
+      child: Text(
+        rec.rationale,
+        style: TextStyle(
+            color: colors.textMuted,
+            fontSize: NightshadeTypography.fontSize10,
+            fontStyle: FontStyle.italic),
+      ),
     );
   }
 
@@ -259,7 +330,7 @@ extension _ReviewStep on _QuickStartWizardDialogState {
     if (_coolCamera) {
       treeLines.add(_TreeLine('Warm Camera', LucideIcons.flame, 1));
     }
-    if (_parkOnError || _dawnShutdown) {
+    if (_dawnShutdown) {
       treeLines.add(_TreeLine('Park Mount', LucideIcons.parkingCircle, 1));
     }
 
@@ -273,6 +344,9 @@ extension _ReviewStep on _QuickStartWizardDialogState {
     }
     if (_weatherAbort) {
       treeLines.add(_TreeLine('Weather Safety', LucideIcons.cloudRain, 1));
+    }
+    if (_parkOnError) {
+      treeLines.add(_TreeLine('Park on Error', LucideIcons.parkingCircle, 1));
     }
 
     return Container(

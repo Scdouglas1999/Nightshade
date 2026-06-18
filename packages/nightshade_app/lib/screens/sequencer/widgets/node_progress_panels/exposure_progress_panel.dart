@@ -20,7 +20,11 @@ class _ExposureProgressPanel extends StatelessWidget {
     final exposureDetail = structuredDetail is ExposureInstructionProgressDetail
         ? structuredDetail as ExposureInstructionProgressDetail
         : null;
-    // Parse legacy detail: "Frame 3/10" or "Exposing: 45s remaining".
+    // Compatibility fallback: older / remote backends that have not been
+    // upgraded to the typed ExposureInstructionProgressDetail still emit a
+    // plain "Frame 3/10" string. The typed path above is preferred; this
+    // regex only runs when it is absent. Kept (not deleted) until every
+    // shipped backend is confirmed to populate the typed detail.
     final frameMatch = RegExp(r'Frame (\d+)/(\d+)').firstMatch(detail);
     final currentFrame =
         exposureDetail?.frame ?? int.tryParse(frameMatch?.group(1) ?? '') ?? 0;
@@ -108,43 +112,85 @@ class _FrameGrid extends StatelessWidget {
     required this.currentFrame,
   });
 
+  /// Cap on individually-rendered cells. Above this we render the first
+  /// [_maxCells]-1 frames plus a single "+N" summary cell so a 200-frame
+  /// exposure node doesn't paint 200 squares.
+  static const int _maxCells = 20;
+
   @override
   Widget build(BuildContext context) {
-    // Limit display to reasonable number
-    final displayFrames = totalFrames > 20 ? 20 : totalFrames;
     final frameSize = totalFrames > 10 ? 14.0 : 18.0;
+    final overflow = totalFrames > _maxCells;
+    // When overflowing, show the first 19 frames as real cells and reserve
+    // the 20th slot for a "+N" tally of the remaining frames.
+    final individualCells = overflow ? _maxCells - 1 : totalFrames;
 
-    return Wrap(
-      spacing: 4,
-      runSpacing: 4,
-      children: List.generate(displayFrames, (i) {
-        final frameNum = i + 1;
-        final isCompleted = frameNum <= completedFrames;
-        final isCurrent = frameNum == currentFrame;
-
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          width: frameSize,
-          height: frameSize,
-          decoration: BoxDecoration(
+    Widget cell(int frameNum) {
+      final isCompleted = frameNum <= completedFrames;
+      final isCurrent = frameNum == currentFrame;
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: frameSize,
+        height: frameSize,
+        decoration: BoxDecoration(
+          color: isCompleted
+              ? colors.success
+              : isCurrent
+                  ? colors.info
+                  : colors.surface,
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
+          border: Border.all(
             color: isCompleted
                 ? colors.success
                 : isCurrent
                     ? colors.info
-                    : colors.surface,
+                    : colors.border,
+            width: isCurrent ? 2 : 1,
+          ),
+        ),
+      );
+    }
+
+    final children = <Widget>[
+      for (var i = 0; i < individualCells; i++) cell(i + 1),
+    ];
+
+    if (overflow) {
+      final remaining = totalFrames - individualCells;
+      // How many of the remaining (hidden) frames are already done — colours
+      // the tally green once the run has advanced past the shown cells.
+      final remainingCompleted =
+          (completedFrames - individualCells).clamp(0, remaining);
+      final allRemainingDone = remainingCompleted >= remaining;
+      // Slightly wider than a single cell so the "+N" label fits.
+      children.add(
+        Container(
+          height: frameSize,
+          constraints: BoxConstraints(minWidth: frameSize * 1.6),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: allRemainingDone
+                ? colors.success.withValues(alpha: 0.18)
+                : colors.surface,
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
             border: Border.all(
-              color: isCompleted
-                  ? colors.success
-                  : isCurrent
-                      ? colors.info
-                      : colors.border,
-              width: isCurrent ? 2 : 1,
+              color: allRemainingDone ? colors.success : colors.border,
             ),
-            boxShadow: null,
           ),
-        );
-      }),
-    );
+          child: Text(
+            '+$remaining',
+            style: TextStyle(
+              fontSize: NightshadeTypography.fontSize9,
+              fontWeight: FontWeight.w700,
+              color: allRemainingDone ? colors.success : colors.textMuted,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Wrap(spacing: 4, runSpacing: 4, children: children);
   }
 }

@@ -1,5 +1,43 @@
 part of '../sequencer_screen.dart';
 
+/// Minimum width at which the phone-landscape builder splits the tree and the
+/// properties pane side-by-side (§17 — one named source instead of a literal
+/// 560 sprinkled through the layout).
+const double _kSequencerSplitMinWidth = 560.0;
+
+/// Shows the node palette as an adaptive modal (§9). Single definition used by
+/// both the phone builder and the narrow-desktop rail so the presentation
+/// (design width / phone sheet) is defined once.
+void showSequencerNodeSheet(BuildContext context, NightshadeColors colors) {
+  showAdaptiveModal<void>(
+    context: context,
+    designWidth: 420,
+    builder: (sheetContext) => NodePalette(
+      colors: colors,
+      isMobileSheet: true,
+      onNodeAdded: () => Navigator.of(sheetContext).pop(),
+    ),
+  );
+}
+
+/// Shows the selected node's properties as an adaptive modal (§9). The
+/// properties form is content-heavy, so it gets a full-screen route on a phone
+/// and a centered dialog on tablet.
+void showSequencerPropertiesSheet(
+    BuildContext context, NightshadeColors colors) {
+  showAdaptiveModal<void>(
+    context: context,
+    designWidth: 560,
+    designHeight: 640,
+    phoneMode: PhoneModalMode.fullScreen,
+    builder: (sheetContext) => NodePropertiesPanel(
+      colors: colors,
+      isMobileSheet: true,
+      onClose: () => Navigator.of(sheetContext).pop(),
+    ),
+  );
+}
+
 /// Phone builder layout.
 ///
 /// Phone-first reflow of the desktop 3-column builder:
@@ -19,36 +57,6 @@ class _MobileBuilderLayout extends ConsumerWidget {
 
   const _MobileBuilderLayout({required this.colors});
 
-  /// Node palette — a draggable/tappable list of insertable nodes. Content is
-  /// list-like, so a bottom sheet is the right phone presentation.
-  void _showNodePaletteSheet(BuildContext context) {
-    showAdaptiveModal<void>(
-      context: context,
-      designWidth: 420,
-      builder: (sheetContext) => NodePalette(
-        colors: colors,
-        isMobileSheet: true,
-        onNodeAdded: () => Navigator.of(sheetContext).pop(),
-      ),
-    );
-  }
-
-  /// Properties for the selected node — a content-heavy, multi-field form, so
-  /// it gets a full-screen route on a phone (and a centered dialog on tablet).
-  void _showPropertiesSheet(BuildContext context) {
-    showAdaptiveModal<void>(
-      context: context,
-      designWidth: 560,
-      designHeight: 640,
-      phoneMode: PhoneModalMode.fullScreen,
-      builder: (sheetContext) => NodePropertiesPanel(
-        colors: colors,
-        isMobileSheet: true,
-        onClose: () => Navigator.of(sheetContext).pop(),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final onPrimary = Theme.of(context).colorScheme.onPrimary;
@@ -56,6 +64,10 @@ class _MobileBuilderLayout extends ConsumerWidget {
     final executionState = ref.watch(sequenceExecutionStateProvider);
     final isRunning = executionState == SequenceExecutionState.running ||
         executionState == SequenceExecutionState.paused;
+    // §10: read orientation once for the build-time decisions (the FAB
+    // visibility check below). The onNodeTap closure keeps its own tap-time
+    // read so a rotation between build and tap still routes correctly.
+    final landscape = Responsive.isLandscape(context);
 
     final tree = SequenceTree(
       colors: colors,
@@ -64,8 +76,9 @@ class _MobileBuilderLayout extends ConsumerWidget {
         ref.read(selectedNodeIdProvider.notifier).state = nodeId;
         // In landscape the properties pane is already on-screen, so a tap
         // just selects. In portrait we surface the editor as a route.
+        // Read orientation at tap time — it can change after this build.
         if (!Responsive.isLandscape(context)) {
-          _showPropertiesSheet(context);
+          showSequencerPropertiesSheet(context, colors);
         }
       },
     );
@@ -97,17 +110,19 @@ class _MobileBuilderLayout extends ConsumerWidget {
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    final landscape =
-                        constraints.maxWidth > constraints.maxHeight;
-                    // Only split when there is real width to spare AND a node
-                    // is selected — otherwise the tree keeps the whole row.
-                    if (landscape &&
-                        constraints.maxWidth >= 560 &&
-                        selectedNodeId != null) {
+                    final wideLandscape =
+                        constraints.maxWidth > constraints.maxHeight &&
+                            constraints.maxWidth >= _kSequencerSplitMinWidth;
+                    // §11: show the split whenever there's real width to
+                    // spare, even with nothing selected — the properties pane
+                    // renders its "Select a node to edit" hint, which teaches
+                    // the affordance proactively instead of hiding it until a
+                    // first selection.
+                    if (wideLandscape) {
                       return TwoPane(
                         startFlex: 3,
                         endFlex: 2,
-                        minSplitWidth: 560,
+                        minSplitWidth: _kSequencerSplitMinWidth,
                         start: tree,
                         end: _LandscapePropertiesPane(colors: colors),
                       );
@@ -128,12 +143,12 @@ class _MobileBuilderLayout extends ConsumerWidget {
               children: [
                 // Properties FAB — only in portrait (landscape shows the
                 // properties pane inline) and only with a node selected.
-                if (selectedNodeId != null &&
-                    !Responsive.isLandscape(context)) ...[
+                if (selectedNodeId != null && !landscape) ...[
                   FloatingActionButton.small(
                     heroTag: 'properties_fab',
                     backgroundColor: colors.accent,
-                    onPressed: () => _showPropertiesSheet(context),
+                    onPressed: () =>
+                        showSequencerPropertiesSheet(context, colors),
                     child: Icon(
                       LucideIcons.settings2,
                       color: onPrimary,
@@ -146,7 +161,7 @@ class _MobileBuilderLayout extends ConsumerWidget {
                 FloatingActionButton(
                   heroTag: 'add_node_fab',
                   backgroundColor: colors.primary,
-                  onPressed: () => _showNodePaletteSheet(context),
+                  onPressed: () => showSequencerNodeSheet(context, colors),
                   child: Icon(LucideIcons.plus, color: onPrimary),
                 ),
               ],

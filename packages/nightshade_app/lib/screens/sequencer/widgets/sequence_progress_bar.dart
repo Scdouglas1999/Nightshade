@@ -4,6 +4,9 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import 'pulse_lifecycle_mixin.dart';
+import 'run_dashboard/run_dashboard_format.dart';
+
 class SequenceProgressBar extends ConsumerStatefulWidget {
   final NightshadeColors colors;
 
@@ -377,24 +380,34 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                     ],
                   ),
                   if (progress.estimatedRemainingSecs != null)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          LucideIcons.hourglass,
-                          size: 12,
-                          color: widget.colors.textMuted,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '~${_formatDuration(progress.estimatedRemainingSecs!)}',
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize11,
+                    Tooltip(
+                      // The estimate is planned integration only — it does
+                      // not include pending autofocus / dither / meridian-flip
+                      // overhead, so the finish time is a floor, not a promise.
+                      message: 'Integration time only — excludes pending '
+                          'autofocus, dither, and meridian-flip overhead.',
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            LucideIcons.hourglass,
+                            size: 12,
                             color: widget.colors.textMuted,
-                            fontFeatures: const [FontFeature.tabularFigures()],
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 4),
+                          Text(
+                            '~${_formatDuration(progress.estimatedRemainingSecs!)}'
+                            ' · done ~${formatTimeOfDay(DateTime.now().add(Duration(seconds: progress.estimatedRemainingSecs!.round())))}',
+                            style: TextStyle(
+                              fontSize: NightshadeTypography.fontSize11,
+                              color: widget.colors.textMuted,
+                              fontFeatures: const [
+                                FontFeature.tabularFigures()
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                 ],
               ),
@@ -416,8 +429,11 @@ class _PulsingIndicator extends StatefulWidget {
 }
 
 class _PulsingIndicatorState extends State<_PulsingIndicator>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, PulseLifecycleMixin {
   late AnimationController _controller;
+
+  @override
+  AnimationController get pulseController => _controller;
 
   @override
   void initState() {
@@ -425,11 +441,13 @@ class _PulsingIndicatorState extends State<_PulsingIndicator>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
-    )..repeat();
+    );
+    startPulse();
   }
 
   @override
   void dispose() {
+    stopPulseLifecycle();
     _controller.dispose();
     super.dispose();
   }

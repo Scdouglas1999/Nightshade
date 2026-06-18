@@ -146,13 +146,21 @@ extension _SnippetPaletteActions on _SnippetPaletteState {
                   return;
                 }
 
+                // Capture the full multi-selection when present, else the
+                // single selected node. createSnippetFromSelection requires
+                // the nodes share a parent / be contiguous; a failure
+                // surfaces via the catch in _createSnippetFromSelection.
+                final multi = ref.read(multiSelectedNodeIdsProvider);
+                final nodeIds =
+                    multi.isNotEmpty ? multi.toList() : [selectedNodeId];
+
                 _createSnippetFromSelection(
                   name: name,
                   description:
                       description.isEmpty ? 'Custom template' : description,
                   category: selectedCategory,
                   iconName: selectedIconName,
-                  nodeIds: [selectedNodeId],
+                  nodeIds: nodeIds,
                   sequence: sequence,
                 );
 

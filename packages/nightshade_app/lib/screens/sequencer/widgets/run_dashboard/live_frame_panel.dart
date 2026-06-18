@@ -18,10 +18,12 @@ import '../../../imaging/widgets/image_display.dart';
 /// session's frame history at a glance.
 ///
 /// Interaction model (see [_LiveFrameViewer]):
-/// - Zoom is driven by on-image **buttons** (in / out / fit), never the mouse
-///   wheel — wheel-zoom let the image jump off-canvas with no way back.
-/// - Pan is left-click-and-drag, clamped so the frame can never be dragged
-///   fully off-canvas; "fit" recentres and rescales to fill.
+/// - Zoom is driven by on-image **buttons** (in / out / fit) and by **pinch**
+///   on touch; `constrained: true` clamps the scaled child to the viewport so
+///   it can never be flung off-canvas, and the readout/buttons stay in sync
+///   via `onInteractionUpdate`.
+/// - Pan is drag, clamped so the frame can never be dragged fully off-canvas;
+///   "fit" recentres and rescales to fill.
 ///
 /// Reuses [ImageDisplayWidget] (the Imaging screen's decoder) so stretch /
 /// decode logic is never reimplemented here.
@@ -264,17 +266,25 @@ class _LiveFrameViewerState extends State<_LiveFrameViewer> {
   @override
   Widget build(BuildContext context) {
     final colors = widget.colors;
+    final devicePixelRatio = MediaQuery.devicePixelRatioOf(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final viewport = Size(constraints.maxWidth, constraints.maxHeight);
+        // Decode only as many pixels as the panel can actually show. A ~300px
+        // tile never needs a full sensor-resolution texture; the source width
+        // clamp lives in ImageDisplayWidget so this is just the upper bound.
+        final targetWidth =
+            (viewport.width * devicePixelRatio).round().clamp(1, 1 << 30);
         return Stack(
           children: [
             Positioned.fill(
               child: InteractiveViewer(
                 transformationController: _controller,
-                // Wheel / pinch scaling is disabled on purpose — zoom is
-                // button-only so the frame can never jump off-canvas.
-                scaleEnabled: false,
+                // Pinch scaling is enabled; `constrained: true` keeps the
+                // scaled child clamped inside the viewport so it can never be
+                // flung off-canvas. The readout/buttons track the live scale
+                // via onInteractionUpdate.
+                scaleEnabled: true,
                 panEnabled: true,
                 // `constrained: true` keeps the (scaled) child inside the
                 // viewport, which clamps the pan so the image can't be dragged
@@ -282,10 +292,17 @@ class _LiveFrameViewerState extends State<_LiveFrameViewer> {
                 constrained: true,
                 minScale: _minScale,
                 maxScale: _maxScale,
+                onInteractionUpdate: (_) {
+                  final live = _controller.value.getMaxScaleOnAxis();
+                  if ((live - _scale).abs() > 0.001) {
+                    setState(() => _scale = live);
+                  }
+                },
                 child: ImageDisplayWidget(
                   imageData: widget.image,
                   zoomLevel: 1.0,
                   panOffset: Offset.zero,
+                  targetWidth: targetWidth,
                 ),
               ),
             ),
@@ -433,10 +450,12 @@ class _ControlButton extends StatelessWidget {
         onTap: onPressed,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
         child: Padding(
-          padding: const EdgeInsets.all(6),
+          padding: const EdgeInsets.all(7),
           child: Icon(
             icon,
-            size: 16,
+            // Bumped from 16 to 20 so the zoom controls are comfortably
+            // tappable on a touch tablet.
+            size: 20,
             color: enabled ? colors.textSecondary : colors.textMuted,
           ),
         ),

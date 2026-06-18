@@ -348,6 +348,8 @@ final List<RefAwareSequenceValidator> defaultRefAwareSequenceValidators =
       // Audit C6: every SmartExposure row's filterName must match a filter
       // configured in the active equipment profile.
       SmartExposureFilterUnknownRule(),
+      // LiveStacking global kill-switch check (reads sequencerDefaults).
+      LiveStackingGloballyDisabledRule(),
       // Pre-flight equipment-health checks (synchronous —
       // they only read providers, no network / disk I/O).
       UsbStabilityRule(),

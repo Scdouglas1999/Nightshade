@@ -53,34 +53,49 @@ class RunDashboardGuidingCard extends ConsumerWidget {
               ),
               const Spacer(),
               if (isConnected)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: NightshadeDecorations.statusChip(
-                    guider.isGuiding ? colors.success : colors.textMuted,
-                    borderRadius:
-                        BorderRadius.circular(NightshadeTokens.radiusXs),
-                    bordered: false,
-                  ),
-                  child: Text(
-                    guider.isGuiding
-                        ? 'Guiding'
-                        : guider.isCalibrating
-                            ? 'Calibrating'
-                            : 'Idle',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize10,
-                      fontWeight: FontWeight.w700,
-                      color: guider.isGuiding
-                          ? colors.success
-                          : guider.isCalibrating
-                              ? colors.warning
-                              : colors.textMuted,
+                Builder(builder: (context) {
+                  // Connected-but-not-guiding is a real, distinct state — the
+                  // guider is paired and ready, just not yet pulse-guiding.
+                  // Surface it as "Waiting" with the info accent so it reads
+                  // as "ready to guide" rather than a dead "Idle".
+                  final (chipLabel, chipColor) = guider.isGuiding
+                      ? ('Guiding', colors.success)
+                      : guider.isCalibrating
+                          ? ('Calibrating', colors.warning)
+                          : ('Waiting', colors.info);
+                  return Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: NightshadeDecorations.statusChip(
+                      chipColor,
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusXs),
+                      bordered: false,
                     ),
-                  ),
-                ),
+                    child: Text(
+                      chipLabel,
+                      style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize10,
+                        fontWeight: FontWeight.w700,
+                        color: chipColor,
+                      ),
+                    ),
+                  );
+                }),
             ],
           ),
+          // Explain the connected-but-idle case so an operator doesn't read a
+          // ready guider as a stalled one.
+          if (isConnected && !guider.isGuiding && !guider.isCalibrating) ...[
+            const SizedBox(height: NightshadeTokens.spaceXs),
+            Text(
+              'Connected and ready — waiting to start guiding.',
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize10,
+                color: colors.textMuted,
+              ),
+            ),
+          ],
           const SizedBox(height: NightshadeTokens.spaceMd),
           CompactGuidingGraph(
             colors: colors,

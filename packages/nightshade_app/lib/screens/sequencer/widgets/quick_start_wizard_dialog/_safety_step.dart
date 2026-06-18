@@ -45,8 +45,7 @@ extension _SafetyStep on _QuickStartWizardDialogState {
                   width: 80,
                   height: 32,
                   child: TextField(
-                    controller: TextEditingController(
-                        text: _coolingTemp.round().toString()),
+                    controller: _coolingTempController,
                     style: TextStyle(
                         color: colors.textPrimary,
                         fontSize: NightshadeTypography.fontSize12),

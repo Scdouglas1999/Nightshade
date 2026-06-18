@@ -84,6 +84,167 @@ class _NodeTreeView extends ConsumerWidget {
       collapsedNodeIdsProvider.select((s) => s.contains(nodeId)),
     );
 
+    // Shared "append into this container" accept logic, used by both the
+    // expanded children DragTarget and the collapsed-header DragTarget so a
+    // collapsed container is still a valid drop destination (the dropped
+    // node appends at the end of its hidden children).
+    void acceptIntoContainer(Object data) {
+      if (data is String) {
+        ref.read(currentSequenceProvider.notifier).moveNode(
+              data,
+              nodeId,
+              children.length,
+            );
+      } else if (data is NodePaletteItem) {
+        final newNode = data.createNode();
+        final notifier = ref.read(currentSequenceProvider.notifier);
+        notifier.addNode(newNode, parentId: nodeId);
+        final created = data.createChildren?.call();
+        if (created != null) {
+          for (final child in created) {
+            notifier.addNode(child, parentId: newNode.id);
+          }
+        }
+        ref.read(selectedNodeIdProvider.notifier).state = newNode.id;
+      } else if (data is TemplateSnippet) {
+        insertSnippetGuarded(context, ref, data, parentId: nodeId);
+      } else if (data is TargetQueueDragPayload) {
+        final notifier = ref.read(currentSequenceProvider.notifier);
+        notifier.addNode(data.node, parentId: nodeId);
+        ref.read(selectedNodeIdProvider.notifier).state = data.node.id;
+      }
+    }
+
+    // The header row. When the container is collapsed its children DragTarget
+    // is not rendered, so wrap the header itself in a DragTarget (desktop
+    // only — mobile has no drag) so drops still land inside it.
+    Widget headerRow = SequenceTreeContextMenu(
+      nodeId: nodeId,
+      colors: colors,
+      child: _NodeValidationWrapper(
+        colors: colors,
+        validationSeverity: nodeValidationSeverity,
+        validationIssues: validation.issuesByNodeId[nodeId],
+        child: targetHeaderNode != null
+            ? TargetHeaderCard(
+                key: tutorialKey,
+                node: targetHeaderNode,
+                colors: colors,
+                isSelected: isSelected || isMultiSelected,
+                nodeStatus: nodeStatus,
+                isMobile: isMobile,
+                onSelect: () {
+                  _handleNodeSelect(ref, nodeId);
+                  onNodeTap?.call(nodeId);
+                },
+                onToggleEnabled: () {
+                  ref
+                      .read(currentSequenceProvider.notifier)
+                      .toggleNodeEnabled(nodeId);
+                },
+                onDelete: () {
+                  // Why: target headers usually own a non-trivial
+                  // subtree; route through the confirm helper so a
+                  // misclick can't nuke a fully-authored target.
+                  confirmAndDeleteSequenceNode(
+                    context: context,
+                    ref: ref,
+                    nodeId: nodeId,
+                  );
+                },
+              )
+            : _NodeItem(
+                key: tutorialKey,
+                colors: colors,
+                node: node,
+                isSelected: isSelected || isMultiSelected,
+                nodeStatus: nodeStatus,
+                hasChildren: hasChildren,
+                depth: depth,
+                isCollapsed: isCollapsed,
+                progressPercent: progress.nodeProgressPercent[nodeId],
+                progressDetail: progress.nodeProgressDetail[nodeId],
+                structuredProgressDetail:
+                    progress.nodeProgressStructuredDetail[nodeId],
+                isMobile: isMobile,
+                onSelect: () {
+                  _handleNodeSelect(ref, nodeId);
+                  onNodeTap?.call(nodeId);
+                },
+                onToggleEnabled: () {
+                  ref
+                      .read(currentSequenceProvider.notifier)
+                      .toggleNodeEnabled(nodeId);
+                },
+                onDelete: () {
+                  // Why: a node may be a container (Loop, Parallel,
+                  // InstructionSet) holding many children; the helper
+                  // gates with "Delete N nodes?" when descendants > 0.
+                  confirmAndDeleteSequenceNode(
+                    context: context,
+                    ref: ref,
+                    nodeId: nodeId,
+                  );
+                },
+                onDuplicate: () {
+                  ref
+                      .read(currentSequenceProvider.notifier)
+                      .duplicateNode(nodeId);
+                },
+                onMoveUp: canMoveUp
+                    ? () {
+                        ref.read(currentSequenceProvider.notifier).moveNode(
+                              nodeId,
+                              node.parentId!,
+                              node.orderIndex - 1,
+                            );
+                      }
+                    : null,
+                onMoveDown: canMoveDown
+                    ? () {
+                        ref.read(currentSequenceProvider.notifier).moveNode(
+                              nodeId,
+                              node.parentId!,
+                              node.orderIndex + 1,
+                            );
+                      }
+                    : null,
+              ),
+      ),
+    );
+
+    // A collapsed container hides its children DragTarget, so wrap the
+    // header in a DragTarget that appends into the container. Desktop only —
+    // the mobile branch has no drag affordance.
+    if (isCollapsed && isContainer && !isMobile) {
+      headerRow = DragTarget<Object>(
+        onWillAcceptWithDetails: (data) =>
+            data.data is String ||
+            data.data is NodePaletteItem ||
+            data.data is TemplateSnippet ||
+            data.data is TargetQueueDragPayload,
+        onAcceptWithDetails: (details) => acceptIntoContainer(details.data),
+        builder: (context, candidateData, rejectedData) {
+          final isOver = candidateData.isNotEmpty;
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            decoration: isOver
+                ? BoxDecoration(
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline8),
+                    border: Border.all(
+                      color: colors.primary.withValues(alpha: 0.4),
+                      width: 1.5,
+                    ),
+                    color: colors.primary.withValues(alpha: 0.04),
+                  )
+                : const BoxDecoration(),
+            child: headerRow,
+          );
+        },
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -93,103 +254,7 @@ class _NodeTreeView extends ConsumerWidget {
         // badge.
         KeyedSubtree(
           key: scrollKey,
-          child: SequenceTreeContextMenu(
-            nodeId: nodeId,
-            colors: colors,
-            child: _NodeValidationWrapper(
-              colors: colors,
-              validationSeverity: nodeValidationSeverity,
-              validationIssues: validation.issuesByNodeId[nodeId],
-              child: targetHeaderNode != null
-                  ? TargetHeaderCard(
-                      key: tutorialKey,
-                      node: targetHeaderNode,
-                      colors: colors,
-                      isSelected: isSelected || isMultiSelected,
-                      nodeStatus: nodeStatus,
-                      isMobile: isMobile,
-                      onSelect: () {
-                        _handleNodeSelect(ref, nodeId);
-                        onNodeTap?.call(nodeId);
-                      },
-                      onToggleEnabled: () {
-                        ref
-                            .read(currentSequenceProvider.notifier)
-                            .toggleNodeEnabled(nodeId);
-                      },
-                      onDelete: () {
-                        // Why: target headers usually own a non-trivial
-                        // subtree; route through the confirm helper so a
-                        // misclick can't nuke a fully-authored target.
-                        confirmAndDeleteSequenceNode(
-                          context: context,
-                          ref: ref,
-                          nodeId: nodeId,
-                        );
-                      },
-                    )
-                  : _NodeItem(
-                      key: tutorialKey,
-                      colors: colors,
-                      node: node,
-                      isSelected: isSelected || isMultiSelected,
-                      nodeStatus: nodeStatus,
-                      hasChildren: hasChildren,
-                      depth: depth,
-                      progressPercent: progress.nodeProgressPercent[nodeId],
-                      progressDetail: progress.nodeProgressDetail[nodeId],
-                      structuredProgressDetail:
-                          progress.nodeProgressStructuredDetail[nodeId],
-                      isMobile: isMobile,
-                      onSelect: () {
-                        _handleNodeSelect(ref, nodeId);
-                        onNodeTap?.call(nodeId);
-                      },
-                      onToggleEnabled: () {
-                        ref
-                            .read(currentSequenceProvider.notifier)
-                            .toggleNodeEnabled(nodeId);
-                      },
-                      onDelete: () {
-                        // Why: a node may be a container (Loop, Parallel,
-                        // InstructionSet) holding many children; the helper
-                        // gates with "Delete N nodes?" when descendants > 0.
-                        confirmAndDeleteSequenceNode(
-                          context: context,
-                          ref: ref,
-                          nodeId: nodeId,
-                        );
-                      },
-                      onDuplicate: () {
-                        ref
-                            .read(currentSequenceProvider.notifier)
-                            .duplicateNode(nodeId);
-                      },
-                      onMoveUp: canMoveUp
-                          ? () {
-                              ref
-                                  .read(currentSequenceProvider.notifier)
-                                  .moveNode(
-                                    nodeId,
-                                    node.parentId!,
-                                    node.orderIndex - 1,
-                                  );
-                            }
-                          : null,
-                      onMoveDown: canMoveDown
-                          ? () {
-                              ref
-                                  .read(currentSequenceProvider.notifier)
-                                  .moveNode(
-                                    nodeId,
-                                    node.parentId!,
-                                    node.orderIndex + 1,
-                                  );
-                            }
-                          : null,
-                    ),
-            ),
-          ),
+          child: headerRow,
         ),
 
         // Per-container duration rollup chip ("~2h 14m"). Shown for
@@ -234,6 +299,13 @@ class _NodeTreeView extends ConsumerWidget {
                   data.data is TargetQueueDragPayload,
               onAcceptWithDetails: (details) {
                 final data = details.data;
+                if (data is TemplateSnippet) {
+                  // Snippet inserts route through the guarded helper so a
+                  // locked-state / unknown-node-type failure surfaces a
+                  // snackbar instead of an uncaught throw.
+                  insertSnippetGuarded(context, ref, data, parentId: nodeId);
+                  return;
+                }
                 if (data is String) {
                   ref.read(currentSequenceProvider.notifier).moveNode(
                         data,
@@ -255,13 +327,6 @@ class _NodeTreeView extends ConsumerWidget {
                     }
                   }
                   ref.read(selectedNodeIdProvider.notifier).state = newNode.id;
-                } else if (data is TemplateSnippet) {
-                  final profile = ref.read(activeEquipmentProfileProvider);
-                  ref.read(currentSequenceProvider.notifier).insertSnippet(
-                        data,
-                        parentId: nodeId,
-                        profileFilterNames: profile?.filterNames,
-                      );
                 } else if (data is TargetQueueDragPayload) {
                   // Drop a queued target into a container — appends
                   // a fresh TargetHeaderNode at the end. Targets are

@@ -169,11 +169,14 @@ class SciencePhotometryNode extends SequenceNode {
     bool? reduceLive,
     bool? applyDifferential,
     PhotometryQualityGates? quality,
-    // PHASE-5: plain `?? this.X` for gain and offset. Clearing back
-    // to null (e.g. "no per-node gain override") is rebuild-explicit
-    // at science_photometry_properties.dart.
+    // Plain `?? this.X` for gain and offset. To clear back to null
+    // (i.e. "no per-node override; use the device default"), pass
+    // `clearGain: true` / `clearOffset: true`, which win over the
+    // corresponding value arg and null the field.
     int? gain,
     int? offset,
+    bool clearGain = false,
+    bool clearOffset = false,
     BinningMode? binning,
   }) {
     return SciencePhotometryNode(
@@ -193,8 +196,8 @@ class SciencePhotometryNode extends SequenceNode {
       reduceLive: reduceLive ?? this.reduceLive,
       applyDifferential: applyDifferential ?? this.applyDifferential,
       quality: quality ?? this.quality,
-      gain: gain ?? this.gain,
-      offset: offset ?? this.offset,
+      gain: clearGain ? null : (gain ?? this.gain),
+      offset: clearOffset ? null : (offset ?? this.offset),
       binning: binning ?? this.binning,
     );
   }

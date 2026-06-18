@@ -10,6 +10,7 @@ import '../../../services/sequence_action_service.dart';
 import '../../../utils/sequence_mutator_helper.dart';
 import '../../../utils/snackbar_helper.dart';
 import 'preflight_validation_dialog.dart';
+import 'run_dashboard/sequence_status_visuals.dart';
 import 'equipment_status_widget.dart';
 import 'quick_start_wizard_dialog.dart';
 import 'smart_night_dialog.dart';

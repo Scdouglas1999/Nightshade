@@ -57,7 +57,7 @@ class RunDashboardTargetHeader extends ConsumerWidget {
     final altColor = sky == null
         ? colors.textMuted
         : sky.altitudeDeg < 20
-            ? colors.warning
+            ? colors.error
             : sky.altitudeDeg < 30
                 ? colors.warning
                 : colors.success;

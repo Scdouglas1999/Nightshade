@@ -7,54 +7,6 @@ class _NarrowDesktopLayout extends ConsumerWidget {
 
   static const double _railWidth = 48.0;
 
-  void _showNodePaletteSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
-      ),
-      builder: (sheetContext) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.6,
-        minChildSize: 0.3,
-        maxChildSize: 0.9,
-        builder: (context, scrollController) => NodePalette(
-          colors: colors,
-          scrollController: scrollController,
-          isMobileSheet: true,
-          onNodeAdded: () {
-            Navigator.pop(sheetContext);
-          },
-        ),
-      ),
-    );
-  }
-
-  void _showPropertiesSheet(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: colors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
-      ),
-      builder: (sheetContext) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.7,
-        minChildSize: 0.4,
-        maxChildSize: 0.95,
-        builder: (context, scrollController) => NodePropertiesPanel(
-          colors: colors,
-          scrollController: scrollController,
-          isMobileSheet: true,
-          onClose: () => Navigator.pop(sheetContext),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final onPrimary = Theme.of(context).colorScheme.onPrimary;
@@ -67,7 +19,7 @@ class _NarrowDesktopLayout extends ConsumerWidget {
             _NarrowNodePaletteRail(
               colors: colors,
               width: _railWidth,
-              onShowFullPalette: () => _showNodePaletteSheet(context),
+              onShowFullPalette: () => showSequencerNodeSheet(context, colors),
             ),
             Expanded(
               child: SequenceTree(
@@ -85,7 +37,7 @@ class _NarrowDesktopLayout extends ConsumerWidget {
             child: FloatingActionButton.small(
               heroTag: 'narrow_properties_fab',
               backgroundColor: colors.accent,
-              onPressed: () => _showPropertiesSheet(context, ref),
+              onPressed: () => showSequencerPropertiesSheet(context, colors),
               child: Icon(
                 LucideIcons.settings2,
                 color: onPrimary,
@@ -113,67 +65,6 @@ class _NarrowNodePaletteRail extends ConsumerWidget {
     required this.width,
     required this.onShowFullPalette,
   });
-
-  IconData _resolveIcon(String iconName) {
-    switch (iconName) {
-      case 'target':
-        return LucideIcons.target;
-      case 'camera':
-        return LucideIcons.camera;
-      case 'circle':
-        return LucideIcons.circle;
-      case 'shuffle':
-        return LucideIcons.shuffle;
-      case 'compass':
-        return LucideIcons.compass;
-      case 'crosshair':
-        return LucideIcons.crosshair;
-      case 'parking-circle':
-        return LucideIcons.parkingCircle;
-      case 'unlock':
-        return LucideIcons.unlock;
-      case 'focus':
-        return LucideIcons.focus;
-      case 'snowflake':
-        return LucideIcons.snowflake;
-      case 'flame':
-        return LucideIcons.flame;
-      case 'rotate-cw':
-        return LucideIcons.rotateCw;
-      case 'workflow':
-        return LucideIcons.workflow;
-      case 'repeat':
-        return LucideIcons.repeat;
-      case 'git-merge':
-        return LucideIcons.gitMerge;
-      case 'git-branch':
-        return LucideIcons.gitBranch;
-      case 'shield-check':
-        return LucideIcons.shieldCheck;
-      case 'clock':
-        return LucideIcons.clock;
-      case 'timer':
-        return LucideIcons.timer;
-      case 'wrench':
-        return LucideIcons.wrench;
-      case 'bell':
-        return LucideIcons.bell;
-      case 'code':
-        return LucideIcons.code;
-      case 'aperture':
-        return LucideIcons.aperture;
-      case 'door-open':
-        return LucideIcons.doorOpen;
-      case 'door-closed':
-        return LucideIcons.doorClosed;
-      case 'lightbulb':
-        return LucideIcons.lightbulb;
-      case 'lightbulb-off':
-        return LucideIcons.lightbulbOff;
-      default:
-        return LucideIcons.box;
-    }
-  }
 
   Color _categoryColor(String name) {
     switch (name) {
@@ -206,13 +97,9 @@ class _NarrowNodePaletteRail extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final categories = ref.watch(nodePaletteProvider);
-
-    final flat = <({NodePaletteItem item, Color tint})>[
-      for (final cat in categories)
-        for (final item in cat.items)
-          (item: item, tint: _categoryColor(cat.name)),
-    ];
+    // §18: the flattening is memoized in a provider, so this rebuild (hover /
+    // resize) just reads the cached list instead of re-flattening the palette.
+    final flat = ref.watch(flatNodePaletteProvider);
 
     return Container(
       width: width,
@@ -225,15 +112,19 @@ class _NarrowNodePaletteRail extends ConsumerWidget {
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 6),
-              // _RailDraggable is a fixed 36h tile + 3+3 vertical margin = 42.
-              itemExtent: 42,
+              // §19: single source of truth for the row height so the extent
+              // can't drift from the tile + margin.
+              itemExtent: _RailDraggable.rowExtent,
               itemCount: flat.length,
               itemBuilder: (context, index) {
                 final entry = flat[index];
+                // Resolve the category tint per-row from the live theme; the
+                // provider only carries the category name (§18). Icons reuse
+                // the shared palette icon map (no duplicate switch).
                 return _RailDraggable(
                   item: entry.item,
-                  tint: entry.tint,
-                  icon: _resolveIcon(entry.item.icon),
+                  tint: _categoryColor(entry.categoryName),
+                  icon: nodePaletteIconFor(entry.item.icon),
                   colors: colors,
                 );
               },
@@ -269,6 +160,15 @@ class _RailDraggable extends ConsumerStatefulWidget {
     required this.icon,
     required this.colors,
   });
+
+  /// §19: the tile geometry is the single source of truth shared between this
+  /// widget's build and the rail's `itemExtent`, so changing either can't
+  /// silently desync the list metrics.
+  static const double tileHeight = 36.0;
+  static const double verticalMargin = 3.0;
+
+  /// Total row height = tile + top & bottom margin.
+  static const double rowExtent = tileHeight + verticalMargin * 2;
 
   @override
   ConsumerState<_RailDraggable> createState() => _RailDraggableState();
@@ -335,8 +235,11 @@ class _RailDraggableState extends ConsumerState<_RailDraggable> {
             onDoubleTap: _addNodeViaDoubleTap,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 120),
-              margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              height: 36,
+              margin: const EdgeInsets.symmetric(
+                horizontal: 6,
+                vertical: _RailDraggable.verticalMargin,
+              ),
+              height: _RailDraggable.tileHeight,
               decoration: BoxDecoration(
                 color: _hovered
                     ? NightshadeDecorations.tintedBadge(

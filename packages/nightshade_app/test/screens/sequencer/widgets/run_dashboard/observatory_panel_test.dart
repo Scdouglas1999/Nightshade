@@ -13,8 +13,12 @@ Widget _wrap(Widget child) {
 }
 
 void main() {
-  testWidgets('shows idle empty-state when no observatory device connected',
+  testWidgets('hides entirely when no observatory device is connected',
       (tester) async {
+    // Most rigs have no dome/cover/switch. Rather than render a header plus a
+    // "nothing connected" line that wastes a dashboard slot, the panel now
+    // collapses to a zero-size box — matching the hide-when-empty pattern of
+    // the equipment telemetry strip and the quality/forensics panels.
     await tester.pumpWidget(
       const ProviderScope(
         child:
@@ -23,8 +27,10 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('OBSERVATORY'), findsOneWidget);
-    expect(find.text('No dome, cover, or switch connected.'), findsOneWidget);
+    expect(find.text('OBSERVATORY'), findsNothing);
+    expect(find.text('No dome, cover, or switch connected.'), findsNothing);
+    // The card collapses to SizedBox.shrink() — no NightshadeCard rendered.
+    expect(find.byType(NightshadeCard), findsNothing);
   });
 
   testWidgets('renders dome shutter / azimuth / slaved when connected',

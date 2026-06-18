@@ -77,7 +77,7 @@ extension _QueueSortModeLabel on _QueueSortMode {
       case _QueueSortMode.userOrder:
         return 'User order';
       case _QueueSortMode.score:
-        return 'Visibility score';
+        return 'Visibility (altitude proxy)';
       case _QueueSortMode.altitude:
         return 'Current altitude';
       case _QueueSortMode.name:
@@ -186,6 +186,14 @@ class _TargetQueuePanelState extends ConsumerState<TargetQueuePanel> {
   _QueueSortMode _sortMode = _QueueSortMode.userOrder;
   _QueueFilterMode _filterMode = _QueueFilterMode.all;
 
+  /// Per-target visibility cache. Keyed by an invalidation signature built
+  /// from the 30s tick bucket, observer location, and horizon so a sort/
+  /// filter dropdown change (which triggers setState but doesn't change the
+  /// sky) reuses the snapshots instead of recomputing real spherical trig for
+  /// every queue entry. The cache is rebuilt only when the signature changes.
+  final Map<String, _TargetVisibility> _visibilityCache = {};
+  String? _visibilityCacheSignature;
+
   @override
   void initState() {
     super.initState();
@@ -245,20 +253,45 @@ class _TargetQueuePanelState extends ConsumerState<TargetQueuePanel> {
     final now = tickAsync.valueOrNull ?? DateTime.now();
     final canEdit = ref.watch(canEditSequenceProvider);
 
-    // Compute visibility for every queue entry. Doing this in the
-    // build keeps the visibility snapshots in lock-step with the
-    // ticker; a separate provider would add cache coordination work
-    // for no real benefit at this list size (<= 50 targets typically).
-    final visibilityByTarget = <String, _TargetVisibility>{
-      for (final t in queue.targets)
-        t.id: _computeVisibility(
-          coords: t.coordinates,
-          latitude: observer.latitude,
-          longitude: observer.longitude,
-          now: now,
-          effectiveHorizonDeg: horizonDeg,
-        ),
-    };
+    // Compute visibility for every queue entry, memoised on the tick bucket /
+    // location / horizon so sort+filter dropdown changes don't recompute the
+    // trig. The snapshots stay in lock-step with the 30s ticker; a separate
+    // provider would add cache-coordination work for no real benefit at this
+    // list size (<= 50 targets typically).
+    final tickBucket = now.millisecondsSinceEpoch ~/ 30000;
+    final signature = '$tickBucket|${observer.latitude}|'
+        '${observer.longitude}|$horizonDeg';
+    if (_visibilityCacheSignature != signature) {
+      _visibilityCache
+        ..clear()
+        ..addEntries(queue.targets.map((t) => MapEntry(
+              t.id,
+              _computeVisibility(
+                coords: t.coordinates,
+                latitude: observer.latitude,
+                longitude: observer.longitude,
+                now: now,
+                effectiveHorizonDeg: horizonDeg,
+              ),
+            )));
+      _visibilityCacheSignature = signature;
+    } else {
+      // Same tick/location, but the queue set may have changed (add/remove);
+      // backfill any newly-present targets without touching the rest.
+      for (final t in queue.targets) {
+        _visibilityCache.putIfAbsent(
+          t.id,
+          () => _computeVisibility(
+            coords: t.coordinates,
+            latitude: observer.latitude,
+            longitude: observer.longitude,
+            now: now,
+            effectiveHorizonDeg: horizonDeg,
+          ),
+        );
+      }
+    }
+    final visibilityByTarget = _visibilityCache;
 
     final filtered = _applyFilter(queue.targets, visibilityByTarget);
     _applySort(filtered, visibilityByTarget);

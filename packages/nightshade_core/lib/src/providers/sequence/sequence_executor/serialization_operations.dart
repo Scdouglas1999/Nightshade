@@ -199,7 +199,8 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
 
   /// Record the duration of a newly-completed frame and update the EMA.
   ///
-  /// Called from the progress timer when `completedExposures` increases.
+  /// Called from the `ExposureCompleted` event handler with the event's real
+  /// exposure `duration_secs` plus a fixed per-frame download overhead.
   /// Maintains a bounded queue of the [kEtaWindowSize] most recent frame
   /// durations and keeps `_smoothedSecsPerFrame` as the EMA over them with
   /// weight [kEtaEmaAlpha].
@@ -228,38 +229,25 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
   void _resetEtaState() {
     _frameDurations.clear();
     _smoothedSecsPerFrame = null;
-    _lastFrameCount = 0;
-    _lastFrameElapsedSecs = null;
   }
 
-  /// Compute the smoothed ETA in seconds for the supplied wall-clock
-  /// elapsed total and progress snapshot.
+  /// Compute the smoothed ETA in seconds for the supplied progress snapshot.
   ///
-  /// Detects newly-completed frames since the last call and feeds their
-  /// per-frame elapsed delta into [_recordFrameDurationSample]. Returns
-  /// the predicted remaining seconds = EMA-secs-per-frame × frames-left,
-  /// or `null` when no frames have completed yet (so the UI can show
+  /// The EMA is fed directly from the `ExposureCompleted` handler using the
+  /// event's real `duration_secs` (plus a fixed per-frame download overhead),
+  /// so this method only projects: remaining = EMA-secs-per-frame ×
+  /// frames-left. It deliberately does NOT synthesise per-frame samples from
+  /// the wall-clock elapsed delta — that folded AF / dither / slew / flip
+  /// gaps into the per-frame estimate and yanked the ETA around. Wall-clock
+  /// elapsed is still surfaced separately for the elapsed display.
+  ///
+  /// Returns `null` when no frames have completed yet (so the UI can show
   /// `--` instead of misleading garbage).
-  double? _computeSmoothedEta(double elapsedSecs, SequenceProgress progress) {
+  double? _computeSmoothedEta(SequenceProgress progress) {
     final completedFrames = progress.completedExposures;
     final totalFrames = progress.totalExposures;
     if (completedFrames <= 0 || totalFrames <= 0) {
       return null;
-    }
-
-    // Feed any frames that completed since the previous tick into the EMA.
-    if (completedFrames > _lastFrameCount) {
-      final priorElapsed = _lastFrameElapsedSecs ?? 0.0;
-      final delta = elapsedSecs - priorElapsed;
-      final framesDelta = completedFrames - _lastFrameCount;
-      if (framesDelta > 0 && delta > 0) {
-        final perFrame = delta / framesDelta;
-        for (var i = 0; i < framesDelta; i++) {
-          _recordFrameDurationSample(perFrame);
-        }
-      }
-      _lastFrameCount = completedFrames;
-      _lastFrameElapsedSecs = elapsedSecs;
     }
 
     final remainingFrames = totalFrames - completedFrames;
@@ -325,7 +313,11 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           'use_target_coords': n.useTargetCoords,
           'accuracy_arcsec': n.accuracyArcsec,
           'max_attempts': n.maxAttempts,
-          'exposure_duration': 3.0, // Default exposure for centering
+          // Emit the node's real solve-exposure duration instead of a hard
+          // 3.0s literal so the runtime uses the value the user configured
+          // (and the timeline estimate, which now reads the same field,
+          // agrees with execution).
+          'exposure_duration': n.exposureDuration,
           'filter': null,
         };
       case AutofocusNode n:

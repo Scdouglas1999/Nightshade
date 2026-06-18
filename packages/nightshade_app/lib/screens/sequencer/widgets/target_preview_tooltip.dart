@@ -1,9 +1,8 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Provider for target altitude data
@@ -26,57 +25,46 @@ final targetAltitudeProvider = FutureProvider.autoDispose
 
   final now = DateTime.now().toUtc();
 
-  // Calculate current altitude
-  final currentAlt = _calculateAltitude(
-    raHours: target.raHours,
-    decDegrees: target.decDegrees,
-    time: now,
-    latitudeDegrees: lat,
-    longitudeDegrees: lon,
+  // TargetHeaderNode stores RA in hours; AstronomyCalculations works in
+  // degrees, so convert raHours * 15 once and reuse it everywhere.
+  final raDeg = target.raHours * 15.0;
+  final decDeg = target.decDegrees;
+  final minAlt = target.minAltitude ?? 0;
+
+  // Current alt/az via the shared astronomy library (no bespoke math).
+  final (currentAlt, azimuth) = AstronomyCalculations.objectAltAz(
+    raDeg: raDeg,
+    decDeg: decDeg,
+    dt: now,
+    latitudeDeg: lat,
+    longitudeDeg: lon,
   );
 
-  // Calculate altitude in 10 minutes to determine if rising or setting
-  final futureAlt = _calculateAltitude(
-    raHours: target.raHours,
-    decDegrees: target.decDegrees,
-    time: now.add(const Duration(minutes: 10)),
-    latitudeDegrees: lat,
-    longitudeDegrees: lon,
+  // Rising vs setting: compare against the altitude 10 minutes from now.
+  final (futureAlt, _) = AstronomyCalculations.objectAltAz(
+    raDeg: raDeg,
+    decDeg: decDeg,
+    dt: now.add(const Duration(minutes: 10)),
+    latitudeDeg: lat,
+    longitudeDeg: lon,
   );
-
   final isRising = futureAlt > currentAlt;
 
-  // Calculate transit time
-  final transitTime = _calculateTransitTime(
-    raHours: target.raHours,
-    time: now,
-    longitudeDegrees: lon,
+  // Transit time/altitude and hours-above-horizon via the same visibility
+  // model the scheduler and queue panel use.
+  final visibility = AstronomyCalculations.calculateObjectVisibility(
+    raDeg: raDeg,
+    decDeg: decDeg,
+    date: now,
+    latitudeDeg: lat,
+    longitudeDeg: lon,
+    minAltitude: minAlt,
   );
 
-  // Calculate altitude at transit
-  final transitAlt = _calculateAltitude(
-    raHours: target.raHours,
-    decDegrees: target.decDegrees,
-    time: transitTime,
-    latitudeDegrees: lat,
-    longitudeDegrees: lon,
-  );
-
-  // Calculate azimuth
-  final azimuth = _calculateAzimuth(
-    raHours: target.raHours,
-    decDegrees: target.decDegrees,
-    time: now,
-    latitudeDegrees: lat,
-    longitudeDegrees: lon,
-  );
-
-  // Calculate hours above horizon
-  final hoursAbove = _calculateHoursAboveHorizon(
-    decDegrees: target.decDegrees,
-    latitudeDegrees: lat,
-    minAltitude: target.minAltitude ?? 0,
-  );
+  final transitTime = visibility.transitTime ?? now;
+  final transitAlt = visibility.transitAltitude ?? currentAlt;
+  final hoursAbove =
+      (visibility.durationAboveHorizon ?? Duration.zero).inMinutes / 60.0;
 
   return TargetAltitudeInfo(
     currentAltitude: currentAlt,
@@ -105,133 +93,6 @@ class TargetAltitudeInfo {
     required this.transitAltitude,
     required this.hoursAboveHorizon,
   });
-}
-
-/// Calculate altitude for a celestial object
-double _calculateAltitude({
-  required double raHours,
-  required double decDegrees,
-  required DateTime time,
-  required double latitudeDegrees,
-  required double longitudeDegrees,
-}) {
-  final dec = decDegrees * math.pi / 180.0;
-  final lat = latitudeDegrees * math.pi / 180.0;
-  final lst = _calculateLST(time, longitudeDegrees);
-  final ha = (lst - raHours) * 15.0 * math.pi / 180.0;
-
-  final sinAlt = math.sin(dec) * math.sin(lat) +
-      math.cos(dec) * math.cos(lat) * math.cos(ha);
-
-  return math.asin(sinAlt.clamp(-1.0, 1.0)) * 180.0 / math.pi;
-}
-
-/// Calculate azimuth for a celestial object
-double _calculateAzimuth({
-  required double raHours,
-  required double decDegrees,
-  required DateTime time,
-  required double latitudeDegrees,
-  required double longitudeDegrees,
-}) {
-  final dec = decDegrees * math.pi / 180.0;
-  final lat = latitudeDegrees * math.pi / 180.0;
-  final lst = _calculateLST(time, longitudeDegrees);
-  final ha = (lst - raHours) * 15.0 * math.pi / 180.0;
-
-  final sinAlt = math.sin(dec) * math.sin(lat) +
-      math.cos(dec) * math.cos(lat) * math.cos(ha);
-  final alt = math.asin(sinAlt.clamp(-1.0, 1.0));
-
-  final cosAz = (math.sin(dec) - math.sin(alt) * math.sin(lat)) /
-      (math.cos(alt) * math.cos(lat));
-
-  var azimuth = math.acos(cosAz.clamp(-1.0, 1.0)) * 180.0 / math.pi;
-
-  // Adjust for correct quadrant
-  if (math.sin(ha) > 0) {
-    azimuth = 360.0 - azimuth;
-  }
-
-  return azimuth;
-}
-
-/// Calculate Local Sidereal Time in hours
-double _calculateLST(DateTime utcTime, double longitudeDegrees) {
-  final jd = _julianDate(utcTime);
-  final t = (jd - 2451545.0) / 36525.0;
-
-  var gst = 280.46061837 +
-      360.98564736629 * (jd - 2451545.0) +
-      0.000387933 * t * t -
-      t * t * t / 38710000.0;
-
-  gst = gst % 360.0;
-  if (gst < 0) gst += 360.0;
-
-  var lst = gst + longitudeDegrees;
-  lst = lst % 360.0;
-  if (lst < 0) lst += 360.0;
-
-  return lst / 15.0;
-}
-
-/// Calculate Julian Date
-double _julianDate(DateTime dt) {
-  final y = dt.year;
-  final m = dt.month;
-  final d = dt.day + dt.hour / 24.0 + dt.minute / 1440.0 + dt.second / 86400.0;
-
-  int a = ((14 - m) / 12).floor();
-  int yAdj = y + 4800 - a;
-  int mAdj = m + 12 * a - 3;
-
-  return d +
-      ((153 * mAdj + 2) / 5).floor() +
-      365 * yAdj +
-      (yAdj / 4).floor() -
-      (yAdj / 100).floor() +
-      (yAdj / 400).floor() -
-      32045;
-}
-
-/// Calculate transit time
-DateTime _calculateTransitTime({
-  required double raHours,
-  required DateTime time,
-  required double longitudeDegrees,
-}) {
-  final lst = _calculateLST(time, longitudeDegrees);
-  var hourAngle = lst - raHours;
-
-  if (hourAngle > 12) hourAngle -= 24;
-  if (hourAngle < -12) hourAngle += 24;
-
-  final hoursToTransit = -hourAngle;
-  return time.add(Duration(minutes: (hoursToTransit * 60).round()));
-}
-
-/// Calculate hours above minimum altitude
-double _calculateHoursAboveHorizon({
-  required double decDegrees,
-  required double latitudeDegrees,
-  required double minAltitude,
-}) {
-  final dec = decDegrees * math.pi / 180.0;
-  final lat = latitudeDegrees * math.pi / 180.0;
-  final alt = minAltitude * math.pi / 180.0;
-
-  final cosH = (math.sin(alt) - math.sin(dec) * math.sin(lat)) /
-      (math.cos(dec) * math.cos(lat));
-
-  if (cosH <= -1.0) {
-    return 24.0; // Circumpolar - always above horizon
-  } else if (cosH >= 1.0) {
-    return 0.0; // Never rises above minimum altitude
-  }
-
-  final hourAngle = math.acos(cosH) * 180.0 / math.pi / 15.0;
-  return hourAngle * 2.0;
 }
 
 /// Target preview tooltip widget

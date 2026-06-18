@@ -24,19 +24,31 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
   double _minExposure = 0.001;
   double _maxExposure = 10.0;
   final double _tolerancePercent = 5.0;
+  int _framesPerFilter = 25;
   FlatPanelLocation _panelLocation = FlatPanelLocation.duskSky;
-  String? _selectedFilter = _kFallbackFilters.first;
+
+  /// The filters the user wants to calibrate. Multi-select — the service's
+  /// `generateFlatSequence` accepts a full list, so a single wizard run can
+  /// calibrate and emit flat sub-trees for L/R/G/B/Ha/… in one pass.
+  final Set<String> _selectedFilters = {_kFallbackFilters.first};
 
   bool _isCalculating = false;
-  double? _calculatedExposure;
-  double? _measuredAdu;
+
+  /// Per-filter calibration results, keyed by filter name. A filter is
+  /// considered calibrated once it has a successful [FlatResult] here.
+  final Map<String, FlatResult> _results = {};
   String? _errorMessage;
   String? _calculationStatus;
 
+  /// True once every selected filter has a successful calibration result.
+  bool get _allCalibrated =>
+      _selectedFilters.isNotEmpty &&
+      _selectedFilters.every((f) => _results[f]?.success == true);
+
   Future<void> _calculateExposure() async {
-    if (_selectedFilter == null || _selectedFilter!.isEmpty) {
+    if (_selectedFilters.isEmpty) {
       setState(() {
-        _errorMessage = 'Select a filter before calibration.';
+        _errorMessage = 'Select at least one filter before calibration.';
       });
       return;
     }
@@ -64,50 +76,53 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
       _isCalculating = true;
       _errorMessage = null;
       _calculationStatus = null;
-      _calculatedExposure = null;
-      _measuredAdu = null;
+      _results.clear();
     });
 
+    final flatService = ref.read(flatWizardServiceProvider);
+    // Calibrate each selected filter in turn, accumulating per-filter results
+    // and surfacing per-filter progress.
+    final ordered = _selectedFilters.toList();
     try {
-      final flatService = ref.read(flatWizardServiceProvider);
-      final result = await flatService.calibrateFilter(
-        deviceId: cameraState.deviceId!,
-        filter: _selectedFilter!,
-        gain: gain,
-        offset: offset,
-        targetAdu: _targetAdu.toDouble(),
-        tolerance: _tolerancePercent,
-        minExposure: _minExposure,
-        maxExposure: _maxExposure,
-        onProgress: (iteration, exposure, adu) {
-          if (!mounted) {
-            return;
+      for (var i = 0; i < ordered.length; i++) {
+        final filter = ordered[i];
+        if (!mounted) return;
+        final result = await flatService.calibrateFilter(
+          deviceId: cameraState.deviceId!,
+          filter: filter,
+          gain: gain,
+          offset: offset,
+          targetAdu: _targetAdu.toDouble(),
+          tolerance: _tolerancePercent,
+          minExposure: _minExposure,
+          maxExposure: _maxExposure,
+          onProgress: (iteration, exposure, adu) {
+            if (!mounted) return;
+            setState(() {
+              _calculationStatus =
+                  '$filter (${i + 1}/${ordered.length}) — iteration $iteration: '
+                  '${exposure.toStringAsFixed(3)}s, ADU ${adu.toStringAsFixed(0)}';
+            });
+          },
+        );
+        if (!mounted) return;
+        setState(() {
+          _results[filter] = result;
+          if (!result.success) {
+            _errorMessage = '$filter: ${result.errorMessage ?? 'did not '
+                'converge within limits.'}';
           }
-          setState(() {
-            _calculationStatus =
-                'Iteration $iteration: ${exposure.toStringAsFixed(3)}s, ADU ${adu.toStringAsFixed(0)}';
-          });
-        },
-      );
-
-      if (!mounted) {
-        return;
+        });
       }
-
+      if (!mounted) return;
       setState(() {
-        if (result.success) {
-          _calculatedExposure = result.exposure;
-          _measuredAdu = result.adu;
-          _calculationStatus = 'Calibration complete';
-        } else {
-          _errorMessage = result.errorMessage ??
-              'Calibration did not converge within limits.';
+        if (_allCalibrated) {
+          _calculationStatus =
+              'Calibration complete for ${_results.length} filter(s)';
         }
       });
     } catch (e) {
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         _errorMessage = 'Calibration failed: $e';
       });
@@ -121,7 +136,9 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
   }
 
   void _generateFlatSequence() {
-    if (_calculatedExposure == null || _selectedFilter == null) {
+    final successful =
+        _results.values.where((r) => r.success).toList(growable: false);
+    if (successful.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Run calibration successfully first.')),
       );
@@ -133,15 +150,8 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
     final sequenceNotifier = ref.read(currentSequenceProvider.notifier);
 
     final nodes = flatService.generateFlatSequence(
-      calibrations: [
-        FlatResult(
-          filter: _selectedFilter!,
-          exposure: _calculatedExposure!,
-          adu: _measuredAdu ?? _targetAdu.toDouble(),
-          success: true,
-        ),
-      ],
-      framesPerFilter: 25,
+      calibrations: successful,
+      framesPerFilter: _framesPerFilter,
       gain: cameraState.gain,
       offset: cameraState.offset,
       onlySuccessful: true,
@@ -181,6 +191,15 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
       child: Stepper(
         currentStep: _currentStep,
         onStepContinue: () {
+          if (_currentStep == 1 && !_allCalibrated) {
+            // Gate the Calculate → Review transition: don't let the user
+            // advance to a Review that would show "Not calculated".
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                  content: Text('Run calibration successfully first.')),
+            );
+            return;
+          }
           if (_currentStep < 2) {
             setState(() => _currentStep++);
           } else {
@@ -229,6 +248,8 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
                 const SizedBox(height: 24),
                 _buildFilterSelector(colors),
                 const SizedBox(height: 24),
+                _buildFramesPerFilterControl(colors),
+                const SizedBox(height: 24),
                 _buildExposureLimits(colors),
               ],
             ),
@@ -242,84 +263,46 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
             content: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (_calculatedExposure == null)
-                  Column(
-                    children: [
-                      Text(
-                        'Click "Calculate" to automatically determine the optimal exposure time.',
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 16),
-                      if (_calculationStatus != null)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Text(
-                            _calculationStatus!,
-                            style: theme.textTheme.bodySmall,
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      if (_errorMessage != null)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: Text(
-                            _errorMessage!,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: colors.error,
-                              fontWeight: FontWeight.w600,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      NightshadeButton(
-                        onPressed: _isCalculating ? null : _calculateExposure,
-                        icon: LucideIcons.calculator,
-                        label: _isCalculating ? 'Calculating...' : 'Calculate',
-                        variant: ButtonVariant.primary,
-                        isLoading: _isCalculating,
-                      ),
-                    ],
-                  )
-                else
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: NightshadeDecorations.emphasisSurface(
-                      colors.success,
-                      borderRadius:
-                          BorderRadius.circular(NightshadeTokens.radiusInline8),
-                    ),
-                    child: Column(
-                      children: [
-                        Icon(NightshadeIcons.success,
-                            color: colors.success, size: 48),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Optimal Exposure Time',
-                          style: theme.textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${_calculatedExposure!.toStringAsFixed(3)}s',
-                          style: theme.textTheme.headlineMedium?.copyWith(
-                            color: colors.success,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Target ADU: $_targetAdu +/- ${(_targetAdu * _tolerancePercent / 100).toStringAsFixed(0)}',
-                          style: theme.textTheme.bodySmall,
-                        ),
-                        if (_measuredAdu != null) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            'Measured ADU: ${_measuredAdu!.toStringAsFixed(0)}',
-                            style: theme.textTheme.bodySmall,
-                          ),
-                        ],
-                      ],
+                Text(
+                  'Click "Calculate" to automatically determine the optimal '
+                  'exposure time for each selected filter.',
+                  style: theme.textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 16),
+                if (_calculationStatus != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      _calculationStatus!,
+                      style: theme.textTheme.bodySmall,
+                      textAlign: TextAlign.center,
                     ),
                   ),
+                if (_errorMessage != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      _errorMessage!,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: colors.error,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                // Per-filter result cards as calibration completes.
+                for (final filter in _selectedFilters)
+                  _buildFilterResultCard(colors, theme, filter),
+                const SizedBox(height: 8),
+                NightshadeButton(
+                  onPressed: _isCalculating ? null : _calculateExposure,
+                  icon: LucideIcons.calculator,
+                  label: _isCalculating
+                      ? 'Calculating...'
+                      : (_results.isEmpty ? 'Calculate' : 'Recalculate'),
+                  variant: ButtonVariant.primary,
+                  isLoading: _isCalculating,
+                ),
               ],
             ),
           ),
@@ -339,15 +322,21 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildReviewRow('Filter:', _selectedFilter ?? 'All'),
                   _buildReviewRow('Panel Location:', _panelLocationName()),
                   _buildReviewRow('Target ADU:', '$_targetAdu'),
-                  _buildReviewRow(
-                      'Exposure Time:',
-                      _calculatedExposure != null
-                          ? '${_calculatedExposure!.toStringAsFixed(3)}s'
-                          : 'Not calculated'),
-                  _buildReviewRow('Frame Count:', '25'),
+                  _buildReviewRow('Frames per filter:', '$_framesPerFilter'),
+                  const SizedBox(height: 8),
+                  const Text('Calibrated filters',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 4),
+                  for (final filter in _selectedFilters)
+                    _buildReviewRow(
+                      '$filter:',
+                      _results[filter]?.success == true
+                          ? '${_results[filter]!.exposure.toStringAsFixed(3)}s '
+                              '× $_framesPerFilter'
+                          : 'Not calculated',
+                    ),
                 ],
               ),
             ),
@@ -424,36 +413,48 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
     final profileFilters = ref.watch(profileFiltersProvider);
     final availableFilters =
         profileFilters.isNotEmpty ? profileFilters : _kFallbackFilters;
-    final effectiveSelected = availableFilters.contains(_selectedFilter)
-        ? _selectedFilter
-        : (availableFilters.isNotEmpty ? availableFilters.first : null);
 
-    if (effectiveSelected != _selectedFilter && effectiveSelected != null) {
+    // Drop any selected filter that's no longer offered (profile changed) and
+    // ensure at least one stays selected.
+    final stale = _selectedFilters.where((f) => !availableFilters.contains(f));
+    if (stale.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          setState(() {
-            _selectedFilter = effectiveSelected;
-          });
-        }
+        if (!mounted) return;
+        setState(() {
+          _selectedFilters.removeWhere((f) => !availableFilters.contains(f));
+          if (_selectedFilters.isEmpty && availableFilters.isNotEmpty) {
+            _selectedFilters.add(availableFilters.first);
+          }
+        });
       });
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Filter'),
+        const Text('Filters to calibrate'),
         const SizedBox(height: 8),
-        DropdownButtonFormField<String>(
-          initialValue: effectiveSelected,
-          decoration: InputDecoration(
-            border: OutlineInputBorder(
-                borderSide: BorderSide(color: colors.border)),
-          ),
-          items: [
-            ...availableFilters
-                .map((f) => DropdownMenuItem(value: f, child: Text(f))),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final f in availableFilters)
+              FilterChip(
+                label: Text(f),
+                selected: _selectedFilters.contains(f),
+                onSelected: (selected) {
+                  setState(() {
+                    if (selected) {
+                      _selectedFilters.add(f);
+                    } else {
+                      _selectedFilters.remove(f);
+                    }
+                    // Re-calibration is required after the filter set changes.
+                    _results.removeWhere((key, _) => key == f && !selected);
+                  });
+                },
+              ),
           ],
-          onChanged: (v) => setState(() => _selectedFilter = v),
         ),
         const SizedBox(height: 4),
         InkWell(
@@ -477,6 +478,84 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildFramesPerFilterControl(NightshadeColors colors) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Text('Frames per filter'),
+            const Spacer(),
+            Text(
+              '$_framesPerFilter',
+              style: TextStyle(
+                color: colors.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        Slider(
+          value: _framesPerFilter.toDouble(),
+          min: 1,
+          max: 100,
+          divisions: 99,
+          onChanged: (v) => setState(() => _framesPerFilter = v.round()),
+          activeColor: colors.primary,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilterResultCard(
+      NightshadeColors colors, ThemeData theme, String filter) {
+    final result = _results[filter];
+    final isCalibrated = result?.success == true;
+    final isFailed = result != null && !result.success;
+    final accent = isCalibrated
+        ? colors.success
+        : isFailed
+            ? colors.error
+            : colors.border;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+        border: Border.all(color: accent),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            isCalibrated
+                ? NightshadeIcons.success
+                : isFailed
+                    ? NightshadeIcons.error
+                    : NightshadeIcons.idea,
+            color: accent,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(filter,
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w600)),
+          ),
+          Text(
+            isCalibrated
+                ? '${result!.exposure.toStringAsFixed(3)}s @ '
+                    '${result.adu.toStringAsFixed(0)} ADU'
+                : isFailed
+                    ? 'Failed'
+                    : 'Pending',
+            style: theme.textTheme.bodySmall?.copyWith(color: accent),
+          ),
+        ],
+      ),
     );
   }
 

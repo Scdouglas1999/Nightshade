@@ -482,7 +482,7 @@ class _DetailSidePanel extends StatelessWidget {
             rows: [
               (
                 'Sky brightness',
-                _formatNumber(env.skyBrightnessMag, ' mag/arcsecÂ²')
+                _formatNumber(env.skyBrightnessMag, ' mag/arcsec²')
               ),
               (
                 'Cloud cover',

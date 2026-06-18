@@ -147,6 +147,9 @@ class _AdaptiveExposureSectionState
               child: NodePropertyField(
                 colors: colors,
                 label: 'Target SNR',
+                helpText:
+                    'Per-frame signal-to-noise the adaptive solver aims for. '
+                    'Higher SNR means longer exposures under a given sky.',
                 child: NodeNumberInput(
                   colors: colors,
                   value: cfg.targetSnr,
@@ -162,6 +165,10 @@ class _AdaptiveExposureSectionState
               child: NodePropertyField(
                 colors: colors,
                 label: 'Reference (mag/arcsec²)',
+                helpText:
+                    'Sky brightness at which the nominal duration is correct. '
+                    'The solver scales exposure relative to this reference as '
+                    'the live sky brightens or darkens.',
                 child: NodeNumberInput(
                   colors: colors,
                   value: cfg.referenceSkyBrightnessMag,
@@ -241,6 +248,7 @@ class _AdaptiveExposureSectionState
           _PerFilterRow(
             colors: colors,
             filter: filter,
+            allFilters: filterNames,
             cfg: cfg,
             onChanged: _update,
           ),
@@ -345,19 +353,24 @@ class _PerFilterRow extends StatelessWidget {
   const _PerFilterRow({
     required this.colors,
     required this.filter,
+    required this.allFilters,
     required this.cfg,
     required this.onChanged,
   });
 
   final NightshadeColors colors;
   final String filter;
+  final List<String> allFilters;
   final AdaptiveExposureConfig cfg;
   final ValueChanged<AdaptiveExposureConfig> onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final enabled =
-        cfg.perFilterEnabled[filter] ?? cfg.perFilterEnabled.isEmpty;
+    // A filter not present in the map inherits the global enable flag (rather
+    // than the old `perFilterEnabled.isEmpty` heuristic, which flipped every
+    // other filter off the instant the user toggled the first one).
+    final hasExplicit = cfg.perFilterEnabled.containsKey(filter);
+    final enabled = cfg.perFilterEnabled[filter] ?? cfg.enabled;
     final min = cfg.perFilterMinSecs[filter];
     final max = cfg.perFilterMaxSecs[filter];
     return Padding(
@@ -378,12 +391,26 @@ class _PerFilterRow extends StatelessWidget {
           NightshadeCheckbox(
             value: enabled,
             onChanged: (v) {
-              final next = Map<String, bool>.from(cfg.perFilterEnabled);
+              // First explicit edit while the map is empty: seed every filter
+              // with its current effective state so toggling one filter doesn't
+              // silently disable the rest (which all previously inherited the
+              // empty-map default).
+              final next = cfg.perFilterEnabled.isEmpty
+                  ? {for (final f in allFilters) f: cfg.enabled}
+                  : Map<String, bool>.from(cfg.perFilterEnabled);
               next[filter] = v ?? false;
               onChanged(cfg.copyWith(perFilterEnabled: next));
             },
           ),
-          const SizedBox(width: 8),
+          // A small dot marks rows that carry an explicit per-filter override
+          // (vs. inheriting the global enable flag) without widening the row.
+          SizedBox(
+            width: 10,
+            child: hasExplicit
+                ? Icon(LucideIcons.dot, size: 16, color: colors.primary)
+                : const SizedBox.shrink(),
+          ),
+          const SizedBox(width: 4),
           SizedBox(
             width: 80,
             child: NodeNumberInput(

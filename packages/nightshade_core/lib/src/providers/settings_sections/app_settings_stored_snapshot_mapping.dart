@@ -398,6 +398,41 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
         allSettings['smart_night.auto_prompt_enabled'],
         true,
       ),
+      smartNightAutoSelect: _parseBool(
+        allSettings['smart_night.auto_select'],
+        true,
+      ),
+      smartNightAutoSelectCount: _parseInt(
+        allSettings['smart_night.auto_select_count'],
+        2,
+      ),
+      // Sequencer editor layout. Stored as the literal string "null" when
+      // unset so the loader can distinguish "no stored preference" (use the
+      // responsive default) from a real value.
+      sequencerToolboxCollapsed: _parseNullableBool(
+        allSettings['sequencer.toolbox_collapsed'],
+      ),
+      sequencerPropertiesCollapsed: _parseNullableBool(
+        allSettings['sequencer.properties_collapsed'],
+      ),
+      sequencerSnippetPaletteVisible: _parseNullableBool(
+        allSettings['sequencer.snippet_palette_visible'],
+      ),
+      sequencerToolboxTab: _emptyOrNullToNull(
+        allSettings['sequencer.toolbox_tab'],
+      ),
+      sequencerActiveTab: _parseNullableInt(
+        allSettings['sequencer.active_tab'],
+        null,
+      ),
+      sequencerLeftPanelWidth: _parseNullableDouble(
+        allSettings['sequencer.left_panel_width'],
+        null,
+      ),
+      sequencerRightPanelWidth: _parseNullableDouble(
+        allSettings['sequencer.right_panel_width'],
+        null,
+      ),
       promptForNotesAfterRun: _parseBool(
         allSettings['notes.prompt_after_run'],
         true,
@@ -457,6 +492,8 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
   Map<String, String> _storedMapFromState(AppSettingsState s) {
     String optDouble(double? v) => v == null ? 'null' : v.toString();
     String optInt(int? v) => v == null ? 'null' : v.toString();
+    String optBool(bool? v) => v == null ? 'null' : v.toString();
+    String optStr(String? v) => v ?? 'null';
 
     return <String, String>{
       // General
@@ -670,6 +707,18 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       'smart_night_target_snr': s.smartNightTargetSnr.toString(),
       'smart_night.auto_prompt_enabled': s.smartNightAutoPromptEnabled
           .toString(),
+      'smart_night.auto_select': s.smartNightAutoSelect.toString(),
+      'smart_night.auto_select_count': s.smartNightAutoSelectCount.toString(),
+      // Sequencer editor layout (nullable → literal "null" when unset).
+      'sequencer.toolbox_collapsed': optBool(s.sequencerToolboxCollapsed),
+      'sequencer.properties_collapsed': optBool(s.sequencerPropertiesCollapsed),
+      'sequencer.snippet_palette_visible': optBool(
+        s.sequencerSnippetPaletteVisible,
+      ),
+      'sequencer.toolbox_tab': optStr(s.sequencerToolboxTab),
+      'sequencer.active_tab': optInt(s.sequencerActiveTab),
+      'sequencer.left_panel_width': optDouble(s.sequencerLeftPanelWidth),
+      'sequencer.right_panel_width': optDouble(s.sequencerRightPanelWidth),
       'notes.prompt_after_run': s.promptForNotesAfterRun.toString(),
 
       // Session lifecycle
@@ -751,6 +800,21 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
   bool _parseBool(String? value, bool defaultValue) {
     if (value == null) return defaultValue;
     return value.toLowerCase() == 'true';
+  }
+
+  /// Parse a nullable bool stored as "true" / "false" / "null" (or absent).
+  /// Returns null when the value is missing / empty / the literal "null",
+  /// which the sequencer-layout fields use to mean "no stored preference".
+  bool? _parseNullableBool(String? value) {
+    if (value == null || value.isEmpty || value == 'null') return null;
+    return value.toLowerCase() == 'true';
+  }
+
+  /// Map an absent / empty / literal-"null" string to null, otherwise
+  /// return the string verbatim. Used by nullable string layout fields.
+  String? _emptyOrNullToNull(String? value) {
+    if (value == null || value.isEmpty || value == 'null') return null;
+    return value;
   }
 
   /// Parse a JSON-encoded `Map<String, bool>` from

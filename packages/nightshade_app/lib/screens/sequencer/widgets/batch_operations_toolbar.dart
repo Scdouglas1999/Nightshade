@@ -17,6 +17,9 @@ class BatchOperationsToolbar extends ConsumerWidget {
     final clipboard = ref.watch(nodeCopyClipboardProvider);
     final hasClipboard = clipboard != null && clipboard.isNotEmpty;
     final count = selectedIds.length;
+    // Mutating batch actions must be gated while the executor owns the tree.
+    // Copy and Clear are non-mutating and stay enabled.
+    final canEdit = ref.watch(canEditSequenceProvider);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -80,12 +83,20 @@ class BatchOperationsToolbar extends ConsumerWidget {
                     colors: colors,
                     icon: LucideIcons.clipboardPaste,
                     label: 'Paste',
-                    enabled: hasClipboard,
-                    onPressed: hasClipboard
+                    enabled: hasClipboard && canEdit,
+                    onPressed: hasClipboard && canEdit
                         ? () {
+                            // Read the count before pasting so the snackbar
+                            // reports how many nodes landed.
+                            final pasted = clipboard.length;
                             ref
                                 .read(multiSelectedNodeIdsProvider.notifier)
                                 .pasteFromClipboard();
+                            _showCountSnackBar(
+                              context,
+                              colors,
+                              'Pasted $pasted node(s)',
+                            );
                           }
                         : null,
                   ),
@@ -99,11 +110,19 @@ class BatchOperationsToolbar extends ConsumerWidget {
                     colors: colors,
                     icon: LucideIcons.eye,
                     label: 'Enable',
-                    onPressed: () {
-                      ref
-                          .read(multiSelectedNodeIdsProvider.notifier)
-                          .enableSelected();
-                    },
+                    enabled: canEdit,
+                    onPressed: canEdit
+                        ? () {
+                            ref
+                                .read(multiSelectedNodeIdsProvider.notifier)
+                                .enableSelected();
+                            _showCountSnackBar(
+                              context,
+                              colors,
+                              '$count node(s) enabled',
+                            );
+                          }
+                        : null,
                   ),
 
                   const SizedBox(width: 4),
@@ -113,11 +132,19 @@ class BatchOperationsToolbar extends ConsumerWidget {
                     colors: colors,
                     icon: LucideIcons.eyeOff,
                     label: 'Disable',
-                    onPressed: () {
-                      ref
-                          .read(multiSelectedNodeIdsProvider.notifier)
-                          .disableSelected();
-                    },
+                    enabled: canEdit,
+                    onPressed: canEdit
+                        ? () {
+                            ref
+                                .read(multiSelectedNodeIdsProvider.notifier)
+                                .disableSelected();
+                            _showCountSnackBar(
+                              context,
+                              colors,
+                              '$count node(s) disabled',
+                            );
+                          }
+                        : null,
                   ),
 
                   const SizedBox(width: 8),
@@ -130,9 +157,12 @@ class BatchOperationsToolbar extends ConsumerWidget {
                     icon: LucideIcons.trash2,
                     label: 'Delete',
                     color: colors.error,
-                    onPressed: () {
-                      _confirmDelete(context, ref, count);
-                    },
+                    enabled: canEdit,
+                    onPressed: canEdit
+                        ? () {
+                            _confirmDelete(context, ref, selectedIds);
+                          }
+                        : null,
                   ),
                 ],
               ),
@@ -155,10 +185,46 @@ class BatchOperationsToolbar extends ConsumerWidget {
     );
   }
 
-  void _confirmDelete(BuildContext context, WidgetRef ref, int count) {
+  /// Brief feedback snackbar mirroring the Copy snackbar styling so every
+  /// batch action confirms what it did.
+  void _showCountSnackBar(
+    BuildContext context,
+    NightshadeColors colors,
+    String message,
+  ) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 2),
+        backgroundColor: colors.info,
+      ),
+    );
+  }
+
+  void _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    Set<String> selectedIds,
+  ) {
+    final count = selectedIds.length;
+    final sequence = ref.read(currentSequenceProvider);
+    // Sum descendants across the whole selection. Aligns the wording with
+    // the single-node confirmation helper ("N nodes + M descendants").
+    final descendants = sequence == null
+        ? 0
+        : selectedIds.fold<int>(
+            0, (sum, id) => sum + sequence.countDescendants(id));
+
+    final body = descendants == 0
+        ? 'This will remove the selected node(s). '
+            'This cannot be undone except via Undo (Ctrl+Z).'
+        : 'This will remove $count node(s) plus their $descendants '
+            'descendant(s). This cannot be undone except via Undo (Ctrl+Z).';
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         backgroundColor: colors.surface,
         title: Text(
           'Delete $count node(s)?',
@@ -166,25 +232,42 @@ class BatchOperationsToolbar extends ConsumerWidget {
         ),
         content: ConstrainedBox(
           constraints: AdaptiveDialogConstraints.hybrid(
-            context,
+            dialogContext,
             designMaxWidth: 440,
           ),
           child: Text(
-            'This will remove the selected nodes and all their children. This action can be undone with Ctrl+Z.',
+            body,
             style: TextStyle(color: colors.textSecondary),
           ),
         ),
         actions: [
           NightshadeButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             label: 'Cancel',
             variant: ButtonVariant.ghost,
             size: ButtonSize.small,
           ),
           NightshadeButton(
             onPressed: () {
-              ref.read(multiSelectedNodeIdsProvider.notifier).deleteSelected();
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
+              // Wrap the delete so a locked-state failure surfaces as a
+              // snackbar (matching confirmAndDeleteSequenceNode) rather than
+              // a raw red error overlay.
+              try {
+                ref
+                    .read(multiSelectedNodeIdsProvider.notifier)
+                    .deleteSelected();
+              } catch (error) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to delete nodes: $error'),
+                      backgroundColor: colors.error,
+                      duration: const Duration(seconds: 4),
+                    ),
+                  );
+                }
+              }
             },
             label: 'Delete',
             variant: ButtonVariant.destructive,

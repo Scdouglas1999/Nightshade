@@ -20,99 +20,26 @@ class _NodePaletteContentState extends ConsumerState<_NodePaletteContent> {
     super.dispose();
   }
 
-  IconData _getIcon(String iconName) {
-    switch (iconName) {
-      case 'target':
-        return LucideIcons.target;
-      case 'camera':
-        return LucideIcons.camera;
-      case 'circle':
-        return LucideIcons.circle;
-      case 'shuffle':
-        return LucideIcons.shuffle;
-      case 'compass':
-        return LucideIcons.compass;
-      case 'crosshair':
-        return LucideIcons.crosshair;
-      case 'parking-circle':
-        return LucideIcons.parkingCircle;
-      case 'unlock':
-        return LucideIcons.unlock;
-      case 'focus':
-        return LucideIcons.focus;
-      case 'snowflake':
-        return LucideIcons.snowflake;
-      case 'flame':
-        return LucideIcons.flame;
-      case 'rotate-cw':
-        return LucideIcons.rotateCw;
-      case 'workflow':
-        return LucideIcons.workflow;
-      case 'repeat':
-        return LucideIcons.repeat;
-      case 'git-merge':
-        return LucideIcons.gitMerge;
-      case 'git-branch':
-        return LucideIcons.gitBranch;
-      case 'shield-check':
-        return LucideIcons.shieldCheck;
-      case 'clock':
-        return LucideIcons.clock;
-      case 'timer':
-        return LucideIcons.timer;
-      case 'wrench':
-        return LucideIcons.wrench;
-      case 'bell':
-        return LucideIcons.bell;
-      case 'code':
-        return LucideIcons.code;
-      case 'aperture':
-        return LucideIcons.aperture;
-      default:
-        return LucideIcons.box;
-    }
-  }
+  IconData _getIcon(String iconName) => nodePaletteIconFor(iconName);
 
-  Color _getCategoryColor(String categoryName) {
-    switch (categoryName) {
-      case 'Target':
-        return widget.colors.warning;
-      case 'Imaging':
-        return widget.colors.primary;
-      case 'Mount':
-        return widget.colors.info;
-      case 'Focus':
-        return widget.colors.accent;
-      case 'Camera':
-        return widget.colors.primary;
-      case 'Logic':
-        return widget.colors.accent;
-      case 'Timing':
-        return widget.colors.warning;
-      case 'Utilities':
-        return widget.colors.textMuted;
-      default:
-        return widget.colors.textSecondary;
-    }
-  }
+  Color _getCategoryColor(String categoryName) =>
+      nodePaletteCategoryColor(categoryName, widget.colors);
 
   @override
   Widget build(BuildContext context) {
     final categories = ref.watch(nodePaletteProvider);
 
-    // Filter based on search
+    // Filter based on search. Lower-case the query once up front rather
+    // than per-item, and reuse it across name + description checks.
     final filteredCategories = categories
         .map((category) {
           if (_searchQuery.isEmpty) return category;
 
+          final q = _searchQuery.toLowerCase();
           final filteredItems = category.items
               .where((item) =>
-                  item.name
-                      .toLowerCase()
-                      .contains(_searchQuery.toLowerCase()) ||
-                  item.description
-                      .toLowerCase()
-                      .contains(_searchQuery.toLowerCase()))
+                  item.name.toLowerCase().contains(q) ||
+                  item.description.toLowerCase().contains(q))
               .toList();
 
           return NodePaletteCategory(
@@ -379,6 +306,9 @@ class _DraggableNodeItemCompactState
   bool _isHovered = false;
 
   void _addNode() {
+    // Refuse the click while the executor owns the tree; the editor still
+    // throws SequenceLockedException as a last line of defense.
+    if (!ref.read(canEditSequenceProvider)) return;
     final node = widget.item.createNode();
     final selectedId = ref.read(selectedNodeIdProvider);
     final notifier = ref.read(currentSequenceProvider.notifier);
@@ -503,9 +433,24 @@ class _DraggableNodeItemCompactState
                     ],
                   ),
                 ),
-                if (_isHovered)
-                  Icon(LucideIcons.plus,
-                      size: plusIconSize, color: widget.categoryColor),
+                // Always-visible single-tap add button (drag still works on
+                // the tile). The hidden double-tap was undiscoverable.
+                Tooltip(
+                  message: 'Add to sequence',
+                  child: GestureDetector(
+                    onTap: _addNode,
+                    child: Padding(
+                      padding: const EdgeInsets.all(2),
+                      child: Icon(
+                        LucideIcons.plus,
+                        size: plusIconSize,
+                        color: _isHovered
+                            ? widget.categoryColor
+                            : widget.categoryColor.withValues(alpha: 0.6),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),

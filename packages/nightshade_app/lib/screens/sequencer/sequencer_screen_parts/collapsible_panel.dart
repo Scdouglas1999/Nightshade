@@ -10,8 +10,11 @@ class _CollapsiblePanel extends StatefulWidget {
   final ResizeSide side;
   final IconData collapsedIcon;
   final String collapsedTooltip;
-  final bool collapsedDisabled;
   final VoidCallback onToggle;
+
+  /// Called with the new width when the user drags the panel edge. The parent
+  /// persists this so the drag survives the next layout pass (audit §6).
+  final ValueChanged<double>? onWidthChanged;
   final Widget child;
 
   const _CollapsiblePanel({
@@ -24,8 +27,8 @@ class _CollapsiblePanel extends StatefulWidget {
     required this.side,
     required this.collapsedIcon,
     required this.collapsedTooltip,
-    this.collapsedDisabled = false,
     required this.onToggle,
+    this.onWidthChanged,
     required this.child,
   });
 
@@ -67,6 +70,9 @@ class _CollapsiblePanelState extends State<_CollapsiblePanel>
   void didUpdateWidget(_CollapsiblePanel oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.isCollapsed != widget.isCollapsed) {
+      // §6: only re-seed the expanded width on a collapse→expand transition,
+      // so reopening the panel respects the latest (possibly user-dragged)
+      // width handed down by the parent.
       if (widget.isCollapsed) {
         _animationController.reverse();
       } else {
@@ -74,11 +80,17 @@ class _CollapsiblePanelState extends State<_CollapsiblePanel>
         _updateAnimation();
         _animationController.forward();
       }
-    }
-    if (oldWidget.expandedWidth != widget.expandedWidth &&
+    } else if (oldWidget.expandedWidth != widget.expandedWidth &&
         !widget.isCollapsed) {
+      // §6/§7: width changed while already expanded (responsive resize, or a
+      // persisted drag flowing back in). Snap to the new width instantly by
+      // jumping the controller to its end value instead of re-tweening — a
+      // re-tween mid-resize made the edge visibly lag the cursor.
       _currentExpandedWidth = widget.expandedWidth;
       _updateAnimation();
+      if (_animationController.value != 1.0) {
+        _animationController.value = 1.0;
+      }
     }
   }
 
@@ -120,12 +132,9 @@ class _CollapsiblePanelState extends State<_CollapsiblePanel>
                     icon: Icon(
                       widget.collapsedIcon,
                       size: 20,
-                      color: widget.collapsedDisabled
-                          ? widget.colors.textMuted
-                          : widget.colors.textSecondary,
+                      color: widget.colors.textSecondary,
                     ),
-                    onPressed:
-                        widget.collapsedDisabled ? null : widget.onToggle,
+                    onPressed: widget.onToggle,
                   ),
                 ),
               ],
@@ -146,6 +155,9 @@ class _CollapsiblePanelState extends State<_CollapsiblePanel>
                 _currentExpandedWidth = newWidth;
                 _updateAnimation();
               });
+              // §6: bubble the dragged width up so the parent can persist it
+              // and it no longer snaps back on the next rebuild.
+              widget.onWidthChanged?.call(newWidth);
             },
             child: widget.child,
           ),

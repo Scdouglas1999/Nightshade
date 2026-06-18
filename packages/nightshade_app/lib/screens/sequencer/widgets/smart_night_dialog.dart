@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../services/smart_night_plan_launcher.dart';
 import '../../../utils/snackbar_helper.dart';
+import '../../equipment/dialogs/profile_editor_dialog.dart';
 
 part 'smart_night_dialog/inline_widgets.dart';
 part 'smart_night_dialog/missing_specs_dialog.dart';
@@ -67,6 +69,12 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
   DateTime? _windowEnd;
   bool _windowInitialised = false;
 
+  /// The computed astronomical-twilight (dark) window, cached on
+  /// initialisation so [_validateWindow] can warn when the user narrows their
+  /// imaging window wholly outside the dark hours (e.g. into daylight).
+  DateTime? _twilightStart;
+  DateTime? _twilightEnd;
+
   // ---- Step 3: targets --------------------------------------------------
   /// User-selected target IDs. Empty → auto-pick top N by score.
   final Set<int> _selectedTargetIds = <int>{};
@@ -87,6 +95,12 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
 
   void _update(VoidCallback callback) => setState(callback);
 
+  @override
+  void dispose() {
+    _countDraftDebounce?.cancel();
+    super.dispose();
+  }
+
   // ---- Step 4: strategy -------------------------------------------------
   SmartNightStrategy _strategy = SmartNightStrategy.autoLrgb;
 
@@ -94,6 +108,16 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
   SmartNightPlan? _preview;
   String? _previewError;
   String? _previewDraftId;
+
+  /// True while the (heavy) plan builder is running. Drives the primary
+  /// button's busy/disabled state and guards [_onPrimaryPressed] against
+  /// re-entry.
+  bool _isBuildingPreview = false;
+
+  /// Debounce timer for persisting count-tweak drafts. Each +/- tap patches
+  /// the plan locally and immediately; the DB draft write is coalesced so a
+  /// rapid burst of taps only persists the final count.
+  Timer? _countDraftDebounce;
 
   // ---- Settings (defaults; wizard can override) ------------------------
   /// Local working copy of the wizard's [SmartNightSettings]. Seeded from
@@ -159,6 +183,8 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
     );
     _windowStart = window.start;
     _windowEnd = window.end;
+    _twilightStart = window.start;
+    _twilightEnd = window.end;
     _windowInitialised = true;
   }
 
@@ -281,6 +307,10 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
   }
 
   void _onPrimaryPressed() async {
+    // Guard re-entry: the strategy step kicks off the heavy builder and
+    // disables the primary button, but a double-tap could still slip through
+    // before the rebuild lands.
+    if (_isBuildingPreview) return;
     switch (_step) {
       case 0:
         if (!_validateWindow()) return;
@@ -296,8 +326,13 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
         break;
       case 3:
         if (!_validateStrategy()) return;
-        await _buildPreview();
-        if (mounted) setState(() => _step = 4);
+        setState(() => _isBuildingPreview = true);
+        try {
+          await _buildPreview();
+          if (mounted) setState(() => _step = 4);
+        } finally {
+          if (mounted) setState(() => _isBuildingPreview = false);
+        }
         break;
       case 4:
         if (_preview == null) return;
@@ -324,6 +359,23 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
         'Window end must be after window start.',
       );
       return false;
+    }
+    // Non-blocking twilight sanity check: if the user has narrowed the window
+    // so it no longer overlaps tonight's astronomical-dark window at all, the
+    // plan will be all-daylight/twilight. Warn up front rather than letting
+    // the preview silently produce an unusable plan. We still let them
+    // proceed — civil-twilight wide-field / solar-system work is legitimate.
+    final twiStart = _twilightStart;
+    final twiEnd = _twilightEnd;
+    if (twiStart != null && twiEnd != null) {
+      final overlaps = start.isBefore(twiEnd) && end.isAfter(twiStart);
+      if (!overlaps) {
+        context.showWarningSnackBar(
+          'Your chosen window falls outside tonight\'s dark window '
+          '(${_formatDateTime(twiStart)} – ${_formatDateTime(twiEnd)}). '
+          'Exposures will be in twilight or daylight.',
+        );
+      }
     }
     return true;
   }
@@ -564,13 +616,21 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
     });
   }
 
-  Future<void> _adjustFilterCount(
+  void _adjustFilterCount(
     SmartNightPlannedTarget target,
     int filterIndex,
     int delta,
-  ) async {
+  ) {
     final plan = _preview;
     if (plan == null) return;
+
+    // Capture-time delta in seconds for this single edit. Wall-clock is
+    // capture time plus a fixed per-target/per-filter overhead model the
+    // builder applies; that overhead does not change when only a frame count
+    // changes, so we can adjust wall-clock by the same capture delta rather
+    // than re-running the (heavy) builder for every tap.
+    var wallClockDeltaSecs = 0.0;
+
     final newPlannedTargets = <SmartNightPlannedTarget>[];
     for (final p in plan.plannedTargets) {
       if (p == target) {
@@ -579,6 +639,7 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
           if (i == filterIndex) {
             final fp = p.filterPlans[i];
             final newCount = (fp.count + delta).clamp(1, 999).toInt();
+            wallClockDeltaSecs += (newCount - fp.count) * fp.durationSecs;
             updatedFilters.add(SmartNightFilterPlan(
               filterName: fp.filterName,
               count: newCount,
@@ -606,67 +667,50 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
       }
     }
 
-    // Mutating plan counts requires regenerating the underlying Sequence
-    // so the per-target SmartExposureNode reflects the new counts. We
-    // re-run the builder with hand-picked suggestions and current
-    // settings; the same context + strategy + window stays.
+    // Patch the existing plan's sequence in place — no full rebuild. The
+    // SmartExposureNode counts/integration are overwritten directly, and we
+    // recompute totals + wall-clock locally so the preview is internally
+    // consistent (no longer borrowing wall-clock from a rebuild that used the
+    // un-tweaked counts).
+    final patched = SmartNightPlan(
+      sequence: _patchSequenceCounts(plan.sequence, newPlannedTargets),
+      plannedTargets: newPlannedTargets,
+      totalIntegrationSecs: newPlannedTargets.fold<double>(
+        0,
+        (s, p) => s + p.integrationSecs,
+      ),
+      estimatedWallClockSecs: (plan.estimatedWallClockSecs + wallClockDeltaSecs)
+          .clamp(0, double.infinity),
+      warnings: plan.warnings,
+      strategy: plan.strategy,
+      settings: plan.settings,
+      context: plan.context,
+    );
+
+    setState(() => _preview = patched);
+
+    // Debounce the durable draft write so a burst of +/- taps only persists
+    // the final count, not one row per tap.
     final profile = ref.read(activeEquipmentProfileProvider);
-    final location = ref.read(appObserverLocationProvider);
-    if (profile == null || location == null) return;
-    try {
-      final exposureContext =
-          await ref.read(smartNightExposureContextProvider.future);
-      final rebuilt = _buildService().build(
-        profile: profile,
-        latitudeDeg: location.latitude,
-        longitudeDeg: location.longitude,
-        context: plan.context,
-        selectedSuggestions:
-            newPlannedTargets.map((p) => p.suggestion).toList(growable: false),
-        strategy: plan.strategy,
-        // Inject the user's count tweaks via a custom settings clone
-        // that scales the default-budget hour so the same per-filter
-        // ratio reproduces the user's chosen counts. We can't pass the
-        // counts directly because [build] composes the SmartExposure
-        // plan internally; instead we override the duration / count
-        // map by re-running with a per-target adjusted setting bag.
-        settings: plan.settings,
-        exposureContext: exposureContext,
-      );
-      // Replace per-target plans with the user-edited ones after the
-      // rebuild so the wizard preview reflects exact user values.
-      final patched = SmartNightPlan(
-        sequence: _patchSequenceCounts(rebuilt.sequence, newPlannedTargets),
-        plannedTargets: newPlannedTargets,
-        totalIntegrationSecs: newPlannedTargets.fold<double>(
-          0,
-          (s, p) => s + p.integrationSecs,
-        ),
-        estimatedWallClockSecs: rebuilt.estimatedWallClockSecs,
-        warnings: rebuilt.warnings,
-        strategy: rebuilt.strategy,
-        settings: rebuilt.settings,
-        context: rebuilt.context,
-      );
-      final draft = await SmartNightDraftService(
-        settingsDao: ref.read(settingsDaoProvider),
-      ).savePending(
-        profileId: profile.id.toString(),
-        astronomicalDay: patched.context.windowStart,
-        plan: patched,
-      );
-      if (!mounted) return;
-      setState(() {
-        _preview = patched;
-        _previewDraftId = draft.id;
-      });
-    } catch (e) {
-      // Don't show another error here — preview already validated the
-      // sequence; surfacing a snackbar is enough.
-      if (mounted) {
-        context.showWarningSnackBar('Could not adjust counts: $e');
+    if (profile == null) return;
+    _countDraftDebounce?.cancel();
+    _countDraftDebounce = Timer(const Duration(milliseconds: 400), () async {
+      try {
+        final draft = await SmartNightDraftService(
+          settingsDao: ref.read(settingsDaoProvider),
+        ).savePending(
+          profileId: profile.id.toString(),
+          astronomicalDay: patched.context.windowStart,
+          plan: patched,
+        );
+        if (!mounted) return;
+        setState(() => _previewDraftId = draft.id);
+      } catch (e) {
+        if (mounted) {
+          context.showWarningSnackBar('Could not save adjusted counts: $e');
+        }
       }
-    }
+    });
   }
 
   /// Walk every [SmartExposureNode] in `seq` and overwrite its
@@ -743,6 +787,27 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
       'Smart Night plan loaded — '
       '${plan.plannedTargets.length} target(s), '
       '${(plan.totalIntegrationSecs / 3600).toStringAsFixed(1)}h integration.',
+    );
+  }
+
+  /// Persist the built plan's sequence as a reusable template via the
+  /// sequence repository, instead of starting it. The Sequence is already
+  /// assembled in [plan]; we just flag it as a template and save.
+  Future<void> _savePlanAsTemplate(SmartNightPlan plan) async {
+    try {
+      await ref
+          .read(sequenceRepositoryProvider)
+          .saveSequence(plan.sequence, isTemplate: true);
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Could not save template: $e');
+      }
+      return;
+    }
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    context.showSuccessSnackBar(
+      'Saved "${plan.sequence.name}" as a template.',
     );
   }
 

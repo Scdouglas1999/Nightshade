@@ -7,6 +7,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../utils/sequence_mutator_helper.dart';
 import '../../../widgets/tutorial_keys/sequencer_keys.dart';
 import 'delete_node_confirmation.dart';
 import 'exposure_node_thumbnail_strip.dart';
@@ -14,6 +15,7 @@ import 'node_duration_chip.dart';
 import 'node_progress_panels.dart';
 import 'node_summary.dart';
 import 'node_summary_line.dart';
+import 'palette_icon_map.dart';
 import 'sequence_minimap.dart';
 import 'sequence_tree_context_menu.dart';
 import 'sequence_tree_shortcuts.dart';
@@ -26,6 +28,16 @@ part 'sequence_tree/node_tree_view.dart';
 part 'sequence_tree/node_item.dart';
 part 'sequence_tree/support_widgets.dart';
 
+/// Live handle to the tree's GlobalKey registry (node id -> row key).
+///
+/// [SequenceTree] publishes its registry here so sibling widgets (notably
+/// [SequenceMinimap]) can route "navigate to node" through the SAME
+/// `Scrollable.ensureVisible` path the auto-follow uses, instead of
+/// guessing a scroll offset. Null until the tree mounts. Not autoDispose:
+/// the minimap may rebuild independently and must keep resolving keys.
+final treeNodeKeyRegistryProvider =
+    StateProvider<Map<String, GlobalKey>?>((ref) => null);
+
 /// Provider to track when a node is being dragged globally
 /// This allows all drop zones to become visible when any drag starts
 // autoDispose: drag state is transient UI — every drag begins from `false`
@@ -33,6 +45,10 @@ part 'sequence_tree/support_widgets.dart';
 // teardown ensures a stale `true` from an interrupted drag cannot leak
 // into the next sequencer session.
 final isDraggingNodeProvider = StateProvider.autoDispose<bool>((ref) => false);
+
+/// Tree search query — filters the in-tree "jump to node" results popover in
+/// the sequence header. autoDispose so it resets between sequencer visits.
+final treeSearchQueryProvider = StateProvider.autoDispose<String>((ref) => '');
 
 /// Provider for "follow execution" toggle — auto-scrolls tree to current node
 // autoDispose: tab/screen-scoped toggle; default (on) is the right initial
@@ -43,6 +59,34 @@ final followExecutionProvider = StateProvider.autoDispose<bool>((ref) => true);
 // as `confirmAndDeleteSequenceNode`. The tree's inline trash buttons and
 // the TargetHeaderCard delete button below route through that helper so
 // every user-initiated delete surface shares one policy.
+
+/// Insert a dragged [snippet] into the tree through [withSequenceMutation]
+/// so a locked-state or unknown-node-type failure surfaces a snackbar/dialog
+/// instead of an uncaught throw. Shared by every drag-drop TemplateSnippet
+/// branch (root target, per-container target, inter-row drop zone) so the
+/// drop path matches the tap path's error handling.
+void insertSnippetGuarded(
+  BuildContext context,
+  WidgetRef ref,
+  TemplateSnippet snippet, {
+  String? parentId,
+  int? index,
+}) {
+  final profile = ref.read(activeEquipmentProfileProvider);
+  withSequenceMutation(
+    context,
+    ref,
+    operationName: 'Insert template',
+    action: () async {
+      ref.read(currentSequenceProvider.notifier).insertSnippet(
+            snippet,
+            parentId: parentId,
+            index: index,
+            profileFilterNames: profile?.filterNames,
+          );
+    },
+  );
+}
 
 /// Handle node selection with modifier key support for multi-select.
 /// Ctrl+Click: toggle individual node in multi-selection.
@@ -111,11 +155,26 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
   /// reshuffles focus and arrow keys stop working after the first press.
   late final FocusNode _treeFocusNode;
 
+  /// Captured during [initState] so [dispose] can clear the published
+  /// registry handle without touching `ref` — Riverpod forbids `ref.read`
+  /// after the widget is disposed. The provider is not autoDispose, so the
+  /// notifier outlives this widget and is safe to hold.
+  late final StateController<Map<String, GlobalKey>?> _registryController;
+
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onManualScroll);
     _treeFocusNode = FocusNode(debugLabel: 'sequence-tree');
+    _registryController = ref.read(treeNodeKeyRegistryProvider.notifier);
+    // Publish the registry handle so the minimap can route navigation
+    // through the same ensureVisible path. Done post-frame because provider
+    // writes are illegal during the initial build pass.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _registryController.state = _nodeKeyRegistry;
+      }
+    });
   }
 
   @override
@@ -123,6 +182,12 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
     _scrollController.removeListener(_onManualScroll);
     _scrollController.dispose();
     _treeFocusNode.dispose();
+    // Clear the published handle before tearing down the registry so a
+    // late minimap rebuild can't deref a stale map. Uses the captured
+    // controller rather than `ref`, which is unusable post-dispose.
+    if (_registryController.state == _nodeKeyRegistry) {
+      _registryController.state = null;
+    }
     _nodeKeyRegistry.clear();
     super.dispose();
   }
@@ -175,8 +240,35 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
     );
   }
 
+  /// Add a starter Target Header from the empty state.
+  ///
+  /// [addTargetHeader] throws [NoActiveSequenceException] when no sequence is
+  /// loaded, so we create one first when [currentSequenceProvider] is null,
+  /// then add the target. Routed through [withSequenceMutation] so any editor
+  /// failure surfaces as a snackbar rather than an uncaught throw.
+  void _addStarterTargetHeader() {
+    withSequenceMutation(
+      context,
+      ref,
+      operationName: 'Add target header',
+      action: () async {
+        final notifier = ref.read(currentSequenceProvider.notifier);
+        if (ref.read(currentSequenceProvider) == null) {
+          notifier.createSequence();
+        }
+        final target = TargetHeaderNode(
+          name: 'New Target',
+          targetName: 'New Target',
+          raHours: 0.0,
+          decDegrees: 0.0,
+        );
+        notifier.addTargetHeader(target);
+        ref.read(selectedNodeIdProvider.notifier).state = target.id;
+      },
+    );
+  }
+
   Widget _buildEmptyState(BuildContext context) {
-    final colors = widget.colors;
     final isMobile = Responsive.isMobile(context);
     return EmptyState(
       icon: LucideIcons.workflow,
@@ -184,40 +276,12 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
       body: isMobile
           ? 'Tap + to add nodes'
           : 'Drag nodes from the palette to start building',
-      action: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: isMobile ? 12 : 16,
-          vertical: isMobile ? 8 : 10,
-        ),
-        decoration: BoxDecoration(
-          color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-          border: Border.all(color: colors.border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              LucideIcons.lightbulb,
-              size: isMobile ? 12 : 14,
-              color: colors.warning,
-            ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                'Tip: Start with a Target Header',
-                style: TextStyle(
-                  fontSize: isMobile
-                      ? NightshadeTypography.fontSize11
-                      : NightshadeTypography.fontSize12,
-                  color: colors.textSecondary,
-                ),
-                softWrap: false,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
+      action: NightshadeButton(
+        onPressed: _addStarterTargetHeader,
+        label: 'Add Target Header',
+        icon: LucideIcons.target,
+        variant: ButtonVariant.primary,
+        size: ButtonSize.small,
       ),
     );
   }
@@ -309,11 +373,7 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
           }
           ref.read(selectedNodeIdProvider.notifier).state = node.id;
         } else if (data is TemplateSnippet) {
-          final profile = ref.read(activeEquipmentProfileProvider);
-          ref.read(currentSequenceProvider.notifier).insertSnippet(
-                data,
-                profileFilterNames: profile?.filterNames,
-              );
+          insertSnippetGuarded(context, ref, data);
         } else if (data is TargetQueueDragPayload) {
           // Drag-drop a queued target → append the prebuilt
           // TargetHeaderNode under the root. Selection follows the

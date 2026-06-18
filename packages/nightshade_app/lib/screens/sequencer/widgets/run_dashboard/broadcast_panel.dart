@@ -14,6 +14,8 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../pulse_lifecycle_mixin.dart';
+
 class BroadcastPanel extends ConsumerWidget {
   const BroadcastPanel({super.key});
 
@@ -260,8 +262,14 @@ class _LiveDot extends StatefulWidget {
 }
 
 class _LiveDotState extends State<_LiveDot>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, PulseLifecycleMixin {
   late final AnimationController _ctrl;
+
+  @override
+  AnimationController get pulseController => _ctrl;
+
+  @override
+  bool get pulseReverses => true;
 
   @override
   void initState() {
@@ -269,11 +277,13 @@ class _LiveDotState extends State<_LiveDot>
     _ctrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
-    )..repeat(reverse: true);
+    );
+    startPulse();
   }
 
   @override
   void dispose() {
+    stopPulseLifecycle();
     _ctrl.dispose();
     super.dispose();
   }

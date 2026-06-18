@@ -16,34 +16,70 @@ class _SequencerTabBar extends StatelessWidget {
   final TabController controller;
   final bool isRunning;
 
+  /// Form-factor decision computed once at the screen level (§17) so the
+  /// strip and the builder body agree on phone-vs-desktop.
+  final bool isPhone;
+
   const _SequencerTabBar({
     required this.colors,
     required this.controller,
     this.isRunning = false,
+    required this.isPhone,
   });
+
+  /// Tutorial keys keyed by tab so the strip stays in sync with the
+  /// [SequencerTab] enum that drives the controller (§3).
+  static Key? _buttonKeyFor(SequencerTab tab) {
+    switch (tab) {
+      case SequencerTab.builder:
+        return SequencerTutorialKeys.tabBuilder;
+      case SequencerTab.templates:
+        return SequencerTutorialKeys.tabTemplates;
+      case SequencerTab.sequences:
+      case SequencerTab.history:
+        return null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isPhone = Responsive.isPhone(context);
-
+    // §3: derive the strip from the single SequencerTab enum so adding a tab
+    // there updates the controller length and this strip in one edit.
+    // §4: on desktop the keyboard accelerators (Alt+1..4) are surfaced in the
+    // tab's tooltip/semantics so they are discoverable; phones have no
+    // keyboard so the hint is omitted.
     final tabs = <AdaptiveTab>[
-      AdaptiveTab(
-        label: 'Builder',
-        icon: LucideIcons.workflow,
-        buttonKey: SequencerTutorialKeys.tabBuilder,
-      ),
-      AdaptiveTab(
-        label: 'Templates',
-        icon: LucideIcons.fileStack,
-        buttonKey: SequencerTutorialKeys.tabTemplates,
-      ),
-      const AdaptiveTab(label: 'Sequences', icon: LucideIcons.folderOpen),
-      const AdaptiveTab(label: 'History', icon: LucideIcons.history),
+      for (final tab in SequencerTab.values)
+        AdaptiveTab(
+          label: tab.label,
+          icon: tab.icon,
+          buttonKey: _buttonKeyFor(tab),
+          semanticLabel:
+              isPhone ? tab.label : '${tab.label} (Alt+${tab.index + 1})',
+        ),
     ];
 
     // On phone the running state is surfaced by the playback bar, so the
     // trailing "Sequence Running" chip is desktop/tablet only.
     final trailing = <Widget>[
+      // §4: a discoverable entry point to the full keyboard-shortcut
+      // cheat-sheet. Keyboard-only, so desktop/tablet just like the
+      // accelerator hints above.
+      if (!isPhone)
+        Padding(
+          padding: const EdgeInsets.only(left: 4),
+          child: Tooltip(
+            message: 'Keyboard shortcuts',
+            child: IconButton(
+              icon: Icon(
+                LucideIcons.keyboard,
+                size: 18,
+                color: colors.textSecondary,
+              ),
+              onPressed: () => _SequencerShortcutsSheet.show(context, colors),
+            ),
+          ),
+        ),
       if (isRunning && !isPhone)
         Padding(
           padding: const EdgeInsets.only(left: 4, right: 12),
@@ -108,6 +144,97 @@ class _SequencerTabBar extends StatelessWidget {
               );
             },
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A read-only cheat-sheet listing every sequencer keyboard binding, opened
+/// from the strip's keyboard icon (§4). Mirrors the [CallbackShortcuts]
+/// bindings declared in `sequencer_screen.dart` and the toolbox Ctrl+T toggle
+/// — keep this list in sync when adding a shortcut.
+class _SequencerShortcutsSheet {
+  const _SequencerShortcutsSheet._();
+
+  static const List<({String keys, String action})> _shortcuts = [
+    (keys: 'Alt+1', action: 'Builder tab'),
+    (keys: 'Alt+2', action: 'Templates tab'),
+    (keys: 'Alt+3', action: 'Sequences tab'),
+    (keys: 'Alt+4', action: 'History tab'),
+    (keys: 'Ctrl+T', action: 'Toggle Nodes / Snippets'),
+    (keys: 'Ctrl+Z', action: 'Undo'),
+    (keys: 'Ctrl+Y', action: 'Redo'),
+    (keys: 'Ctrl+D', action: 'Duplicate node'),
+    (keys: 'Ctrl+C', action: 'Copy selected node(s)'),
+    (keys: 'Ctrl+V', action: 'Paste node(s)'),
+    (keys: 'Delete', action: 'Delete selected node(s)'),
+    (keys: 'Esc', action: 'Clear multi-selection'),
+  ];
+
+  static Future<void> show(BuildContext context, NightshadeColors colors) {
+    return showAdaptiveModal<void>(
+      context: context,
+      designWidth: 420,
+      builder: (sheetContext) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(LucideIcons.keyboard, size: 18, color: colors.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Keyboard Shortcuts',
+                  style: NightshadeTypography.h5
+                      .copyWith(color: colors.textPrimary),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            for (final s in _shortcuts)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: NightshadeDecorations.tintedBadge(
+                        colors.primary,
+                        borderRadius: BorderRadius.circular(
+                            NightshadeTokens.radiusInline4),
+                      ),
+                      child: Text(
+                        s.keys,
+                        style: NightshadeTypography.labelSm
+                            .copyWith(color: colors.primary),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        s.action,
+                        style: NightshadeTypography.bodySm
+                            .copyWith(color: colors.textSecondary),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerRight,
+              child: NightshadeButton(
+                label: 'Close',
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.small,
+                onPressed: () => Navigator.of(sheetContext).pop(),
+              ),
+            ),
+          ],
         ),
       ),
     );

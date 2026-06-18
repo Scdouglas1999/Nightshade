@@ -11,7 +11,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// `cloudCoverPercentageProvider` (current Open-Meteo cover). Surfaces:
 ///   * Current cloud cover with green/yellow/red color-coding.
 ///   * Predicted arrival time of the next significant cloud bank.
-///   * Predicted opening (clear-sky window) time, if currently overcast.
+///   * Whether the sky is clear enough to image right now (current cover —
+///     the analyzer does not yet model a future clear-sky window).
 ///   * Last-update freshness so the user can tell if the panel has stale data.
 ///
 /// This panel is opt-in: it is disabled by default in the dashboard layout
@@ -105,11 +106,11 @@ class RunDashboardCloudMotionPanel extends ConsumerWidget {
           const SizedBox(height: NightshadeTokens.spaceXs),
           _row(
             colors,
-            label: 'Opening In',
-            // The analyzer does not yet model a future-opening curve.
-            // Show a hint instead of fabricating data — silent fallback
-            // would defeat "errors are a feature".
-            value: cover != null && cover < 30.0 ? 'Now (cover < 30%)' : '—',
+            // The analyzer does not yet model a future-opening curve, so the
+            // row reflects only current cover rather than predicting a
+            // clear-sky window — labelled non-predictively to match.
+            label: 'Clear now?',
+            value: cover != null && cover < 30.0 ? 'Yes (cover < 30%)' : '—',
             highlight: colors.textPrimary,
           ),
           if (motion?.distanceKm != null) ...[

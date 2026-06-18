@@ -169,7 +169,12 @@ class _DropZone extends ConsumerWidget {
   final NightshadeColors colors;
   final String parentId;
   final int index;
-  final bool isActive; // kept for backwards compat but we use global provider
+
+  /// Whether the *enclosing* container's DragTarget currently has a candidate
+  /// hovering (plumbed down from `_NodeTreeView`). Drives the dashed-zone
+  /// reveal per-container rather than off the global drag provider, so a drag
+  /// over one container doesn't repaint every sibling subtree.
+  final bool isActive;
 
   const _DropZone({
     required this.colors,
@@ -180,9 +185,6 @@ class _DropZone extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Watch global drag state for all drop zones to react together
-    final isDragging = ref.watch(isDraggingNodeProvider);
-
     return DragTarget<Object>(
       onWillAcceptWithDetails: (data) =>
           data.data is String ||
@@ -213,13 +215,11 @@ class _DropZone extends ConsumerWidget {
           }
           ref.read(selectedNodeIdProvider.notifier).state = node.id;
         } else if (data is TemplateSnippet) {
-          final profile = ref.read(activeEquipmentProfileProvider);
-          ref.read(currentSequenceProvider.notifier).insertSnippet(
-                data,
-                parentId: parentId,
-                index: index,
-                profileFilterNames: profile?.filterNames,
-              );
+          // Route through the guarded helper so a locked-state /
+          // unknown-node-type insert surfaces a snackbar, matching the
+          // tap path.
+          insertSnippetGuarded(context, ref, data,
+              parentId: parentId, index: index);
         } else if (data is TargetQueueDragPayload) {
           // Precise-position drop: insert the prebuilt
           // TargetHeaderNode at the exact index where the dashed
@@ -235,59 +235,72 @@ class _DropZone extends ConsumerWidget {
       },
       builder: (context, candidateData, rejectedData) {
         final isOver = candidateData.isNotEmpty;
-        // Show larger drop zone when any drag is active globally
-        final showDropZone = isDragging || isActive || isOver;
-
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          height: isOver ? 48 : (showDropZone ? 28 : 4),
-          margin: const EdgeInsets.symmetric(vertical: 2),
-          decoration: isOver
-              ? NightshadeDecorations.selectedSurface(
-                  colors.primary,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusMd),
-                  fillAlpha: 0.2,
-                ).copyWith(
-                  border: Border.all(color: colors.primary, width: 2),
-                )
-              : showDropZone
-                  ? _dashedDropDecoration(colors)
-                  : const BoxDecoration(),
-          child: isOver
-              ? Center(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        LucideIcons.arrowDown,
-                        size: 12,
-                        color: colors.primary,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Insert here',
-                        style: NightshadeTypography.labelStrongSm
-                            .copyWith(color: colors.primary),
-                      ),
-                    ],
-                  ),
-                )
-              : showDropZone
-                  ? CustomPaint(
-                      painter: _DashedLinePainter(
-                          color: colors.primary.withValues(alpha: 0.5)),
-                      child: Center(
-                        child: Icon(
-                          LucideIcons.plusCircle,
-                          size: 12,
-                          color: colors.primary.withValues(alpha: 0.5),
-                        ),
-                      ),
-                    )
-                  : null,
+        // RepaintBoundary isolates this zone's animation so the global
+        // drag-state rebuild (read inside the Consumer below) doesn't
+        // repaint sibling subtrees.
+        return RepaintBoundary(
+          child: Consumer(
+            builder: (context, ref, _) {
+              // Watch global drag state ONLY here so the rest of the row
+              // doesn't rebuild when a drag starts elsewhere.
+              final isDragging = ref.watch(isDraggingNodeProvider);
+              final showDropZone = isDragging || isActive || isOver;
+              return _buildZone(isOver: isOver, showDropZone: showDropZone);
+            },
+          ),
         );
       },
+    );
+  }
+
+  Widget _buildZone({required bool isOver, required bool showDropZone}) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      height: isOver ? 48 : (showDropZone ? 28 : 4),
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      decoration: isOver
+          ? NightshadeDecorations.selectedSurface(
+              colors.primary,
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+              fillAlpha: 0.2,
+            ).copyWith(
+              border: Border.all(color: colors.primary, width: 2),
+            )
+          : showDropZone
+              ? _dashedDropDecoration(colors)
+              : const BoxDecoration(),
+      child: isOver
+          ? Center(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    LucideIcons.arrowDown,
+                    size: 12,
+                    color: colors.primary,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Insert here',
+                    style: NightshadeTypography.labelStrongSm
+                        .copyWith(color: colors.primary),
+                  ),
+                ],
+              ),
+            )
+          : showDropZone
+              ? CustomPaint(
+                  painter: _DashedLinePainter(
+                      color: colors.primary.withValues(alpha: 0.5)),
+                  child: Center(
+                    child: Icon(
+                      LucideIcons.plusCircle,
+                      size: 12,
+                      color: colors.primary.withValues(alpha: 0.5),
+                    ),
+                  ),
+                )
+              : null,
     );
   }
 }
@@ -395,15 +408,26 @@ class _NodeColorLegend extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 10),
-              _legendRow(colors.warning, 'Target / Trigger'),
+              // Swatches mirror the shared palette map (palette_icon_map.dart)
+              // so the legend can't drift from the actual node colors. Mount
+              // is `info`, Camera is `success` (de-collided from Imaging).
+              _legendRow(nodePaletteCategoryColor('Target', colors),
+                  'Target / Trigger'),
               const SizedBox(height: 6),
-              _legendRow(colors.primary, 'Imaging (Expose, Filter, Dither)'),
+              _legendRow(nodePaletteCategoryColor('Imaging', colors),
+                  'Imaging (Expose, Filter, Dither)'),
               const SizedBox(height: 6),
-              _legendRow(colors.primary, 'Mount (Slew, Center, Park)'),
+              _legendRow(nodePaletteCategoryColor('Mount', colors),
+                  'Mount (Slew, Center, Park)'),
               const SizedBox(height: 6),
-              _legendRow(colors.accent, 'Logic (Loop, Parallel, Conditional)'),
+              _legendRow(nodePaletteCategoryColor('Camera', colors),
+                  'Camera (Cool, Warm)'),
               const SizedBox(height: 6),
-              _legendRow(colors.accent, 'Focus / Recovery'),
+              _legendRow(nodePaletteCategoryColor('Logic', colors),
+                  'Logic (Loop, Parallel, Conditional)'),
+              const SizedBox(height: 6),
+              _legendRow(nodePaletteCategoryColor('Focus', colors),
+                  'Focus / Recovery'),
             ],
           ),
         ),
@@ -624,6 +648,287 @@ class _MiniCountBadge extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// In-tree search/jump field for the sequence header. Filters nodes by name
+/// using the same collapsed-aware [visibleNodeOrderProvider] the tree renders,
+/// and on selection sets [selectedNodeIdProvider] and scrolls the row into
+/// view via [treeNodeKeyRegistryProvider] + `Scrollable.ensureVisible` — the
+/// same path auto-follow uses.
+class _TreeSearchField extends ConsumerStatefulWidget {
+  final NightshadeColors colors;
+  final Sequence sequence;
+
+  const _TreeSearchField({required this.colors, required this.sequence});
+
+  @override
+  ConsumerState<_TreeSearchField> createState() => _TreeSearchFieldState();
+}
+
+class _TreeSearchFieldState extends ConsumerState<_TreeSearchField> {
+  final _controller = TextEditingController();
+  final _focusNode = FocusNode();
+  final _portalController = OverlayPortalController();
+  final _layerLink = LayerLink();
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _onFocusChange() {
+    if (_focusNode.hasFocus) {
+      if (!_portalController.isShowing) _portalController.show();
+    }
+  }
+
+  void _jumpTo(String nodeId) {
+    ref.read(multiSelectedNodeIdsProvider.notifier).clear();
+    ref.read(selectedNodeIdProvider.notifier).state = nodeId;
+
+    final registry = ref.read(treeNodeKeyRegistryProvider);
+    final key = registry?[nodeId];
+    if (key?.currentContext != null) {
+      Scrollable.ensureVisible(
+        key!.currentContext!,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        alignment: 0.3,
+      );
+    }
+
+    _controller.clear();
+    ref.read(treeSearchQueryProvider.notifier).state = '';
+    _portalController.hide();
+    _focusNode.unfocus();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: OverlayPortal(
+        controller: _portalController,
+        overlayChildBuilder: (context) => _buildResultsOverlay(colors),
+        child: SizedBox(
+          width: 160,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt,
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline4),
+              border: Border.all(color: colors.border),
+            ),
+            child: Row(
+              children: [
+                Icon(LucideIcons.search, size: 12, color: colors.textMuted),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: TextField(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    onChanged: (value) {
+                      ref.read(treeSearchQueryProvider.notifier).state = value;
+                      if (!_portalController.isShowing) {
+                        _portalController.show();
+                      }
+                    },
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textPrimary,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Find node...',
+                      hintStyle: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: colors.textMuted,
+                      ),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
+                ),
+                if (_controller.text.isNotEmpty)
+                  GestureDetector(
+                    onTap: () {
+                      _controller.clear();
+                      ref.read(treeSearchQueryProvider.notifier).state = '';
+                      _portalController.hide();
+                      _focusNode.unfocus();
+                    },
+                    child:
+                        Icon(LucideIcons.x, size: 12, color: colors.textMuted),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildResultsOverlay(NightshadeColors colors) {
+    final query = ref.watch(treeSearchQueryProvider).toLowerCase();
+    if (query.isEmpty) return const SizedBox.shrink();
+
+    final visible = ref.watch(visibleNodeOrderProvider);
+    final matches = <SequenceNode>[
+      for (final v in visible)
+        if (widget.sequence.nodes[v.id] case final node?)
+          if (node.name.toLowerCase().contains(query)) node,
+    ];
+
+    return Positioned(
+      width: 280,
+      child: CompositedTransformFollower(
+        link: _layerLink,
+        targetAnchor: Alignment.bottomLeft,
+        followerAnchor: Alignment.topLeft,
+        offset: const Offset(0, 4),
+        child: TapRegion(
+          onTapOutside: (_) {
+            _portalController.hide();
+            _focusNode.unfocus();
+          },
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              constraints: const BoxConstraints(maxHeight: 280),
+              decoration: BoxDecoration(
+                color: colors.surfaceElevated,
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
+                border: Border.all(color: colors.border),
+                boxShadow: NightshadeTokens.shadowLg,
+              ),
+              child: matches.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Text(
+                        'No matching nodes',
+                        style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize12,
+                          color: colors.textMuted,
+                        ),
+                      ),
+                    )
+                  : ListView(
+                      shrinkWrap: true,
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      children: [
+                        for (final node in matches)
+                          InkWell(
+                            onTap: () => _jumpTo(node.id),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              child: Text(
+                                node.name,
+                                style: TextStyle(
+                                  fontSize: NightshadeTypography.fontSize13,
+                                  color: colors.textPrimary,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Header action that collapses every container in one shot, or expands all
+/// when something is already collapsed. The container id set is derived from
+/// the sequence: any node that can hold children.
+class _CollapseAllToggle extends ConsumerWidget {
+  final NightshadeColors colors;
+  final Sequence sequence;
+
+  const _CollapseAllToggle({required this.colors, required this.sequence});
+
+  bool _isContainer(SequenceNode node) =>
+      node is TargetHeaderNode ||
+      node is LoopNode ||
+      node is InstructionSetNode ||
+      node is ParallelNode ||
+      node is ConditionalNode ||
+      node is RecoveryNode;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final anyCollapsed = ref.watch(
+      collapsedNodeIdsProvider.select((s) => s.isNotEmpty),
+    );
+
+    return Tooltip(
+      message: anyCollapsed ? 'Expand all' : 'Collapse all',
+      child: GestureDetector(
+        onTap: () {
+          final notifier = ref.read(collapsedNodeIdsProvider.notifier);
+          if (anyCollapsed) {
+            notifier.expandAll();
+          } else {
+            final containerIds = <String>[
+              for (final entry in sequence.nodes.entries)
+                if (entry.key != sequence.rootNodeId &&
+                    _isContainer(entry.value) &&
+                    entry.value.childIds.isNotEmpty)
+                  entry.key,
+            ];
+            notifier.collapseAll(containerIds);
+          }
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+          decoration: BoxDecoration(
+            color: colors.surfaceAlt,
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+            border: Border.all(color: colors.border),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                anyCollapsed
+                    ? LucideIcons.chevronsDownUp
+                    : LucideIcons.chevronsUpDown,
+                size: 12,
+                color: colors.textMuted,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                anyCollapsed ? 'Expand' : 'Collapse',
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize10,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textMuted,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

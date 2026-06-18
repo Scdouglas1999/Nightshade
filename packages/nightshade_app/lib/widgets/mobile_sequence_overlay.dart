@@ -5,10 +5,19 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 // Import mobile-specific widgets
 import 'sequence_progress_card.dart';
-import 'sequence_controls.dart';
 
-/// Overlay widget that displays mobile sequence progress and controls
-/// only when a sequence is running on mobile devices
+/// Overlay widget that displays mobile sequence progress only while a sequence
+/// is actively running (or paused) on mobile devices.
+///
+/// §12: the run *controls* (pause/stop/skip) live in [MobilePlaybackBar] inside
+/// the builder body, so this overlay no longer carries a second
+/// `SequenceControls` surface — it is the ambient progress card only.
+///
+/// §15: the overlay's visibility now matches `SequenceControls` — both hide on
+/// the terminal `completed` / `failed` / idle states. The end-of-session report
+/// dialog (opened from `sequencer_screen.dart`) is the post-run surface, so the
+/// floating card disappears together with the controls instead of lingering on
+/// a finished run.
 class MobileSequenceOverlay extends ConsumerWidget {
   const MobileSequenceOverlay({super.key});
 
@@ -16,39 +25,39 @@ class MobileSequenceOverlay extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final executionState = ref.watch(sequenceExecutionStateProvider);
 
-    // Don't show overlay if sequence is idle
-    if (executionState == SequenceExecutionState.idle) {
+    // Only show while running / paused. Idle and the terminal completed /
+    // failed states hide the overlay (§15).
+    final isActive = executionState == SequenceExecutionState.running ||
+        executionState == SequenceExecutionState.paused;
+    if (!isActive) {
       return const SizedBox.shrink();
     }
 
     return Positioned.fill(
-      child: IgnorePointer(
-        ignoring: false,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.end,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Spacer(),
+      // §13: the outer `IgnorePointer(ignoring: false)` was a no-op and has
+      // been removed. The progress card keeps its own `IgnorePointer` so taps
+      // fall through to the tree behind it.
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Spacer(),
 
-            // Progress card
-            const IgnorePointer(
-              ignoring: true,
-              child: SequenceProgressCard(),
+          // Progress card (non-interactive — taps pass through to the tree).
+          const IgnorePointer(
+            ignoring: true,
+            child: SequenceProgressCard(),
+          ),
+
+          // Clear bottom nav + status bar + safe area below the content stack.
+          SizedBox(
+            height: ShellChromeMetrics.floatingOverlayBottomInset(
+              context,
+              useBottomNav: true,
+              margin: 8,
             ),
-
-            // Control buttons
-            const SequenceControls(),
-
-            // Clear bottom nav + status bar + safe area below the content stack.
-            SizedBox(
-              height: ShellChromeMetrics.floatingOverlayBottomInset(
-                context,
-                useBottomNav: true,
-                margin: 8,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

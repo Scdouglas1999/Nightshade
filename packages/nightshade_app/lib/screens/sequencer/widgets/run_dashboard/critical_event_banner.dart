@@ -41,6 +41,7 @@ class _RunDashboardCriticalBannerState
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final events = ref.watch(runDashboardCriticalEventsProvider);
+    final droppedCount = ref.watch(runDashboardDroppedCriticalCountProvider);
     if (events.isEmpty) return const SizedBox.shrink();
 
     final head = events.first;
@@ -95,6 +96,36 @@ class _RunDashboardCriticalBannerState
                       .dismiss(e.eventId),
                 ),
               ),
+          if (droppedCount > 0)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                NightshadeTokens.space2xl,
+                NightshadeTokens.spaceXs,
+                NightshadeTokens.space2xl,
+                NightshadeTokens.spaceXs,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    LucideIcons.archive,
+                    size: 12,
+                    color: colors.error.withValues(alpha: 0.8),
+                  ),
+                  const SizedBox(width: NightshadeTokens.spaceSm),
+                  Expanded(
+                    child: Text(
+                      '+$droppedCount earlier critical '
+                      'event${droppedCount == 1 ? '' : 's'} not shown',
+                      style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        fontWeight: FontWeight.w600,
+                        color: colors.error.withValues(alpha: 0.8),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           if (events.length > 1)
             Padding(
               padding: const EdgeInsets.fromLTRB(

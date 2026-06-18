@@ -6,6 +6,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import 'palette_icon_map.dart';
+
 class NodePalette extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final ScrollController? scrollController;
@@ -36,131 +38,26 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
     super.dispose();
   }
 
-  IconData _getIcon(String iconName) {
-    switch (iconName) {
-      case 'target':
-        return LucideIcons.target;
-      case 'camera':
-        return LucideIcons.camera;
-      case 'circle':
-        return LucideIcons.circle;
-      case 'shuffle':
-        return LucideIcons.shuffle;
-      case 'compass':
-        return LucideIcons.compass;
-      case 'crosshair':
-        return LucideIcons.crosshair;
-      case 'parking-circle':
-        return LucideIcons.parkingCircle;
-      case 'unlock':
-        return LucideIcons.unlock;
-      case 'focus':
-        return LucideIcons.focus;
-      case 'snowflake':
-        return LucideIcons.snowflake;
-      case 'flame':
-        return LucideIcons.flame;
-      case 'rotate-cw':
-        return LucideIcons.rotateCw;
-      case 'workflow':
-        return LucideIcons.workflow;
-      case 'repeat':
-        return LucideIcons.repeat;
-      case 'git-merge':
-        return LucideIcons.gitMerge;
-      case 'git-branch':
-        return LucideIcons.gitBranch;
-      case 'shield-check':
-        return LucideIcons.shieldCheck;
-      case 'clock':
-        return LucideIcons.clock;
-      case 'timer':
-        return LucideIcons.timer;
-      case 'wrench':
-        return LucideIcons.wrench;
-      case 'bell':
-        return LucideIcons.bell;
-      case 'code':
-        return LucideIcons.code;
-      case 'aperture':
-        return LucideIcons.aperture;
-      case 'door-open':
-        return LucideIcons.doorOpen;
-      case 'door-closed':
-        return LucideIcons.doorClosed;
-      case 'lightbulb':
-        return LucideIcons.lightbulb;
-      case 'lightbulb-off':
-        return LucideIcons.lightbulbOff;
-      // SmartExposure uses the "layers" icon for the
-      // tabular multi-filter editor.
-      case 'layers':
-        return LucideIcons.layers;
-      // Audit §11 — plugin-contributed nodes default to the puzzle-piece
-      // glyph; the same icon flags the per-plugin category header in the
-      // palette so users learn to spot extension-provided entries at a
-      // glance.
-      case 'puzzle':
-        return LucideIcons.puzzle;
-      default:
-        return LucideIcons.box;
-    }
-  }
+  IconData _getIcon(String iconName) => nodePaletteIconFor(iconName);
 
-  Color _getCategoryColor(String categoryName) {
-    // Audit §11 — every plugin-contributed category is prefixed with
-    // "Plugins / " so we can colour the whole family identically without
-    // needing to enumerate per-plugin sub-categories. Keep this branch
-    // BEFORE the literal cases so a plugin that names its category
-    // "Target" doesn't accidentally adopt the warning colour.
-    if (categoryName.startsWith('Plugins / ') || categoryName == 'Plugins') {
-      return widget.colors.accent;
-    }
-    switch (categoryName) {
-      case 'Target':
-        return widget.colors.warning;
-      case 'Imaging':
-        return widget.colors.primary;
-      case 'Mount':
-        return widget.colors.info;
-      case 'Focus':
-        return widget.colors.accent;
-      case 'Camera':
-        return widget.colors.primary;
-      case 'Logic':
-        return widget.colors.accent;
-      case 'Timing':
-        return widget.colors.warning;
-      case 'Utilities':
-        return widget.colors.textMuted;
-      case 'Flat Panel':
-        return widget.colors.warning;
-      case 'Dome':
-        return widget.colors.info;
-      case 'Guiding':
-        return widget.colors.primary;
-      default:
-        return widget.colors.textSecondary;
-    }
-  }
+  Color _getCategoryColor(String categoryName) =>
+      nodePaletteCategoryColor(categoryName, widget.colors);
 
   @override
   Widget build(BuildContext context) {
     final categories = ref.watch(nodePaletteProvider);
 
-    // Filter based on search
+    // Filter based on search. Lower-case the query once up front rather
+    // than per-item, and reuse it across name + description checks.
     final filteredCategories = categories
         .map((category) {
           if (_searchQuery.isEmpty) return category;
 
+          final q = _searchQuery.toLowerCase();
           final filteredItems = category.items
               .where((item) =>
-                  item.name
-                      .toLowerCase()
-                      .contains(_searchQuery.toLowerCase()) ||
-                  item.description
-                      .toLowerCase()
-                      .contains(_searchQuery.toLowerCase()))
+                  item.name.toLowerCase().contains(q) ||
+                  item.description.toLowerCase().contains(q))
               .toList();
 
           return NodePaletteCategory(
@@ -472,10 +369,20 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
               ),
             ),
 
+            // Insertion target indicator: surfaces *where* the + / tap-to-add
+            // affordance will drop the new node so the implicit "selected
+            // node is the insert parent" rule is no longer invisible.
+            _AddTargetIndicator(colors: widget.colors),
+
+            // Category color legend so the palette is self-describing
+            // (the legend previously lived only in the tree header).
+            _PaletteColorLegend(colors: widget.colors),
+
             // Help tip
             Container(
               padding: EdgeInsets.all(tipPadding),
-              margin: EdgeInsets.all(tipPadding),
+              margin:
+                  EdgeInsets.fromLTRB(tipPadding, 0, tipPadding, tipPadding),
               decoration: NightshadeDecorations.iconChip(
                 widget.colors.info,
                 borderRadius:
@@ -492,7 +399,7 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
                   SizedBox(width: Responsive.spacing(context, 8)),
                   Expanded(
                     child: Text(
-                      'Drag nodes to the sequence tree or double-click to add',
+                      'Drag nodes to the tree, or tap + to add',
                       style: TextStyle(
                         fontSize: tipFontSize,
                         color: widget.colors.info,
@@ -887,12 +794,26 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
                         ],
                       ),
                     ),
-                    if (_isHovered)
-                      Icon(
-                        LucideIcons.plus,
-                        size: plusIconSize,
-                        color: widget.categoryColor,
+                    // Always-visible add button: a single tap adds the node
+                    // (drag still works on the surrounding tile). Previously
+                    // the only click-to-add affordance was a hidden
+                    // double-tap, which was undiscoverable.
+                    Tooltip(
+                      message: 'Add to sequence',
+                      child: GestureDetector(
+                        onTap: _addNode,
+                        child: Padding(
+                          padding: const EdgeInsets.all(2),
+                          child: Icon(
+                            LucideIcons.plus,
+                            size: plusIconSize,
+                            color: _isHovered
+                                ? widget.categoryColor
+                                : widget.categoryColor.withValues(alpha: 0.6),
+                          ),
+                        ),
                       ),
+                    ),
                   ],
                 ),
               ),
@@ -901,5 +822,111 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
         ),
       );
     });
+  }
+}
+
+/// Shows where the palette's add affordance (+ / tap) will drop the new
+/// node: under the currently-selected node, or at the sequence root when
+/// nothing is selected. Surfaces the otherwise-invisible implicit-parent
+/// rule so the user isn't surprised by where a node lands.
+class _AddTargetIndicator extends ConsumerWidget {
+  final NightshadeColors colors;
+
+  const _AddTargetIndicator({required this.colors});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selected = ref.watch(selectedNodeProvider);
+    final targetLabel = selected?.name ?? 'Sequence root';
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+      child: Row(
+        children: [
+          Icon(LucideIcons.plus, size: 13, color: colors.textMuted),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: 'Adds to: ',
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textMuted,
+                    ),
+                  ),
+                  TextSpan(
+                    text: targetLabel,
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Compact category color legend, surfaced in the palette so the swatches
+/// the tree uses are documented next to where the user picks nodes. Reads
+/// the same [nodePaletteCategoryColor] map the palette items use so the
+/// swatches always match.
+class _PaletteColorLegend extends StatelessWidget {
+  final NightshadeColors colors;
+
+  const _PaletteColorLegend({required this.colors});
+
+  static const _entries = <String>[
+    'Target',
+    'Imaging',
+    'Mount',
+    'Camera',
+    'Focus',
+    'Logic',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 6,
+        children: [
+          for (final name in _entries)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: nodePaletteCategoryColor(name, colors),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusInline2),
+                  ),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  name,
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize10,
+                    color: colors.textMuted,
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
   }
 }

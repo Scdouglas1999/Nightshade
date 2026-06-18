@@ -64,6 +64,71 @@ class _LiveStackingPropertiesState
     super.dispose();
   }
 
+  /// Wrap [field] so [commit] runs both on submit (already wired) AND when the
+  /// field loses focus — otherwise tapping away from a field silently discards
+  /// the edit, which is the data-loss bug this addresses.
+  Widget _commitOnBlur(Widget field, VoidCallback commit) {
+    return Focus(
+      onFocusChange: (hasFocus) {
+        if (!hasFocus) commit();
+      },
+      child: field,
+    );
+  }
+
+  void _commitPort() {
+    final p = int.tryParse(_broadcastPortCtl.text);
+    if (p == null || p < 1 || p > 65535) return;
+    _update((n) => n.copyWith(broadcastPort: p));
+  }
+
+  void _commitPath() {
+    final trimmed = _broadcastPathCtl.text.trim().isEmpty
+        ? '/broadcast'
+        : _broadcastPathCtl.text.trim();
+    _update((n) => n.copyWith(broadcastPath: trimmed));
+  }
+
+  void _commitAuthToken() {
+    final t = _authTokenCtl.text.trim();
+    if (t.isEmpty) {
+      ref
+          .read(currentSequenceProvider.notifier)
+          .updateNode(_rebuildWithCleared(clearAuthToken: true));
+    } else {
+      _update((n) => n.copyWith(authToken: t));
+    }
+  }
+
+  void _commitWatermark() {
+    final w = _watermarkCtl.text.trim();
+    if (w.isEmpty) {
+      ref
+          .read(currentSequenceProvider.notifier)
+          .updateNode(_rebuildWithCleared(clearWatermark: true));
+    } else {
+      _update((n) => n.copyWith(watermarkText: w));
+    }
+  }
+
+  void _commitThumbWidth() {
+    final w = int.tryParse(_thumbWCtl.text);
+    if (w == null || w < 64 || w > 7680) return;
+    _update((n) => n.copyWith(thumbnailWidth: w));
+  }
+
+  void _commitThumbHeight() {
+    final h = int.tryParse(_thumbHCtl.text);
+    if (h == null || h < 64 || h > 4320) return;
+    _update((n) => n.copyWith(thumbnailHeight: h));
+  }
+
+  void _commitMaxFrames() {
+    final m = int.tryParse(_maxFramesCtl.text);
+    if (m == null || m < 0) return;
+    _update((n) => n.copyWith(maxFramesToStack: m));
+  }
+
   void _update(LiveStackingNode Function(LiveStackingNode) mutate) {
     final mutator = ref.read(currentSequenceProvider.notifier);
     final updated = mutate(widget.node);
@@ -165,137 +230,122 @@ class _LiveStackingPropertiesState
         Row(
           children: [
             Expanded(
-              child: TextField(
-                controller: _broadcastPortCtl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Port',
-                  helperText: 'Default 8081',
-                  border: OutlineInputBorder(),
+              child: _commitOnBlur(
+                TextField(
+                  controller: _broadcastPortCtl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Port',
+                    helperText: 'Default 8081',
+                    border: OutlineInputBorder(),
+                  ),
+                  onSubmitted: (_) => _commitPort(),
                 ),
-                onSubmitted: (v) {
-                  final p = int.tryParse(v);
-                  if (p == null || p < 1 || p > 65535) return;
-                  _update((n) => n.copyWith(broadcastPort: p));
-                },
+                _commitPort,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               flex: 2,
-              child: TextField(
-                controller: _broadcastPathCtl,
-                decoration: const InputDecoration(
-                  labelText: 'Path',
-                  helperText: 'URL prefix (e.g. /broadcast)',
-                  border: OutlineInputBorder(),
+              child: _commitOnBlur(
+                TextField(
+                  controller: _broadcastPathCtl,
+                  decoration: const InputDecoration(
+                    labelText: 'Path',
+                    helperText: 'URL prefix (e.g. /broadcast)',
+                    border: OutlineInputBorder(),
+                  ),
+                  onSubmitted: (_) => _commitPath(),
                 ),
-                onSubmitted: (v) {
-                  final trimmed = v.trim().isEmpty ? '/broadcast' : v.trim();
-                  _update((n) => n.copyWith(broadcastPath: trimmed));
-                },
+                _commitPath,
               ),
             ),
           ],
         ),
         const SizedBox(height: 16),
         _sectionLabel(theme, 'Access control'),
-        TextField(
-          controller: _authTokenCtl,
-          decoration: const InputDecoration(
-            labelText: 'Auth token',
-            helperText: 'Leave empty for public access. Add a token to require '
-                '?token=… on broadcast URLs.',
-            border: OutlineInputBorder(),
+        _commitOnBlur(
+          TextField(
+            controller: _authTokenCtl,
+            decoration: const InputDecoration(
+              labelText: 'Auth token',
+              helperText:
+                  'Leave empty for public access. Add a token to require '
+                  '?token=… on broadcast URLs.',
+              border: OutlineInputBorder(),
+            ),
+            obscureText: false,
+            onSubmitted: (_) => _commitAuthToken(),
           ),
-          obscureText: false,
-          onSubmitted: (v) {
-            final t = v.trim();
-            if (t.isEmpty) {
-              ref
-                  .read(currentSequenceProvider.notifier)
-                  .updateNode(_rebuildWithCleared(clearAuthToken: true));
-            } else {
-              _update((n) => n.copyWith(authToken: t));
-            }
-          },
+          _commitAuthToken,
         ),
         const SizedBox(height: 16),
         _sectionLabel(theme, 'Watermark'),
-        TextField(
-          controller: _watermarkCtl,
-          decoration: const InputDecoration(
-            labelText: 'Watermark template',
-            helperText:
-                'Variable interpolation: \${target}, \${integration.hms}, '
-                '\${frames}, \${stack.method}. Leave empty for no watermark.',
-            border: OutlineInputBorder(),
+        _commitOnBlur(
+          TextField(
+            controller: _watermarkCtl,
+            decoration: const InputDecoration(
+              labelText: 'Watermark template',
+              helperText:
+                  'Variable interpolation: \${target}, \${integration.hms}, '
+                  '\${frames}, \${stack.method}. Leave empty for no watermark.',
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 2,
+            onSubmitted: (_) => _commitWatermark(),
           ),
-          maxLines: 2,
-          onSubmitted: (v) {
-            final w = v.trim();
-            if (w.isEmpty) {
-              ref
-                  .read(currentSequenceProvider.notifier)
-                  .updateNode(_rebuildWithCleared(clearWatermark: true));
-            } else {
-              _update((n) => n.copyWith(watermarkText: w));
-            }
-          },
+          _commitWatermark,
         ),
         const SizedBox(height: 16),
         _sectionLabel(theme, 'Thumbnail size'),
         Row(
           children: [
             Expanded(
-              child: TextField(
-                controller: _thumbWCtl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Width (px)',
-                  border: OutlineInputBorder(),
+              child: _commitOnBlur(
+                TextField(
+                  controller: _thumbWCtl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Width (px)',
+                    border: OutlineInputBorder(),
+                  ),
+                  onSubmitted: (_) => _commitThumbWidth(),
                 ),
-                onSubmitted: (v) {
-                  final w = int.tryParse(v);
-                  if (w == null || w < 64 || w > 7680) return;
-                  _update((n) => n.copyWith(thumbnailWidth: w));
-                },
+                _commitThumbWidth,
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: TextField(
-                controller: _thumbHCtl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Height (px)',
-                  border: OutlineInputBorder(),
+              child: _commitOnBlur(
+                TextField(
+                  controller: _thumbHCtl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Height (px)',
+                    border: OutlineInputBorder(),
+                  ),
+                  onSubmitted: (_) => _commitThumbHeight(),
                 ),
-                onSubmitted: (v) {
-                  final h = int.tryParse(v);
-                  if (h == null || h < 64 || h > 4320) return;
-                  _update((n) => n.copyWith(thumbnailHeight: h));
-                },
+                _commitThumbHeight,
               ),
             ),
           ],
         ),
         const SizedBox(height: 16),
         _sectionLabel(theme, 'Frame cap'),
-        TextField(
-          controller: _maxFramesCtl,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: 'Max frames to stack',
-            helperText: '0 = unlimited. Set a cap for long outreach events '
-                'to bound memory.',
-            border: OutlineInputBorder(),
+        _commitOnBlur(
+          TextField(
+            controller: _maxFramesCtl,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Max frames to stack',
+              helperText: '0 = unlimited. Set a cap for long outreach events '
+                  'to bound memory.',
+              border: OutlineInputBorder(),
+            ),
+            onSubmitted: (_) => _commitMaxFrames(),
           ),
-          onSubmitted: (v) {
-            final m = int.tryParse(v);
-            if (m == null || m < 0) return;
-            _update((n) => n.copyWith(maxFramesToStack: m));
-          },
+          _commitMaxFrames,
         ),
       ],
     );

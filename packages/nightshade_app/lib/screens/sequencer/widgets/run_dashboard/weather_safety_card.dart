@@ -4,6 +4,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import 'run_dashboard_format.dart';
+
 /// Read-only weather/safety snapshot for the Run dashboard.
 ///
 /// Surfaces the same `weatherSafetyProvider` state already evaluated by the
@@ -93,6 +95,16 @@ class RunDashboardWeatherSafetyCard extends ConsumerWidget {
             label: 'Data',
             value: _sourceLabel(safety.dataSource),
           ),
+          if (safety.lastEvaluation != null)
+            _SourceRow(
+              colors: colors,
+              label: 'As of',
+              value: formatTimeOfDay(safety.lastEvaluation!.toLocal()),
+              // Grade the row stale once the snapshot is older than ~2x the
+              // 5-minute safety evaluation interval, mirroring the adaptive
+              // panel's staleness cue so a frozen weather feed is visible.
+              valueColor: _staleColor(safety.lastEvaluation!, colors),
+            ),
           _LiveConditions(colors: colors),
           if (safety.failModeWarning != null) ...[
             const SizedBox(height: NightshadeTokens.spaceSm),
@@ -135,12 +147,22 @@ class RunDashboardWeatherSafetyCard extends ConsumerWidget {
             _SourceRow(
               colors: colors,
               label: 'Snooze until',
-              value: safety.snoozeUntil!.toLocal().toString().substring(11, 19),
+              value: formatTimeOfDay(safety.snoozeUntil!.toLocal()),
             ),
           ],
         ],
       ),
     );
+  }
+
+  /// Grade the "As of" timestamp: warning past ~2x the 5-minute evaluation
+  /// interval, error past ~4x — a hard signal that the safety feed has gone
+  /// quiet and the displayed numbers may be stale.
+  Color? _staleColor(DateTime lastEvaluation, NightshadeColors colors) {
+    final age = DateTime.now().difference(lastEvaluation);
+    if (age >= const Duration(minutes: 20)) return colors.error;
+    if (age >= const Duration(minutes: 10)) return colors.warning;
+    return null;
   }
 
   String _sourceLabel(SafetyDataSource src) {
@@ -383,10 +405,15 @@ class _SourceRow extends StatelessWidget {
   final String label;
   final String value;
 
+  /// Optional override for the value colour — used to grade a stale "As of"
+  /// timestamp. Falls back to the muted secondary tone when null.
+  final Color? valueColor;
+
   const _SourceRow({
     required this.colors,
     required this.label,
     required this.value,
+    this.valueColor,
   });
 
   @override
@@ -403,7 +430,8 @@ class _SourceRow extends StatelessWidget {
         const Spacer(),
         Text(
           value,
-          style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
+          style: NightshadeTypography.h6
+              .copyWith(color: valueColor ?? colors.textSecondary),
         ),
       ],
     );

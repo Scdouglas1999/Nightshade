@@ -21,38 +21,46 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-    // Seed initial tab from the provider once. After this, sync flows via
-    // the ref.listenManual hook below — keeps animateTo out of build()
-    // (audit §4.3).
-    final initialShowSnippets = ref.read(snippetPaletteVisibleProvider);
-    if (initialShowSnippets) {
-      _tabController.index = 1;
-    }
+    _tabController = TabController(
+      length: SequencerToolboxTab.values.length,
+      vsync: this,
+    );
+    // Seed initial tab from the enum provider once. After this, sync flows
+    // via the ref.listenManual hook below — keeps animateTo out of build()
+    // (audit §4.3). The 3-tab controller and the 3-value enum are now the
+    // same domain, so there is no lossy bool→3-tab mapping (audit §25).
+    _tabController.index = ref.read(sequencerToolboxTabProvider).index;
     _tabController.addListener(_onTabChanged);
 
-    ref.listenManual<bool>(snippetPaletteVisibleProvider, (prev, next) {
+    ref.listenManual<SequencerToolboxTab>(sequencerToolboxTabProvider,
+        (prev, next) {
       if (!mounted) return;
-      // The snippet tab provider is binary; only nudge tab 0 ↔ 1.
-      // Tab 2 (target queue) is selected manually by the user and
-      // does not write back to the snippet provider.
-      if (_tabController.index == 2) return;
-      final target = next ? 1 : 0;
-      if (_tabController.index != target) {
-        _tabController.animateTo(target);
+      if (_tabController.index != next.index) {
+        _tabController.animateTo(next.index);
       }
+    });
+
+    // Backwards-compatible one-way bridge for the legacy
+    // `snippetPaletteVisibleProvider` intent flag (§25): a cross-area caller
+    // (Templates → "Go to Builder") flips it true to surface snippets. We act
+    // on the rising edge by switching the enum, then reset the flag so it
+    // stays a one-shot trigger with no bidirectional coupling.
+    ref.listenManual<bool>(snippetPaletteVisibleProvider, (prev, next) {
+      if (!mounted || !next) return;
+      ref.read(sequencerToolboxTabProvider.notifier).state =
+          SequencerToolboxTab.snippets;
+      ref.read(snippetPaletteVisibleProvider.notifier).state = false;
     });
   }
 
   void _onTabChanged() {
     if (!_tabController.indexIsChanging) {
-      // Only mirror tab 0 ↔ 1 to the snippet provider. Tab 2 (target
-      // queue) leaves the snippet pref untouched so that flipping
-      // back to "Nodes" or "Snippets" lands on the user's last
-      // non-queue choice.
-      if (_tabController.index < 2) {
-        ref.read(snippetPaletteVisibleProvider.notifier).state =
-            _tabController.index == 1;
+      // Mirror every tab (including Queue) back to the enum provider so the
+      // provider is the single source of truth for the active toolbox tab
+      // and persists the user's last choice (audit §25).
+      final tab = SequencerToolboxTab.values[_tabController.index];
+      if (ref.read(sequencerToolboxTabProvider) != tab) {
+        ref.read(sequencerToolboxTabProvider.notifier).state = tab;
       }
     }
   }
@@ -115,7 +123,12 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
                       ),
                       Tab(
                         height: Responsive.spacing(context, 34),
-                        child: const Text('Snippets'),
+                        // §4: surface the Ctrl+T accelerator on the Snippets
+                        // tab so the keyboard toggle is discoverable.
+                        child: const Tooltip(
+                          message: 'Toggle snippets (Ctrl+T)',
+                          child: Text('Snippets'),
+                        ),
                       ),
                       Tab(
                         height: Responsive.spacing(context, 34),

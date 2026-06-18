@@ -43,6 +43,12 @@ class RunDashboardObservatoryPanel extends ConsumerWidget {
       if (switchConnected) _SwitchBlock(colors: colors, sw: sw),
     ];
 
+    // Hide the whole card when no observatory device is connected — most rigs
+    // have no dome/cover/switch, so rendering a header + "No dome..." line
+    // just wastes a slot. Mirrors the hide-when-empty pattern used by the
+    // equipment telemetry strip and the quality/forensics panels.
+    if (blocks.isEmpty) return const SizedBox.shrink();
+
     return NightshadeCard(
       padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
       child: Column(
@@ -64,19 +70,11 @@ class RunDashboardObservatoryPanel extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: NightshadeTokens.spaceMd),
-          if (blocks.isEmpty)
-            Text(
-              'No dome, cover, or switch connected.',
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textMuted),
-            )
-          else
-            for (var i = 0; i < blocks.length; i++) ...[
-              blocks[i],
-              if (i < blocks.length - 1)
-                const SizedBox(height: NightshadeTokens.spaceMd),
-            ],
+          for (var i = 0; i < blocks.length; i++) ...[
+            blocks[i],
+            if (i < blocks.length - 1)
+              const SizedBox(height: NightshadeTokens.spaceMd),
+          ],
         ],
       ),
     );

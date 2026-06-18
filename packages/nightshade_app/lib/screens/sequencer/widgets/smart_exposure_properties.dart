@@ -227,20 +227,22 @@ class SmartExposureProperties extends ConsumerWidget {
                   ),
                 ),
               ),
-            // The numeric Batch Size only matters in the (non-loop) multi-sub
-            // case. It's hidden in loop mode (batch is forced to 1).
-            if (!node.loopUntilStopped && node.batchSize > 1)
+            // The numeric Batch Size only matters in the (non-loop) case. It's
+            // hidden in loop mode (batch is forced to 1). Always shown in
+            // non-loop mode so it can be raised from the default of 1 — a batch
+            // size of 1 (one sub per visit before rotating) is perfectly valid.
+            if (!node.loopUntilStopped)
               NodePropertyField(
                 colors: colors,
                 label: 'Batch Size (per visit)',
                 child: NodeNumberInput(
                   colors: colors,
                   value: node.batchSize.toDouble(),
-                  min: 2,
+                  min: 1,
                   max: 999,
                   onChanged: (v) {
                     ref.read(currentSequenceProvider.notifier).updateNode(
-                          node.copyWith(batchSize: v.toInt().clamp(2, 999)),
+                          node.copyWith(batchSize: v.toInt().clamp(1, 999)),
                         );
                   },
                 ),
@@ -797,19 +799,15 @@ class _EstimateSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final integration = node.totalIntegrationSecs;
-    const estimator = SequenceTimeEstimator();
-    // SequenceTimeEstimator's per-node duration is private; we approximate
-    // wall-clock here by adding a 20% overhead to the integration figure
-    // when no budget cap kicks in. The Run Dashboard's full timing panel
+    // SequenceTimeEstimator's per-node duration is private and this single
+    // node isn't independently estimable, so we approximate wall-clock here by
+    // adding a 20% overhead to the integration figure (or the budget cap when
+    // it's the binding constraint). The Run Dashboard's full timing panel
     // gives the authoritative number.
     final wallClock = node.integrationBudgetSecs > 0 &&
             node.integrationBudgetSecs < integration
         ? node.integrationBudgetSecs * 1.2
         : integration * 1.2;
-    // Reference estimator so we don't break if SequenceTimeEstimator is
-    // ever marked unused — the dashboard rendering depends on the same
-    // class.
-    estimator.toString();
 
     // In loop-until-stopped mode the per-plan counts are ignored, so a fixed
     // "Integration: Xh" figure would be a lie. The total is whatever fits in

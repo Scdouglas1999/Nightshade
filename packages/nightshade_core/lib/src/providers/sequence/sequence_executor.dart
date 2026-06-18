@@ -117,6 +117,13 @@ class SequenceExecutor {
   bool _runFinalized = false;
   bool _pauseResumeInProgress = false;
 
+  /// Guards the periodic checkpoint save against re-entrancy. A slow
+  /// `saveCheckpoint()` (large sequence, slow disk) can outlive the 30 s
+  /// timer cadence; without this flag a second save would be issued while
+  /// the first is still in flight, racing two writers on the same
+  /// checkpoint file. The next tick simply skips while one is running.
+  bool _checkpointSaveInFlight = false;
+
   /// Live-stacking auto-feed (2026-06-04 follow-up): whether the live
   /// stacker + LAN broadcast have been armed for the *current* run yet.
   /// The first accepted frame of a run that contains an enabled
@@ -166,16 +173,6 @@ class SequenceExecutor {
   /// Smoothed average secs-per-frame computed via exponential moving average
   /// over [_frameDurations]. `null` until at least one frame has completed.
   double? _smoothedSecsPerFrame;
-
-  /// Last completed-frame count we observed; used to detect when a new
-  /// frame finished so we can extract its duration without storing
-  /// per-frame timestamps separately.
-  int _lastFrameCount = 0;
-
-  /// Wall-clock seconds at which the last completed frame was observed.
-  /// Combined with `_startTime` and `_lastFrameCount` to derive the
-  /// duration of each newly-completed frame inside `_recordFrameDuration`.
-  double? _lastFrameElapsedSecs;
 
   /// Subscriptions for propagating settings changes to the backend mid-sequence
   final List<ProviderSubscription> _settingsSubscriptions = [];
@@ -442,7 +439,7 @@ class SequenceExecutor {
             .inSeconds
             .toDouble();
         final progress = _ref.read(sequenceProgressProvider);
-        final eta = _computeSmoothedEta(elapsed, progress);
+        final eta = _computeSmoothedEta(progress);
         progressNotifier.updateProgress(
           elapsedSecs: elapsed,
           estimatedRemainingSecs: eta,
@@ -461,25 +458,73 @@ class SequenceExecutor {
     }
 
     // Always use backend/native sequencer engine to avoid divergent semantics.
-    await _startNativeExecution(sequence);
+    //
+    // Roll the UI + run state back if the native start throws (bad runtime
+    // config seed, load-json failure, backend down). Without this the
+    // sequence is left "running" with live timers / watchers but no native
+    // execution behind it — a ghost run that never images and never
+    // finalizes. Mirrors the resume-from-checkpoint rollback below.
+    try {
+      await _startNativeExecution(sequence);
+    } catch (e) {
+      _progressTimer?.cancel();
+      _progressTimer = null;
+      _checkpointTimer?.cancel();
+      _checkpointTimer = null;
+      _stopDiskSpaceWatchdog();
+      _stopSettingsWatchers();
+      _startTime = null;
+      _isPaused = false;
+      _recordRunError('Failed to start native execution: $e');
+      _finalizeRun('failed');
+      progressNotifier.updateState(SequenceExecutionState.failed);
+      _ref.read(sequenceExecutionStateProvider.notifier).state =
+          SequenceExecutionState.failed;
+      rethrow;
+    }
   }
 
-  /// Wait for state change with timeout
+  /// Wait for [sequenceExecutionStateProvider] to reach [expectedState],
+  /// resolving the instant the matching event pump updates the provider
+  /// rather than on a 100 ms polling tick.
+  ///
+  /// Registers a one-shot `ref.listen` on the state provider and completes
+  /// the moment the provider transitions into [expectedState]. Races against
+  /// [timeout]. Returns `true` if the state was observed, `false` on timeout.
+  /// The previous busy-poll added up to 100 ms of dead feel to every pause
+  /// and forced a full 5 s wall-clock wait before falling back to a status
+  /// query; this resolves as soon as the `Paused` / `Resumed` event lands.
   Future<bool> _awaitStateChange(
     SequenceExecutionState expectedState, {
     Duration timeout = const Duration(seconds: 5),
   }) async {
-    final endTime = DateTime.now().add(timeout);
-
-    while (DateTime.now().isBefore(endTime)) {
-      final currentState = _ref.read(sequenceExecutionStateProvider);
-      if (currentState == expectedState) {
-        return true;
-      }
-      await Future.delayed(const Duration(milliseconds: 100));
+    // Already there — no need to wait.
+    if (_ref.read(sequenceExecutionStateProvider) == expectedState) {
+      return true;
     }
 
-    return false;
+    final completer = Completer<bool>();
+    final subscription = _ref.listen<SequenceExecutionState>(
+      sequenceExecutionStateProvider,
+      (_, next) {
+        if (next == expectedState && !completer.isCompleted) {
+          completer.complete(true);
+        }
+      },
+    );
+    Timer? timeoutTimer;
+    timeoutTimer = Timer(timeout, () {
+      if (!completer.isCompleted) {
+        completer.complete(false);
+      }
+    });
+
+    try {
+      return await completer.future;
+    } finally {
+      timeoutTimer.cancel();
+      subscription.close();
+    }
   }
 
   Future<void> pause() async {
@@ -577,17 +622,14 @@ class SequenceExecutor {
   /// the same audit pass and the few remaining bare `stop()` invocations
   /// are deliberate hard-stops (e.g. reset()).
   Future<void> stop({bool preserveCheckpoint = false}) async {
-    _progressTimer?.cancel();
-    _progressTimer = null;
-    _checkpointTimer?.cancel();
-    _checkpointTimer = null;
+    // Shared timer/run-state teardown — kept in lockstep with the terminal
+    // event handlers (Completed / Stopped / Failed) via `_resetRunTimers`.
+    _resetRunTimers();
     final nativeEventSubscription = _nativeEventSubscription;
     _nativeEventSubscription = null;
     await nativeEventSubscription?.cancel();
     _stopDiskSpaceWatchdog();
     _stopSettingsWatchers();
-    _startTime = null;
-    _isPaused = false;
     _ref
         .read(sequenceProgressProvider.notifier)
         .updateState(SequenceExecutionState.idle);
@@ -837,12 +879,10 @@ class SequenceExecutor {
     _isPaused = false;
     // Reset the EMA so resume samples — which start from the checkpoint
     // mid-run cadence — aren't biased by stale samples from the original
-    // session (different exposure length, focuser, etc.).
+    // session (different exposure length, focuser, etc.). The EMA is fed
+    // from ExposureCompleted events post-resume, so no frame-counter seed
+    // is needed.
     _resetEtaState();
-    // Seed the frame counter to the checkpoint's completed count so newly
-    // completed frames during resume are correctly attributed.
-    _lastFrameCount = info.completedExposures;
-    _lastFrameElapsedSecs = 0.0;
 
     _progressTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!_isPaused && _startTime != null) {
@@ -851,7 +891,7 @@ class SequenceExecutor {
             .inSeconds
             .toDouble();
         final progress = _ref.read(sequenceProgressProvider);
-        final eta = _computeSmoothedEta(elapsed, progress);
+        final eta = _computeSmoothedEta(progress);
         progressNotifier.updateProgress(
           elapsedSecs: elapsed,
           estimatedRemainingSecs: eta,
@@ -881,7 +921,14 @@ class SequenceExecutor {
       // permanently-"running" ghost sequence.
       _progressTimer?.cancel();
       _progressTimer = null;
+      _checkpointTimer?.cancel();
+      _checkpointTimer = null;
+      _stopDiskSpaceWatchdog();
       _stopSettingsWatchers();
+      _startTime = null;
+      _isPaused = false;
+      _recordRunError('Failed to resume native execution: $e');
+      _finalizeRun('failed');
       progressNotifier.updateState(SequenceExecutionState.failed);
       _ref.read(sequenceExecutionStateProvider.notifier).state =
           SequenceExecutionState.failed;

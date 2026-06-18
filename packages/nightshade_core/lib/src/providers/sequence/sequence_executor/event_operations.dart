@@ -56,6 +56,27 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
         };
         if (nodeId != null) {
           progressNotifier.updateNodeStatus(nodeId, nodeStatus);
+          // An unrecognised status string maps to failure (above), but a
+          // bare red node with no explanation trains users to ignore the
+          // tree. Carry the raw status as a diagnostic and log it so a new
+          // backend status that Dart hasn't learned yet is visible instead
+          // of silently swallowed.
+          if (statusStr != 'success' &&
+              statusStr != 'skipped' &&
+              statusStr != 'cancelled' &&
+              statusStr != 'failed' &&
+              statusStr != 'failure') {
+            _logger.warning(
+              'NodeCompleted with unknown status "$statusStr" for node '
+              '$nodeId; treating as failure.',
+              source: 'SequenceExecutor',
+            );
+            progressNotifier.updateNodeProgress(
+              nodeId,
+              0.0,
+              'Unknown node status: "$statusStr"',
+            );
+          }
         }
         break;
 
@@ -93,6 +114,18 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
           filter: event.data['filter'] as String?,
           accepted: true,
         );
+        // Feed the ETA smoother from the event's real exposure duration plus
+        // a fixed per-frame download overhead. This is robust to AF/flip
+        // gaps because it measures shutter-open time, not wall-clock between
+        // ticks (which would fold AF/dither/slew stalls into the per-frame
+        // estimate and yank the ETA around). Sub-second-capable double, so
+        // short subs are no longer floored to integer-second deltas.
+        if (durationSecs > 0) {
+          final defaults = _ref.read(sequencerDefaultsProvider);
+          _recordFrameDurationSample(
+            durationSecs + defaults.frameDownloadOverheadSecs,
+          );
+        }
         final newCompletedIntegration =
             _ref.read(sequenceProgressProvider).completedIntegrationSecs +
             durationSecs;
@@ -165,6 +198,21 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
             0.0,
             'Error: $message',
           );
+        }
+        // A mid-run Error is NOT necessarily terminal — a RecoveryNode or
+        // the backend's own retry logic may still salvage the run, and the
+        // authoritative terminal verdict arrives later as SequenceFailed /
+        // SequenceCompleted. But leaving the state at `running` makes the UI
+        // claim a healthy run while an error is being worked through. Escalate
+        // to `recovering` only when we're currently `running` so the
+        // dashboard surfaces the needs-attention state; the subsequent
+        // terminal event flips it to failed/completed. We never downgrade
+        // paused/stopping/terminal states here.
+        if (_ref.read(sequenceExecutionStateProvider) ==
+            SequenceExecutionState.running) {
+          progressNotifier.updateState(SequenceExecutionState.recovering);
+          _ref.read(sequenceExecutionStateProvider.notifier).state =
+              SequenceExecutionState.recovering;
         }
         break;
 
@@ -257,7 +305,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
 
       case 'Completed':
       case 'SequenceCompleted':
-        _progressTimer?.cancel();
+        _resetRunTimers();
         _stopSettingsWatchers();
         _finalizeRun('completed');
         unawaited(_teardownLiveStacking());
@@ -268,6 +316,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
 
       case 'SequenceFailed':
         final error = event.data['error'] as String? ?? 'Unknown error';
+        _resetRunTimers();
         _stopSettingsWatchers();
         _recordRunError(error);
         _finalizeRun('failed');
@@ -280,7 +329,7 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
 
       case 'Stopped':
       case 'SequenceStopped':
-        _progressTimer?.cancel();
+        _resetRunTimers();
         _stopSettingsWatchers();
         _finalizeRun('stopped');
         unawaited(_teardownLiveStacking());

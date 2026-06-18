@@ -46,8 +46,7 @@ extension _AutomationStep on _QuickStartWizardDialogState {
                   width: 80,
                   height: 32,
                   child: TextField(
-                    controller: TextEditingController(
-                        text: _autofocusEveryFrames.toString()),
+                    controller: _autofocusFramesController,
                     style: TextStyle(
                         color: colors.textPrimary,
                         fontSize: NightshadeTypography.fontSize12),
@@ -110,8 +109,7 @@ extension _AutomationStep on _QuickStartWizardDialogState {
                   width: 80,
                   height: 32,
                   child: TextField(
-                    controller: TextEditingController(
-                        text: _ditherPixels.round().toString()),
+                    controller: _ditherPixelsController,
                     style: TextStyle(
                         color: colors.textPrimary,
                         fontSize: NightshadeTypography.fontSize12),

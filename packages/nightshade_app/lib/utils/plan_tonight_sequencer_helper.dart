@@ -295,11 +295,15 @@ Future<bool> addPlanTonightTargetToSequencer({
 /// reaches the sequencer as a mosaic — previously only the central target
 /// was sequenced and the panels were silently dropped.
 ///
-/// Mosaic + Smart Night per-panel filter composition is intentionally
-/// deferred (tracked as item #15 in the audit follow-up). The mosaic path
-/// here uses the Smart Night-derived single-filter exposure recommendation
-/// per panel via [smartNightMosaicExposureSettings], matching the existing
-/// `MosaicWizardDialog` behaviour.
+/// Mosaic + Smart Night per-panel multi-filter composition is a tracked
+/// feature, not a quick fix: it needs a multi-filter mosaic exposure model
+/// (MosaicExposureSettings carrying a per-filter plan list) plus
+/// MosaicService.createMosaicSequence emitting per-panel multi-filter capture
+/// subtrees — a nightshade_core model/service change coordinated with the
+/// engine owner (audit item #16 / modelChangeRequests). Until then the mosaic
+/// path here uses the Smart Night-derived single-filter exposure
+/// recommendation per panel via [smartNightMosaicExposureSettings], matching
+/// the existing `MosaicWizardDialog` behaviour.
 Future<bool> addFramedTargetToSequencer({
   required BuildContext context,
   required WidgetRef ref,

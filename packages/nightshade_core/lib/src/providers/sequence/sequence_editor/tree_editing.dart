@@ -1,6 +1,20 @@
 part of '../sequence_editor.dart';
 
 extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
+  /// Whether [candidateId] sits inside the subtree rooted at [ancestorId].
+  ///
+  /// Walks the `parentId` chain up from [candidateId] to the root, which is
+  /// O(depth) — cheaper than expanding [ancestorId]'s full subtree. Used by
+  /// [moveNode] to reject cycle-forming drops.
+  bool _isDescendant(Sequence sequence, String ancestorId, String candidateId) {
+    var cursor = sequence.nodes[candidateId]?.parentId;
+    while (cursor != null) {
+      if (cursor == ancestorId) return true;
+      cursor = sequence.nodes[cursor]?.parentId;
+    }
+    return false;
+  }
+
   /// Add a node to the sequence
   void addNode(SequenceNode node, {String? parentId, int? index}) {
     if (_currentSequence == null) return;
@@ -21,17 +35,16 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
       }
 
       newNodes[parentId] = parent.copyWith(childIds: newChildIds);
-      newNodes[node.id] = node.copyWith(
-        parentId: parentId,
-        orderIndex: index ?? newChildIds.length - 1,
-      );
+      newNodes[node.id] = node.copyWith(parentId: parentId);
 
-      if (index != null) {
-        for (int i = index + 1; i < newChildIds.length; i++) {
-          final childId = newChildIds[i];
-          if (newNodes.containsKey(childId)) {
-            newNodes[childId] = newNodes[childId]!.copyWith(orderIndex: i);
-          }
+      // Renumber the entire child list deterministically (mirrors
+      // moveNode / reorderNodes) so orderIndex always agrees with sibling
+      // position regardless of where the insert landed. orderIndex is
+      // load-bearing for the SQL `ORDER BY` at save time.
+      for (int i = 0; i < newChildIds.length; i++) {
+        final childId = newChildIds[i];
+        if (newNodes.containsKey(childId)) {
+          newNodes[childId] = newNodes[childId]!.copyWith(orderIndex: i);
         }
       }
     } else if (_currentSequence!.rootNodeId != null) {
@@ -47,17 +60,12 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
       newNodes[_currentSequence!.rootNodeId!] = root.copyWith(
         childIds: newChildIds,
       );
-      newNodes[node.id] = node.copyWith(
-        parentId: _currentSequence!.rootNodeId,
-        orderIndex: index ?? newChildIds.length - 1,
-      );
+      newNodes[node.id] = node.copyWith(parentId: _currentSequence!.rootNodeId);
 
-      if (index != null) {
-        for (int i = index + 1; i < newChildIds.length; i++) {
-          final childId = newChildIds[i];
-          if (newNodes.containsKey(childId)) {
-            newNodes[childId] = newNodes[childId]!.copyWith(orderIndex: i);
-          }
+      for (int i = 0; i < newChildIds.length; i++) {
+        final childId = newChildIds[i];
+        if (newNodes.containsKey(childId)) {
+          newNodes[childId] = newNodes[childId]!.copyWith(orderIndex: i);
         }
       }
     }
@@ -240,9 +248,23 @@ extension CurrentSequenceTreeEditing on CurrentSequenceNotifier {
     );
   }
 
-  /// Move a node to a different parent
+  /// Move a node to a different parent.
+  ///
+  /// Rejects (as a no-op) moves that would create a cycle: dropping a node
+  /// onto itself, or onto one of its own descendants. Without this guard a
+  /// container dragged inside its own subtree detaches that subtree from the
+  /// tree entirely (the node becomes its own ancestor), which the recursive
+  /// renderers then loop on. The drop handlers treat the no-op silently —
+  /// the dashed drop zone simply doesn't accept an illegal target.
   void moveNode(String nodeId, String newParentId, int index) {
     if (_currentSequence == null) return;
+
+    // Cycle guard — read against the live sequence before any mutation.
+    if (newParentId == nodeId ||
+        _isDescendant(_currentSequence!, nodeId, newParentId)) {
+      return;
+    }
+
     _ensureEditable('move node');
     _saveUndo();
 

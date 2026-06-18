@@ -108,13 +108,31 @@ class SequenceImporter {
     if (IcsCalendarImporter.sniff(snippet)) return SourceFormat.icsCalendar;
     if (GenericCsvImporter.sniff(snippet)) return SourceFormat.genericCsv;
     throw UnknownFormatError(
-      'Could not identify file format. Supported: NINA (.json), '
-      'Sequence Generator Pro (.sgf), Telescopius (.csv), Astrobin (.csv), '
-      'Nightshade observing list (.json), iCalendar (.ics).',
+      _unknownFormatMessage(snippet),
       sniffedSnippet: snippet.length > 200
           ? snippet.substring(0, 200)
           : snippet,
     );
+  }
+
+  /// Build a format-specific "couldn't identify" message. When the
+  /// content looks like JSON we steer the user toward the two JSON shapes
+  /// we accept (NINA exports / Nightshade observing lists) rather than
+  /// emitting the generic "supported formats" list, which is unhelpful
+  /// for a `.json` file that simply has the wrong schema.
+  String _unknownFormatMessage(String snippet) {
+    final trimmed = snippet.trimLeft();
+    final looksLikeJson = trimmed.startsWith('{') || trimmed.startsWith('[');
+    if (looksLikeJson) {
+      return 'This looks like JSON but matched no supported sequence shape. '
+          'NINA exports contain a "\$type" key starting with '
+          '"NINA.Sequencer..."; Nightshade observing lists contain '
+          '"_format": "observing_list_v1". Check that the file is a NINA '
+          'sequence export or a Nightshade observing list.';
+    }
+    return 'Could not identify file format. Supported: NINA (.json), '
+        'Sequence Generator Pro (.sgf), Telescopius (.csv), Astrobin (.csv), '
+        'Nightshade observing list (.json), iCalendar (.ics).';
   }
 
   /// Try to detect the format. Returns `null` instead of throwing — used

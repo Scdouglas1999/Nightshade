@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import 'sequence_tree.dart' show treeNodeKeyRegistryProvider;
+import 'sequence_tree_shortcuts.dart' show visibleNodeOrderProvider;
+
 /// Toggle for mini-map visibility.
 final minimapVisibleProvider = StateProvider<bool>((ref) => false);
 
@@ -29,9 +32,15 @@ class SequenceMinimap extends ConsumerWidget {
     final progress = ref.watch(sequenceProgressProvider);
     final selectedId = ref.watch(selectedNodeIdProvider);
 
-    // Flatten the tree into a list of (node, depth) pairs for rendering
-    final flatNodes = <_MinimapEntry>[];
-    _flattenTree(sequence, sequence.rootNode!.id, 0, flatNodes);
+    // Use the SAME collapsed-aware visible order the tree renders (and arrow
+    // keys navigate) so minimap blocks line up 1:1 with on-screen rows.
+    // Children of collapsed containers are intentionally omitted.
+    final visibleOrder = ref.watch(visibleNodeOrderProvider);
+    final flatNodes = <_MinimapEntry>[
+      for (final v in visibleOrder)
+        if (sequence.nodes[v.id] case final node?)
+          _MinimapEntry(node: node, depth: v.depth),
+    ];
 
     if (flatNodes.isEmpty) return const SizedBox.shrink();
 
@@ -68,22 +77,6 @@ class SequenceMinimap extends ConsumerWidget {
     );
   }
 
-  void _flattenTree(
-    Sequence sequence,
-    String nodeId,
-    int depth,
-    List<_MinimapEntry> output,
-  ) {
-    final node = sequence.nodes[nodeId];
-    if (node == null) return;
-
-    output.add(_MinimapEntry(node: node, depth: depth));
-
-    for (final childId in node.childIds) {
-      _flattenTree(sequence, childId, depth + 1, output);
-    }
-  }
-
   void _navigateToPosition(
     double tapY,
     double totalHeight,
@@ -102,7 +95,22 @@ class SequenceMinimap extends ConsumerWidget {
     ref.read(multiSelectedNodeIdsProvider.notifier).clear();
     ref.read(selectedNodeIdProvider.notifier).state = tappedNode.id;
 
-    // Scroll the main tree to show this node
+    // Prefer the tree's GlobalKey registry so we land exactly on the row,
+    // mirroring the auto-follow path — proportional scroll only approximated
+    // the position and drifted on collapsed/variable-height rows. Fall back
+    // to proportional scroll when the registry/key isn't mounted yet.
+    final registry = ref.read(treeNodeKeyRegistryProvider);
+    final key = registry?[tappedNode.id];
+    if (key?.currentContext != null) {
+      Scrollable.ensureVisible(
+        key!.currentContext!,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+        alignment: 0.3,
+      );
+      return;
+    }
+
     if (scrollController.hasClients) {
       final maxScroll = scrollController.position.maxScrollExtent;
       final targetScroll = maxScroll * (nodeIndex / flatNodes.length);

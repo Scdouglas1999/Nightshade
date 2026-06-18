@@ -15,6 +15,7 @@ class _SequenceCard extends ConsumerStatefulWidget {
 
 class _SequenceCardState extends ConsumerState<_SequenceCard> {
   bool _isHovered = false;
+  bool _expanded = false;
 
   int _countTargetGroups() {
     return widget.sequence.nodes.values.whereType<TargetHeaderNode>().length;
@@ -22,6 +23,16 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
 
   int _countExposures() {
     return widget.sequence.nodes.values.whereType<ExposureNode>().length;
+  }
+
+  /// First target header's name, used as the card's primary-target label.
+  String? _primaryTargetName() {
+    for (final node in widget.sequence.nodes.values) {
+      if (node is TargetHeaderNode && node.targetName.isNotEmpty) {
+        return node.targetName;
+      }
+    }
+    return null;
   }
 
   String _formatDuration() {
@@ -59,133 +70,343 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
           ),
           boxShadow: null,
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Icon
-            Container(
-              width: 48,
-              height: 48,
-              decoration: NightshadeDecorations.tintedBadge(
-                widget.colors.primary,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-              ),
-              child: Icon(
-                LucideIcons.workflow,
-                size: 24,
-                color: widget.colors.primary,
-              ),
-            ),
-
-            const SizedBox(width: 16),
-
-            // Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          widget.sequence.name,
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize15,
-                            fontWeight: FontWeight.w600,
-                            color: widget.colors.textPrimary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        _formatDate(widget.sequence.modifiedAt),
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
-                          color: widget.colors.textMuted,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (widget.sequence.description.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      widget.sequence.description,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        color: widget.colors.textSecondary,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                  const SizedBox(height: 8),
-                  // Stats
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 6,
-                    children: [
-                      _StatChip(
-                        colors: widget.colors,
-                        icon: LucideIcons.layers,
-                        label: '${widget.sequence.nodes.length} nodes',
-                      ),
-                      _StatChip(
-                        colors: widget.colors,
-                        icon: LucideIcons.target,
-                        label: '$targetCount targets',
-                      ),
-                      _StatChip(
-                        colors: widget.colors,
-                        icon: LucideIcons.camera,
-                        label: '$exposureCount exposures',
-                      ),
-                      _StatChip(
-                        colors: widget.colors,
-                        icon: LucideIcons.timer,
-                        label: _formatDuration(),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            // Actions
-            AnimatedOpacity(
-              opacity: _isHovered ? 1.0 : 0.5,
-              duration: const Duration(milliseconds: 150),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _IconButton(
-                    colors: widget.colors,
-                    icon: LucideIcons.folderOpen,
-                    tooltip: 'Load',
-                    onPressed: () => _loadSequence(context),
-                  ),
-                  const SizedBox(width: 4),
-                  _IconButton(
-                    colors: widget.colors,
-                    icon: LucideIcons.copy,
-                    tooltip: 'Duplicate',
-                    onPressed: () => _duplicateSequence(context),
-                  ),
-                  const SizedBox(width: 4),
-                  _IconButton(
-                    colors: widget.colors,
-                    icon: LucideIcons.trash2,
-                    tooltip: 'Delete',
-                    color: widget.colors.error,
-                    onPressed: () => _deleteSequence(context),
-                  ),
-                ],
-              ),
-            ),
+            _buildMainRow(targetCount, exposureCount),
+            if (_expanded) _buildPreview(),
           ],
         ),
       ),
     );
+  }
+
+  Widget _buildMainRow(int targetCount, int exposureCount) {
+    final primaryTarget = _primaryTargetName();
+    return Row(
+      children: [
+        // Icon
+        Container(
+          width: 48,
+          height: 48,
+          decoration: NightshadeDecorations.tintedBadge(
+            widget.colors.primary,
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+          ),
+          child: Icon(
+            LucideIcons.workflow,
+            size: 24,
+            color: widget.colors.primary,
+          ),
+        ),
+
+        const SizedBox(width: 16),
+
+        // Info
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.sequence.name,
+                      style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize15,
+                        fontWeight: FontWeight.w600,
+                        color: widget.colors.textPrimary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    _formatDate(widget.sequence.modifiedAt),
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: widget.colors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+              if (widget.sequence.description.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  widget.sequence.description,
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: widget.colors.textSecondary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+              const SizedBox(height: 8),
+              // Stats
+              Wrap(
+                spacing: 12,
+                runSpacing: 6,
+                children: [
+                  if (primaryTarget != null)
+                    _StatChip(
+                      colors: widget.colors,
+                      icon: LucideIcons.star,
+                      label: primaryTarget,
+                    ),
+                  _StatChip(
+                    colors: widget.colors,
+                    icon: LucideIcons.layers,
+                    label: '${widget.sequence.nodes.length} nodes',
+                  ),
+                  _StatChip(
+                    colors: widget.colors,
+                    icon: LucideIcons.target,
+                    label: '$targetCount targets',
+                  ),
+                  _StatChip(
+                    colors: widget.colors,
+                    icon: LucideIcons.camera,
+                    label: '$exposureCount exposures',
+                  ),
+                  _StatChip(
+                    colors: widget.colors,
+                    icon: LucideIcons.timer,
+                    label: _formatDuration(),
+                  ),
+                ],
+              ),
+              _buildRunRollup(),
+            ],
+          ),
+        ),
+
+        // Actions
+        AnimatedOpacity(
+          opacity: _isHovered ? 1.0 : 0.5,
+          duration: const Duration(milliseconds: 150),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _IconButton(
+                colors: widget.colors,
+                icon:
+                    _expanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
+                tooltip: _expanded ? 'Hide preview' : 'Preview',
+                onPressed: () => setState(() => _expanded = !_expanded),
+              ),
+              const SizedBox(width: 4),
+              if (widget.sequence.databaseId != null) ...[
+                _IconButton(
+                  colors: widget.colors,
+                  icon: LucideIcons.history,
+                  tooltip: 'View run history',
+                  onPressed: () => _openHistory(context),
+                ),
+                const SizedBox(width: 4),
+              ],
+              _IconButton(
+                colors: widget.colors,
+                icon: LucideIcons.folderOpen,
+                tooltip: 'Load',
+                onPressed: () => _loadSequence(context),
+              ),
+              const SizedBox(width: 4),
+              _IconButton(
+                colors: widget.colors,
+                icon: LucideIcons.copy,
+                tooltip: 'Duplicate',
+                onPressed: () => _duplicateSequence(context),
+              ),
+              const SizedBox(width: 4),
+              _IconButton(
+                colors: widget.colors,
+                icon: LucideIcons.upload,
+                tooltip: 'Export',
+                onPressed: () => _exportSequence(context),
+              ),
+              const SizedBox(width: 4),
+              _IconButton(
+                colors: widget.colors,
+                icon: LucideIcons.trash2,
+                tooltip: 'Delete',
+                color: widget.colors.error,
+                onPressed: () => _deleteSequence(context),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Run-history rollup row ("N runs · last DATE"). Hidden for unsaved
+  /// sequences and for sequences that have never run.
+  Widget _buildRunRollup() {
+    final dbId = widget.sequence.databaseId;
+    if (dbId == null) return const SizedBox.shrink();
+    final summaryAsync = ref.watch(sequenceRunSummaryProvider(dbId));
+    return summaryAsync.maybeWhen(
+      data: (summary) {
+        if (summary.runCount == 0) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 6,
+            children: [
+              _StatChip(
+                colors: widget.colors,
+                icon: LucideIcons.play,
+                label: '${summary.runCount} '
+                    'run${summary.runCount == 1 ? '' : 's'}',
+              ),
+              if (summary.lastRunAt != null)
+                _StatChip(
+                  colors: widget.colors,
+                  icon: LucideIcons.history,
+                  label: 'Last run ${_formatDate(summary.lastRunAt!)}',
+                ),
+            ],
+          ),
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
+    );
+  }
+
+  /// Read-only preview: target list with per-target exposure breakdown,
+  /// derived from the node tree. Distinct from the Load action.
+  Widget _buildPreview() {
+    final headers =
+        widget.sequence.nodes.values.whereType<TargetHeaderNode>().toList();
+    final exposures =
+        widget.sequence.nodes.values.whereType<ExposureNode>().toList();
+
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: widget.colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+        border: Border.all(color: widget.colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Preview',
+            style: NightshadeTypography.h6
+                .copyWith(color: widget.colors.textSecondary),
+          ),
+          const SizedBox(height: 8),
+          if (headers.isEmpty)
+            Text(
+              'No targets — ${exposures.length} exposure '
+              'node${exposures.length == 1 ? '' : 's'}.',
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: widget.colors.textMuted,
+              ),
+            )
+          else
+            for (final header in headers) ...[
+              _buildTargetPreviewRow(header),
+              const SizedBox(height: 4),
+            ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTargetPreviewRow(TargetHeaderNode header) {
+    // Sum exposure seconds per filter for the exposures descended from
+    // this target header (direct + nested children).
+    final byFilter = <String, double>{};
+    final visited = <String>{};
+    void walk(String nodeId) {
+      if (!visited.add(nodeId)) return;
+      final node = widget.sequence.nodes[nodeId];
+      if (node == null) return;
+      if (node is ExposureNode) {
+        final filter = (node.filter == null || node.filter!.isEmpty)
+            ? 'No filter'
+            : node.filter!;
+        byFilter[filter] =
+            (byFilter[filter] ?? 0) + node.durationSecs * node.count;
+      }
+      for (final childId in node.childIds) {
+        walk(childId);
+      }
+    }
+
+    for (final childId in header.childIds) {
+      walk(childId);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(LucideIcons.target, size: 12, color: widget.colors.primary),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                header.targetName.isEmpty ? 'Target' : header.targetName,
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  fontWeight: FontWeight.w600,
+                  color: widget.colors.textPrimary,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        if (byFilter.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(left: 18, top: 2),
+            child: Text(
+              'No exposures',
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11,
+                color: widget.colors.textMuted,
+              ),
+            ),
+          )
+        else
+          for (final entry in byFilter.entries)
+            Padding(
+              padding: const EdgeInsets.only(left: 18, top: 2),
+              child: Text(
+                '${entry.key}: ${_formatSecs(entry.value)}',
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  color: widget.colors.textSecondary,
+                ),
+              ),
+            ),
+      ],
+    );
+  }
+
+  String _formatSecs(double secs) {
+    if (secs <= 0) return '0m';
+    final hours = (secs / 3600).floor();
+    final mins = ((secs % 3600) / 60).round();
+    if (hours > 0) return '${hours}h ${mins}m';
+    return '${mins}m';
+  }
+
+  /// Switch to the History tab pre-filtered to this sequence's runs.
+  void _openHistory(BuildContext context) {
+    final dbId = widget.sequence.databaseId;
+    if (dbId == null) return;
+    ref.read(historyFilterSequenceIdProvider.notifier).state = dbId;
+    ref.read(sequencerTabProvider.notifier).state = SequencerTab.history.index;
   }
 
   String _formatDate(DateTime date) {
@@ -310,6 +531,43 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
         if (context.mounted) {
           context.showErrorSnackBar('Failed to duplicate: $e');
         }
+      }
+    }
+  }
+
+  /// Export the saved sequence to a JSON file. Mirrors the toolbar's
+  /// export path: on a blocking validation failure, surface the structured
+  /// issue dialog with a "force export anyway" escape hatch.
+  Future<void> _exportSequence(BuildContext context) async {
+    final fileService = ref.read(sequenceFileServiceProvider);
+    final sequence = widget.sequence;
+    try {
+      await fileService.exportSequence(sequence);
+      if (context.mounted) {
+        context.showSuccessSnackBar('Exported "${sequence.name}"');
+      }
+    } on SequenceValidationFailedException catch (e) {
+      if (!context.mounted) return;
+      final force = await showValidationIssueDialog(
+        context,
+        issues: e.issues,
+        operationName: 'Export Sequence',
+        forceLabel: 'Force export anyway',
+      );
+      if (!force || !context.mounted) return;
+      try {
+        await fileService.exportSequence(sequence, forceExport: true);
+        if (context.mounted) {
+          context.showSuccessSnackBar('Exported "${sequence.name}" (forced)');
+        }
+      } catch (err) {
+        if (context.mounted) {
+          context.showErrorSnackBar('Failed to export: $err');
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        context.showErrorSnackBar('Failed to export: $e');
       }
     }
   }

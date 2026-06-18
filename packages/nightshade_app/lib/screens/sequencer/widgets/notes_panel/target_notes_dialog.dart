@@ -247,37 +247,8 @@ class _TargetNotesDialogState extends ConsumerState<TargetNotesDialog> {
     );
   }
 
-  Future<void> _confirmDelete(BuildContext context, JournalNote note) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => NightshadeDialog(
-        title: 'Delete note?',
-        icon: LucideIcons.trash2,
-        width: 420,
-        bodyPadding: const EdgeInsets.all(NightshadeTokens.spaceXl),
-        actions: [
-          NightshadeButton(
-            label: 'Cancel',
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
-            onPressed: () => Navigator.of(ctx).pop(false),
-          ),
-          NightshadeButton(
-            label: 'Delete',
-            variant: ButtonVariant.destructive,
-            size: ButtonSize.small,
-            onPressed: () => Navigator.of(ctx).pop(true),
-          ),
-        ],
-        child: Text(
-          'This note will be permanently removed.',
-          style: TextStyle(color: widget.colors.textSecondary),
-        ),
-      ),
-    );
-    if (confirmed == true) {
-      await ref.read(notesServiceProvider).deleteNote(note.id);
-    }
+  Future<void> _confirmDelete(BuildContext context, JournalNote note) {
+    return confirmDeleteNote(context, ref, note);
   }
 }
 

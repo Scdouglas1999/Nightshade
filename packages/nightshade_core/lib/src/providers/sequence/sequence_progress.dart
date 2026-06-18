@@ -242,8 +242,19 @@ void applySequencerEventToSequenceProviders(
     case 'ExposureCompleted':
       final durationSecs = (data['duration_secs'] as num?)?.toDouble() ?? 0.0;
       final currentProgress = read(sequenceProgressProvider);
+      // Use the event's ABSOLUTE frame index (matching the SequenceExecutor
+      // event handler) rather than incrementing the current count. The two
+      // subscribers (this one, driven by DeviceService, and the executor's
+      // own handler) previously diverged: this path did current+1 while the
+      // executor wrote the absolute frame, so when both were live for the
+      // same run the count double-advanced. Reading the absolute frame makes
+      // the two writers idempotent — whichever fires, the count lands on the
+      // same value. `frame` is 1-based from the backend.
+      final absoluteFrame =
+          (data['frame'] as num?)?.toInt() ??
+          currentProgress.completedExposures + 1;
       progressNotifier.updateProgress(
-        completedExposures: currentProgress.completedExposures + 1,
+        completedExposures: absoluteFrame,
         completedIntegrationSecs:
             currentProgress.completedIntegrationSecs + durationSecs,
       );

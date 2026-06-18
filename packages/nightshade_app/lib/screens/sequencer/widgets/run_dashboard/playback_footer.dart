@@ -39,9 +39,23 @@ class RunDashboardPlaybackFooter extends ConsumerWidget {
       context.showCommandActionResult(result);
     }
 
-    final etaText = progress.estimatedRemainingSecs != null
-        ? '~${formatSeconds(progress.estimatedRemainingSecs!)} remaining'
-        : 'Computing ETA…';
+    final remainingSecs = progress.estimatedRemainingSecs;
+    final String etaText;
+    if (remainingSecs != null) {
+      final finish = DateTime.now().add(
+        Duration(seconds: remainingSecs.round()),
+      );
+      etaText = '~${formatSeconds(remainingSecs)} remaining'
+          ' · done ~${formatTimeOfDay(finish)}';
+    } else {
+      etaText = 'Computing ETA…';
+    }
+    // The estimate counts planned integration only; it does NOT include
+    // pending autofocus / dither / meridian-flip overhead. Surface that so
+    // an operator doesn't read the finish time as a hard guarantee.
+    const etaTooltip =
+        'Integration time only — excludes pending autofocus, dither, '
+        'and meridian-flip overhead.';
 
     return Container(
       padding: EdgeInsets.symmetric(
@@ -90,33 +104,58 @@ class RunDashboardPlaybackFooter extends ConsumerWidget {
             icon: LucideIcons.skipForward,
             label: 'Skip',
             variant: _BigButtonVariant.outline,
-            onPressed:
-                isRunning ? () => runSequenceAction(actionService.skip) : null,
-          ),
-          const SizedBox(width: NightshadeTokens.spaceLg),
-          _BigButton(
-            colors: colors,
-            icon: LucideIcons.square,
-            label: 'Stop',
-            variant: _BigButtonVariant.danger,
+            // Skip is valid while paused too — the backend skip advances the
+            // node pointer regardless of running/paused (matches Stop).
             onPressed: (isRunning || isPaused)
-                ? () => runSequenceAction(actionService.stop)
+                ? () => runSequenceAction(actionService.skip)
                 : null,
           ),
-          const Spacer(),
-          if (!isMobile) ...[
-            Icon(LucideIcons.hourglass, size: 16, color: colors.textMuted),
-            const SizedBox(width: NightshadeTokens.spaceSm),
-            Text(
-              etaText,
-              style: NightshadeTypography.withTabular(
-                NightshadeTypography.label.copyWith(
-                  color: colors.textSecondary,
-                  fontWeight: FontWeight.w600,
-                ),
+          const SizedBox(width: NightshadeTokens.spaceLg),
+          // Stop is hold-to-confirm so a thumb-slip during an overnight
+          // session can't abort the run — matching the mobile playback bar
+          // and the recovery-banner Abort affordance.
+          HoldToConfirmButton(
+            enabled: isRunning || isPaused,
+            holdColor: colors.error,
+            confirmText: 'Hold to stop',
+            semanticsLabel: 'Press and hold to stop the sequence',
+            onConfirmed: () => runSequenceAction(actionService.stop),
+            child: IgnorePointer(
+              child: _BigButton(
+                colors: colors,
+                icon: LucideIcons.square,
+                label: 'Stop',
+                variant: _BigButtonVariant.danger,
+                onPressed: (isRunning || isPaused)
+                    ? () => runSequenceAction(actionService.stop)
+                    : null,
               ),
             ),
-          ],
+          ),
+          const Spacer(),
+          if (!isMobile)
+            Tooltip(
+              message: etaTooltip,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(LucideIcons.hourglass,
+                      size: 16, color: colors.textMuted),
+                  const SizedBox(width: NightshadeTokens.spaceSm),
+                  Text(
+                    etaText,
+                    style: NightshadeTypography.withTabular(
+                      NightshadeTypography.label.copyWith(
+                        color: colors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: NightshadeTokens.spaceXs),
+                  Icon(LucideIcons.info, size: 12, color: colors.textMuted),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -189,46 +228,62 @@ class _BigButtonState extends State<_BigButton> {
     final borderFinal =
         enabled ? (filledColors?.border ?? borderColor) : widget.colors.border;
 
-    return MouseRegion(
-      onEnter: enabled ? (_) => setState(() => _hovered = true) : null,
-      onExit: enabled ? (_) => setState(() => _hovered = false) : null,
-      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.forbidden,
-      child: GestureDetector(
-        onTap: widget.onPressed,
+    final radius = BorderRadius.circular(NightshadeTokens.radiusMd);
+
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: widget.label,
+      child: MouseRegion(
+        onEnter: enabled ? (_) => setState(() => _hovered = true) : null,
+        onExit: enabled ? (_) => setState(() => _hovered = false) : null,
+        cursor:
+            enabled ? SystemMouseCursors.click : SystemMouseCursors.forbidden,
         child: AnimatedContainer(
           duration: NightshadeTokens.durationNormal,
           curve: NightshadeTokens.curveSnappy,
-          padding: EdgeInsets.symmetric(
-            horizontal:
-                isMobile ? NightshadeTokens.spaceLg : NightshadeTokens.space2xl,
-            vertical:
-                isMobile ? NightshadeTokens.spaceMd : NightshadeTokens.spaceLg,
-          ),
           decoration: BoxDecoration(
             color: bgFinal,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+            borderRadius: radius,
             border: Border.all(color: borderFinal),
             boxShadow: enabled && widget.variant != _BigButtonVariant.outline
                 ? NightshadeTokens.shadowMd
                 : null,
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(widget.icon, size: isMobile ? 18 : 22, color: fgFinal),
-              SizedBox(width: isMobile ? 6 : NightshadeTokens.spaceSm),
-              Text(
-                widget.label,
-                style: TextStyle(
-                  fontSize: isMobile
-                      ? NightshadeTypography.fontSize14
-                      : NightshadeTypography.fontSize16,
-                  fontWeight: FontWeight.w700,
-                  color: fgFinal,
-                  letterSpacing: 0.3,
+          child: Material(
+            type: MaterialType.transparency,
+            child: InkWell(
+              onTap: widget.onPressed,
+              borderRadius: radius,
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: isMobile
+                      ? NightshadeTokens.spaceLg
+                      : NightshadeTokens.space2xl,
+                  vertical: isMobile
+                      ? NightshadeTokens.spaceMd
+                      : NightshadeTokens.spaceLg,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(widget.icon, size: isMobile ? 18 : 22, color: fgFinal),
+                    SizedBox(width: isMobile ? 6 : NightshadeTokens.spaceSm),
+                    Text(
+                      widget.label,
+                      style: TextStyle(
+                        fontSize: isMobile
+                            ? NightshadeTypography.fontSize14
+                            : NightshadeTypography.fontSize16,
+                        fontWeight: FontWeight.w700,
+                        color: fgFinal,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),

@@ -12,15 +12,36 @@ class _LibraryHeader extends ConsumerStatefulWidget {
 class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
   final _searchController = TextEditingController();
 
+  // Debounce search input so the derived filter/sort pipeline doesn't
+  // recompute on every keystroke (see findings: sort/filter churn).
+  Timer? _searchDebounce;
+
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      ref.read(sequenceSearchProvider.notifier).state = value;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final sortOrder = ref.watch(sequenceSortOrderProvider);
+
+    // Keep the text field in sync when the search query is cleared from
+    // elsewhere (e.g. the filtered empty-state "Clear search" action).
+    ref.listen<String>(sequenceSearchProvider, (previous, next) {
+      if (next.isEmpty && _searchController.text.isNotEmpty) {
+        _searchController.clear();
+      }
+    });
 
     return Row(
       children: [
@@ -120,9 +141,7 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
                 Expanded(
                   child: TextField(
                     controller: _searchController,
-                    onChanged: (value) {
-                      ref.read(sequenceSearchProvider.notifier).state = value;
-                    },
+                    onChanged: _onSearchChanged,
                     style: TextStyle(
                       fontSize: NightshadeTypography.fontSize13,
                       color: widget.colors.textPrimary,
@@ -141,6 +160,7 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
                 if (_searchController.text.isNotEmpty)
                   GestureDetector(
                     onTap: () {
+                      _searchDebounce?.cancel();
                       _searchController.clear();
                       ref.read(sequenceSearchProvider.notifier).state = '';
                     },

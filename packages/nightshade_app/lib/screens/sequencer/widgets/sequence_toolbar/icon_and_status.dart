@@ -86,51 +86,12 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color badgeColor;
-    String label;
-    IconData icon;
-
-    switch (executionState) {
-      case SequenceExecutionState.idle:
-        badgeColor = colors.textMuted;
-        label = 'Idle';
-        icon = LucideIcons.circleOff;
-        break;
-      case SequenceExecutionState.running:
-        badgeColor = colors.success;
-        label = 'Running';
-        icon = LucideIcons.activity;
-        break;
-      case SequenceExecutionState.paused:
-        badgeColor = colors.warning;
-        label = 'Paused';
-        icon = LucideIcons.pauseCircle;
-        break;
-      case SequenceExecutionState.stopping:
-        badgeColor = colors.warning;
-        label = 'Stopping';
-        icon = LucideIcons.loader;
-        break;
-      case SequenceExecutionState.completed:
-        badgeColor = colors.info;
-        label = 'Completed';
-        icon = LucideIcons.checkCircle;
-        break;
-      case SequenceExecutionState.failed:
-        badgeColor = colors.error;
-        label = 'Failed';
-        icon = LucideIcons.xCircle;
-        break;
-      case SequenceExecutionState.recovering:
-        // Recovery is a distinct visible state; toolbar reads
-        // "Recovering" with the loop-arrow icon so the operator can see
-        // at a glance that the sequence is mid-recovery and not just
-        // running normally.
-        badgeColor = colors.error;
-        label = 'Recovering';
-        icon = LucideIcons.rotateCw;
-        break;
-    }
+    // Single source of truth for color/label/icon so the toolbar badge stays
+    // in lockstep with the mobile playback bar and the recovery LED.
+    final visuals = SequenceStatusVisuals.of(executionState, colors);
+    final badgeColor = visuals.color;
+    final label = visuals.label;
+    final icon = visuals.icon;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),

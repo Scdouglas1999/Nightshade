@@ -10,6 +10,8 @@
 // is wrapped in `IgnorePointer` so every control reads as disabled while the
 // sequence is running.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -260,7 +262,12 @@ class TargetSchedulerProperties extends ConsumerWidget {
 // to nightshade_ui.
 // ---------------------------------------------------------------------------
 
-class _WeightSlider extends StatelessWidget {
+/// Weight slider that updates its thumb locally on every drag frame but only
+/// commits the value (which re-instantiates the scoring service and re-scores
+/// every child in the live preview) on a short debounce and on drag-end. This
+/// keeps the drag responsive without re-scoring the whole ranking on every
+/// pointer move.
+class _WeightSlider extends StatefulWidget {
   final NightshadeColors colors;
   final String label;
   final double value;
@@ -274,7 +281,33 @@ class _WeightSlider extends StatelessWidget {
   });
 
   @override
+  State<_WeightSlider> createState() => _WeightSliderState();
+}
+
+class _WeightSliderState extends State<_WeightSlider> {
+  double? _dragValue;
+  Timer? _commitDebounce;
+
+  @override
+  void didUpdateWidget(_WeightSlider oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // When the committed value changes from outside (e.g. Normalise button)
+    // and the user isn't mid-drag, follow it.
+    if (_dragValue == null && oldWidget.value != widget.value) {
+      // Nothing to do — build reads widget.value directly when not dragging.
+    }
+  }
+
+  @override
+  void dispose() {
+    _commitDebounce?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final colors = widget.colors;
+    final shown = (_dragValue ?? widget.value).clamp(0.0, 1.0);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -282,7 +315,7 @@ class _WeightSlider extends StatelessWidget {
           SizedBox(
             width: 130,
             child: Text(
-              label,
+              widget.label,
               style: TextStyle(
                 fontSize: Responsive.fontSize(context, 12),
                 color: colors.textPrimary,
@@ -294,15 +327,29 @@ class _WeightSlider extends StatelessWidget {
               min: 0,
               max: 1,
               divisions: 100,
-              value: value.clamp(0.0, 1.0),
-              label: value.toStringAsFixed(2),
-              onChanged: onChanged,
+              value: shown,
+              label: shown.toStringAsFixed(2),
+              onChanged: (v) {
+                setState(() => _dragValue = v);
+                // Debounced commit while dragging so the preview rescore
+                // fires at most every ~200ms, not every frame.
+                _commitDebounce?.cancel();
+                _commitDebounce = Timer(const Duration(milliseconds: 200), () {
+                  widget.onChanged(v);
+                });
+              },
+              onChangeEnd: (v) {
+                // Final commit on release; cancel any pending debounce.
+                _commitDebounce?.cancel();
+                widget.onChanged(v);
+                setState(() => _dragValue = null);
+              },
             ),
           ),
           SizedBox(
             width: 48,
             child: Text(
-              value.toStringAsFixed(2),
+              shown.toStringAsFixed(2),
               textAlign: TextAlign.right,
               style: TextStyle(
                 fontSize: Responsive.fontSize(context, 11),
@@ -673,7 +720,7 @@ class _TierOrderIndicator extends StatelessWidget {
 /// weights. The Rust executor uses the same math (see the parity test in
 /// `target_scheduler/scoring.rs`), so the preview is faithful to what will
 /// actually run.
-class _LiveRankingPreview extends StatelessWidget {
+class _LiveRankingPreview extends ConsumerWidget {
   final NightshadeColors colors;
   final TargetSchedulerNode node;
   final Sequence sequence;
@@ -687,7 +734,7 @@ class _LiveRankingPreview extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final children = node.childIds
         .map((id) => sequence.nodes[id])
         .whereType<TargetHeaderNode>()
@@ -706,6 +753,12 @@ class _LiveRankingPreview extends StatelessWidget {
       );
     }
 
+    // Bind to the shared 30s ticker so rankings refresh as the sky moves,
+    // not just when the user edits a weight (without this the preview's
+    // DateTime.now() went stale because the widget only rebuilt on edits).
+    final tick = ref.watch(tickerProvider(TickerCadence.thirtySeconds));
+    final observationTime = (tick.valueOrNull ?? DateTime.now()).toUtc();
+
     final weights = planetarium.ScoringWeights(
       altitudeWeight: node.altitudeWeight,
       moonDistanceWeight: node.moonDistanceWeight,
@@ -716,7 +769,7 @@ class _LiveRankingPreview extends StatelessWidget {
     final service = planetarium.TargetScoringService(
       latitude: location!.latitude,
       longitude: location!.longitude,
-      observationTime: DateTime.now().toUtc(),
+      observationTime: observationTime,
       weights: weights,
     );
 

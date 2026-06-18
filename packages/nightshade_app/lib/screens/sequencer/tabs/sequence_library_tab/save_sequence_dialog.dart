@@ -34,26 +34,109 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
     super.dispose();
   }
 
-  Future<void> _saveSequence() async {
+  bool get _isExisting => widget.sequence.databaseId != null;
+
+  /// Overwrite the existing saved sequence (only available for a
+  /// sequence already in the library). Confirms before clobbering.
+  Future<void> _updateExisting() async {
     if (_nameController.text.trim().isEmpty) {
       context.showErrorSnackBar('Please enter a sequence name');
       return;
     }
 
-    setState(() => _isSaving = true);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: widget.colors.surface,
+        title: Text('Overwrite saved sequence?',
+            style: TextStyle(color: widget.colors.textPrimary)),
+        content: ConstrainedBox(
+          constraints:
+              AdaptiveDialogConstraints.hybrid(ctx, designMaxWidth: 400),
+          child: Text(
+            'This replaces the saved "${widget.sequence.name}" with the '
+            'current sequence. This cannot be undone.',
+            style: TextStyle(color: widget.colors.textSecondary),
+          ),
+        ),
+        actions: [
+          NightshadeButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
+          ),
+          NightshadeButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            label: 'Overwrite',
+            variant: ButtonVariant.destructive,
+            size: ButtonSize.small,
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
 
-    try {
-      final repository = ref.read(sequenceRepositoryProvider);
-
-      final sequenceToSave = Sequence.create(
+    await _persist(
+      Sequence.create(
         databaseId: widget.sequence.databaseId,
         name: _nameController.text.trim(),
         description: _descriptionController.text.trim(),
         nodes: widget.sequence.nodes,
         rootNodeId: widget.sequence.rootNodeId,
         isTemplate: false,
-      );
+      ),
+    );
+  }
 
+  /// Save the current sequence as an independent new copy. Re-keys every
+  /// node id so the copy never shares persistence with the original.
+  Future<void> _saveAsNew() async {
+    if (_nameController.text.trim().isEmpty) {
+      context.showErrorSnackBar('Please enter a sequence name');
+      return;
+    }
+
+    final idMapping = <String, String>{};
+    for (final id in widget.sequence.nodes.keys) {
+      idMapping[id] = const Uuid().v4();
+    }
+
+    final newNodes = <String, SequenceNode>{};
+    for (final entry in widget.sequence.nodes.entries) {
+      final oldNode = entry.value;
+      final newId = idMapping[entry.key]!;
+      final newParentId =
+          oldNode.parentId != null ? idMapping[oldNode.parentId] : null;
+      final newChildIds =
+          oldNode.childIds.map((id) => idMapping[id] ?? id).toList();
+      newNodes[newId] = oldNode.copyWith(
+        id: newId,
+        parentId: newParentId,
+        childIds: newChildIds,
+      );
+    }
+
+    final newRootId = widget.sequence.rootNodeId != null
+        ? idMapping[widget.sequence.rootNodeId]
+        : null;
+
+    await _persist(
+      Sequence.create(
+        name: _nameController.text.trim(),
+        description: _descriptionController.text.trim(),
+        nodes: newNodes,
+        rootNodeId: newRootId,
+        isTemplate: false,
+      ),
+    );
+  }
+
+  Future<void> _persist(Sequence sequenceToSave) async {
+    setState(() => _isSaving = true);
+
+    try {
+      final repository = ref.read(sequenceRepositoryProvider);
       final savedId =
           await repository.saveSequence(sequenceToSave, isTemplate: false);
 
@@ -66,9 +149,7 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
 
       if (mounted) {
         Navigator.pop(context);
-
-        context
-            .showSuccessSnackBar('Sequence "${_nameController.text}" saved!');
+        context.showSuccessSnackBar('Sequence "${sequenceToSave.name}" saved!');
       }
     } catch (e) {
       if (mounted) {
@@ -119,7 +200,7 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Save Sequence',
+                        _isExisting ? 'Update sequence' : 'Save sequence',
                         style: TextStyle(
                           fontSize: NightshadeTypography.fontSize18,
                           fontWeight: FontWeight.w700,
@@ -127,7 +208,9 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
                         ),
                       ),
                       Text(
-                        'Save to your sequence library',
+                        _isExisting
+                            ? 'Overwrite the original or save an independent copy'
+                            : 'Save to your sequence library',
                         style: TextStyle(
                           fontSize: NightshadeTypography.fontSize12,
                           color: widget.colors.textMuted,
@@ -243,12 +326,30 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
                     size: ButtonSize.small,
                   ),
                   const SizedBox(width: 12),
-                  NightshadeButton(
-                    label: _isSaving ? 'Saving...' : 'Save',
-                    icon: _isSaving ? LucideIcons.loader : LucideIcons.save,
-                    onPressed: _isSaving ? null : _saveSequence,
-                    size: ButtonSize.small,
-                  ),
+                  if (_isExisting) ...[
+                    NightshadeButton(
+                      label: 'Save as new copy',
+                      icon: LucideIcons.copy,
+                      variant: ButtonVariant.outline,
+                      onPressed: _isSaving ? null : _saveAsNew,
+                      size: ButtonSize.small,
+                    ),
+                    const SizedBox(width: 12),
+                    NightshadeButton(
+                      label: _isSaving
+                          ? 'Saving...'
+                          : 'Update "${widget.sequence.name}"',
+                      icon: _isSaving ? LucideIcons.loader : LucideIcons.save,
+                      onPressed: _isSaving ? null : _updateExisting,
+                      size: ButtonSize.small,
+                    ),
+                  ] else
+                    NightshadeButton(
+                      label: _isSaving ? 'Saving...' : 'Save',
+                      icon: _isSaving ? LucideIcons.loader : LucideIcons.save,
+                      onPressed: _isSaving ? null : _saveAsNew,
+                      size: ButtonSize.small,
+                    ),
                 ],
               ),
             ],

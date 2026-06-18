@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,6 +10,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'notes_panel.dart';
 part 'session_report_dialog/header_overview.dart';
@@ -451,30 +453,63 @@ class _ReportBody extends ConsumerWidget {
     );
   }
 
+  /// Platforms with a system share sheet `share_plus` can drive. Desktop
+  /// (Windows / Linux) has none, so those write to the documents dir and
+  /// report the path instead. Mirrors the snippet-palette share gate.
+  bool get _platformHasShareSheet {
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.iOS:
+      case TargetPlatform.android:
+      case TargetPlatform.macOS:
+        return true;
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+      case TargetPlatform.fuchsia:
+        return false;
+    }
+  }
+
   Future<void> _exportText(BuildContext context, WidgetRef ref) async {
     final service = ref.read(sessionReportServiceProvider);
     final text = service.renderPlainText(report);
+    final ts =
+        DateTime.now().toIso8601String().replaceAll(':', '-').split('.').first;
+    final safeName =
+        report.sessionName.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+    final filename = '${safeName}_${report.sessionId}_$ts.txt';
     try {
+      // On mobile, route through the system share sheet so the .txt is
+      // actually reachable (the documents-dir write + 4s snackbar path was
+      // a dead end on phones). Stage in the OS temp dir for the share.
+      if (_platformHasShareSheet) {
+        final tmpDir = await getTemporaryDirectory();
+        final tmpFile = File(p.join(tmpDir.path, filename));
+        await tmpFile.writeAsString(text);
+        await Share.shareXFiles(
+          [XFile(tmpFile.path, mimeType: 'text/plain')],
+          subject: 'Session report — ${report.sessionName}',
+        );
+        return;
+      }
+
+      // Desktop: write to the documents dir and surface the path with a
+      // reveal-in-clipboard action so the snackbar isn't a dead end.
       final docsDir = await getApplicationDocumentsDirectory();
       final dir = Directory(p.join(docsDir.path, 'Nightshade', 'reports'));
       if (!await dir.exists()) {
         await dir.create(recursive: true);
       }
-      final ts = DateTime.now()
-          .toIso8601String()
-          .replaceAll(':', '-')
-          .split('.')
-          .first;
-      final safeName =
-          report.sessionName.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
-      final file =
-          File(p.join(dir.path, '${safeName}_${report.sessionId}_$ts.txt'));
+      final file = File(p.join(dir.path, filename));
       await file.writeAsString(text);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Report exported to ${file.path}'),
-          duration: const Duration(seconds: 4),
+          duration: const Duration(seconds: 6),
+          action: SnackBarAction(
+            label: 'Copy path',
+            onPressed: () => Clipboard.setData(ClipboardData(text: file.path)),
+          ),
         ),
       );
     } catch (e) {

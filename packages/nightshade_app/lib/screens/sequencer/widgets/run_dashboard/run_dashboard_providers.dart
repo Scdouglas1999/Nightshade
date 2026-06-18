@@ -512,7 +512,9 @@ final runDashboardRecentEventsProvider =
 ///     enabled `audibleAlertsOnCritical` in settings.
 class RunDashboardCriticalEventsNotifier
     extends StateNotifier<List<RunDashboardEvent>> {
-  RunDashboardCriticalEventsNotifier() : super(const []);
+  RunDashboardCriticalEventsNotifier(this._ref) : super(const []);
+
+  final Ref _ref;
 
   /// Maximum number of unsigned events to retain. If the user is
   /// genuinely racking up dozens of unresolved critical events something
@@ -526,7 +528,13 @@ class RunDashboardCriticalEventsNotifier
     if (state.any((e) => e.eventId == event.eventId)) return;
     final next = [event, ...state];
     if (next.length > _maxRetained) {
+      // Truncating drops the oldest unresolved critical events. Surface the
+      // overflow count so the banner can render a "+N earlier critical
+      // events not shown" marker instead of silently losing them.
+      final dropped = next.length - _maxRetained;
       next.removeRange(_maxRetained, next.length);
+      _ref.read(runDashboardDroppedCriticalCountProvider.notifier).state +=
+          dropped;
     }
     state = next;
   }
@@ -539,13 +547,22 @@ class RunDashboardCriticalEventsNotifier
   void clearAll() {
     if (!mounted) return;
     state = const [];
+    // A full clear also resets the overflow marker — there is nothing left
+    // for the dropped count to refer to.
+    _ref.read(runDashboardDroppedCriticalCountProvider.notifier).state = 0;
   }
 }
 
 final runDashboardCriticalEventsProvider = StateNotifierProvider<
     RunDashboardCriticalEventsNotifier, List<RunDashboardEvent>>((ref) {
-  return RunDashboardCriticalEventsNotifier();
+  return RunDashboardCriticalEventsNotifier(ref);
 });
+
+/// Count of oldest critical events that were dropped from
+/// [runDashboardCriticalEventsProvider] once the retention cap was exceeded.
+/// The banner renders a "+N earlier critical events not shown" marker so the
+/// truncation is honest rather than silent. Reset on "Dismiss all".
+final runDashboardDroppedCriticalCountProvider = StateProvider<int>((ref) => 0);
 
 /// Cooldown between consecutive audible alerts so a storm of critical
 /// events (e.g. a power loss that cascades into mount + camera + guider

@@ -5,6 +5,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../sequencer_screen.dart';
+import 'sequence_library_tab.dart';
 import '../widgets/notes_panel.dart';
 import '../widgets/post_session_stats_dialog.dart';
 import '../widgets/replay_debug_screen.dart';
@@ -20,6 +22,56 @@ import '../widgets/sequence_diff_dialog.dart';
 /// Cleared to `null` immediately after consumption so re-entering the
 /// History tab doesn't re-open the dialog.
 final historyOpenRunIdProvider = StateProvider<int?>((ref) => null);
+
+/// Active status filter for the history list. Empty = no status filter
+/// (show all). Backed by a set so multiple statuses can be toggled on.
+final historyStatusFilterProvider =
+    StateProvider.autoDispose<Set<String>>((ref) => <String>{});
+
+/// Free-text search over `run.sequenceName` and the run's target
+/// breakdown keys.
+final historySearchProvider = StateProvider.autoDispose<String>((ref) => '');
+
+/// A run paired with its parsed stats (decoded once) plus the local
+/// observing-night bucket label used for grouping.
+typedef _RunRow = ({SequenceRun run, ParsedRunStats? stats});
+
+/// Derived, filtered + parsed run list. Decodes each run's statsJson
+/// exactly once (rather than per `_RunCard` build) and applies the
+/// status / search / sequence-id filters. Grouping by observing night is
+/// done at render time from this list.
+final filteredRunsProvider =
+    Provider.autoDispose<AsyncValue<List<_RunRow>>>((ref) {
+  final runsAsync = ref.watch(sequenceRunsProvider);
+  final statusFilter = ref.watch(historyStatusFilterProvider);
+  final query = ref.watch(historySearchProvider).trim().toLowerCase();
+  final sequenceId = ref.watch(historyFilterSequenceIdProvider);
+
+  return runsAsync.whenData((runs) {
+    final out = <_RunRow>[];
+    for (final run in runs) {
+      if (sequenceId != null && run.sequenceId != sequenceId) continue;
+      if (statusFilter.isNotEmpty && !statusFilter.contains(run.status)) {
+        continue;
+      }
+      ParsedRunStats? stats;
+      try {
+        stats = ParsedRunStats.fromJson(run.statsJson);
+      } catch (_) {
+        // Malformed stats — keep the run but with null stats.
+      }
+      if (query.isNotEmpty) {
+        final inName = run.sequenceName.toLowerCase().contains(query);
+        final inTargets = stats != null &&
+            stats.targetBreakdown.keys
+                .any((k) => k.toLowerCase().contains(query));
+        if (!inName && !inTargets) continue;
+      }
+      out.add((run: run, stats: stats));
+    }
+    return out;
+  });
+});
 
 class HistoryTab extends ConsumerStatefulWidget {
   const HistoryTab({super.key});
@@ -44,6 +96,15 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
       _consumedOpenHint = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
+        // Re-verify the History tab is still the active sequencer tab so we
+        // don't pop a dialog over a tab the user navigated away from before
+        // the frame completed.
+        if (ref.read(sequencerTabProvider) != SequencerTab.history.index) {
+          return;
+        }
+        // Re-read colors inside the callback rather than closing over the
+        // build-time value (theme may have changed between build and frame).
+        final colors = NightshadeColors.of(context);
         final runs = runsAsync.value!;
         // Reset the hint regardless so a subsequent open clears.
         ref.read(historyOpenRunIdProvider.notifier).state = null;
@@ -97,6 +158,14 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
                   color: colors.textPrimary,
                 ),
               ),
+              const Spacer(),
+              NightshadeButton(
+                label: 'Browse all notes',
+                icon: LucideIcons.bookOpen,
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                onPressed: () => GlobalNotesDialog.show(context),
+              ),
             ],
           ),
           const SizedBox(height: 8),
@@ -106,63 +175,253 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
                 fontSize: NightshadeTypography.fontSize13,
                 color: colors.textMuted),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
+
+          _HistoryFilterBar(colors: colors),
+
+          const SizedBox(height: 16),
 
           // Content
           Expanded(
-            child: runsAsync.when(
-              data: (runs) {
-                if (runs.isEmpty) {
-                  return const EmptyState(
-                    icon: LucideIcons.history,
-                    title: 'No runs yet',
-                    body: 'Execute a sequence to see its history here.',
-                  );
-                }
-                return ListView.separated(
-                  itemCount: runs.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    return _RunCard(colors: colors, run: runs[index]);
+            child: ref.watch(filteredRunsProvider).when(
+                  data: (rows) {
+                    final hasFilter = ref
+                            .watch(historyStatusFilterProvider)
+                            .isNotEmpty ||
+                        ref.watch(historySearchProvider).trim().isNotEmpty ||
+                        ref.watch(historyFilterSequenceIdProvider) != null;
+                    if (rows.isEmpty) {
+                      return EmptyState(
+                        icon: hasFilter
+                            ? LucideIcons.searchX
+                            : LucideIcons.history,
+                        title: hasFilter ? 'No matching runs' : 'No runs yet',
+                        body: hasFilter
+                            ? 'Try clearing the status or search filters.'
+                            : 'Execute a sequence to see its history here.',
+                        action: hasFilter
+                            ? NightshadeButton(
+                                label: 'Clear filters',
+                                icon: LucideIcons.x,
+                                variant: ButtonVariant.ghost,
+                                size: ButtonSize.small,
+                                onPressed: () {
+                                  ref
+                                      .read(
+                                          historyStatusFilterProvider.notifier)
+                                      .state = <String>{};
+                                  ref
+                                      .read(historySearchProvider.notifier)
+                                      .state = '';
+                                  ref
+                                      .read(historyFilterSequenceIdProvider
+                                          .notifier)
+                                      .state = null;
+                                },
+                              )
+                            : null,
+                      );
+                    }
+                    return _GroupedRunList(colors: colors, rows: rows);
                   },
-                );
-              },
-              loading: () => Center(
-                  child: CircularProgressIndicator(color: colors.primary)),
-              error: (err, _) => Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(LucideIcons.alertTriangle,
-                        size: 48, color: colors.error),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Failed to load history',
-                      style: TextStyle(
-                          color: colors.textPrimary,
-                          fontSize: NightshadeTypography.fontSize16),
+                  loading: () => Center(
+                      child: CircularProgressIndicator(color: colors.primary)),
+                  error: (err, _) => Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(LucideIcons.alertTriangle,
+                            size: 48, color: colors.error),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Failed to load history',
+                          style: TextStyle(
+                              color: colors.textPrimary,
+                              fontSize: NightshadeTypography.fontSize16),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          err.toString(),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                              color: colors.textMuted,
+                              fontSize: NightshadeTypography.fontSize12),
+                        ),
+                        const SizedBox(height: 16),
+                        NightshadeButton(
+                          label: 'Retry',
+                          icon: LucideIcons.refreshCw,
+                          onPressed: () => ref.invalidate(sequenceRunsProvider),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      err.toString(),
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                          color: colors.textMuted,
-                          fontSize: NightshadeTypography.fontSize12),
-                    ),
-                    const SizedBox(height: 16),
-                    NightshadeButton(
-                      label: 'Retry',
-                      icon: LucideIcons.refreshCw,
-                      onPressed: () => ref.invalidate(sequenceRunsProvider),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Status filter chips + search field for the history list.
+class _HistoryFilterBar extends ConsumerWidget {
+  final NightshadeColors colors;
+
+  const _HistoryFilterBar({required this.colors});
+
+  static const _statuses = ['completed', 'failed', 'aborted', 'running'];
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selected = ref.watch(historyStatusFilterProvider);
+    final sequenceFilter = ref.watch(historyFilterSequenceIdProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final status in _statuses)
+                    FilterChip(
+                      label:
+                          Text(status[0].toUpperCase() + status.substring(1)),
+                      selected: selected.contains(status),
+                      visualDensity: VisualDensity.compact,
+                      onSelected: (on) {
+                        final next = {...selected};
+                        if (on) {
+                          next.add(status);
+                        } else {
+                          next.remove(status);
+                        }
+                        ref.read(historyStatusFilterProvider.notifier).state =
+                            next;
+                      },
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            SizedBox(
+              width: 220,
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText: 'Search by sequence / target',
+                  isDense: true,
+                  prefixIcon: Icon(LucideIcons.search,
+                      size: 16, color: colors.textMuted),
+                ),
+                onChanged: (v) =>
+                    ref.read(historySearchProvider.notifier).state = v,
+              ),
+            ),
+          ],
+        ),
+        if (sequenceFilter != null) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(LucideIcons.filter, size: 13, color: colors.primary),
+              const SizedBox(width: 6),
+              Text(
+                'Filtered to one sequence',
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textSecondary,
+                ),
+              ),
+              const SizedBox(width: 8),
+              GestureDetector(
+                onTap: () => ref
+                    .read(historyFilterSequenceIdProvider.notifier)
+                    .state = null,
+                child: Text(
+                  'Clear',
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: colors.primary,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Renders the filtered runs grouped by observing night (local date),
+/// newest night first, with a sticky-style section header per night.
+class _GroupedRunList extends StatelessWidget {
+  final NightshadeColors colors;
+  final List<_RunRow> rows;
+
+  const _GroupedRunList({required this.colors, required this.rows});
+
+  /// Bucket a run into an observing night. Runs after local midnight but
+  /// before ~midday are attributed to the previous calendar day so a
+  /// single overnight session groups together.
+  DateTime _observingNight(DateTime startedAt) {
+    final local = startedAt.toLocal();
+    final shifted =
+        local.hour < 12 ? local.subtract(const Duration(days: 1)) : local;
+    return DateTime(shifted.year, shifted.month, shifted.day);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final groups = <DateTime, List<_RunRow>>{};
+    for (final row in rows) {
+      groups.putIfAbsent(_observingNight(row.run.startedAt), () => []).add(row);
+    }
+    final nights = groups.keys.toList()..sort((a, b) => b.compareTo(a));
+    final nightFormat = DateFormat('EEEE, MMM d, yyyy');
+
+    return ListView.builder(
+      itemCount: nights.length,
+      itemBuilder: (context, index) {
+        final night = nights[index];
+        final nightRows = groups[night]!;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: EdgeInsets.only(top: index == 0 ? 0 : 16, bottom: 8),
+              child: Row(
+                children: [
+                  Icon(LucideIcons.moon, size: 13, color: colors.textMuted),
+                  const SizedBox(width: 6),
+                  Text(
+                    nightFormat.format(night),
+                    style: NightshadeTypography.labelStrongSm
+                        .copyWith(color: colors.textSecondary),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '${nightRows.length} '
+                    'run${nightRows.length == 1 ? '' : 's'}',
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            for (final row in nightRows) ...[
+              _RunCard(colors: colors, run: row.run, stats: row.stats),
+              const SizedBox(height: 8),
+            ],
+          ],
+        );
+      },
     );
   }
 }
@@ -171,7 +430,11 @@ class _RunCard extends ConsumerWidget {
   final NightshadeColors colors;
   final SequenceRun run;
 
-  const _RunCard({required this.colors, required this.run});
+  /// Stats parsed once by [filteredRunsProvider]; avoids re-decoding the
+  /// JSON blob on every card build (and again when opening notes).
+  final ParsedRunStats? stats;
+
+  const _RunCard({required this.colors, required this.run, this.stats});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -179,13 +442,9 @@ class _RunCard extends ConsumerWidget {
     final status = run.status;
     final statusColor = _statusColor(status);
     final statusIcon = _statusIcon(status);
-
-    ParsedRunStats? stats;
-    try {
-      stats = ParsedRunStats.fromJson(run.statsJson);
-    } catch (_) {
-      // Malformed stats JSON — show card without stats
-    }
+    // Promote to a local so the null-checks below flow-analyze correctly
+    // (a public field can't be promoted).
+    final stats = this.stats;
 
     final durationStr = run.endedAt != null
         ? _formatDuration(run.endedAt!.difference(run.startedAt))
@@ -205,7 +464,7 @@ class _RunCard extends ConsumerWidget {
                 startedAt: run.startedAt,
                 endedAt: run.endedAt,
                 status: run.status,
-                stats: stats!,
+                stats: stats,
               ),
             );
           }
@@ -368,7 +627,7 @@ class _RunCard extends ConsumerWidget {
                   orElse: () => 0,
                 );
                 return IconButton(
-                  onPressed: () => _openNotesForRun(context, ref, run),
+                  onPressed: () => _openNotesForRun(context, ref, run, stats),
                   icon: Stack(
                     clipBehavior: Clip.none,
                     children: [
@@ -431,18 +690,17 @@ class _RunCard extends ConsumerWidget {
   /// stats blob's first target breakdown key) and pop the per-run
   /// notes drawer.
   Future<void> _openNotesForRun(
-      BuildContext context, WidgetRef ref, SequenceRun run) async {
+    BuildContext context,
+    WidgetRef ref,
+    SequenceRun run,
+    ParsedRunStats? stats,
+  ) async {
     final colors = NightshadeColors.of(context);
+    // Reuse the stats parsed once in `build` rather than re-decoding the
+    // JSON blob here.
     String? primaryTarget;
-    try {
-      final stats = ParsedRunStats.fromJson(run.statsJson);
-      if (stats.targetBreakdown.isNotEmpty) {
-        primaryTarget = stats.targetBreakdown.keys.first;
-      }
-    } on Object catch (e) {
-      // Why: stats blob may be missing/corrupt for legacy runs — fall back to
-      // the sequence name (assigned below). Logged so the fallback isn't silent.
-      debugPrint('history_tab: notes-drawer stats parse failed: $e');
+    if (stats != null && stats.targetBreakdown.isNotEmpty) {
+      primaryTarget = stats.targetBreakdown.keys.first;
     }
     primaryTarget ??= run.sequenceName;
     final dialogSize = AdaptiveDialogConstraints.dialogSize(

@@ -188,12 +188,20 @@ extension _WizardShell on _QuickStartWizardDialogState {
                   icon: LucideIcons.chevronRight,
                   label: 'Next',
                 )
-              else
+              else ...[
+                NightshadeButton(
+                  onPressed: _canAdvance() ? _saveAsTemplate : null,
+                  icon: LucideIcons.save,
+                  label: 'Save as Template',
+                  variant: ButtonVariant.outline,
+                ),
+                const SizedBox(width: 12),
                 NightshadeButton(
                   onPressed: _canAdvance() ? _createSequence : null,
                   icon: LucideIcons.sparkles,
                   label: 'Create Sequence',
                 ),
+              ],
             ],
           ),
         ],

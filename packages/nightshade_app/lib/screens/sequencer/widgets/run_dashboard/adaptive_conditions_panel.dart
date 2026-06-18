@@ -48,10 +48,20 @@ class RunDashboardAdaptiveConditionsPanel extends ConsumerWidget {
           colors: colors,
           statusLabel: 'ERROR',
           statusColor: colors.error,
-          child: Text(
-            error.toString(),
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11, color: colors.error),
+          // Operator-friendly message: NightshadeError already carries a
+          // userMessage; anything else gets a generic line with the raw text
+          // tucked behind a tooltip so the dashboard never dumps a stack-y
+          // toString() at the user.
+          child: Tooltip(
+            message: error.toString(),
+            child: Text(
+              error is NightshadeError
+                  ? error.userMessage
+                  : 'Adaptive conditions unavailable',
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  color: colors.error),
+            ),
           ),
         ),
         data: (snapshot) => _SnapshotBody(colors: colors, snapshot: snapshot),
@@ -115,9 +125,13 @@ class _SnapshotBody extends StatelessWidget {
           _InfoRow(
             colors: colors,
             label: 'Hysteresis',
+            // The cooldown is computed against the shared 30s dashboard
+            // ticker, so the countdown advances in 30s steps rather than
+            // smoothly — label it so the lag is explicit instead of looking
+            // like a stalled clock.
             value: cooldown == null
                 ? '${_formatSecs(state?.configuredHysteresisSecs)} window'
-                : '${_formatSecs(cooldown)} remaining',
+                : '~${_formatSecs(cooldown)} remaining (30s cadence)',
             highlight: cooldown == null ? colors.textSecondary : colors.warning,
           ),
           const SizedBox(height: NightshadeTokens.spaceXs),

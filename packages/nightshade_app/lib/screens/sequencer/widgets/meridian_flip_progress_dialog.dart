@@ -86,20 +86,29 @@ class _MeridianFlipProgressDialogState
             :final stepIndex,
             :final totalSteps
           ):
-          // Initialize steps list if needed
+          // Seed pending rows lazily: we do NOT guess each step's FlipStep
+          // kind from its index (the old _getStepForIndex hard-coded a 9-step
+          // pipeline that silently diverged whenever the backend changed the
+          // order or count). Pending rows carry labelKnown=false and render a
+          // generic "Step i of N — pending"; the concrete FlipStep label is
+          // only set once that step's StepStarted event actually arrives.
           if (_steps.isEmpty) {
             _steps = List.generate(
               totalSteps,
               (i) => FlipStepState(
-                  step: _getStepForIndex(i), status: StepStatus.pending),
+                step: step,
+                status: StepStatus.pending,
+                labelKnown: false,
+              ),
             );
           }
-          // Update current step
+          // Update current step — this is where the real FlipStep label lands.
           _currentStepIndex = stepIndex;
           if (stepIndex < _steps.length) {
             _steps[stepIndex] = _steps[stepIndex].copyWith(
               step: step,
               status: StepStatus.inProgress,
+              labelKnown: true,
             );
           }
 
@@ -150,24 +159,6 @@ class _MeridianFlipProgressDialogState
           _elapsedTimer?.cancel();
       }
     });
-  }
-
-  FlipStep _getStepForIndex(int index) {
-    // Default steps in order
-    const defaultSteps = [
-      FlipStep.pausingGuider,
-      FlipStep.stoppingTracking,
-      FlipStep.slewingToTarget,
-      FlipStep.verifyingPierSide,
-      FlipStep.resumingTracking,
-      FlipStep.plateSolvingAndCentering,
-      FlipStep.refocusing,
-      FlipStep.resumingGuider,
-      FlipStep.settling,
-    ];
-    return index < defaultSteps.length
-        ? defaultSteps[index]
-        : FlipStep.settling;
   }
 
   @override
@@ -283,13 +274,14 @@ class _MeridianFlipProgressDialogState
               ],
             ),
           ),
-          if (!_isComplete && !_hasFailed)
+          // Only offer the header close button once the flip has finished or
+          // failed — during the flip the only way out is the Abort button, so
+          // a dead no-op "X" would just confuse the operator.
+          if (_isComplete || _hasFailed)
             IconButton(
               icon: Icon(LucideIcons.x, color: colors.textMuted, size: 18),
-              onPressed: () {
-                // Don't allow closing during flip - must abort
-              },
-              tooltip: 'Use Abort button to cancel',
+              onPressed: () => Navigator.of(context).pop(_isComplete),
+              tooltip: 'Close',
             ),
         ],
       ),
@@ -377,6 +369,8 @@ class _MeridianFlipProgressDialogState
           final step = entry.value;
           return _StepRow(
             step: step,
+            index: index,
+            totalSteps: _steps.length,
             isLast: index == _steps.length - 1,
             colors: colors,
           );
@@ -552,11 +546,18 @@ class FlipStepState {
   final double? durationSecs;
   final String? error;
 
+  /// Whether [step] is the real FlipStep reported by the backend for this row
+  /// (true) versus a placeholder seeded before the step's StepStarted event
+  /// arrived (false). Pending rows render a generic "Step i of N" until the
+  /// concrete label is known, so the dialog never guesses the pipeline.
+  final bool labelKnown;
+
   const FlipStepState({
     required this.step,
     required this.status,
     this.durationSecs,
     this.error,
+    this.labelKnown = true,
   });
 
   FlipStepState copyWith({
@@ -564,12 +565,14 @@ class FlipStepState {
     StepStatus? status,
     double? durationSecs,
     String? error,
+    bool? labelKnown,
   }) {
     return FlipStepState(
       step: step ?? this.step,
       status: status ?? this.status,
       durationSecs: durationSecs ?? this.durationSecs,
       error: error ?? this.error,
+      labelKnown: labelKnown ?? this.labelKnown,
     );
   }
 }
@@ -585,11 +588,15 @@ enum StepStatus {
 /// Widget for displaying a step row
 class _StepRow extends StatelessWidget {
   final FlipStepState step;
+  final int index;
+  final int totalSteps;
   final bool isLast;
   final NightshadeColors colors;
 
   const _StepRow({
     required this.step,
+    required this.index,
+    required this.totalSteps,
     required this.isLast,
     required this.colors,
   });
@@ -635,7 +642,12 @@ class _StepRow extends StatelessWidget {
           const SizedBox(width: 12),
           Expanded(
             child: Text(
-              _stepLabel(step.step),
+              // Only show the concrete FlipStep label once the backend has
+              // actually started that step; until then it's a generic
+              // placeholder so we never mislabel a pending row.
+              step.labelKnown
+                  ? _stepLabel(step.step)
+                  : 'Step ${index + 1} of $totalSteps',
               style: TextStyle(
                 fontSize: NightshadeTypography.fontSize12,
                 color: step.status == StepStatus.pending

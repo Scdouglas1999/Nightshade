@@ -75,13 +75,65 @@ class NinaSequenceParser {
     // into a `LoopLogic` correctly.
     final withCondition = _foldConditions(mergedAttrs, conditions);
 
+    // Propagate an iterating container's count down to child exposures that
+    // carry no own count. A plain `TakeExposure` inside a `LoopContainer`
+    // (or any container with an Iterations/CountCondition) would otherwise
+    // resolve to count==1 and silently undercount the planned frames.
+    final propagatedChildren = _propagateLoopCount(
+      kind,
+      withCondition,
+      mergedChildren,
+    );
+
     return CanonicalSequenceNode(
       kind: kind,
       name: displayName,
       sourceType: shortType.isEmpty ? rawType : shortType,
       attributes: withCondition,
-      children: mergedChildren,
+      children: propagatedChildren,
     );
+  }
+
+  /// Stamp the iteration count of an iterating container onto direct-child
+  /// exposures that have no count of their own. A plain `TakeExposure`
+  /// inside a `LoopContainer` with `Iterations: 30` should yield 30 frames,
+  /// not 1. Only applied when the loop count is resolvable; an
+  /// unresolvable count leaves the child untouched (mapper defaults to 1).
+  List<CanonicalSequenceNode> _propagateLoopCount(
+    CanonicalKind parentKind,
+    Map<String, Object?> parentAttrs,
+    List<CanonicalSequenceNode> children,
+  ) {
+    final isIterating =
+        parentKind == CanonicalKind.loop ||
+        parentAttrs['iterations'] != null ||
+        parentAttrs['_loopCountFromCondition'] != null;
+    if (!isIterating) return children;
+
+    final loopCount = _readInt(
+      parentAttrs['iterations'] ?? parentAttrs['_loopCountFromCondition'],
+    );
+    if (loopCount == null || loopCount <= 1) return children;
+
+    var changed = false;
+    final out = <CanonicalSequenceNode>[];
+    for (final child in children) {
+      if (child.kind == CanonicalKind.exposure &&
+          child.attributes['count'] == null) {
+        out.add(
+          child.copyWith(
+            attributes: <String, Object?>{
+              ...child.attributes,
+              'count': loopCount,
+            },
+          ),
+        );
+        changed = true;
+      } else {
+        out.add(child);
+      }
+    }
+    return changed ? out : children;
   }
 
   List<CanonicalSequenceNode> _parseChildList(

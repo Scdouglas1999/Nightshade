@@ -211,13 +211,22 @@ class MultiSelectNotifier extends StateNotifier<Set<String>> {
     }
   }
 
-  /// Copy selected nodes to clipboard.
-  void copySelected() {
+  /// Copy nodes to clipboard.
+  ///
+  /// Copies the multi-selection when it is non-empty. When [explicitIds] is
+  /// supplied (e.g. a single-node Ctrl+C with no multi-selection) those ids
+  /// are copied instead — this lets the keyboard shortcut fall back to the
+  /// single [selectedNodeIdProvider] without seeding the multi-select set.
+  void copySelected({Iterable<String>? explicitIds}) {
     final sequence = ref.read(currentSequenceProvider);
     if (sequence == null) return;
 
+    final ids = (explicitIds != null && explicitIds.isNotEmpty)
+        ? explicitIds
+        : state;
+
     final clipboard = <Map<String, dynamic>>[];
-    for (final nodeId in state) {
+    for (final nodeId in ids) {
       final tree = _serializeNodeTree(sequence, nodeId);
       if (tree != null) {
         clipboard.add(tree);

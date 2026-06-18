@@ -192,12 +192,12 @@ class ConditionalNode extends SequenceNode {
     ConditionalType? conditionType,
     double? thresholdValue,
     DateTime? thresholdTime,
-    // PHASE-5: plain `?? this.safetyMonitorId` semantics — omitted or
-    // null keeps, non-null replaces. No production callers ever
-    // cleared this field via copyWith; the previous sentinel pattern
-    // was unused weight. To clear, construct a new ConditionalNode
-    // without the arg.
+    // Plain `?? this.safetyMonitorId` semantics — omitted or null keeps,
+    // non-null replaces. To clear the override back to the aggregated /
+    // profile-default safety state, pass `clearSafetyMonitorId: true`,
+    // which wins over `safetyMonitorId` and nulls the field.
     String? safetyMonitorId,
+    bool clearSafetyMonitorId = false,
   }) {
     return ConditionalNode(
       id: id ?? this.id,
@@ -210,7 +210,9 @@ class ConditionalNode extends SequenceNode {
       conditionType: conditionType ?? this.conditionType,
       thresholdValue: thresholdValue ?? this.thresholdValue,
       thresholdTime: thresholdTime ?? this.thresholdTime,
-      safetyMonitorId: safetyMonitorId ?? this.safetyMonitorId,
+      safetyMonitorId: clearSafetyMonitorId
+          ? null
+          : (safetyMonitorId ?? this.safetyMonitorId),
     );
   }
 

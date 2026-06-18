@@ -16,6 +16,15 @@ mixin UndoBatchMixin {
   /// this is exceeded.
   static const int maxUndoDepth = 50;
 
+  /// Soft cap on the total number of retained nodes across the whole undo
+  /// stack. After the depth cap is applied we keep trimming the oldest
+  /// entries while the summed `nodes.length` of all retained snapshots
+  /// exceeds this budget. This bounds memory for users editing very large
+  /// sequences (hundreds of nodes) where 50 full snapshots could otherwise
+  /// retain tens of thousands of node references — without hurting the
+  /// common small-sequence case, which never approaches the budget.
+  static const int maxUndoRetainedNodes = 5000;
+
   int _batchDepth = 0;
   bool _batchSnapshotTaken = false;
 
@@ -43,6 +52,15 @@ mixin UndoBatchMixin {
     undoStack.add(snapshot);
     redoStack.clear();
     if (undoStack.length > maxUndoDepth) {
+      undoStack.removeAt(0);
+    }
+
+    // Node-count budget: trim oldest entries while the retained snapshots
+    // collectively hold more than [maxUndoRetainedNodes] nodes. Always keep
+    // at least one entry so a single huge sequence is still undoable once.
+    var retained = undoStack.fold<int>(0, (sum, s) => sum + s.nodes.length);
+    while (undoStack.length > 1 && retained > maxUndoRetainedNodes) {
+      retained -= undoStack.first.nodes.length;
       undoStack.removeAt(0);
     }
   }

@@ -33,14 +33,47 @@ import '../sequence_provider.dart' show currentSequenceProvider;
 /// [currentSequenceProvider] changes (because we `ref.watch` it). That is
 /// fine — we *want* a single mutation to clear every node's cached value;
 /// stale roll-ups deeper in the tree would be a "silent fallback" bug.
+///
+/// Performance: the family reads its id out of [_nodeRollupMapProvider],
+/// which computes the WHOLE tree's rollup in a single post-order DFS and
+/// caches the result. Previously each family element re-walked the subtree
+/// under its node, so painting an N-node tree (every row reads its own
+/// element) was O(N^2) per edit — a deep loop-heavy sequence re-walked the
+/// same exposure leaves once per ancestor. Now the map is built once per
+/// sequence identity and every row is an O(1) map lookup.
 final nodeRollupDurationProvider = Provider.family<Duration, String>((
   ref,
   nodeId,
 ) {
+  final map = ref.watch(_nodeRollupMapProvider);
+  return map[nodeId] ?? Duration.zero;
+});
+
+/// Single memoized post-order DFS over the current sequence producing every
+/// node's rolled-up [Duration] in one pass. Each node is computed exactly
+/// once and its child results are reused by its parent, so the whole map is
+/// O(N) per edit instead of O(N) per node. Recomputes once whenever
+/// [currentSequenceProvider] changes (sequence identity).
+final _nodeRollupMapProvider = Provider<Map<String, Duration>>((ref) {
   final sequence = ref.watch(currentSequenceProvider);
-  if (sequence == null) return Duration.zero;
-  final secs = _rollupSecs(sequence, nodeId, const SequenceOverheadConfig());
-  return Duration(seconds: secs.round());
+  if (sequence == null) return const <String, Duration>{};
+  const overhead = SequenceOverheadConfig();
+  final secsById = <String, double>{};
+  if (sequence.rootNodeId != null) {
+    _computeRollupSecs(sequence, sequence.rootNodeId!, overhead, secsById);
+  }
+  // Compute any node not reached from the root (detached subtrees, or the
+  // no-root case) so every tree row still gets its own value — matching the
+  // pre-memoization behaviour where the family computed each id on demand.
+  // Already-computed nodes short-circuit via the cache inside the walk.
+  for (final id in sequence.nodes.keys) {
+    if (!secsById.containsKey(id)) {
+      _computeRollupSecs(sequence, id, overhead, secsById);
+    }
+  }
+  return secsById.map(
+    (id, secs) => MapEntry(id, Duration(seconds: secs.round())),
+  );
 });
 
 /// Format helper used by the tree row + tests. Public so test code can
@@ -63,20 +96,30 @@ String formatRollupDuration(Duration d) {
   return '~${seconds}s';
 }
 
-/// Recursive walk that returns the rolled-up duration *in seconds* for
-/// [nodeId] given the current [sequence] structure.
+/// Single memoizing post-order walk that returns the rolled-up duration *in
+/// seconds* for [nodeId] AND records every node it visits into [out]. Each
+/// node is computed once: the first time it is reached the result is stored
+/// in [out]; subsequent reaches (shared ids are not expected in a tree, but
+/// the guard makes the walk idempotent) reuse the cached value.
 ///
 /// Kept separate from [Sequence.estimateWithOverhead] because that method
 /// produces a single tree-wide [SequenceEstimate]; here we need per-node
 /// values during a single render pass. We deliberately walk the same tree
 /// shape so the numbers agree with the timeline / sequence header.
-double _rollupSecs(
+double _computeRollupSecs(
   Sequence sequence,
   String nodeId,
   SequenceOverheadConfig overhead,
+  Map<String, double> out,
 ) {
+  final cached = out[nodeId];
+  if (cached != null) return cached;
+
   final node = sequence.nodes[nodeId];
-  if (node == null || !node.isEnabled) return 0;
+  if (node == null || !node.isEnabled) {
+    out[nodeId] = 0;
+    return 0;
+  }
 
   // Leaf: ExposureNode contributes integration + per-exposure download
   // overhead. All other leaf node-types contribute their per-instance
@@ -84,7 +127,9 @@ double _rollupSecs(
   if (node is ExposureNode) {
     final integration = node.durationSecs * node.count;
     final download = overhead.downloadOverheadPerExposureSecs * node.count;
-    return integration + download;
+    final total = integration + download;
+    out[nodeId] = total;
+    return total;
   }
 
   // SmartExposure is a leaf that internally dispatches
@@ -108,14 +153,17 @@ double _rollupSecs(
       integration = node.integrationBudgetSecs;
     }
     final download = overhead.downloadOverheadPerExposureSecs * frameCount;
-    return integration + download;
+    final total = integration + download;
+    out[nodeId] = total;
+    return total;
   }
 
   // Compute child rollups first; we use them for every container shape.
+  // Each child writes its own value into [out] as a side effect.
   final childSecs = <double>[];
   double childSum = 0;
   for (final childId in node.childIds) {
-    final s = _rollupSecs(sequence, childId, overhead);
+    final s = _computeRollupSecs(sequence, childId, overhead, out);
     childSecs.add(s);
     childSum += s;
   }
@@ -127,66 +175,87 @@ double _rollupSecs(
   // (slew, autofocus, etc). For containers this is 0.
   final selfOverhead = _selfOverhead(node, overhead);
 
+  final double result;
   if (node is LoopNode) {
-    switch (node.conditionType) {
-      case LoopConditionType.count:
-        final iterations = node.repeatCount ?? 1;
-        return selfOverhead + (childSum * iterations);
-      case LoopConditionType.untilTime:
-        // We don't have a reference time here; reuse the Sequence-level
-        // estimator's logic to get fittable iterations. Falling back to
-        // single-iteration when the deadline is in the past matches
-        // _estimateNodeIntegration().
-        if (node.repeatUntil != null && childSum > 0) {
-          final availableSecs = node.repeatUntil!
-              .difference(DateTime.now())
-              .inSeconds
-              .toDouble();
-          if (availableSecs > 0) {
-            final iters = (availableSecs / childSum).floor();
-            return selfOverhead + (childSum * iters);
-          }
-        }
-        return selfOverhead + childSum;
-      case LoopConditionType.integrationTime:
-        if (node.integrationTimeTarget != null &&
-            node.integrationTimeTarget! > 0 &&
-            childSum > 0) {
-          // Find exposure-only time per iteration; mirrors
-          // _estimateNodeIntegration so the math agrees.
-          double exposurePerIteration = 0;
-          for (final childId in node.childIds) {
-            final c = sequence.nodes[childId];
-            if (c is ExposureNode && c.isEnabled) {
-              exposurePerIteration += c.totalDurationSecs;
-            }
-          }
-          if (exposurePerIteration > 0) {
-            final iters = (node.integrationTimeTarget! / exposurePerIteration)
-                .ceil();
-            return selfOverhead + (childSum * iters);
-          }
-        }
-        return selfOverhead + childSum;
-      case LoopConditionType.forever:
-      case LoopConditionType.whileDark:
-      case LoopConditionType.untilAltitude:
-      case LoopConditionType.altitudeAbove:
-        // Unbounded: report a single iteration. Marking this as "~∞"
-        // would be more honest but the tree row already shows the loop
-        // condition; the duration column reads as per-iteration cost.
-        return selfOverhead + childSum;
-    }
-  }
-
-  if (node is ParallelNode) {
+    result = switch (node.conditionType) {
+      LoopConditionType.count =>
+        selfOverhead + (childSum * (node.repeatCount ?? 1)),
+      // We don't have a reference time here; reuse the Sequence-level
+      // estimator's logic to get fittable iterations. Falling back to
+      // single-iteration when the deadline is in the past matches
+      // _estimateNodeIntegration().
+      LoopConditionType.untilTime => _untilTimeRollup(
+        node,
+        childSum,
+        selfOverhead,
+      ),
+      LoopConditionType.integrationTime => _integrationTimeRollup(
+        sequence,
+        node,
+        childSum,
+        selfOverhead,
+      ),
+      // Unbounded: report a single iteration. Marking this as "~∞" would be
+      // more honest but the tree row already shows the loop condition; the
+      // duration column reads as per-iteration cost.
+      LoopConditionType.forever ||
+      LoopConditionType.whileDark ||
+      LoopConditionType.untilAltitude ||
+      LoopConditionType.altitudeAbove => selfOverhead + childSum,
+    };
+  } else if (node is ParallelNode) {
     // Children run concurrently. Wall-clock cost is the slowest child
     // (plus any self-overhead, though Parallel has none today).
-    return selfOverhead + childMax;
+    result = selfOverhead + childMax;
+  } else {
+    // TargetHeaderNode, InstructionSetNode, ConditionalNode, RecoveryNode,
+    // and any other container: sum.
+    result = selfOverhead + childSum;
   }
 
-  // TargetHeaderNode, InstructionSetNode, ConditionalNode, RecoveryNode,
-  // and any other container: sum.
+  out[nodeId] = result;
+  return result;
+}
+
+/// untilTime loop rollup: fit as many child iterations as the deadline
+/// allows (single iteration when the deadline is in the past / unset).
+double _untilTimeRollup(LoopNode node, double childSum, double selfOverhead) {
+  if (node.repeatUntil != null && childSum > 0) {
+    final availableSecs = node.repeatUntil!
+        .difference(DateTime.now())
+        .inSeconds
+        .toDouble();
+    if (availableSecs > 0) {
+      final iters = (availableSecs / childSum).floor();
+      return selfOverhead + (childSum * iters);
+    }
+  }
+  return selfOverhead + childSum;
+}
+
+/// integrationTime loop rollup: iterate until the target integration time is
+/// met, mirroring `_estimateNodeIntegration` so the numbers agree.
+double _integrationTimeRollup(
+  Sequence sequence,
+  LoopNode node,
+  double childSum,
+  double selfOverhead,
+) {
+  if (node.integrationTimeTarget != null &&
+      node.integrationTimeTarget! > 0 &&
+      childSum > 0) {
+    double exposurePerIteration = 0;
+    for (final childId in node.childIds) {
+      final c = sequence.nodes[childId];
+      if (c is ExposureNode && c.isEnabled) {
+        exposurePerIteration += c.totalDurationSecs;
+      }
+    }
+    if (exposurePerIteration > 0) {
+      final iters = (node.integrationTimeTarget! / exposurePerIteration).ceil();
+      return selfOverhead + (childSum * iters);
+    }
+  }
   return selfOverhead + childSum;
 }
 

@@ -136,7 +136,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(
-            path: '/sequencer',
+            path: kSequencerRoutePath,
             name: 'sequencer',
             pageBuilder: (context, state) => const CustomTransitionPage(
               child: SequencerScreen(),

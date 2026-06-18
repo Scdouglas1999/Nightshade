@@ -177,11 +177,14 @@ class LiveStackingNode extends SequenceNode {
     bool? broadcastEnabled,
     int? broadcastPort,
     String? broadcastPath,
-    // PHASE-5: plain `?? this.X` for authToken and watermarkText.
-    // Clearing (e.g. flipping a stream from private to public) is now
-    // rebuild-explicit at the editor — see live_stacking_properties.dart.
+    // Plain `?? this.X` for authToken and watermarkText. To clear back to
+    // null (e.g. flipping a stream from private to public, or removing the
+    // watermark) pass `clearAuthToken: true` / `clearWatermarkText: true`,
+    // which win over the corresponding value arg and null the field.
     String? authToken,
     String? watermarkText,
+    bool clearAuthToken = false,
+    bool clearWatermarkText = false,
     int? thumbnailWidth,
     int? thumbnailHeight,
   }) {
@@ -199,8 +202,10 @@ class LiveStackingNode extends SequenceNode {
       broadcastEnabled: broadcastEnabled ?? this.broadcastEnabled,
       broadcastPort: broadcastPort ?? this.broadcastPort,
       broadcastPath: broadcastPath ?? this.broadcastPath,
-      authToken: authToken ?? this.authToken,
-      watermarkText: watermarkText ?? this.watermarkText,
+      authToken: clearAuthToken ? null : (authToken ?? this.authToken),
+      watermarkText: clearWatermarkText
+          ? null
+          : (watermarkText ?? this.watermarkText),
       thumbnailWidth: thumbnailWidth ?? this.thumbnailWidth,
       thumbnailHeight: thumbnailHeight ?? this.thumbnailHeight,
     );

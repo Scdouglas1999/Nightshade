@@ -125,7 +125,18 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
     return windows;
   }
 
-  DateTime get _effectiveStartTime => widget.startTime ?? DateTime.now();
+  /// Real run-start timestamp from the active session, when one is running.
+  /// Cached in build() (which watches [sessionStateProvider]) so the getters
+  /// below stay reactive without each reading the provider independently.
+  DateTime? _sessionRunStart;
+
+  /// Anchor the timeline's clock to the real run start: prefer the explicit
+  /// [widget.startTime], then the live session's run-start timestamp, and only
+  /// fall back to "now" when the rig is genuinely idle (no run in progress).
+  /// Falling straight to DateTime.now() made the "now" indicator pin to the
+  /// left edge every rebuild instead of advancing through the run.
+  DateTime get _effectiveStartTime =>
+      widget.startTime ?? _sessionRunStart ?? DateTime.now();
 
   DateTime get _estimatedEndTime =>
       _effectiveStartTime.add(Duration(seconds: widget.totalDuration.round()));
@@ -145,6 +156,11 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
   @override
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(appSettingsProvider);
+    // Track the live session run-start so _effectiveStartTime can anchor the
+    // "now" indicator to the real run start rather than DateTime.now(). Only
+    // meaningful while a run is in flight; idle sessions carry a null start.
+    _sessionRunStart =
+        widget.isRunning ? ref.watch(sessionStateProvider).startTime : null;
 
     return settingsAsync.when(
       loading: () => _buildWithoutOverlay(),

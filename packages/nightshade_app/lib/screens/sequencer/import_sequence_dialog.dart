@@ -97,6 +97,18 @@ class ImportSequenceFlow {
       sequence = sequence.copyWith(name: decision.sequenceName);
     }
 
+    // Record dropped/unsupported nodes in the sequence description so the
+    // information survives the import (the summary dialog is transient).
+    // Without this, a force-import silently discarded nodes with no
+    // persisted trace of what was lost.
+    final droppedSummary = _buildDroppedNodesSummary(result);
+    if (droppedSummary.isNotEmpty) {
+      final combined = [sequence.description, droppedSummary]
+          .where((s) => s.isNotEmpty)
+          .join('\n\n');
+      sequence = sequence.copyWith(description: combined);
+    }
+
     // Persist to library. Both destinations save — the only difference is
     // whether we also load the imported sequence into the editor.
     final repo = ref.read(sequenceRepositoryProvider);
@@ -606,6 +618,28 @@ class ImportSequenceFlow {
         ],
       ),
     );
+  }
+
+  /// Build a human-readable summary of nodes dropped during import, for
+  /// persisting into the sequence description. Returns an empty string
+  /// when nothing was dropped. [ImportResult.droppedNodes] already
+  /// includes unsupported nodes (re-filed with [DropReason.unsupported]),
+  /// so we summarize that single list to avoid double-counting.
+  static String _buildDroppedNodesSummary(ImportResult result) {
+    final dropped = result.droppedNodes;
+    if (dropped.isEmpty) return '';
+    final fmt = result.sourceFormat.displayName;
+    final buffer = StringBuffer(
+      'Imported from $fmt: dropped ${dropped.length} '
+      'node${dropped.length == 1 ? '' : 's'} with no Nightshade equivalent:',
+    );
+    for (final d in dropped.take(20)) {
+      buffer.write('\n- ${d.sourceType} "${d.name}" (${d.reason.name})');
+    }
+    if (dropped.length > 20) {
+      buffer.write('\n- ... and ${dropped.length - 20} more');
+    }
+    return buffer.toString();
   }
 
   static String _basename(String path) {

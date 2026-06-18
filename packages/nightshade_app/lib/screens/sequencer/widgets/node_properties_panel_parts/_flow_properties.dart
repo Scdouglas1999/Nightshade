@@ -14,15 +14,12 @@ class _LoopProperties extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Loop Settings',
-          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
-        ),
+        NodeSectionHeader(colors: colors, label: 'Loop Settings'),
         const SizedBox(height: 12),
-        _PropertyField(
+        NodePropertyField(
           colors: colors,
           label: 'Condition Type',
-          child: _Dropdown<LoopConditionType>(
+          child: NodeDropdown<LoopConditionType>(
             colors: colors,
             value: node.conditionType,
             items: LoopConditionType.values,
@@ -52,10 +49,10 @@ class _LoopProperties extends ConsumerWidget {
           ),
         ),
         if (node.conditionType == LoopConditionType.count)
-          _PropertyField(
+          NodePropertyField(
             colors: colors,
             label: 'Repeat Count',
-            child: _NumberInput(
+            child: NodeNumberInput(
               colors: colors,
               value: (node.repeatCount ?? 1).toDouble(),
               min: 1,
@@ -68,7 +65,7 @@ class _LoopProperties extends ConsumerWidget {
             ),
           ),
         if (node.conditionType == LoopConditionType.untilTime)
-          _PropertyField(
+          NodePropertyField(
             colors: colors,
             label: 'Stop Time',
             child: Column(
@@ -125,7 +122,7 @@ class _LoopProperties extends ConsumerWidget {
                 // Quick set buttons for common times
                 Row(
                   children: [
-                    _QuickTimeButton(
+                    NodeQuickTimeButton(
                       colors: colors,
                       label: 'Civil Dawn',
                       onPressed: () {
@@ -161,7 +158,7 @@ class _LoopProperties extends ConsumerWidget {
                       },
                     ),
                     const SizedBox(width: 8),
-                    _QuickTimeButton(
+                    NodeQuickTimeButton(
                       colors: colors,
                       label: 'Nautical Dawn',
                       onPressed: () {
@@ -202,10 +199,10 @@ class _LoopProperties extends ConsumerWidget {
             ),
           ),
         if (node.conditionType == LoopConditionType.untilAltitude)
-          _PropertyField(
+          NodePropertyField(
             colors: colors,
             label: 'Stop Below Altitude',
-            child: _NumberInput(
+            child: NodeNumberInput(
               colors: colors,
               value: node.repeatUntilAltitude ?? 30,
               suffix: '°',
@@ -223,10 +220,10 @@ class _LoopProperties extends ConsumerWidget {
         // `repeatUntilAltitude` field with UntilAltitude (the Rust
         // serializer maps both modes onto `condition_value`).
         if (node.conditionType == LoopConditionType.altitudeAbove)
-          _PropertyField(
+          NodePropertyField(
             colors: colors,
             label: 'Stop Above Altitude',
-            child: _NumberInput(
+            child: NodeNumberInput(
               colors: colors,
               value: node.repeatUntilAltitude ?? 30,
               suffix: '°',
@@ -244,10 +241,10 @@ class _LoopProperties extends ConsumerWidget {
         // `integrationTimeTarget` (seconds) and serialized to the
         // engine's `condition_value`.
         if (node.conditionType == LoopConditionType.integrationTime)
-          _PropertyField(
+          NodePropertyField(
             colors: colors,
             label: 'Target Integration',
-            child: _NumberInput(
+            child: NodeNumberInput(
               colors: colors,
               value: (node.integrationTimeTarget ?? 3600) / 60.0,
               suffix: 'min',
@@ -277,15 +274,12 @@ class _DelayProperties extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Delay Settings',
-          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
-        ),
+        NodeSectionHeader(colors: colors, label: 'Delay Settings'),
         const SizedBox(height: 12),
-        _PropertyField(
+        NodePropertyField(
           colors: colors,
           label: 'Duration',
-          child: _NumberInput(
+          child: NodeNumberInput(
             colors: colors,
             value: node.seconds,
             suffix: 's',
@@ -299,6 +293,12 @@ class _DelayProperties extends ConsumerWidget {
             },
           ),
         ),
+        if (node.seconds > _kLongDelayWarnSecs)
+          _LongValueWarning(
+            colors: colors,
+            message:
+                'This is an unusually long delay — confirm this is intentional.',
+          ),
       ],
     );
   }
@@ -315,15 +315,12 @@ class _WaitTimeProperties extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Wait Settings',
-          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
-        ),
+        NodeSectionHeader(colors: colors, label: 'Wait Settings'),
         const SizedBox(height: 12),
-        _PropertyField(
+        NodePropertyField(
           colors: colors,
           label: 'Wait For',
-          child: _Dropdown<String>(
+          child: NodeDropdown<String>(
             colors: colors,
             value: node.waitForTwilight != null ? 'twilight' : 'time',
             items: const ['time', 'twilight'],
@@ -344,10 +341,10 @@ class _WaitTimeProperties extends ConsumerWidget {
           ),
         ),
         if (node.waitForTwilight != null) ...[
-          _PropertyField(
+          NodePropertyField(
             colors: colors,
             label: 'Twilight Type',
-            child: _Dropdown<TwilightType>(
+            child: NodeDropdown<TwilightType>(
               colors: colors,
               value: node.waitForTwilight!,
               items: TwilightType.values,
@@ -370,7 +367,7 @@ class _WaitTimeProperties extends ConsumerWidget {
           ),
         ],
         if (node.waitForTwilight == null) ...[
-          _PropertyField(
+          NodePropertyField(
             colors: colors,
             label: 'Wait Until',
             child: GestureDetector(
@@ -437,15 +434,12 @@ class _ConditionalProperties extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Condition Settings',
-          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
-        ),
+        NodeSectionHeader(colors: colors, label: 'Condition Settings'),
         const SizedBox(height: 12),
-        _PropertyField(
+        NodePropertyField(
           colors: colors,
           label: 'Condition Type',
-          child: _Dropdown<ConditionalType>(
+          child: NodeDropdown<ConditionalType>(
             colors: colors,
             value: node.conditionType,
             items: ConditionalType.values,
@@ -478,10 +472,10 @@ class _ConditionalProperties extends ConsumerWidget {
         ),
         if (node.conditionType == ConditionalType.altitudeAbove ||
             node.conditionType == ConditionalType.moonSeparationAbove)
-          _PropertyField(
+          NodePropertyField(
             colors: colors,
             label: 'Threshold (degrees)',
-            child: _NumberInput(
+            child: NodeNumberInput(
               colors: colors,
               value: node.thresholdValue ?? 30,
               suffix: '°',
@@ -496,10 +490,10 @@ class _ConditionalProperties extends ConsumerWidget {
             ),
           ),
         if (node.conditionType == ConditionalType.guidingRmsBelow)
-          _PropertyField(
+          NodePropertyField(
             colors: colors,
             label: 'Max RMS (arcsec)',
-            child: _NumberInput(
+            child: NodeNumberInput(
               colors: colors,
               value: node.thresholdValue ?? 1.5,
               suffix: '"',
@@ -514,10 +508,10 @@ class _ConditionalProperties extends ConsumerWidget {
             ),
           ),
         if (node.conditionType == ConditionalType.hfrBelow)
-          _PropertyField(
+          NodePropertyField(
             colors: colors,
             label: 'Max HFR (pixels)',
-            child: _NumberInput(
+            child: NodeNumberInput(
               colors: colors,
               value: node.thresholdValue ?? 3.0,
               suffix: 'px',
@@ -602,7 +596,7 @@ class _SafetyMonitorPicker extends ConsumerWidget {
 
     final selectedKey = currentId ?? _aggregatedSentinel;
 
-    return _PropertyField(
+    return NodePropertyField(
       colors: colors,
       label: 'Safety Monitor',
       child: Container(
@@ -656,15 +650,12 @@ class _ParallelProperties extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Parallel Execution',
-          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
-        ),
+        NodeSectionHeader(colors: colors, label: 'Parallel Execution'),
         const SizedBox(height: 12),
-        _PropertyField(
+        NodePropertyField(
           colors: colors,
           label: 'Required Successes',
-          child: _NumberInput(
+          child: NodeNumberInput(
             colors: colors,
             value: (node.requiredSuccesses ?? 1).toDouble(),
             min: 1,
@@ -715,15 +706,12 @@ class _RecoveryProperties extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Recovery Settings',
-          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
-        ),
+        NodeSectionHeader(colors: colors, label: 'Recovery Settings'),
         const SizedBox(height: 12),
-        _PropertyField(
+        NodePropertyField(
           colors: colors,
           label: 'Trigger Type',
-          child: _Dropdown<TriggerType?>(
+          child: NodeDropdown<TriggerType?>(
             colors: colors,
             value: node.triggerType,
             items: const [null, ...TriggerType.values],
@@ -779,10 +767,10 @@ class _RecoveryProperties extends ConsumerWidget {
             },
           ),
         ),
-        _PropertyField(
+        NodePropertyField(
           colors: colors,
           label: 'Recovery Action',
-          child: _Dropdown<RecoveryActionType>(
+          child: NodeDropdown<RecoveryActionType>(
             colors: colors,
             value: node.recoveryAction,
             items: RecoveryActionType.values,
@@ -817,10 +805,10 @@ class _RecoveryProperties extends ConsumerWidget {
             },
           ),
         ),
-        _PropertyField(
+        NodePropertyField(
           colors: colors,
           label: 'Max Retries',
-          child: _NumberInput(
+          child: NodeNumberInput(
             colors: colors,
             value: node.maxRetries.toDouble(),
             min: 1,
@@ -833,10 +821,10 @@ class _RecoveryProperties extends ConsumerWidget {
           ),
         ),
         if (node.triggerType == TriggerType.hfrDegraded)
-          _PropertyField(
+          NodePropertyField(
             colors: colors,
             label: 'HFR Threshold',
-            child: _NumberInput(
+            child: NodeNumberInput(
               colors: colors,
               value: node.triggerThreshold ?? 4.0,
               suffix: 'px',
@@ -851,10 +839,10 @@ class _RecoveryProperties extends ConsumerWidget {
             ),
           ),
         if (node.triggerType == TriggerType.altitudeLimit)
-          _PropertyField(
+          NodePropertyField(
             colors: colors,
             label: 'Min Altitude',
-            child: _NumberInput(
+            child: NodeNumberInput(
               colors: colors,
               value: node.triggerThreshold ?? 30,
               suffix: '°',

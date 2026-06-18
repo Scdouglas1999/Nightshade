@@ -46,6 +46,12 @@ class _PreFlightValidationDialogState
   String? _simulationUnavailableReason;
   bool _isValidating = true;
 
+  /// True while the async start prep (multi-night carry-over lookup) is in
+  /// flight. The dialog stays open showing a "Preparing…" body instead of
+  /// popping immediately and then awaiting off-screen — so the operator gets
+  /// a visible state between pressing Start and the next dialog appearing.
+  bool _preparing = false;
+
   /// Diff vs the most recent COMPLETED run of this sequence. `null`
   /// either means we haven't computed it yet, or there
   /// is no previous run to compare against (fresh sequence, or first
@@ -182,43 +188,50 @@ class _PreFlightValidationDialogState
         mountState.connectionState == DeviceConnectionState.connected;
     final isMountParked = mountState.isParked;
 
-    // Close the preflight dialog first
+    // Capture a navigator that outlives this dialog so the follow-on handoff /
+    // unpark dialogs can be shown AFTER we pop the preflight dialog without
+    // relying on this State's (soon-to-be-defunct) context.
+    final navigator = Navigator.of(context);
+
+    // Do the async prep (multi-night carry-over lookup) while the dialog is
+    // still on screen, showing a "Preparing…" body — rather than popping
+    // first and awaiting invisibly. This gives the operator a visible state
+    // between pressing Start and the next dialog appearing.
+    final autoPrompt = ref.read(sessionHandoffAutoPromptProvider);
+    List<SessionCarryOver> carry = const <SessionCarryOver>[];
+    if (autoPrompt) {
+      setState(() => _preparing = true);
+      carry = await ref
+          .read(sessionCarryOverProvider.future)
+          .catchError((_) => const <SessionCarryOver>[]);
+      if (!mounted) return;
+      setState(() => _preparing = false);
+    }
+
+    // Prep finished — close the preflight dialog just before showing the next
+    // dialog so the user never sees a dead-but-open preflight while awaiting.
     if (mounted) {
       Navigator.of(context).pop();
     }
 
-    // Surface the carry-over banner when enabled.
-    if (mounted) {
-      final autoPrompt = ref.read(sessionHandoffAutoPromptProvider);
-      if (autoPrompt) {
-        final carry = await ref
-            .read(sessionCarryOverProvider.future)
-            .catchError((_) => const <SessionCarryOver>[]);
-        if (!mounted) return;
-        if (carry.isNotEmpty) {
-          final sequenceId = ref.read(currentSequenceProvider)?.databaseId;
-          final decisions = await SessionHandoffDialog.show(
-            context: context,
-            sequenceId: sequenceId,
-            carryOvers: carry,
-          );
-          // null = user dismissed; we still proceed with the run
-          // because the carry-over is informational only.
-          if (!mounted) return;
-          if (decisions == null) {
-            // User cancelled the handoff dialog entirely — abort the
-            // sequence start in case they intended to back out.
-            return;
-          }
-        }
-      }
+    // Surface the carry-over handoff dialog when there is something to carry.
+    if (carry.isNotEmpty) {
+      if (!navigator.mounted) return;
+      final sequenceId = ref.read(currentSequenceProvider)?.databaseId;
+      final decisions = await SessionHandoffDialog.show(
+        context: navigator.context,
+        sequenceId: sequenceId,
+        carryOvers: carry,
+      );
+      // null = user cancelled the handoff dialog entirely — abort the
+      // sequence start in case they intended to back out.
+      if (decisions == null) return;
     }
 
     // If mount is connected and parked, show the unpark dialog
     if (isMountConnected && isMountParked) {
-      if (!mounted) return;
-
-      final result = await showMountUnparkDialog(context);
+      if (!navigator.mounted) return;
+      final result = await showMountUnparkDialog(navigator.context);
 
       // Only start the sequence if the user chose to unpark
       if (result == MountUnparkResult.unparkAndContinue) {
@@ -256,15 +269,18 @@ class _PreFlightValidationDialogState
 
             // Content
             Flexible(
-              child: _isValidating
-                  ? _buildLoadingState(colors)
-                  : _result == null
-                      ? _buildErrorState(colors)
-                      : _buildResults(colors),
+              child: _preparing
+                  ? _buildPreparingState(colors)
+                  : _isValidating
+                      ? _buildLoadingState(colors)
+                      : _result == null
+                          ? _buildErrorState(colors)
+                          : _buildResults(colors),
             ),
 
-            // Actions
-            _buildActions(colors),
+            // Actions — hidden while preparing so the operator can't double-
+            // trigger the start while the carry-over lookup is in flight.
+            if (!_preparing) _buildActions(colors),
           ],
         ),
       ),
@@ -339,6 +355,42 @@ class _PreFlightValidationDialogState
               fontSize: NightshadeTypography.fontSize13,
               color: colors.textSecondary,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPreparingState(NightshadeColors colors) {
+    return Padding(
+      padding: const EdgeInsets.all(40),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 40,
+            height: 40,
+            child: CircularProgressIndicator(
+              strokeWidth: 3,
+              color: colors.primary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Preparing to start…',
+            style: TextStyle(
+              fontSize: NightshadeTypography.fontSize13,
+              color: colors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Checking for unfinished integration to carry over.',
+            style: TextStyle(
+              fontSize: NightshadeTypography.fontSize11,
+              color: colors.textMuted,
+            ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),

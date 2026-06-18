@@ -111,7 +111,54 @@ class _CollapsedNodeIdsNotifier extends StateNotifier<Set<String>> {
       collapse(nodeId);
     }
   }
+
+  /// Collapse every container in one shot (used by the header's Collapse-all
+  /// action). [containerIds] is the set of nodes that can hold children;
+  /// collapsing a leaf would be a harmless no-op for rendering but pollutes
+  /// the set, so callers pass only containers.
+  void collapseAll(Iterable<String> containerIds) {
+    state = {...state, ...containerIds};
+  }
+
+  /// Expand everything (clears the collapsed set).
+  void expandAll() {
+    if (state.isEmpty) return;
+    state = const <String>{};
+  }
 }
+
+/// One row of the visible tree: a node id plus its render depth.
+typedef VisibleNode = ({String id, int depth});
+
+/// Memoized visible-row order for the sequencer tree (depth-first, skipping
+/// children of collapsed nodes), recomputed only when the sequence or the
+/// collapsed set changes. Single source of truth for arrow-key navigation,
+/// the minimap, and the tree search — previously each recomputed its own
+/// flatten on every rebuild, and the minimap diverged because it ignored
+/// the collapsed set.
+final visibleNodeOrderProvider = Provider.autoDispose<List<VisibleNode>>((ref) {
+  final sequence = ref.watch(currentSequenceProvider);
+  final collapsed = ref.watch(collapsedNodeIdsProvider);
+  if (sequence == null) return const [];
+  final root = sequence.rootNode;
+  if (root == null) return const [];
+
+  final out = <VisibleNode>[];
+  void recurse(String nodeId, int depth) {
+    final n = sequence.nodes[nodeId];
+    if (n == null) return;
+    // The root is rendered as its children, not as a selectable row.
+    final isRoot = sequence.rootNodeId == nodeId;
+    if (!isRoot) out.add((id: nodeId, depth: depth));
+    if (collapsed.contains(nodeId)) return;
+    for (final childId in n.childIds) {
+      recurse(childId, depth + 1);
+    }
+  }
+
+  recurse(root.id, 0);
+  return out;
+});
 
 // ---------------------------------------------------------------------------
 // Action implementations
@@ -161,43 +208,15 @@ Map<Type, Action<Intent>> buildSequenceTreeActions(WidgetRef ref) {
   };
 }
 
-/// Flatten the tree into the visible-row order (depth-first, skipping
-/// children of collapsed nodes) so arrow keys advance one *row* at a
-/// time the same way the user sees them. Mirrors how `_NodeTreeView`
-/// renders the tree.
-List<String> _visibleNodeOrder(Sequence sequence, Set<String> collapsed) {
-  final root = sequence.rootNode;
-  if (root == null) return const [];
-
-  final out = <String>[];
-  void recurse(String nodeId) {
-    final n = sequence.nodes[nodeId];
-    if (n == null) return;
-    // The root itself is not a user-selectable row in the tree view; the
-    // tree renders its *children* as the top level. We still recurse so
-    // the children show up, but we skip pushing the root.
-    final isRoot = sequence.rootNodeId == nodeId;
-    if (!isRoot) out.add(nodeId);
-    if (collapsed.contains(nodeId)) return;
-    for (final childId in n.childIds) {
-      recurse(childId);
-    }
-  }
-
-  recurse(root.id);
-  return out;
-}
-
 void _moveSelection(
   WidgetRef ref, {
   required int delta,
   required bool extend,
 }) {
-  final sequence = ref.read(currentSequenceProvider);
-  if (sequence == null) return;
-
-  final collapsed = ref.read(collapsedNodeIdsProvider);
-  final order = _visibleNodeOrder(sequence, collapsed);
+  final order = ref
+      .read(visibleNodeOrderProvider)
+      .map((e) => e.id)
+      .toList(growable: false);
   if (order.isEmpty) return;
 
   final current = ref.read(selectedNodeIdProvider);

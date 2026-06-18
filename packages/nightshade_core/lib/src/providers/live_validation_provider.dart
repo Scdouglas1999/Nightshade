@@ -79,25 +79,52 @@ class LiveValidationNotifier extends StateNotifier<LiveValidationState> {
       _scheduleValidation();
     });
 
-    // Watch equipment state changes that affect validation
-    _ref.listen(filterWheelStateProvider, (_, __) {
-      _scheduleValidation();
-    });
-    _ref.listen(guiderStateProvider, (_, __) {
-      _scheduleValidation();
-    });
-    _ref.listen(rotatorStateProvider, (_, __) {
-      _scheduleValidation();
-    });
-    _ref.listen(mountStateProvider, (_, __) {
-      _scheduleValidation();
-    });
-    _ref.listen(cameraStateProvider, (_, __) {
-      _scheduleValidation();
-    });
-    _ref.listen(focuserStateProvider, (_, __) {
-      _scheduleValidation();
-    });
+    // Equipment state changes that affect validation, NARROWED to only the
+    // slices the rule stack actually reads. The state snapshots also carry
+    // high-frequency telemetry (camera temperature/cooler power, mount
+    // RA/Dec, focuser position, guider RMS) that ticks many times a second;
+    // listening to the whole snapshot re-ran the full rule stack on every
+    // telemetry tick. Each `.select` below pins the validation-relevant
+    // fields so churn that validation never reads no longer triggers a
+    // re-run. Cooler-delta is the one rule that reads telemetry — we keep it
+    // honest by listening to camera temperature rounded to a whole degree
+    // (sub-degree wobble is noise; a real cooler change still refreshes).
+    _ref.listen(
+      filterWheelStateProvider.select(
+        (s) => (s.connectionState, s.deviceId, s.filterNames),
+      ),
+      (_, __) => _scheduleValidation(),
+    );
+    _ref.listen(
+      guiderStateProvider.select((s) => (s.connectionState, s.deviceId)),
+      (_, __) => _scheduleValidation(),
+    );
+    _ref.listen(
+      rotatorStateProvider.select((s) => (s.connectionState, s.deviceId)),
+      (_, __) => _scheduleValidation(),
+    );
+    _ref.listen(
+      mountStateProvider.select((s) => (s.connectionState, s.deviceId)),
+      (_, __) => _scheduleValidation(),
+    );
+    _ref.listen(
+      cameraStateProvider.select(
+        (s) => (
+          s.connectionState,
+          s.deviceId,
+          s.targetTemp,
+          // Round to whole degrees so the cooler-delta rule refreshes on a
+          // meaningful temperature change without re-validating on every
+          // sub-degree telemetry tick.
+          s.temperature?.round(),
+        ),
+      ),
+      (_, __) => _scheduleValidation(),
+    );
+    _ref.listen(
+      focuserStateProvider.select((s) => (s.connectionState, s.deviceId)),
+      (_, __) => _scheduleValidation(),
+    );
 
     // Settings changes (image output path, etc.) influence validation too.
     _ref.listen(appSettingsProvider, (_, __) {

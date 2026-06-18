@@ -25,7 +25,15 @@ class _BuilderContent extends ConsumerWidget {
         if (BreakpointTokens.isPhone(shortSide)) {
           return _MobileBuilderLayout(colors: colors);
         }
-        return _DesktopBuilderLayout(colors: colors);
+        // §24: thread this LayoutBuilder's width down to the desktop layout
+        // instead of opening a second nested LayoutBuilder. The outer builder
+        // is intentionally kept (not MediaQuery) so the short-side / split-
+        // pane logic stays correct when the sequencer is embedded in a
+        // sub-region (see the comment above).
+        return _DesktopBuilderLayout(
+          colors: colors,
+          availableWidth: constraints.maxWidth,
+        );
       },
     );
   }
@@ -36,12 +44,21 @@ class _BuilderContent extends ConsumerWidget {
 /// Adapts to screen width by using collapsed states on narrower screens
 class _DesktopBuilderLayout extends ConsumerWidget {
   final NightshadeColors colors;
+  final double availableWidth;
 
-  const _DesktopBuilderLayout({required this.colors});
+  const _DesktopBuilderLayout({
+    required this.colors,
+    required this.availableWidth,
+  });
 
   // Base panel dimension constants (for ~1024px screens)
   static const double minCenterWidth = 300.0;
   static const double collapsedPanelWidth = 48.0;
+
+  /// §7: bucket the raw available width to the nearest 64px before computing
+  /// panel dimensions, so a continuous window-resize drag only steps the
+  /// derived panel sizes occasionally instead of re-tweening every frame.
+  static double _bucketWidth(double width) => (width / 64.0).round() * 64.0;
 
   /// Compute responsive panel dimensions based on available screen width.
   /// On a 2560px screen, panels grow proportionally wider so text doesn't
@@ -71,7 +88,18 @@ class _DesktopBuilderLayout extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final toolboxCollapsed = ref.watch(sequencerToolboxCollapsedProvider);
     final propertiesCollapsed = ref.watch(sequencerPropertiesCollapsedProvider);
-    final selectedNodeId = ref.watch(selectedNodeIdProvider);
+    final persistedLeftWidth = ref.watch(sequencerLeftPanelWidthProvider);
+    final persistedRightWidth = ref.watch(sequencerRightPanelWidthProvider);
+
+    // §7: derive panel sizes from a bucketed width so a continuous resize
+    // drag only steps the dimensions every ~64px instead of every frame.
+    final dims = _panelDimensions(_bucketWidth(availableWidth));
+
+    // Calculate space needed for different configurations.
+    final bothExpandedWidth =
+        dims.leftExpanded + minCenterWidth + dims.rightExpanded;
+    const bothCollapsedMinWidth =
+        collapsedPanelWidth + minCenterWidth + collapsedPanelWidth;
 
     return Column(
       children: [
@@ -99,19 +127,11 @@ class _DesktopBuilderLayout extends ConsumerWidget {
           },
         ),
 
-        // Main content - use LayoutBuilder to adapt to available width
+        // Main content. Width comes from _BuilderContent's LayoutBuilder
+        // (§24) so there is no second nested LayoutBuilder here.
         Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final availableWidth = constraints.maxWidth;
-              final dims = _panelDimensions(availableWidth);
-
-              // Calculate space needed for different configurations
-              final bothExpandedWidth =
-                  dims.leftExpanded + minCenterWidth + dims.rightExpanded;
-              const bothCollapsedMinWidth =
-                  collapsedPanelWidth + minCenterWidth + collapsedPanelWidth;
-
+          child: Builder(
+            builder: (context) {
               // Below the absolute minimum, fall back to a rail-only layout
               // that keeps a thin draggable icon palette so users can still
               // drop nodes onto the tree (audit §4.7).
@@ -119,28 +139,42 @@ class _DesktopBuilderLayout extends ConsumerWidget {
                 return _NarrowDesktopLayout(colors: colors);
               }
 
-              // §4.7: auto-collapse is *derived* — never write back to the
-              // user-pref providers. When the user later widens the
-              // window, their original toolboxCollapsed/propertiesCollapsed
-              // preferences come back unchanged.
+              // §8: when space is tight we no longer yank a whole panel
+              // collapsed the instant a node is selected. Both panels stay
+              // visible at their *min* widths in the tight band; the truly
+              // narrow case below bothCollapsedMinWidth already drops to the
+              // rail layout above. Auto-collapse is *derived* — we never
+              // write back to the user-pref providers (§4.7), so widening
+              // the window restores the user's saved expanded preference.
               final spaceTight = availableWidth < bothExpandedWidth;
 
-              // If both prefs say "expanded" but we can't fit both, pick
-              // which one to force-collapse based on whether a node is
-              // selected (selected = show its properties).
-              final autoCollapseToolbox = spaceTight &&
-                  !toolboxCollapsed &&
-                  !propertiesCollapsed &&
-                  selectedNodeId != null;
-              final autoCollapseProperties = spaceTight &&
-                  !toolboxCollapsed &&
-                  !propertiesCollapsed &&
-                  selectedNodeId == null;
+              // Honor only the explicit user collapse prefs; tight space
+              // packs both panels to *Min instead of collapsing one.
+              final effectiveToolboxCollapsed = toolboxCollapsed;
+              final effectivePropertiesCollapsed = propertiesCollapsed;
 
-              final effectiveToolboxCollapsed =
-                  toolboxCollapsed || autoCollapseToolbox;
-              final effectivePropertiesCollapsed =
-                  propertiesCollapsed || autoCollapseProperties;
+              // Derived expanded widths. When space is tight, both panels use
+              // their min width. Otherwise a panel may grow to its expanded
+              // width when the *other* panel is collapsed. A user-dragged
+              // width (persisted, §6) overrides the derived width.
+              final leftDerived = spaceTight
+                  ? dims.leftMin
+                  : (effectivePropertiesCollapsed
+                      ? dims.leftExpanded
+                      : dims.leftMin);
+              final rightDerived = spaceTight
+                  ? dims.rightMin
+                  : (effectiveToolboxCollapsed
+                      ? dims.rightExpanded
+                      : dims.rightMin);
+              final leftWidth = (persistedLeftWidth ?? leftDerived).clamp(
+                dims.leftMin,
+                dims.leftMax,
+              );
+              final rightWidth = (persistedRightWidth ?? rightDerived).clamp(
+                dims.rightMin,
+                dims.rightMax,
+              );
 
               return Row(
                 children: [
@@ -149,24 +183,24 @@ class _DesktopBuilderLayout extends ConsumerWidget {
                     colors: colors,
                     isCollapsed: effectiveToolboxCollapsed,
                     collapsedWidth: collapsedPanelWidth,
-                    expandedWidth: effectivePropertiesCollapsed
-                        ? dims.leftExpanded
-                        : dims.leftMin,
+                    expandedWidth: leftWidth,
                     minExpandedWidth: dims.leftMin,
                     maxExpandedWidth: dims.leftMax,
                     side: ResizeSide.right,
                     collapsedIcon: LucideIcons.layoutGrid,
                     collapsedTooltip: 'Show Toolbox',
                     onToggle: () {
-                      // Only toggle this panel's pref. The derived
-                      // effective* values above handle the other panel
-                      // automatically when space is tight (§4.7).
                       final wasCollapsed =
                           ref.read(sequencerToolboxCollapsedProvider);
                       ref
                           .read(sequencerToolboxCollapsedProvider.notifier)
                           .state = !wasCollapsed;
                     },
+                    // §6: persist a drag so it survives the next layout pass
+                    // instead of snapping back to the derived width.
+                    onWidthChanged: (w) => ref
+                        .read(sequencerLeftPanelWidthProvider.notifier)
+                        .state = w.clamp(dims.leftMin, dims.leftMax),
                     child: _ToolboxPanel(
                       key: SequencerTutorialKeys.nodePalette,
                       colors: colors,
@@ -188,32 +222,31 @@ class _DesktopBuilderLayout extends ConsumerWidget {
                     ),
                   ),
 
-                  // Right panel - Properties
+                  // Right panel - Properties. §21: the panel can now expand
+                  // with an empty state, so the toggle is always live and the
+                  // affordance is discoverable before a node is selected —
+                  // the panel renders NodePropertiesPanel's own "select a
+                  // node" empty state.
                   _CollapsiblePanel(
                     colors: colors,
                     isCollapsed: effectivePropertiesCollapsed,
                     collapsedWidth: collapsedPanelWidth,
-                    expandedWidth: effectiveToolboxCollapsed
-                        ? dims.rightExpanded
-                        : dims.rightMin,
+                    expandedWidth: rightWidth,
                     minExpandedWidth: dims.rightMin,
                     maxExpandedWidth: dims.rightMax,
                     side: ResizeSide.left,
                     collapsedIcon: LucideIcons.settings2,
-                    collapsedTooltip: selectedNodeId != null
-                        ? 'Show Properties'
-                        : 'No Node Selected',
-                    collapsedDisabled: selectedNodeId == null,
+                    collapsedTooltip: 'Show Properties',
                     onToggle: () {
-                      if (selectedNodeId == null) {
-                        return; // Can't expand without selection
-                      }
                       final wasCollapsed =
                           ref.read(sequencerPropertiesCollapsedProvider);
                       ref
                           .read(sequencerPropertiesCollapsedProvider.notifier)
                           .state = !wasCollapsed;
                     },
+                    onWidthChanged: (w) => ref
+                        .read(sequencerRightPanelWidthProvider.notifier)
+                        .state = w.clamp(dims.rightMin, dims.rightMax),
                     child: NodePropertiesPanel(
                       key: SequencerTutorialKeys.propertiesPanel,
                       colors: colors,

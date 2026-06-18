@@ -242,12 +242,15 @@ class NodeTimingSection extends ConsumerWidget {
                     ),
                   ),
                   SizedBox(width: Responsive.spacing(context, 8)),
-                  Text(
-                    formatDurationNice(duration),
-                    style: TextStyle(
-                      fontSize: summaryFontSize,
-                      fontWeight: FontWeight.w600,
-                      color: colors.primary,
+                  Flexible(
+                    child: Text(
+                      formatDurationNice(duration),
+                      style: TextStyle(
+                        fontSize: summaryFontSize,
+                        fontWeight: FontWeight.w600,
+                        color: colors.primary,
+                      ),
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
@@ -267,11 +270,14 @@ class NodeTimingSection extends ConsumerWidget {
                       ),
                     ),
                     SizedBox(width: Responsive.spacing(context, 8)),
-                    Text(
-                      '${percentage.toStringAsFixed(1)}% of total',
-                      style: TextStyle(
-                        fontSize: contributeFontSize,
-                        color: colors.textSecondary,
+                    Flexible(
+                      child: Text(
+                        '${percentage.toStringAsFixed(1)}% of total',
+                        style: TextStyle(
+                          fontSize: contributeFontSize,
+                          color: colors.textSecondary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],

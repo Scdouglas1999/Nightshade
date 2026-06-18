@@ -41,6 +41,36 @@ class AppSettingsState {
   final SafetyFailMode
   safetyFailMode; // How to behave when safety data unavailable
 
+  // -------------------------------------------------------------------
+  // Sequencer editor layout — cross-restart UI persistence.
+  //
+  // All nullable: `null` = "no stored preference, use the responsive
+  // default". The sequencer screen seeds its in-session StateProviders from
+  // these on first read and writes back through the matching setters on
+  // change, so a dragged panel / collapsed toolbox / chosen tab survives an
+  // app restart.
+  // -------------------------------------------------------------------
+  /// Whether the sequencer's left toolbox panel is collapsed.
+  final bool? sequencerToolboxCollapsed;
+
+  /// Whether the sequencer's right properties panel is collapsed.
+  final bool? sequencerPropertiesCollapsed;
+
+  /// Whether the snippet palette is visible in the sequencer.
+  final bool? sequencerSnippetPaletteVisible;
+
+  /// Active toolbox tab id within the sequencer toolbox panel.
+  final String? sequencerToolboxTab;
+
+  /// Active editor tab index in the sequencer.
+  final int? sequencerActiveTab;
+
+  /// Persisted width (px) of the sequencer's left panel after a drag.
+  final double? sequencerLeftPanelWidth;
+
+  /// Persisted width (px) of the sequencer's right panel after a drag.
+  final double? sequencerRightPanelWidth;
+
   // Plate Solving
   final String plateSolver; // 'ASTAP', 'Astrometry.net', 'PlateSolve2'
   final String astapPath;
@@ -335,6 +365,15 @@ class AppSettingsState {
   /// this is false.
   final bool smartNightAutoPromptEnabled;
 
+  /// Whether the Smart Night wizard defaults to auto-picking the top N
+  /// targets (vs. manual selection). Persisted so the choice survives
+  /// across launches instead of resetting to true each time.
+  final bool smartNightAutoSelect;
+
+  /// How many targets the Smart Night wizard auto-picks when
+  /// [smartNightAutoSelect] is true.
+  final int smartNightAutoSelectCount;
+
   // -------------------------------------------------------------------
   // Notes / journal preferences
   // -------------------------------------------------------------------
@@ -449,6 +488,15 @@ class AppSettingsState {
     this.ditherEnabled = true,
     this.ditherEveryFrames = 3,
     this.safetyFailMode = SafetyFailMode.failClosed,
+
+    // Sequencer editor layout (null = use responsive default).
+    this.sequencerToolboxCollapsed,
+    this.sequencerPropertiesCollapsed,
+    this.sequencerSnippetPaletteVisible,
+    this.sequencerToolboxTab,
+    this.sequencerActiveTab,
+    this.sequencerLeftPanelWidth,
+    this.sequencerRightPanelWidth,
 
     // Plate Solving
     this.plateSolver = 'ASTAP',
@@ -582,6 +630,8 @@ class AppSettingsState {
     this.smartNightSubExposureCeilingSecs = 300.0,
     this.smartNightTargetSnr = 30.0,
     this.smartNightAutoPromptEnabled = true,
+    this.smartNightAutoSelect = true,
+    this.smartNightAutoSelectCount = 2,
     this.promptForNotesAfterRun = true,
     this.sessionHandoffAutoPrompt = true,
     this.campaignRollupSurfaceTargetsTab = true,
@@ -625,6 +675,16 @@ class AppSettingsState {
     bool? ditherEnabled,
     int? ditherEveryFrames,
     SafetyFailMode? safetyFailMode,
+    // Sequencer editor layout. Nullable fields use the `_unset` sentinel so
+    // a caller can deliberately clear a stored preference back to null
+    // ("use the responsive default") vs. leaving it unchanged.
+    Object? sequencerToolboxCollapsed = _unset,
+    Object? sequencerPropertiesCollapsed = _unset,
+    Object? sequencerSnippetPaletteVisible = _unset,
+    Object? sequencerToolboxTab = _unset,
+    Object? sequencerActiveTab = _unset,
+    Object? sequencerLeftPanelWidth = _unset,
+    Object? sequencerRightPanelWidth = _unset,
     String? plateSolver,
     String? astapPath,
     String? astrometryPath,
@@ -745,6 +805,8 @@ class AppSettingsState {
     double? smartNightSubExposureCeilingSecs,
     double? smartNightTargetSnr,
     bool? smartNightAutoPromptEnabled,
+    bool? smartNightAutoSelect,
+    int? smartNightAutoSelectCount,
     // Notes prompt toggle.
     bool? promptForNotesAfterRun,
     // Session lifecycle.
@@ -789,6 +851,30 @@ class AppSettingsState {
       ditherEnabled: ditherEnabled ?? this.ditherEnabled,
       ditherEveryFrames: ditherEveryFrames ?? this.ditherEveryFrames,
       safetyFailMode: safetyFailMode ?? this.safetyFailMode,
+      // Sequencer editor layout.
+      sequencerToolboxCollapsed: identical(sequencerToolboxCollapsed, _unset)
+          ? this.sequencerToolboxCollapsed
+          : sequencerToolboxCollapsed as bool?,
+      sequencerPropertiesCollapsed:
+          identical(sequencerPropertiesCollapsed, _unset)
+          ? this.sequencerPropertiesCollapsed
+          : sequencerPropertiesCollapsed as bool?,
+      sequencerSnippetPaletteVisible:
+          identical(sequencerSnippetPaletteVisible, _unset)
+          ? this.sequencerSnippetPaletteVisible
+          : sequencerSnippetPaletteVisible as bool?,
+      sequencerToolboxTab: identical(sequencerToolboxTab, _unset)
+          ? this.sequencerToolboxTab
+          : sequencerToolboxTab as String?,
+      sequencerActiveTab: identical(sequencerActiveTab, _unset)
+          ? this.sequencerActiveTab
+          : sequencerActiveTab as int?,
+      sequencerLeftPanelWidth: identical(sequencerLeftPanelWidth, _unset)
+          ? this.sequencerLeftPanelWidth
+          : sequencerLeftPanelWidth as double?,
+      sequencerRightPanelWidth: identical(sequencerRightPanelWidth, _unset)
+          ? this.sequencerRightPanelWidth
+          : sequencerRightPanelWidth as double?,
       plateSolver: plateSolver ?? this.plateSolver,
       astapPath: astapPath ?? this.astapPath,
       astrometryPath: astrometryPath ?? this.astrometryPath,
@@ -962,6 +1048,9 @@ class AppSettingsState {
       smartNightTargetSnr: smartNightTargetSnr ?? this.smartNightTargetSnr,
       smartNightAutoPromptEnabled:
           smartNightAutoPromptEnabled ?? this.smartNightAutoPromptEnabled,
+      smartNightAutoSelect: smartNightAutoSelect ?? this.smartNightAutoSelect,
+      smartNightAutoSelectCount:
+          smartNightAutoSelectCount ?? this.smartNightAutoSelectCount,
       // Notes prompt toggle.
       promptForNotesAfterRun:
           promptForNotesAfterRun ?? this.promptForNotesAfterRun,

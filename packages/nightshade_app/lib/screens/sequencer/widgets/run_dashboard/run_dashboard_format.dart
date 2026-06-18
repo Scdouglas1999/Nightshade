@@ -5,9 +5,15 @@
 library;
 
 String formatRA(double raHours) {
-  final h = raHours.floor();
-  final m = ((raHours - h) * 60).floor();
-  final s = (((raHours - h) * 60 - m) * 60).round();
+  // Decompose from a single rounded second count so the seconds carry into
+  // minutes (and minutes into hours) instead of rendering a bogus "60s".
+  var totalSeconds = (raHours * 3600).round();
+  // RA wraps at 24h; keep it in [0, 24h) after the carry.
+  totalSeconds %= 24 * 3600;
+  if (totalSeconds < 0) totalSeconds += 24 * 3600;
+  final h = totalSeconds ~/ 3600;
+  final m = (totalSeconds % 3600) ~/ 60;
+  final s = totalSeconds % 60;
   return '${h.toString().padLeft(2, '0')}h '
       '${m.toString().padLeft(2, '0')}m '
       '${s.toString().padLeft(2, '0')}s';
@@ -15,10 +21,13 @@ String formatRA(double raHours) {
 
 String formatDec(double decDegrees) {
   final sign = decDegrees >= 0 ? '+' : '-';
-  final v = decDegrees.abs();
-  final d = v.floor();
-  final m = ((v - d) * 60).floor();
-  final s = (((v - d) * 60 - m) * 60).round();
+  // Decompose the absolute value from a single rounded second count so the
+  // seconds carry into arcminutes (and arcminutes into degrees), then apply
+  // the sign. Eliminates the 60-second carry artifact.
+  final totalSeconds = (decDegrees.abs() * 3600).round();
+  final d = totalSeconds ~/ 3600;
+  final m = (totalSeconds % 3600) ~/ 60;
+  final s = totalSeconds % 60;
   return '$sign${d.toString().padLeft(2, '0')}° '
       '${m.toString().padLeft(2, '0')}\' '
       '${s.toString().padLeft(2, '0')}"';

@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/sequence/sequence_models.dart'
-    show BinningMode, LiveStackingMethod;
+    show BinningMode, LiveStackingMethod, SequenceOverheadConfig;
 import '../database_provider.dart';
 
 /// Sentinel used by [SequencerDefaults.copyWith] to distinguish "leave
@@ -12,6 +12,27 @@ final sequencerDefaultsProvider =
     StateNotifierProvider<SequencerDefaultsNotifier, SequencerDefaults>((ref) {
       return SequencerDefaultsNotifier(ref);
     });
+
+/// Single [SequenceOverheadConfig] derived from the user's
+/// [SequencerDefaults] so the time estimator, the tree-row rollup, and
+/// [Sequence.estimateWithOverhead] can all share ONE overhead model instead
+/// of three divergent sets of literals.
+///
+/// The app constructs both `SequenceTimeEstimator(overhead: <this>)` and the
+/// rollup from this provider so the node chip, the timeline, and the
+/// run-dashboard total agree. Only the fields the user actually configures in
+/// Sequencer Settings (dither settle time, per-frame download overhead) are
+/// mapped from defaults; the remaining fields keep the
+/// [SequenceOverheadConfig] field defaults.
+final sequencerOverheadConfigProvider = Provider<SequenceOverheadConfig>((ref) {
+  final defaults = ref.watch(sequencerDefaultsProvider);
+  return SequenceOverheadConfig(
+    // User-configured dither settle time drives the dither/settle cycle cost.
+    ditherSecs: defaults.ditherSettleTime,
+    // Shared per-frame download overhead (also fed into the ETA smoother).
+    downloadOverheadPerExposureSecs: defaults.frameDownloadOverheadSecs,
+  );
+});
 
 class SequencerDefaults {
   // Autofocus defaults
@@ -43,6 +64,14 @@ class SequencerDefaults {
   final int? exposureOffset;
   final BinningMode exposureBinning;
   final int exposureDitherEvery;
+
+  /// Fixed per-frame download + save overhead (seconds) folded into the
+  /// ETA per-frame sample alongside the real exposure duration. Not user-
+  /// editable today (no Settings surface persists it), but exposed as a
+  /// field so the ETA smoother and the overhead estimator share one
+  /// constant instead of two divergent literals. Matches the estimator's
+  /// historical 2.0s download assumption.
+  final double frameDownloadOverheadSecs;
 
   // LiveStacking defaults (palette + properties editor)
   /// Default TCP port the broadcast endpoints bind to. 8081 keeps clear
@@ -93,6 +122,7 @@ class SequencerDefaults {
     this.exposureOffset,
     this.exposureBinning = BinningMode.one,
     this.exposureDitherEvery = 1,
+    this.frameDownloadOverheadSecs = 2.0,
     this.livestackingDefaultPort = 8081,
     this.livestackingPublicByDefault = false,
     this.livestackingDefaultStackMethod = LiveStackingMethod.average,
@@ -119,6 +149,7 @@ class SequencerDefaults {
     int? exposureOffset,
     BinningMode? exposureBinning,
     int? exposureDitherEvery,
+    double? frameDownloadOverheadSecs,
     int? livestackingDefaultPort,
     bool? livestackingPublicByDefault,
     LiveStackingMethod? livestackingDefaultStackMethod,
@@ -146,6 +177,8 @@ class SequencerDefaults {
       exposureGain: exposureGain ?? this.exposureGain,
       exposureOffset: exposureOffset ?? this.exposureOffset,
       exposureBinning: exposureBinning ?? this.exposureBinning,
+      frameDownloadOverheadSecs:
+          frameDownloadOverheadSecs ?? this.frameDownloadOverheadSecs,
       livestackingDefaultPort:
           livestackingDefaultPort ?? this.livestackingDefaultPort,
       livestackingPublicByDefault:

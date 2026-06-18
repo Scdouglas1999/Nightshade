@@ -116,6 +116,13 @@ class _FramingAssistantDialogState
     final colors = NightshadeColors.of(context);
     final equipmentFOV = ref.watch(equipmentFOVProvider);
     final fovTuple = equipmentFOV.fov;
+    // The FOV is approximate when the optical config can't supply real sensor
+    // dimensions (no connected camera) and the sync fell back to a typical
+    // 4096x2731 sensor. Surface that so the user doesn't trust the framing
+    // box dimensions as exact.
+    final config = ref.watch(opticalConfigProvider);
+    final fovIsApproximate = config != null &&
+        (config.sensorWidth == null || config.sensorHeight == null);
 
     return NightshadeDialog(
       title: 'Frame target — ${widget.target.targetName}',
@@ -155,6 +162,7 @@ class _FramingAssistantDialogState
                     colors: colors,
                     target: widget.target,
                     fov: fovTuple,
+                    fovIsApproximate: fovIsApproximate,
                   ),
                   const SizedBox(height: 12),
                   _RotationControls(
@@ -214,11 +222,13 @@ class _ContextCard extends StatelessWidget {
   final NightshadeColors colors;
   final TargetHeaderNode target;
   final (double, double)? fov;
+  final bool fovIsApproximate;
 
   const _ContextCard({
     required this.colors,
     required this.target,
     required this.fov,
+    required this.fovIsApproximate,
   });
 
   @override
@@ -278,6 +288,25 @@ class _ContextCard extends StatelessWidget {
               ),
             ],
           ),
+          if (fov != null && fovIsApproximate) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(LucideIcons.info, size: 11, color: colors.warning),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Approximate FOV — no camera connected; using a typical '
+                    'sensor size. Connect the camera for exact framing.',
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize10,
+                      color: colors.warning,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

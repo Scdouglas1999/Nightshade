@@ -19,6 +19,12 @@ class _NodeItem extends ConsumerStatefulWidget {
   final InstructionProgressDetail? structuredProgressDetail;
   final bool isMobile;
 
+  /// Whether this node is collapsed in the tree (children hidden). Drives the
+  /// chevron rotation; kept in sync with [collapsedNodeIdsProvider] which the
+  /// chevron tap toggles. Computed by [_NodeTreeView] so the two stay
+  /// consistent. Only meaningful for containers ([hasChildren] / target).
+  final bool isCollapsed;
+
   const _NodeItem({
     super.key,
     required this.colors,
@@ -38,6 +44,7 @@ class _NodeItem extends ConsumerStatefulWidget {
     this.progressDetail,
     this.structuredProgressDetail,
     this.isMobile = false,
+    this.isCollapsed = false,
   });
 
   @override
@@ -45,7 +52,10 @@ class _NodeItem extends ConsumerStatefulWidget {
 }
 
 class _NodeItemState extends ConsumerState<_NodeItem> {
-  bool _isHovered = false;
+  // Hover state lives in a ValueNotifier (not setState) so moving the mouse
+  // over the row doesn't rebuild the whole _NodeItem subtree — only the two
+  // hover-dependent islands (background color + action cluster) listen.
+  final ValueNotifier<bool> _isHovered = ValueNotifier<bool>(false);
 
   // For progress panel persistence
   bool _showProgressPanel = false;
@@ -86,6 +96,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
   @override
   void dispose() {
     _panelPersistTimer?.cancel();
+    _isHovered.dispose();
     super.dispose();
   }
 
@@ -278,6 +289,11 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                 }
 
                 try {
+                  // Capture the full multi-selection when present, else just
+                  // this node. createSnippetFromSelection requires the nodes
+                  // share a parent / be contiguous; failures land in catch.
+                  final multi = ref.read(multiSelectedNodeIdsProvider);
+                  final nodeIds = multi.isNotEmpty ? multi.toList() : [node.id];
                   final snippet = createSnippetFromSelection(
                     name: name,
                     description: descController.text.trim().isEmpty
@@ -285,7 +301,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                         : descController.text.trim(),
                     category: selectedCategory,
                     iconName: node.iconName,
-                    nodeIds: [node.id],
+                    nodeIds: nodeIds,
                     sequence: sequence,
                   );
 
@@ -449,8 +465,8 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         MouseRegion(
-          onEnter: (_) => setState(() => _isHovered = true),
-          onExit: (_) => setState(() => _isHovered = false),
+          onEnter: (_) => _isHovered.value = true,
+          onExit: (_) => _isHovered.value = false,
           child: Semantics(
             button: true,
             selected: widget.isSelected,
@@ -461,382 +477,68 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                 'Select node. More actions include reorder and wrap commands.',
             child: GestureDetector(
               onTap: widget.onSelect,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                margin: EdgeInsets.symmetric(vertical: verticalMargin),
-                padding: EdgeInsets.symmetric(
-                    horizontal: horizontalPadding, vertical: verticalPadding),
-                decoration: BoxDecoration(
-                  color: widget.isDragging
-                      ? categoryColor.withValues(alpha: 0.2)
-                      : widget.isSelected
-                          ? NightshadeDecorations.selectedSurface(categoryColor)
-                              .color
-                          : isSuccess
-                              ? widget.colors.success.withValues(alpha: 0.06)
-                              : isFailed
-                                  ? widget.colors.error.withValues(alpha: 0.06)
-                                  : (isSkipped || isCancelled)
-                                      ? widget.colors.textMuted
-                                          .withValues(alpha: 0.04)
-                                      : isTargetHeader
-                                          ? categoryColor.withValues(
-                                              alpha:
-                                                  0.08) // Slight tint for target headers
-                                          : _isHovered
-                                              ? widget.colors.surfaceAlt
-                                              : widget.colors.surface,
-                  borderRadius: BorderRadius.circular(borderRadius),
-                  border: Border.all(
-                    color: widget.isSelected
-                        ? categoryColor
-                        : isRunning
-                            ? widget.colors.info.withValues(alpha: 0.65)
-                            : isTargetHeader
-                                ? categoryColor.withValues(
-                                    alpha:
-                                        0.3) // Stronger border for target headers
-                                : widget.colors.border,
-                    width: widget.isSelected || isTargetHeader
-                        ? 2
-                        : 1, // Thicker border for target headers
-                  ),
-                  boxShadow: null,
+              child: ValueListenableBuilder<bool>(
+                valueListenable: _isHovered,
+                // The container's heavy child (icon / name / summary) is built
+                // ONCE and passed via `child`, so hover only recomputes the
+                // background color, not the whole row.
+                child: _buildRowBody(
+                  context: context,
+                  categoryColor: categoryColor,
+                  statusColor: statusColor,
+                  summaryFragments: summaryFragments,
+                  isDisabled: isDisabled,
+                  isRunning: isRunning,
+                  isSuccess: isSuccess,
+                  isFailed: isFailed,
+                  isSkipped: isSkipped,
+                  isCancelled: isCancelled,
+                  isTargetHeader: isTargetHeader,
+                  isMobile: isMobile,
+                  iconBoxSize: iconBoxSize,
+                  iconSize: iconSize,
+                  titleFontSize: titleFontSize,
                 ),
-                child: Opacity(
-                  opacity: isDisabled
-                      ? 0.5
-                      : (isSkipped || isCancelled)
-                          ? 0.6
-                          : 1.0,
-                  child: Row(
-                    children: [
-                      // Status indicator
-                      if (widget.nodeStatus != null &&
-                          widget.nodeStatus != NodeStatus.pending)
-                        Container(
-                          width: 4,
-                          height: iconBoxSize,
-                          margin: EdgeInsets.only(right: isMobile ? 12 : 10),
-                          decoration: BoxDecoration(
-                            color: statusColor,
-                            borderRadius: BorderRadius.circular(
-                                NightshadeTokens.radiusInline2),
-                          ),
-                        ),
-
-                      // Icon
-                      Container(
-                        width: iconBoxSize,
-                        height: iconBoxSize,
-                        decoration: NightshadeDecorations.tintedBadge(
-                          categoryColor,
-                          borderRadius: BorderRadius.circular(isMobile
-                              ? NightshadeTokens.radiusLg
-                              : NightshadeTokens.radiusInline8),
-                        ),
-                        child: isRunning
-                            ? _SpinningIcon(
-                                icon: _getIcon(),
-                                color: categoryColor,
-                                size: iconSize,
-                              )
-                            : Icon(
-                                _getIcon(),
-                                size: iconSize,
-                                color: categoryColor,
-                              ),
-                      ),
-                      SizedBox(width: isMobile ? 14 : 12),
-
-                      // Name and subtitle
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Title row: the node name, followed inline by
-                            // the watchdog badge for trigger-category nodes
-                            // (e.g. Meridian Flip). The badge sits after the
-                            // title and before any trailing row-level status
-                            // indicator so it reads as a property of the
-                            // node, not of the run.
-                            Row(
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    widget.node.name,
-                                    style: TextStyle(
-                                      fontSize: isTargetHeader
-                                          ? titleFontSize + 1
-                                          : titleFontSize,
-                                      fontWeight: FontWeight.w600,
-                                      color: isSuccess
-                                          ? widget.colors.success
-                                          : isFailed
-                                              ? widget.colors.error
-                                              : (isSkipped || isCancelled)
-                                                  ? widget.colors.textMuted
-                                                  : widget.colors.textPrimary,
-                                      decoration:
-                                          isDisabled || isSkipped || isCancelled
-                                              ? TextDecoration.lineThrough
-                                              : null,
-                                      decorationColor: isSkipped || isCancelled
-                                          ? widget.colors.textMuted
-                                          : null,
-                                    ),
-                                    softWrap: false,
-                                    overflow: TextOverflow.ellipsis,
-                                    maxLines: 1,
-                                  ),
-                                ),
-                                if (widget.node.category ==
-                                    NodeCategory.trigger) ...[
-                                  const SizedBox(
-                                      width: NightshadeTokens.spaceSm),
-                                  _WatchdogBadge(colors: widget.colors),
-                                ],
-                              ],
-                            ),
-                            if (summaryFragments.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(
-                                    top: NightshadeTokens.spaceXs / 2),
-                                child: NodeSummaryLine(
-                                  node: widget.node,
-                                  colors: widget.colors,
-                                  isMobile: isMobile,
-                                  mutedColorOverride: (isSkipped || isCancelled)
-                                      ? widget.colors.textMuted
-                                      : null,
-                                ),
-                              ),
-                            // Show node comment as gray italic text
-                            if (widget.node.comment != null &&
-                                widget.node.comment!.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 2),
-                                child: Text(
-                                  widget.node.comment!,
-                                  style: TextStyle(
-                                    fontSize: isMobile
-                                        ? NightshadeTypography.fontSize12
-                                        : NightshadeTypography.fontSize10,
-                                    color: widget.colors.textMuted
-                                        .withValues(alpha: 0.7),
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                  softWrap: false,
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                ),
-                              ),
-                            // Show progress bar for running instructions
-                            if (isRunning &&
-                                widget.progressPercent != null &&
-                                widget.progressPercent! > 0)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (widget.progressDetail != null &&
-                                        widget.progressDetail!.isNotEmpty)
-                                      Padding(
-                                        padding:
-                                            const EdgeInsets.only(bottom: 2),
-                                        child: Text(
-                                          widget.progressDetail!,
-                                          style: TextStyle(
-                                            fontSize:
-                                                NightshadeTypography.fontSize10,
-                                            color: widget.colors.info,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ),
-                                    ClipRRect(
-                                      borderRadius: BorderRadius.circular(
-                                          NightshadeTokens.radiusInline2),
-                                      child: LinearProgressIndicator(
-                                        value: widget.progressPercent! / 100.0,
-                                        minHeight: 4,
-                                        backgroundColor:
-                                            widget.colors.surfaceAlt,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                                widget.colors.info),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-
-                      // Actions
-                      if ((isMobile || _isHovered) && !widget.isDragging) ...[
-                        // Trust-patch §B: per-row action icons mutate
-                        // the tree (toggle enabled, duplicate, delete)
-                        // and must be disabled when a sequence is
-                        // running. The kebab below already gated
-                        // move_up/move_down; this is the matching
-                        // gate for the inline icons.
-                        Builder(builder: (context) {
-                          final canEdit = ref.watch(canEditSequenceProvider);
-                          const lockedSuffix =
-                              ' (locked while sequence is running)';
-                          final lockedTail = canEdit ? '' : lockedSuffix;
-                          final toggleLabel =
-                              widget.node.isEnabled ? 'Disable' : 'Enable';
-                          return Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _NodeActionButton(
-                                icon: widget.node.isEnabled
-                                    ? LucideIcons.eye
-                                    : LucideIcons.eyeOff,
-                                tooltip: '$toggleLabel$lockedTail',
-                                colors: widget.colors,
-                                onPressed:
-                                    canEdit ? widget.onToggleEnabled : null,
-                              ),
-                              _NodeActionButton(
-                                icon: LucideIcons.copy,
-                                tooltip: 'Duplicate$lockedTail',
-                                colors: widget.colors,
-                                onPressed: canEdit ? widget.onDuplicate : null,
-                              ),
-                              _NodeActionButton(
-                                icon: LucideIcons.trash2,
-                                tooltip: 'Delete$lockedTail',
-                                colors: widget.colors,
-                                color: widget.colors.error,
-                                onPressed: canEdit ? widget.onDelete : null,
-                              ),
-                            ],
-                          );
-                        }),
-
-                        // Inline more-actions menu.
-                        //
-                        // Reconciliation: the right-click / long-press
-                        // context menu (`SequenceTreeContextMenu`) is now
-                        // the comprehensive surface for tree mutations
-                        // (Insert, Duplicate, Group, Enable/Disable,
-                        // Delete). This kebab is intentionally limited to
-                        // entries that don't belong in a generic
-                        // right-click:
-                        //   * Move Up / Move Down — a visible, tappable
-                        //     re-order handle on touch and as a redundant
-                        //     surface alongside the Shift+Up / Shift+Down
-                        //     keyboard shortcut wired in
-                        //     `sequence_tree_shortcuts.dart`.
-                        //   * Save as Template — a "promote-this-subtree-
-                        //     to-the-library" action that is not part of
-                        //     the per-node edit vocabulary the context
-                        //     menu covers.
-                        // Items here respect `canEditSequenceProvider` —
-                        // when a sequence is Running / Paused / Stopping
-                        // the kebab still opens but mutating entries are
-                        // disabled (Save as Template is read-only so it
-                        // stays enabled).
-                        Builder(builder: (context) {
-                          final canEdit = ref.watch(canEditSequenceProvider);
-                          return Theme(
-                            data: Theme.of(context).copyWith(
-                              popupMenuTheme: PopupMenuThemeData(
-                                color: widget.colors.surfaceAlt,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(
-                                      NightshadeTokens.radiusInline8),
-                                  side: BorderSide(color: widget.colors.border),
-                                ),
-                              ),
-                            ),
-                            child: PopupMenuButton<String>(
-                              icon: Icon(LucideIcons.moreVertical,
-                                  size: 14, color: widget.colors.textMuted),
-                              tooltip: 'More Actions',
-                              padding: EdgeInsets.zero,
-                              itemBuilder: (context) => [
-                                if (widget.onMoveUp != null)
-                                  PopupMenuItem<String>(
-                                    value: 'move_up',
-                                    height: 32,
-                                    enabled: canEdit,
-                                    child: Text('Move Up',
-                                        style: TextStyle(
-                                          fontSize:
-                                              NightshadeTypography.fontSize13,
-                                          color: canEdit
-                                              ? widget.colors.textPrimary
-                                              : widget.colors.textMuted,
-                                        )),
-                                  ),
-                                if (widget.onMoveDown != null)
-                                  PopupMenuItem<String>(
-                                    value: 'move_down',
-                                    height: 32,
-                                    enabled: canEdit,
-                                    child: Text('Move Down',
-                                        style: TextStyle(
-                                          fontSize:
-                                              NightshadeTypography.fontSize13,
-                                          color: canEdit
-                                              ? widget.colors.textPrimary
-                                              : widget.colors.textMuted,
-                                        )),
-                                  ),
-                                if (widget.onMoveUp != null ||
-                                    widget.onMoveDown != null)
-                                  const PopupMenuDivider(height: 8),
-                                // Save as Template is read-only (it
-                                // copies the subtree to the snippet
-                                // library; it does not mutate the
-                                // current sequence), so it stays enabled
-                                // even while the sequence is running.
-                                PopupMenuItem<String>(
-                                  value: 'save_snippet',
-                                  height: 32,
-                                  child: Text('Save as Template',
-                                      style: TextStyle(
-                                          fontSize:
-                                              NightshadeTypography.fontSize13,
-                                          color: widget.colors.textPrimary)),
-                                ),
-                              ],
-                              onSelected: (value) {
-                                switch (value) {
-                                  case 'move_up':
-                                    widget.onMoveUp?.call();
-                                    break;
-                                  case 'move_down':
-                                    widget.onMoveDown?.call();
-                                    break;
-                                  case 'save_snippet':
-                                    _showSaveAsSnippetDialog(
-                                        context, ref, widget.node);
-                                    break;
-                                }
-                              },
-                            ),
-                          );
-                        }),
-                      ],
-
-                      // Expand indicator for containers
-                      if (widget.hasChildren ||
-                          isTargetHeader) // Always show chevron for containers even if empty to hint at nesting
-                        Icon(
-                          LucideIcons.chevronDown,
-                          size: 14,
-                          color: widget.colors.textMuted,
-                        ),
-                    ],
+                builder: (context, hovered, child) => AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  margin: EdgeInsets.symmetric(vertical: verticalMargin),
+                  padding: EdgeInsets.symmetric(
+                      horizontal: horizontalPadding, vertical: verticalPadding),
+                  decoration: BoxDecoration(
+                    color: widget.isDragging
+                        ? categoryColor.withValues(alpha: 0.2)
+                        : widget.isSelected
+                            ? NightshadeDecorations.selectedSurface(
+                                    categoryColor)
+                                .color
+                            : isSuccess
+                                ? widget.colors.success.withValues(alpha: 0.06)
+                                : isFailed
+                                    ? widget.colors.error
+                                        .withValues(alpha: 0.06)
+                                    : (isSkipped || isCancelled)
+                                        ? widget.colors.textMuted
+                                            .withValues(alpha: 0.04)
+                                        : isTargetHeader
+                                            ? categoryColor.withValues(
+                                                alpha: 0.08)
+                                            : hovered
+                                                ? widget.colors.surfaceAlt
+                                                : widget.colors.surface,
+                    borderRadius: BorderRadius.circular(borderRadius),
+                    border: Border.all(
+                      color: widget.isSelected
+                          ? categoryColor
+                          : isRunning
+                              ? widget.colors.info.withValues(alpha: 0.65)
+                              : isTargetHeader
+                                  ? categoryColor.withValues(alpha: 0.3)
+                                  : widget.colors.border,
+                      width: widget.isSelected || isTargetHeader ? 2 : 1,
+                    ),
+                    boxShadow: null,
                   ),
+                  child: child,
                 ),
               ),
             ),
@@ -853,6 +555,382 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
               ) ??
               const SizedBox.shrink(),
       ],
+    );
+  }
+
+  /// The static (hover-independent) body of the row: status bar, icon, name,
+  /// summary, and the action cluster. Built once and handed to the
+  /// background [ValueListenableBuilder] via its `child` slot.
+  Widget _buildRowBody({
+    required BuildContext context,
+    required Color categoryColor,
+    required Color statusColor,
+    required List<SummaryFragment> summaryFragments,
+    required bool isDisabled,
+    required bool isRunning,
+    required bool isSuccess,
+    required bool isFailed,
+    required bool isSkipped,
+    required bool isCancelled,
+    required bool isTargetHeader,
+    required bool isMobile,
+    required double iconBoxSize,
+    required double iconSize,
+    required double titleFontSize,
+  }) {
+    return Opacity(
+      opacity: isDisabled
+          ? 0.5
+          : (isSkipped || isCancelled)
+              ? 0.6
+              : 1.0,
+      child: Row(
+        children: [
+          // Status indicator
+          if (widget.nodeStatus != null &&
+              widget.nodeStatus != NodeStatus.pending)
+            Container(
+              width: 4,
+              height: iconBoxSize,
+              margin: EdgeInsets.only(right: isMobile ? 12 : 10),
+              decoration: BoxDecoration(
+                color: statusColor,
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline2),
+              ),
+            ),
+
+          // Icon
+          Container(
+            width: iconBoxSize,
+            height: iconBoxSize,
+            decoration: NightshadeDecorations.tintedBadge(
+              categoryColor,
+              borderRadius: BorderRadius.circular(isMobile
+                  ? NightshadeTokens.radiusLg
+                  : NightshadeTokens.radiusInline8),
+            ),
+            child: isRunning
+                ? _SpinningIcon(
+                    icon: _getIcon(),
+                    color: categoryColor,
+                    size: iconSize,
+                  )
+                : Icon(
+                    _getIcon(),
+                    size: iconSize,
+                    color: categoryColor,
+                  ),
+          ),
+          SizedBox(width: isMobile ? 14 : 12),
+
+          // Name and subtitle
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Title row: the node name, followed inline by
+                // the watchdog badge for trigger-category nodes
+                // (e.g. Meridian Flip). The badge sits after the
+                // title and before any trailing row-level status
+                // indicator so it reads as a property of the
+                // node, not of the run.
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        widget.node.name,
+                        style: TextStyle(
+                          fontSize: isTargetHeader
+                              ? titleFontSize + 1
+                              : titleFontSize,
+                          fontWeight: FontWeight.w600,
+                          color: isSuccess
+                              ? widget.colors.success
+                              : isFailed
+                                  ? widget.colors.error
+                                  : (isSkipped || isCancelled)
+                                      ? widget.colors.textMuted
+                                      : widget.colors.textPrimary,
+                          decoration: isDisabled || isSkipped || isCancelled
+                              ? TextDecoration.lineThrough
+                              : null,
+                          decorationColor: isSkipped || isCancelled
+                              ? widget.colors.textMuted
+                              : null,
+                        ),
+                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                      ),
+                    ),
+                    if (widget.node.category == NodeCategory.trigger) ...[
+                      const SizedBox(width: NightshadeTokens.spaceSm),
+                      _WatchdogBadge(colors: widget.colors),
+                    ],
+                  ],
+                ),
+                if (summaryFragments.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(
+                        top: NightshadeTokens.spaceXs / 2),
+                    child: NodeSummaryLine(
+                      node: widget.node,
+                      colors: widget.colors,
+                      isMobile: isMobile,
+                      mutedColorOverride: (isSkipped || isCancelled)
+                          ? widget.colors.textMuted
+                          : null,
+                    ),
+                  ),
+                // Show node comment as gray italic text
+                if (widget.node.comment != null &&
+                    widget.node.comment!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      widget.node.comment!,
+                      style: TextStyle(
+                        fontSize: isMobile
+                            ? NightshadeTypography.fontSize12
+                            : NightshadeTypography.fontSize10,
+                        color: widget.colors.textMuted.withValues(alpha: 0.7),
+                        fontStyle: FontStyle.italic,
+                      ),
+                      softWrap: false,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
+                  ),
+                // Show progress bar for running instructions
+                if (isRunning &&
+                    widget.progressPercent != null &&
+                    widget.progressPercent! > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (widget.progressDetail != null &&
+                            widget.progressDetail!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 2),
+                            child: Text(
+                              widget.progressDetail!,
+                              style: TextStyle(
+                                fontSize: NightshadeTypography.fontSize10,
+                                color: widget.colors.info,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(
+                              NightshadeTokens.radiusInline2),
+                          child: LinearProgressIndicator(
+                            value: widget.progressPercent! / 100.0,
+                            minHeight: 4,
+                            backgroundColor: widget.colors.surfaceAlt,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                                widget.colors.info),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          // Actions — visibility tracks hover (or always on
+          // mobile). Scoped to its own ValueListenableBuilder so
+          // hovering only rebuilds this cluster, not the whole row.
+          ValueListenableBuilder<bool>(
+            valueListenable: _isHovered,
+            builder: (context, hovered, _) {
+              if (!((isMobile || hovered) && !widget.isDragging)) {
+                return const SizedBox.shrink();
+              }
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Trust-patch §B: per-row action icons mutate
+                  // the tree (toggle enabled, duplicate, delete)
+                  // and must be disabled when a sequence is
+                  // running. The kebab below already gated
+                  // move_up/move_down; this is the matching
+                  // gate for the inline icons.
+                  Builder(builder: (context) {
+                    final canEdit = ref.watch(canEditSequenceProvider);
+                    const lockedSuffix = ' (locked while sequence is running)';
+                    final lockedTail = canEdit ? '' : lockedSuffix;
+                    final toggleLabel =
+                        widget.node.isEnabled ? 'Disable' : 'Enable';
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _NodeActionButton(
+                          icon: widget.node.isEnabled
+                              ? LucideIcons.eye
+                              : LucideIcons.eyeOff,
+                          tooltip: '$toggleLabel$lockedTail',
+                          colors: widget.colors,
+                          onPressed: canEdit ? widget.onToggleEnabled : null,
+                        ),
+                        _NodeActionButton(
+                          icon: LucideIcons.copy,
+                          tooltip: 'Duplicate$lockedTail',
+                          colors: widget.colors,
+                          onPressed: canEdit ? widget.onDuplicate : null,
+                        ),
+                        _NodeActionButton(
+                          icon: LucideIcons.trash2,
+                          tooltip: 'Delete$lockedTail',
+                          colors: widget.colors,
+                          color: widget.colors.error,
+                          onPressed: canEdit ? widget.onDelete : null,
+                        ),
+                      ],
+                    );
+                  }),
+
+                  // Inline more-actions menu.
+                  //
+                  // Reconciliation: the right-click / long-press
+                  // context menu (`SequenceTreeContextMenu`) is now
+                  // the comprehensive surface for tree mutations
+                  // (Insert, Duplicate, Group, Enable/Disable,
+                  // Delete). This kebab is intentionally limited to
+                  // entries that don't belong in a generic
+                  // right-click:
+                  //   * Move Up / Move Down — a visible, tappable
+                  //     re-order handle on touch and as a redundant
+                  //     surface alongside the Shift+Up / Shift+Down
+                  //     keyboard shortcut wired in
+                  //     `sequence_tree_shortcuts.dart`.
+                  //   * Save as Template — a "promote-this-subtree-
+                  //     to-the-library" action that is not part of
+                  //     the per-node edit vocabulary the context
+                  //     menu covers.
+                  // Items here respect `canEditSequenceProvider` —
+                  // when a sequence is Running / Paused / Stopping
+                  // the kebab still opens but mutating entries are
+                  // disabled (Save as Template is read-only so it
+                  // stays enabled).
+                  Builder(builder: (context) {
+                    final canEdit = ref.watch(canEditSequenceProvider);
+                    return Theme(
+                      data: Theme.of(context).copyWith(
+                        popupMenuTheme: PopupMenuThemeData(
+                          color: widget.colors.surfaceAlt,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                                NightshadeTokens.radiusInline8),
+                            side: BorderSide(color: widget.colors.border),
+                          ),
+                        ),
+                      ),
+                      child: PopupMenuButton<String>(
+                        icon: Icon(LucideIcons.moreVertical,
+                            size: 14, color: widget.colors.textMuted),
+                        tooltip: 'More Actions',
+                        padding: EdgeInsets.zero,
+                        itemBuilder: (context) => [
+                          if (widget.onMoveUp != null)
+                            PopupMenuItem<String>(
+                              value: 'move_up',
+                              height: 32,
+                              enabled: canEdit,
+                              child: Text('Move Up',
+                                  style: TextStyle(
+                                    fontSize: NightshadeTypography.fontSize13,
+                                    color: canEdit
+                                        ? widget.colors.textPrimary
+                                        : widget.colors.textMuted,
+                                  )),
+                            ),
+                          if (widget.onMoveDown != null)
+                            PopupMenuItem<String>(
+                              value: 'move_down',
+                              height: 32,
+                              enabled: canEdit,
+                              child: Text('Move Down',
+                                  style: TextStyle(
+                                    fontSize: NightshadeTypography.fontSize13,
+                                    color: canEdit
+                                        ? widget.colors.textPrimary
+                                        : widget.colors.textMuted,
+                                  )),
+                            ),
+                          if (widget.onMoveUp != null ||
+                              widget.onMoveDown != null)
+                            const PopupMenuDivider(height: 8),
+                          // Save as Template is read-only (it
+                          // copies the subtree to the snippet
+                          // library; it does not mutate the
+                          // current sequence), so it stays enabled
+                          // even while the sequence is running.
+                          PopupMenuItem<String>(
+                            value: 'save_snippet',
+                            height: 32,
+                            child: Text('Save as Template',
+                                style: TextStyle(
+                                    fontSize: NightshadeTypography.fontSize13,
+                                    color: widget.colors.textPrimary)),
+                          ),
+                        ],
+                        onSelected: (value) {
+                          switch (value) {
+                            case 'move_up':
+                              widget.onMoveUp?.call();
+                              break;
+                            case 'move_down':
+                              widget.onMoveDown?.call();
+                              break;
+                            case 'save_snippet':
+                              _showSaveAsSnippetDialog(
+                                  context, ref, widget.node);
+                              break;
+                          }
+                        },
+                      ),
+                    );
+                  }),
+                ],
+              );
+            },
+          ),
+
+          // Expand/collapse chevron for containers. Tapping it
+          // toggles collapse via collapsedNodeIdsProvider; the
+          // rotation follows widget.isCollapsed (kept in sync by
+          // _NodeTreeView). Always shown for containers even when
+          // empty to hint at nesting.
+          if (widget.hasChildren || isTargetHeader)
+            Tooltip(
+              message: widget.isCollapsed ? 'Expand' : 'Collapse',
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => ref
+                    .read(collapsedNodeIdsProvider.notifier)
+                    .toggle(widget.node.id),
+                child: Padding(
+                  padding: const EdgeInsets.all(2),
+                  child: AnimatedRotation(
+                    turns: widget.isCollapsed ? -0.25 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(
+                      LucideIcons.chevronDown,
+                      size: 14,
+                      color: widget.colors.textMuted,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

@@ -1,6 +1,22 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+
+/// Finite upper/lower fallback used when only one of `min`/`max` is supplied to
+/// a numeric field. Clamping against `double.infinity` let pathological values
+/// (e.g. a fat-fingered exponent) flow straight into the timing estimator and
+/// poison every downstream duration sum; a sane finite bound keeps the field
+/// usable for any realistic value while refusing absurd ones.
+const double kMaxNumberField = 1e6;
+
+/// Debounce window before a number field commits its value to the sequence.
+/// Long enough to coalesce a burst of keystrokes (which would otherwise rebuild
+/// and re-estimate the whole sequence on every character) yet short enough that
+/// the live timing/summary still feels responsive.
+const Duration kNumberInputCommitDebounce = Duration(milliseconds: 250);
 
 class NodeQuickTimeButton extends StatelessWidget {
   final NightshadeColors colors;
@@ -48,11 +64,16 @@ class NodePropertyField extends StatelessWidget {
   final String label;
   final Widget child;
 
+  /// Optional explanatory text. When set, a small info icon is rendered next
+  /// to the label and reveals [helpText] in a tooltip on hover/long-press.
+  final String? helpText;
+
   const NodePropertyField({
     super.key,
     required this.colors,
     required this.label,
     required this.child,
+    this.helpText,
   });
 
   @override
@@ -62,14 +83,32 @@ class NodePropertyField extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: Responsive.fontSize(context, 12),
-              fontWeight: FontWeight.w600,
-              color: colors.textSecondary,
-              letterSpacing: 0.3,
-            ),
+          Row(
+            children: [
+              Flexible(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: Responsive.fontSize(context, 12),
+                    fontWeight: FontWeight.w600,
+                    color: colors.textSecondary,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+              if (helpText != null) ...[
+                SizedBox(width: Responsive.spacing(context, 4)),
+                Tooltip(
+                  message: helpText!,
+                  triggerMode: TooltipTriggerMode.tap,
+                  child: Icon(
+                    LucideIcons.helpCircle,
+                    size: Responsive.iconSize(context, 13),
+                    color: colors.textMuted,
+                  ),
+                ),
+              ],
+            ],
           ),
           SizedBox(height: Responsive.spacing(context, 6)),
           child,
@@ -86,6 +125,10 @@ class NodeTextInput extends StatefulWidget {
   final String? hint;
   final int? maxLines;
 
+  /// When true the field's border is drawn in [NightshadeColors.error] to flag
+  /// invalid (but still-typeable) content such as malformed JSON.
+  final bool hasError;
+
   const NodeTextInput({
     super.key,
     required this.colors,
@@ -93,6 +136,7 @@ class NodeTextInput extends StatefulWidget {
     required this.onChanged,
     this.hint,
     this.maxLines,
+    this.hasError = false,
   });
 
   @override
@@ -133,7 +177,9 @@ class _NodeTextInputState extends State<NodeTextInput> {
       decoration: BoxDecoration(
         color: widget.colors.surfaceAlt,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: widget.colors.border),
+        border: Border.all(
+          color: widget.hasError ? widget.colors.error : widget.colors.border,
+        ),
       ),
       child: TextField(
         controller: _controller,
@@ -168,6 +214,10 @@ class NodeNumberInput extends StatefulWidget {
   final double? max;
   final int decimals;
 
+  /// Optional helper line shown under the field. When null and [min]/[max] are
+  /// set, a "Range: min–max" line is synthesised automatically.
+  final String? helperText;
+
   const NodeNumberInput({
     super.key,
     required this.colors,
@@ -177,6 +227,7 @@ class NodeNumberInput extends StatefulWidget {
     this.min,
     this.max,
     this.decimals = 0,
+    this.helperText,
   });
 
   @override
@@ -187,32 +238,71 @@ class _NodeNumberInputState extends State<NodeNumberInput> {
   late TextEditingController _controller;
   late FocusNode _focusNode;
   bool _hasFocus = false;
+  bool _invalid = false;
+  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(
-      text: widget.decimals == 0
-          ? widget.value.toInt().toString()
-          : widget.value.toStringAsFixed(widget.decimals),
-    );
+    _controller = TextEditingController(text: _formatValue(widget.value));
     _focusNode = FocusNode();
     _focusNode.addListener(_onFocusChange);
   }
+
+  String _formatValue(double value) => widget.decimals == 0
+      ? value.toInt().toString()
+      : value.toStringAsFixed(widget.decimals);
 
   void _onFocusChange() {
     final hadFocus = _hasFocus;
     _hasFocus = _focusNode.hasFocus;
 
-    // When losing focus, update to the canonical value format
+    // When losing focus, flush any pending debounce and snap the field back to
+    // the canonical value format so a half-typed/out-of-range string never
+    // lingers.
     if (hadFocus && !_hasFocus) {
-      final newText = widget.decimals == 0
-          ? widget.value.toInt().toString()
-          : widget.value.toStringAsFixed(widget.decimals);
+      _flushDebounce();
+      final newText = _formatValue(widget.value);
       if (_controller.text != newText) {
         _controller.text = newText;
       }
+      if (_invalid) setState(() => _invalid = false);
     }
+  }
+
+  void _flushDebounce() {
+    if (_debounce?.isActive ?? false) {
+      _debounce!.cancel();
+    }
+    _debounce = null;
+  }
+
+  void _handleChanged(String value) {
+    final parsed = double.tryParse(value);
+    if (parsed == null) {
+      if (!_invalid) setState(() => _invalid = true);
+      return;
+    }
+    final clamped = clampNumberField(parsed, widget.min, widget.max);
+    // Reflect out-of-range typing visually but still commit the clamped value.
+    final outOfRange = clamped != parsed;
+    if (_invalid != outOfRange) {
+      setState(() => _invalid = outOfRange);
+    }
+    _flushDebounce();
+    _debounce = Timer(kNumberInputCommitDebounce, () {
+      widget.onChanged(clamped);
+      // Reconcile the displayed text when clamping actually changed the value
+      // (don't fight the user mid-type otherwise).
+      if (outOfRange && mounted && _focusNode.hasFocus) {
+        final text = _formatValue(clamped);
+        _controller.value = TextEditingValue(
+          text: text,
+          selection: TextSelection.collapsed(offset: text.length),
+        );
+        setState(() => _invalid = false);
+      }
+    });
   }
 
   @override
@@ -220,9 +310,7 @@ class _NodeNumberInputState extends State<NodeNumberInput> {
     super.didUpdateWidget(oldWidget);
     // Only update text if the field doesn't have focus (user isn't typing)
     if (!_hasFocus && oldWidget.value != widget.value) {
-      final newText = widget.decimals == 0
-          ? widget.value.toInt().toString()
-          : widget.value.toStringAsFixed(widget.decimals);
+      final newText = _formatValue(widget.value);
       if (newText != _controller.text) {
         _controller.text = newText;
       }
@@ -231,71 +319,116 @@ class _NodeNumberInputState extends State<NodeNumberInput> {
 
   @override
   void dispose() {
+    _flushDebounce();
     _focusNode.removeListener(_onFocusChange);
     _focusNode.dispose();
     _controller.dispose();
     super.dispose();
   }
 
+  String? get _rangeText {
+    if (widget.min == null && widget.max == null) return null;
+    final lo = widget.min == null ? null : _formatValue(widget.min!);
+    final hi = widget.max == null ? null : _formatValue(widget.max!);
+    if (lo != null && hi != null) return 'Range: $lo–$hi';
+    if (lo != null) return 'Min: $lo';
+    return 'Max: $hi';
+  }
+
+  /// The helper line under the field. We show an explicit [helperText] always,
+  /// and otherwise only surface the value range while the field is invalid /
+  /// out of range — keeping dense forms clean but explaining a rejected entry
+  /// the moment it happens.
+  String? get _resolvedHelperText {
+    if (widget.helperText != null) return widget.helperText;
+    if (_invalid) return _rangeText;
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final inputFontSize = Responsive.fontSize(context, 13);
     final suffixFontSize = Responsive.fontSize(context, 12);
+    final helperFontSize = Responsive.fontSize(context, 11);
     final inputPaddingH = Responsive.spacing(context, 12);
     final inputPaddingV = Responsive.spacing(context, 10);
+    final helperText = _resolvedHelperText;
 
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: inputPaddingH),
-      decoration: BoxDecoration(
-        color: widget.colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: widget.colors.border),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _controller,
-              focusNode: _focusNode,
-              keyboardType: TextInputType.number,
-              onChanged: (value) {
-                final parsed = double.tryParse(value);
-                if (parsed != null) {
-                  var clamped = parsed;
-                  if (widget.min != null) {
-                    clamped = clamped.clamp(widget.min!, double.infinity);
-                  }
-                  if (widget.max != null) {
-                    clamped =
-                        clamped.clamp(double.negativeInfinity, widget.max!);
-                  }
-                  widget.onChanged(clamped);
-                }
-              },
-              style: TextStyle(
-                fontSize: inputFontSize,
-                color: widget.colors.textPrimary,
-                fontFeatures: const [FontFeature.tabularFigures()],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: inputPaddingH),
+          decoration: BoxDecoration(
+            color: widget.colors.surfaceAlt,
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+            border: Border.all(
+              color: _invalid ? widget.colors.error : widget.colors.border,
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  focusNode: _focusNode,
+                  keyboardType: TextInputType.numberWithOptions(
+                    decimal: widget.decimals > 0,
+                    signed: (widget.min ?? 0) < 0,
+                  ),
+                  onChanged: _handleChanged,
+                  style: TextStyle(
+                    fontSize: inputFontSize,
+                    color: widget.colors.textPrimary,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                  decoration: InputDecoration(
+                    border: InputBorder.none,
+                    isDense: true,
+                    contentPadding:
+                        EdgeInsets.symmetric(vertical: inputPaddingV),
+                  ),
+                ),
               ),
-              decoration: InputDecoration(
-                border: InputBorder.none,
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(vertical: inputPaddingV),
+              if (widget.suffix != null)
+                Text(
+                  widget.suffix!,
+                  style: TextStyle(
+                    fontSize: suffixFontSize,
+                    color: widget.colors.textMuted,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        if (helperText != null)
+          Padding(
+            padding: EdgeInsets.only(
+              top: Responsive.spacing(context, 4),
+              left: Responsive.spacing(context, 2),
+            ),
+            child: Text(
+              helperText,
+              style: TextStyle(
+                fontSize: helperFontSize,
+                color: _invalid ? widget.colors.error : widget.colors.textMuted,
               ),
             ),
           ),
-          if (widget.suffix != null)
-            Text(
-              widget.suffix!,
-              style: TextStyle(
-                fontSize: suffixFontSize,
-                color: widget.colors.textMuted,
-              ),
-            ),
-        ],
-      ),
+      ],
     );
   }
+}
+
+/// Clamp [value] into [min]/[max], substituting a finite fallback when only one
+/// bound is provided so a one-sided field can't admit absurd values into the
+/// timing math.
+double clampNumberField(double value, double? min, double? max) {
+  final lo =
+      min ?? (max != null ? math.min(max, -kMaxNumberField) : -kMaxNumberField);
+  final hi =
+      max ?? (min != null ? math.max(min, kMaxNumberField) : kMaxNumberField);
+  return value.clamp(lo, hi).toDouble();
 }
 
 class NodeNumberInputWithHint extends StatefulWidget {
@@ -305,6 +438,7 @@ class NodeNumberInputWithHint extends StatefulWidget {
   final double? min;
   final double? max;
   final String? hintText;
+  final int decimals;
 
   /// Whether the current value comes from a profile default rather than
   /// an explicit user override. When true, the value text is rendered in
@@ -319,6 +453,7 @@ class NodeNumberInputWithHint extends StatefulWidget {
     this.min,
     this.max,
     this.hintText,
+    this.decimals = 0,
     this.isProfileDefault = false,
   });
 
@@ -331,28 +466,49 @@ class _NodeNumberInputWithHintState extends State<NodeNumberInputWithHint> {
   late TextEditingController _controller;
   late FocusNode _focusNode;
   bool _hasFocus = false;
+  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(
-      text: widget.value.toInt().toString(),
-    );
+    _controller = TextEditingController(text: _formatValue(widget.value));
     _focusNode = FocusNode();
     _focusNode.addListener(_onFocusChange);
+  }
+
+  String _formatValue(double value) => widget.decimals == 0
+      ? value.toInt().toString()
+      : value.toStringAsFixed(widget.decimals);
+
+  void _flushDebounce() {
+    if (_debounce?.isActive ?? false) {
+      _debounce!.cancel();
+    }
+    _debounce = null;
   }
 
   void _onFocusChange() {
     final hadFocus = _hasFocus;
     _hasFocus = _focusNode.hasFocus;
 
-    // When losing focus, update to the canonical value format
+    // When losing focus, flush any pending commit and snap to canonical format.
     if (hadFocus && !_hasFocus) {
-      final newText = widget.value.toInt().toString();
+      _flushDebounce();
+      final newText = _formatValue(widget.value);
       if (_controller.text != newText) {
         _controller.text = newText;
       }
     }
+  }
+
+  void _handleChanged(String value) {
+    final parsed = double.tryParse(value);
+    if (parsed == null) return;
+    final clamped = clampNumberField(parsed, widget.min, widget.max);
+    _flushDebounce();
+    _debounce = Timer(kNumberInputCommitDebounce, () {
+      widget.onChanged(clamped);
+    });
   }
 
   @override
@@ -360,7 +516,7 @@ class _NodeNumberInputWithHintState extends State<NodeNumberInputWithHint> {
     super.didUpdateWidget(oldWidget);
     // Only update text if the field doesn't have focus (user isn't typing)
     if (!_hasFocus && oldWidget.value != widget.value) {
-      final newText = widget.value.toInt().toString();
+      final newText = _formatValue(widget.value);
       if (newText != _controller.text) {
         _controller.text = newText;
       }
@@ -369,6 +525,7 @@ class _NodeNumberInputWithHintState extends State<NodeNumberInputWithHint> {
 
   @override
   void dispose() {
+    _flushDebounce();
     _focusNode.removeListener(_onFocusChange);
     _focusNode.dispose();
     _controller.dispose();
@@ -406,21 +563,11 @@ class _NodeNumberInputWithHintState extends State<NodeNumberInputWithHint> {
             child: TextField(
               controller: _controller,
               focusNode: _focusNode,
-              keyboardType: TextInputType.number,
-              onChanged: (value) {
-                final parsed = double.tryParse(value);
-                if (parsed != null) {
-                  var clamped = parsed;
-                  if (widget.min != null) {
-                    clamped = clamped.clamp(widget.min!, double.infinity);
-                  }
-                  if (widget.max != null) {
-                    clamped =
-                        clamped.clamp(double.negativeInfinity, widget.max!);
-                  }
-                  widget.onChanged(clamped);
-                }
-              },
+              keyboardType: TextInputType.numberWithOptions(
+                decimal: widget.decimals > 0,
+                signed: (widget.min ?? 0) < 0,
+              ),
+              onChanged: _handleChanged,
               style: TextStyle(
                 fontSize: inputFontSize,
                 color: textColor,

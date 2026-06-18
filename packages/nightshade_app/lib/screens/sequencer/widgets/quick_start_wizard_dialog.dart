@@ -144,6 +144,23 @@ class _QuickStartWizardDialogState
   LoopConditionType _loopType = LoopConditionType.count;
   int _loopCount = _kWizardExposureCountFallback;
 
+  // Persistent text controllers for the numeric fields. Recreating these
+  // inline in build() (the original behaviour) dropped the cursor and could
+  // clobber an in-progress edit; lifting them into State keeps the field
+  // alive across rebuilds. The source values only push back into a
+  // controller when they change from *outside* the field (preset apply,
+  // async smart-context load) and only when the text actually differs, so a
+  // user mid-edit is never interrupted.
+  final _loopCountController = TextEditingController();
+  final _autofocusFramesController = TextEditingController();
+  final _ditherPixelsController = TextEditingController();
+  final _coolingTempController = TextEditingController();
+
+  /// Per-filter-row controllers, keyed by filterIndex. Created in
+  /// [_initFilterConfigs] and synced from outside in [_syncFilterControllers].
+  final Map<int, ({TextEditingController exp, TextEditingController count})>
+      _filterControllers = {};
+
   // Step 3: Automation
   bool _enableAutofocus = true;
   int _autofocusEveryFrames = _kWizardAutofocusEveryFramesFallback;
@@ -165,12 +182,56 @@ class _QuickStartWizardDialogState
   /// the user knows where numbers came from rather than being surprised.
   bool _populatedFromSavedDefaults = false;
 
+  /// Opt-in: when true, [_createSequence] writes the user's wizard choices
+  /// back into their persisted Sequencer Settings / app settings / equipment
+  /// profile so the next launch pre-fills with them. Toggled on the Review
+  /// step.
+  bool _saveAsDefaults = false;
+
   @override
   void initState() {
     super.initState();
     _applyUserDefaults();
     _initFilterConfigs();
+    _seedScalarControllers();
     _loadExposureContext();
+  }
+
+  /// Seed the State-level scalar controllers from the current source values.
+  /// Called once in initState (after defaults are applied) and again whenever
+  /// a source value changes from outside the field.
+  void _seedScalarControllers() {
+    _syncController(_loopCountController, _loopCount.toString());
+    _syncController(
+        _autofocusFramesController, _autofocusEveryFrames.toString());
+    _syncController(_ditherPixelsController, _ditherPixels.round().toString());
+    _syncController(_coolingTempController, _coolingTemp.round().toString());
+  }
+
+  /// Push [value] into [controller] only when it differs from what the field
+  /// already shows. This guards against clobbering an in-progress edit while
+  /// still letting external sources (presets, async smart-context) update the
+  /// displayed text.
+  void _syncController(TextEditingController controller, String value) {
+    if (controller.text != value) {
+      controller.text = value;
+    }
+  }
+
+  /// Sync the per-filter exposure/count controllers from [_filterConfigs].
+  /// Creates missing controllers and updates text only when it differs.
+  void _syncFilterControllers() {
+    for (final config in _filterConfigs) {
+      final pair = _filterControllers.putIfAbsent(
+        config.filterIndex,
+        () => (
+          exp: TextEditingController(),
+          count: TextEditingController(),
+        ),
+      );
+      _syncController(pair.exp, config.exposureSecs.round().toString());
+      _syncController(pair.count, config.count.toString());
+    }
   }
 
   /// Pulls the user's persisted Sequencer Settings / equipment profile /
@@ -250,6 +311,10 @@ class _QuickStartWizardDialogState
           config.exposureSecs = _defaultExposureForFilter(config.filterName);
         }
       }
+      // Async smart-context arrival is an external source; push the
+      // recomputed exposures into the row controllers (guarded so any
+      // user-edited row, which has exposureEdited=true, keeps its text).
+      _syncFilterControllers();
     });
   }
 
@@ -285,6 +350,7 @@ class _QuickStartWizardDialogState
         );
       }).toList();
     }
+    _syncFilterControllers();
   }
 
   bool _isCommonFilter(String name) {
@@ -320,6 +386,14 @@ class _QuickStartWizardDialogState
     _targetNameController.dispose();
     _raController.dispose();
     _decController.dispose();
+    _loopCountController.dispose();
+    _autofocusFramesController.dispose();
+    _ditherPixelsController.dispose();
+    _coolingTempController.dispose();
+    for (final pair in _filterControllers.values) {
+      pair.exp.dispose();
+      pair.count.dispose();
+    }
     _searchDebounce?.cancel();
     super.dispose();
   }
@@ -437,6 +511,20 @@ class _QuickStartWizardDialogState
   // ---------------------------------------------------------------------------
 
   void _applyPreset(_ExposurePreset preset) {
+    // Preset sub-counts scale off the user's exposure-count preference
+    // (`_loopCount`, seeded from Sequencer Settings) rather than hardcoded
+    // literals, so a user who keeps 20-sub sessions gets proportionally more
+    // subs out of every preset. Narrowband presets bias higher (longer subs
+    // need fewer frames per signal, but users typically want extra to fight
+    // read noise on faint emission); the OSC preset banks everything into one
+    // filter so it gets a heavier weight. Multipliers, not magic numbers.
+    final base = _loopCount > 0 ? _loopCount : _kWizardExposureCountFallback;
+    int scaled(double multiplier) => (base * multiplier).round().clamp(1, 9999);
+    final broadbandCount = scaled(1.0);
+    final shoCount = scaled(1.0);
+    final haOiiiCount = scaled(1.5);
+    final oscCount = scaled(2.0);
+
     setState(() {
       _selectedPreset = preset;
 
@@ -449,7 +537,7 @@ class _QuickStartWizardDialogState
                 lower == 'l' || lower == 'r' || lower == 'g' || lower == 'b';
             config.exposureSecs = _defaultExposureForFilter(config.filterName);
             config.exposureEdited = false;
-            config.count = 10;
+            config.count = broadbandCount;
             config.binning = BinningMode.one;
 
           case _ExposurePreset.narrowbandSho:
@@ -459,7 +547,7 @@ class _QuickStartWizardDialogState
                 lower == 'oiii';
             config.exposureSecs = _defaultExposureForFilter(config.filterName);
             config.exposureEdited = false;
-            config.count = 10;
+            config.count = shoCount;
             config.binning = BinningMode.one;
 
           case _ExposurePreset.narrowbandHaOiii:
@@ -467,14 +555,14 @@ class _QuickStartWizardDialogState
                 lower == 'ha' || lower == 'h-alpha' || lower == 'oiii';
             config.exposureSecs = _defaultExposureForFilter(config.filterName);
             config.exposureEdited = false;
-            config.count = 15;
+            config.count = haOiiiCount;
             config.binning = BinningMode.one;
 
           case _ExposurePreset.oscNoFilter:
             config.enabled = config.filterIndex == 0;
             config.exposureSecs = _defaultExposureForFilter(config.filterName);
             config.exposureEdited = false;
-            config.count = 20;
+            config.count = oscCount;
             config.binning = BinningMode.one;
 
           case _ExposurePreset.custom:
@@ -482,6 +570,9 @@ class _QuickStartWizardDialogState
             break;
         }
       }
+      // Preset application is an external source — push the new
+      // exposures/counts into the row controllers.
+      _syncFilterControllers();
     });
   }
 
@@ -489,7 +580,13 @@ class _QuickStartWizardDialogState
   // Sequence generation
   // ---------------------------------------------------------------------------
 
-  void _createSequence() {
+  void _createSequence() => _finishWizard(asTemplate: false);
+
+  /// Save the wizard's sequence as a reusable template instead of loading it
+  /// into the editor. Persists via the sequence repository's template path.
+  void _saveAsTemplate() => _finishWizard(asTemplate: true);
+
+  void _finishWizard({required bool asTemplate}) {
     // Validate target
     final targetName = _targetNameController.text.trim();
     if (targetName.isEmpty) {
@@ -662,8 +759,13 @@ class _QuickStartWizardDialogState
       rootChildIds.add(warmId);
     }
 
-    // -- Park on completion (always good practice, user can disable)
-    if (_parkOnError || _dawnShutdown) {
+    // -- End-of-session park. This terminal ParkNode is paired with the
+    // WarmCamera step above as the normal dawn-shutdown sequence. It runs
+    // unconditionally at the end of a successful session and is driven ONLY
+    // by the Dawn-Shutdown intent. "Park on error" is a different concern —
+    // it's an unscheduled abort, handled below as a RecoveryNode trigger, not
+    // a terminal step.
+    if (_dawnShutdown) {
       final parkId = const Uuid().v4();
       nodes[parkId] = ParkNode(
         id: parkId,
@@ -755,14 +857,64 @@ class _QuickStartWizardDialogState
       );
     }
 
+    // -- Park on unrecoverable error. The "Park on Error" safety toggle is an
+    // *abort* concern, not an end-of-session step — so it's modelled as a
+    // RecoveryNode trigger on the TargetHeader (mirroring the weather-abort
+    // RecoveryNode above) rather than an unconditional terminal ParkNode. We
+    // gate on a lost mount (the canonical unrecoverable hardware fault that
+    // leaves the rig pointing somewhere unsafe) and park-and-abort so the
+    // mount comes home instead of tracking into a pier/horizon.
+    if (_parkOnError) {
+      final errorRecoveryId = const Uuid().v4();
+      nodes[errorRecoveryId] = RecoveryNode(
+        id: errorRecoveryId,
+        name: 'Park on Error',
+        triggerType: TriggerType.mountTrackingLost,
+        recoveryAction: RecoveryActionType.parkAndAbort,
+        maxRetries: 1,
+        parentId: targetHeaderId,
+        orderIndex: 4,
+      );
+      final currentTarget = nodes[targetHeaderId] as TargetHeaderNode;
+      nodes[targetHeaderId] = currentTarget.copyWith(
+        childIds: [...currentTarget.childIds, errorRecoveryId],
+      );
+    }
+
     // Build the Sequence object
     final sequence = Sequence.create(
       name: '$targetName Sequence',
       description: _buildDescription(enabledFilters),
       nodes: nodes,
       rootNodeId: targetHeaderId,
-      isTemplate: false,
+      isTemplate: asTemplate,
     );
+
+    // Opt-in: persist the user's wizard choices as their new defaults so the
+    // next launch pre-fills with them.
+    if (_saveAsDefaults) {
+      _persistChoicesAsDefaults(enabledFilters);
+    }
+
+    if (asTemplate) {
+      // Persist as a reusable template via the sequence repository instead of
+      // loading it into the editor. Fire-and-forget with snackbar feedback.
+      final repository = ref.read(sequenceRepositoryProvider);
+      () async {
+        try {
+          await repository.saveSequence(sequence, isTemplate: true);
+          if (!mounted) return;
+          Navigator.of(context).pop();
+          context.showSuccessSnackBar(
+              'Saved "$targetName Sequence" as a template');
+        } catch (e) {
+          if (mounted) {
+            context.showErrorSnackBar('Could not save template: $e');
+          }
+        }
+      }();
+      return;
+    }
 
     // Load into editor and switch to Builder tab. The user just completed
     // the wizard so we treat that as explicit confirmation to replace the
@@ -774,6 +926,40 @@ class _QuickStartWizardDialogState
     Navigator.of(context).pop();
     context.showSuccessSnackBar(
         'Created sequence for "$targetName" with ${enabledFilters.length} filter(s)');
+  }
+
+  /// Write the user's wizard choices back into their persisted Sequencer
+  /// Settings / app settings so the next launch pre-fills with them. Mirrors
+  /// Smart Night's fire-and-forget pattern: failures are swallowed because a
+  /// failed preference write is a UX degradation, not a sequence-correctness
+  /// issue, and the sequence has already been built either way.
+  ///
+  /// The equipment-profile cooling temperature is intentionally NOT persisted
+  /// here — that lives on the freezed EquipmentProfileModel and is owned by
+  /// the equipment area's profile DAO; persisting it would require touching
+  /// that subsystem. The user can set it on the profile editor.
+  void _persistChoicesAsDefaults(List<_FilterExposureConfig> enabledFilters) {
+    final sequencerDefaults = ref.read(sequencerDefaultsProvider.notifier);
+    final appSettings = ref.read(appSettingsProvider.notifier);
+    // Derive a representative exposure count: the loop count is the wizard's
+    // single iteration knob and is what the user most directly tuned.
+    final exposureCount = _loopCount > 0 ? _loopCount : null;
+    () async {
+      try {
+        await sequencerDefaults.updateAutofocusDefaults(
+          intervalFrames: _autofocusEveryFrames,
+        );
+        await sequencerDefaults.updateDitherDefaults(pixels: _ditherPixels);
+        if (exposureCount != null) {
+          await sequencerDefaults.updateExposureDefaults(count: exposureCount);
+        }
+        await appSettings.setEnableMeridianFlip(_enableMeridianFlip);
+        await appSettings.setParkOnUnsafeWeather(_weatherAbort);
+        await appSettings.setParkBeforeDawn(_dawnShutdown);
+      } catch (_) {
+        // Persistence is best-effort; surfacing this would be noise.
+      }
+    }();
   }
 
   String _buildDescription(List<_FilterExposureConfig> enabledFilters) {
@@ -881,6 +1067,25 @@ class _QuickStartWizardDialogState
   }
 
   void _update(VoidCallback callback) => setState(callback);
+
+  /// Re-run the exposure recommendation against the latest
+  /// [_exposureContext] and re-seed every non-user-edited filter row. Lets
+  /// the user regenerate the preview after tweaking knobs on earlier steps.
+  /// User-edited exposures (exposureEdited == true) are preserved.
+  void _rePreviewExposures() {
+    setState(() {
+      for (final config in _filterConfigs) {
+        if (!config.exposureEdited) {
+          config.exposureSecs = _defaultExposureForFilter(config.filterName);
+        }
+      }
+      _syncFilterControllers();
+    });
+    // Best-effort refresh of the smart context in case the active profile /
+    // sky inputs changed since the wizard opened; its async arrival re-seeds
+    // again via _loadExposureContext.
+    _loadExposureContext();
+  }
 
   @override
   Widget build(BuildContext context) => _buildDialog(context);
