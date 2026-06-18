@@ -16,6 +16,17 @@ class WeatherHandlers {
   void _logInfo(String message) =>
       _logger.info(message, source: 'WeatherHandlers');
 
+  /// Coarsen a coordinate before it reaches a log line. The observer's
+  /// precise latitude/longitude is their home/observatory location and
+  /// must not be persisted to the structured log (which is readable on
+  /// disk and downloadable over `/api/logs/*`). Rounding to one decimal
+  /// place (~11 km) keeps the entry useful for debugging which region a
+  /// fetch covered without recording where the operator lives. The full
+  /// value still flows to the upstream weather provider and the API
+  /// response — only the log copy is coarsened.
+  static String _coarseCoord(double? value) =>
+      value == null ? 'null' : value.toStringAsFixed(1);
+
   // ===========================================================================
   // Get Radar Data
   // ===========================================================================
@@ -24,7 +35,9 @@ class WeatherHandlers {
     final lat = double.tryParse(request.url.queryParameters['lat'] ?? '');
     final lon = double.tryParse(request.url.queryParameters['lon'] ?? '');
     final forceRefresh = request.url.queryParameters['refresh'] == 'true';
-    _logInfo('[API] GET /api/weather/radar?lat=$lat&lon=$lon');
+    _logInfo(
+      '[API] GET /api/weather/radar?lat=${_coarseCoord(lat)}&lon=${_coarseCoord(lon)}',
+    );
 
     if (lat == null || lon == null) {
       return jsonBadRequest({"error": "Missing lat/lon query parameters"});
@@ -62,7 +75,9 @@ class WeatherHandlers {
   Future<Response> handleGetForecast(Request request) async {
     final lat = double.tryParse(request.url.queryParameters['lat'] ?? '');
     final lon = double.tryParse(request.url.queryParameters['lon'] ?? '');
-    _logInfo('[API] GET /api/weather/forecast?lat=$lat&lon=$lon');
+    _logInfo(
+      '[API] GET /api/weather/forecast?lat=${_coarseCoord(lat)}&lon=${_coarseCoord(lon)}',
+    );
 
     if (lat == null || lon == null) {
       return jsonBadRequest({"error": "Missing lat/lon query parameters"});
@@ -145,7 +160,9 @@ class WeatherHandlers {
   Future<Response> handleGetCloudCover(Request request) async {
     final lat = double.tryParse(request.url.queryParameters['lat'] ?? '');
     final lon = double.tryParse(request.url.queryParameters['lon'] ?? '');
-    _logInfo('[API] GET /api/weather/cloud-cover?lat=$lat&lon=$lon');
+    _logInfo(
+      '[API] GET /api/weather/cloud-cover?lat=${_coarseCoord(lat)}&lon=${_coarseCoord(lon)}',
+    );
 
     if (lat == null || lon == null) {
       return jsonBadRequest({"error": "Missing lat/lon query parameters"});
