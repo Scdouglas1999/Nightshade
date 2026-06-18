@@ -569,15 +569,16 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       'push_critical_alerts': s.pushCriticalAlerts.toString(),
 
       // Recovery Mode
-      'recovery_default_retry_interval_mins':
-          s.recoveryDefaultRetryIntervalMins.toString(),
-      'recovery_default_max_duration_mins':
-          s.recoveryDefaultMaxDurationMins.toString(),
-      'recovery_stop_tracking_during_recovery':
-          s.recoveryStopTrackingDuringRecovery.toString(),
+      'recovery_default_retry_interval_mins': s.recoveryDefaultRetryIntervalMins
+          .toString(),
+      'recovery_default_max_duration_mins': s.recoveryDefaultMaxDurationMins
+          .toString(),
+      'recovery_stop_tracking_during_recovery': s
+          .recoveryStopTrackingDuringRecovery
+          .toString(),
       'recovery_abort_on_meridian': s.recoveryAbortOnMeridian.toString(),
-      'recovery_audible_alert_when_entered':
-          s.recoveryAudibleAlertWhenEntered.toString(),
+      'recovery_audible_alert_when_entered': s.recoveryAudibleAlertWhenEntered
+          .toString(),
 
       // Autofocus
       'af_method': s.afMethod,
@@ -606,28 +607,34 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       // Image Grading
       'image_grading_enabled': s.enableImageGrading.toString(),
       'image_grading_hfr_threshold_px': optDouble(s.imageGradingHfrThresholdPx),
-      'image_grading_hfr_baseline_percent':
-          optDouble(s.imageGradingHfrBaselinePercent),
-      'image_grading_eccentricity_threshold':
-          optDouble(s.imageGradingEccentricityThreshold),
+      'image_grading_hfr_baseline_percent': optDouble(
+        s.imageGradingHfrBaselinePercent,
+      ),
+      'image_grading_eccentricity_threshold': optDouble(
+        s.imageGradingEccentricityThreshold,
+      ),
       'image_grading_star_count_min': optInt(s.imageGradingStarCountMin),
-      'image_grading_max_consecutive_rejects':
-          s.imageGradingMaxConsecutiveRejects.toString(),
+      'image_grading_max_consecutive_rejects': s
+          .imageGradingMaxConsecutiveRejects
+          .toString(),
       'image_grading_reject_folder_path': s.imageGradingRejectFolderPath ?? '',
 
       // Sky-brightness adaptive exposure
       'adaptive_exposure_enabled': s.adaptiveExposureEnabled.toString(),
       'adaptive_exposure_target_snr': s.adaptiveExposureTargetSnr.toString(),
-      'adaptive_exposure_reference_mag':
-          s.adaptiveExposureReferenceMag.toString(),
+      'adaptive_exposure_reference_mag': s.adaptiveExposureReferenceMag
+          .toString(),
       'adaptive_exposure_min_secs': s.adaptiveExposureMinSecs.toString(),
       'adaptive_exposure_max_secs': s.adaptiveExposureMaxSecs.toString(),
-      'adaptive_exposure_per_filter_enabled':
-          jsonEncode(s.adaptiveExposurePerFilterEnabled),
-      'adaptive_exposure_per_filter_min_secs':
-          jsonEncode(s.adaptiveExposurePerFilterMinSecs),
-      'adaptive_exposure_per_filter_max_secs':
-          jsonEncode(s.adaptiveExposurePerFilterMaxSecs),
+      'adaptive_exposure_per_filter_enabled': jsonEncode(
+        s.adaptiveExposurePerFilterEnabled,
+      ),
+      'adaptive_exposure_per_filter_min_secs': jsonEncode(
+        s.adaptiveExposurePerFilterMinSecs,
+      ),
+      'adaptive_exposure_per_filter_max_secs': jsonEncode(
+        s.adaptiveExposurePerFilterMaxSecs,
+      ),
 
       // Pre-flight checks
       'preflight_strictness': s.preflightStrictness.name,
@@ -637,40 +644,48 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
 
       // Smart Night
       'smart_night_max_session_hours': optDouble(s.smartNightMaxSessionHours),
-      'smart_night_default_af_cadence_frames':
-          s.smartNightDefaultAfCadenceFrames.toString(),
-      'smart_night_default_integration_budget_mins_per_target':
-          s.smartNightDefaultIntegrationBudgetMinsPerTarget.toString(),
-      'smart_night_include_flats_at_end':
-          s.smartNightIncludeFlatsAtEnd.toString(),
-      'smart_night_use_scheduler_for_multi_target':
-          s.smartNightUseSchedulerForMultiTarget.toString(),
-      'smart_night_scheduler_target_threshold':
-          s.smartNightSchedulerTargetThreshold.toString(),
+      'smart_night_default_af_cadence_frames': s
+          .smartNightDefaultAfCadenceFrames
+          .toString(),
+      'smart_night_default_integration_budget_mins_per_target': s
+          .smartNightDefaultIntegrationBudgetMinsPerTarget
+          .toString(),
+      'smart_night_include_flats_at_end': s.smartNightIncludeFlatsAtEnd
+          .toString(),
+      'smart_night_use_scheduler_for_multi_target': s
+          .smartNightUseSchedulerForMultiTarget
+          .toString(),
+      'smart_night_scheduler_target_threshold': s
+          .smartNightSchedulerTargetThreshold
+          .toString(),
       'smart_night_default_strategy': s.smartNightDefaultStrategy,
-      'smart_night_polar_alignment_stale_after_days':
-          s.smartNightPolarAlignmentStaleAfterDays.toString(),
-      'smart_night_sub_exposure_floor_secs':
-          s.smartNightSubExposureFloorSecs.toString(),
-      'smart_night_sub_exposure_ceiling_secs':
-          s.smartNightSubExposureCeilingSecs.toString(),
+      'smart_night_polar_alignment_stale_after_days': s
+          .smartNightPolarAlignmentStaleAfterDays
+          .toString(),
+      'smart_night_sub_exposure_floor_secs': s.smartNightSubExposureFloorSecs
+          .toString(),
+      'smart_night_sub_exposure_ceiling_secs': s
+          .smartNightSubExposureCeilingSecs
+          .toString(),
       'smart_night_target_snr': s.smartNightTargetSnr.toString(),
-      'smart_night.auto_prompt_enabled': s.smartNightAutoPromptEnabled.toString(),
+      'smart_night.auto_prompt_enabled': s.smartNightAutoPromptEnabled
+          .toString(),
       'notes.prompt_after_run': s.promptForNotesAfterRun.toString(),
 
       // Session lifecycle
       'session.handoff_auto_prompt': s.sessionHandoffAutoPrompt.toString(),
-      'campaign_rollup.surface_targets_tab':
-          s.campaignRollupSurfaceTargetsTab.toString(),
+      'campaign_rollup.surface_targets_tab': s.campaignRollupSurfaceTargetsTab
+          .toString(),
       'campaign_rollup.grouping_mode': s.campaignRollupGroupingMode,
 
       // Adaptive sky-conditions
-      'adaptive_swap.enabled_by_default':
-          s.adaptiveSwapEnabledByDefault.toString(),
-      'adaptive_swap.default_threshold':
-          s.adaptiveSwapDefaultThreshold.toString(),
-      'adaptive_swap.default_hysteresis_secs':
-          s.adaptiveSwapDefaultHysteresisSecs.toString(),
+      'adaptive_swap.enabled_by_default': s.adaptiveSwapEnabledByDefault
+          .toString(),
+      'adaptive_swap.default_threshold': s.adaptiveSwapDefaultThreshold
+          .toString(),
+      'adaptive_swap.default_hysteresis_secs': s
+          .adaptiveSwapDefaultHysteresisSecs
+          .toString(),
       'adaptive_swap.score_weights': jsonEncode(s.conditionsScoreWeights),
     };
   }

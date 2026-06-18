@@ -35,18 +35,20 @@ class _FixedBackendNotifier extends BackendNotifier {
 void main() {
   setUpAll(() => registerFallbackValue(const models.AppSettings()));
 
-  test('_storedMapFromState is a true inverse of _settingsFromStoredMap',
-      () async {
+  test('_storedMapFromState is a true inverse of _settingsFromStoredMap', () async {
     final controller = StreamController<NightshadeEvent>.broadcast();
     addTearDown(controller.close);
     final backend = _MockNetworkBackend();
     when(() => backend.eventStream).thenAnswer((_) => controller.stream);
-    when(() => backend.getSettings())
-        .thenAnswer((_) async => const models.AppSettings());
+    when(
+      () => backend.getSettings(),
+    ).thenAnswer((_) async => const models.AppSettings());
 
     final container = ProviderContainer(
       overrides: [
-        backendProvider.overrideWith((ref) => _FixedBackendNotifier(ref, backend)),
+        backendProvider.overrideWith(
+          (ref) => _FixedBackendNotifier(ref, backend),
+        ),
       ],
     );
     addTearDown(container.dispose);
