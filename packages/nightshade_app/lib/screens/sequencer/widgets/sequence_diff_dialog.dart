@@ -4,8 +4,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// Wave 6 Agent 5 — modal that renders a [SequenceDiffResult] in
-/// a unified-diff layout with green/red/yellow color coding.
+/// Modal that renders a [SequenceDiffResult] in a unified-diff layout
+/// with green/red/yellow color coding.
 ///
 /// Two factory entry points:
 ///   * [SequenceDiffDialog.show] for direct invocation when both

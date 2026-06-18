@@ -46,8 +46,8 @@ class _PreFlightValidationDialogState
   String? _simulationUnavailableReason;
   bool _isValidating = true;
 
-  /// Wave 6 Pack O — diff vs the most recent COMPLETED run of this
-  /// sequence. `null` either means we haven't computed it yet, or there
+  /// Diff vs the most recent COMPLETED run of this sequence. `null`
+  /// either means we haven't computed it yet, or there
   /// is no previous run to compare against (fresh sequence, or first
   /// successful run still pending). When non-null AND non-empty we
   /// surface a small info-banner near the top of the dialog with a
@@ -168,7 +168,7 @@ class _PreFlightValidationDialogState
 
   /// Handle starting the sequence, checking for mount parking first.
   ///
-  /// Wave 7 — Before kicking off the mount-unpark flow we surface the
+  /// Before kicking off the mount-unpark flow we surface the
   /// multi-night carry-over dialog when (a) at least one target has
   /// recent unfinished integration and (b) the
   /// `sessionHandoffAutoPrompt` setting is on. The decision is recorded
@@ -187,7 +187,7 @@ class _PreFlightValidationDialogState
       Navigator.of(context).pop();
     }
 
-    // Wave 7 — Surface the carry-over banner when enabled.
+    // Surface the carry-over banner when enabled.
     if (mounted) {
       final autoPrompt = ref.read(sessionHandoffAutoPromptProvider);
       if (autoPrompt) {
@@ -369,10 +369,10 @@ class _PreFlightValidationDialogState
     final result = _result!;
     final hasSimulationIssues = _simulation?.issues.isNotEmpty ?? false;
 
-    // Wave 5 Agent 3 — partition issues into the three new pre-flight
-    // groups (Dark Library, Equipment Health, Optical Train) so each
-    // gets its own collapsible section, then a "General" bucket for
-    // the existing categories (structure / equipment / settings / etc).
+    // Partition issues into the Dark Library, Equipment Health, and
+    // Optical Train groups so each gets its own collapsible section,
+    // then a "General" bucket for the remaining categories
+    // (structure / equipment / settings / etc).
     final darkLibrary = result.issues
         .where((i) => i.category == ValidationCategory.darkLibrary)
         .toList(growable: false);
@@ -394,9 +394,8 @@ class _PreFlightValidationDialogState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Wave 6 Pack O — info banner when the sequence has changed
-          // since the last completed run. Informational only; not a
-          // pre-flight blocker.
+          // Info banner when the sequence has changed since the last
+          // completed run. Informational only; not a pre-flight blocker.
           if (_previousRunDiff != null && !_previousRunDiff!.isEmpty) ...[
             _buildPreviousRunDiffBanner(colors, _previousRunDiff!),
             const SizedBox(height: 12),
@@ -803,8 +802,8 @@ class _PreFlightValidationDialogState
     );
   }
 
-  /// Wave 6 Pack O — info-severity banner shown when the in-editor
-  /// sequence differs structurally from the most recent COMPLETED run
+  /// Info-severity banner shown when the in-editor sequence differs
+  /// structurally from the most recent COMPLETED run
   /// of the same sequence. Tapping "View N changes" pops the structural
   /// diff dialog.
   Widget _buildPreviousRunDiffBanner(

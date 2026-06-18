@@ -99,7 +99,7 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
   /// Local working copy of the wizard's [SmartNightSettings]. Seeded from
   /// the persisted defaults in [AppSettingsState] on first build; user
   /// changes are written back to settings so the next session pre-fills
-  /// with the user's preferences (Wave 6 Pack O).
+  /// with the user's preferences.
   SmartNightSettings _settings = const SmartNightSettings();
   bool _settingsSeededFromAppSettings = false;
 
@@ -462,7 +462,7 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
       final cloudCover = ref.read(cloudCoverPercentageProvider).valueOrNull;
       final cloudProb = cloudCover == null ? null : cloudCover / 100.0;
 
-      // Polar alignment freshness (Wave 5).
+      // Polar alignment freshness.
       final lastPolarAlign =
           ref.read(lastPolarAlignmentProvider(profile.id)).valueOrNull;
       int? daysSinceLastPolar;

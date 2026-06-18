@@ -5,7 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// Wave 7 — Multi-night carry-over banner / dialog.
+/// Multi-night carry-over banner / dialog.
 ///
 /// Surfaces when one or more of the sequence's targets has unfinished
 /// integration from a recent prior session. Lets the operator pick a

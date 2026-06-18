@@ -1,4 +1,4 @@
-/// Wave 8 — Frame-Failure Forensics: detail dialog.
+/// Frame-Failure Forensics: detail dialog.
 ///
 /// Modal that shows the rejected frame's preview, the grader's reason
 /// string, the classifier's verdict + evidence bullets, and the
@@ -6,8 +6,7 @@
 ///
 /// Opens from two surfaces:
 ///
-/// * The thumbnail strip (Wave 6 Agent 4) — tapping a rejected
-///   thumbnail.
+/// * The thumbnail strip — tapping a rejected thumbnail.
 /// * The Forensics panel — tapping a row.
 ///
 /// Both call `showDialog(builder: (_) => FrameDetailDialog(record: r))`.
@@ -307,8 +306,8 @@ class _ImagePreview extends ConsumerWidget {
     }
   }
 
-  /// Look for the sidecar preview that the Wave 6 thumbnail strip
-  /// writes alongside each FITS. Convention: same basename with the
+  /// Look for the sidecar preview that the thumbnail strip writes
+  /// alongside each FITS. Convention: same basename with the
   /// FITS extension swapped for `.preview.png`.
   File? _resolvePreviewFile(String rejectPath) {
     final lower = rejectPath.toLowerCase();

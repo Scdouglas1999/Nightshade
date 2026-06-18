@@ -1,5 +1,4 @@
-// Wave 5 Agent 1 — Mosaic Wizard powered by the planetarium's mosaic
-// planner.
+// Mosaic Wizard, powered by the planetarium's mosaic planner.
 //
 // The visual planner draws a grid of camera-FOV-shaped panels over a
 // stylised sky background. The user can:
@@ -11,11 +10,12 @@
 //   * click any panel to disable / re-enable it (useful when a corner
 //     is occluded by trees in the user's view)
 //
-// The generated `MosaicConfig` shape is identical to the pre-Wave-5
-// wizard, so the executor and resume logic don't change.
+// The generated `MosaicConfig` shape is identical to the one produced
+// by the earlier text-only wizard, so the executor and resume logic
+// don't change.
 //
-// The Wave 4 Mosaic-Resume banner remains at the top of the dialog —
-// see `_buildResumeBanner` below.
+// The mosaic-resume banner remains at the top of the dialog — see
+// `_buildResumeBanner` below.
 
 import 'dart:async';
 import 'dart:math' as math;
@@ -74,9 +74,9 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
   /// rebuilding the grid.
   final Set<int> _disabledPanels = <int>{};
 
-  /// Wave 4 Mosaic-Resume: holds the resumable checkpoint info when an
-  /// interrupted mosaic sequence is detected. `null` while loading and
-  /// when no mosaic checkpoint exists.
+  /// Holds the resumable checkpoint info when an interrupted mosaic
+  /// sequence is detected. `null` while loading and when no mosaic
+  /// checkpoint exists.
   CheckpointInfo? _resumableMosaicCheckpoint;
 
   @override

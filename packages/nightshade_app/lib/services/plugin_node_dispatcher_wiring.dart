@@ -1,4 +1,4 @@
-// Wave 6 Pack P — wire the `pluginNodeDispatcherProvider` (defined in
+// Wires the `pluginNodeDispatcherProvider` (defined in
 // `nightshade_core`) to the real `PluginNodeExecutor` (defined in
 // `nightshade_plugins`).
 //
