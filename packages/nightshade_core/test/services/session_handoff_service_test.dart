@@ -3,7 +3,6 @@ import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart' hide CapturedImage;
 import 'package:nightshade_core/src/database/database.dart'
-    hide Sequence, SequenceNode
     show CapturedImage, ImagingSession, Target;
 
 void main() {

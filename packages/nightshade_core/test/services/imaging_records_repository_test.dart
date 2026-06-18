@@ -1,7 +1,6 @@
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/src/backend/network_backend.dart';
 import 'package:nightshade_core/src/database/daos/images_dao.dart';
 import 'package:nightshade_core/src/database/daos/sessions_dao.dart';
@@ -9,8 +8,6 @@ import 'package:nightshade_core/src/database/database.dart';
 import 'package:nightshade_core/src/services/imaging_records_repository.dart';
 
 import '../fakes/fake_network_client.dart';
-
-class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
 void main() {
   group('ImagingRecordsRepository local', () {

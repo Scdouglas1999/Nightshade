@@ -1,4 +1,17 @@
-/// Nightshade Core - Shared business logic
+/// Nightshade Core - Shared business logic.
+///
+/// This is the aggregate barrel: it re-exports every public symbol in the
+/// package and is retained for backward compatibility. It stays exhaustive so
+/// existing `package:nightshade_core/nightshade_core.dart` imports keep
+/// resolving everything.
+///
+/// NEW imports should prefer the narrower, layer-scoped barrels to keep their
+/// dependency surface small:
+///   * nightshade_core_models.dart    - pure domain/value types
+///   * nightshade_core_backend.dart   - backend interface + wire models
+///   * nightshade_core_database.dart  - drift database + DAOs
+///   * nightshade_core_services.dart  - business-logic services + utilities
+///   * nightshade_core_providers.dart - Riverpod providers / DI wiring
 library;
 
 // Database - hide entity names that collide with domain-model classes of the
