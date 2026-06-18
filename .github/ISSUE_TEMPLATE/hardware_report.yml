@@ -1,0 +1,142 @@
+name: Hardware compatibility report
+description: Report how a real camera / mount / focuser / wheel / guider worked (or didn't) with Nightshade
+title: "[Hardware]: "
+labels: ["hardware-validation", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        During the public beta, real-rig reports are the most useful thing you can send — **including reports that it worked fine.** They build the verified-hardware matrix in `docs/supported-hardware-by-platform.md`. Please fill in every field you can; the driver/SDK version and connection mode matter a lot.
+
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options:
+        - Works fully
+        - Works with limitations (describe below)
+        - Broken / unusable
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - Linux (specify distro below)
+        - macOS
+        - Raspberry Pi OS / appliance
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Nightshade version
+      description: Help → About, asset filename, or release tag
+      placeholder: "4.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Connection mode
+      description: How were you driving the rig?
+      options:
+        - Desktop GUI app
+        - Headless server (no GUI)
+        - Mobile companion (Android/iOS)
+        - Web dashboard (browser)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Driver backend
+      options:
+        - ASCOM COM
+        - ASCOM Alpaca
+        - INDI
+        - Native SDK
+        - PHD2
+        - Simulator
+    validations:
+      required: true
+
+  - type: dropdown
+    id: device_type
+    attributes:
+      label: Device type
+      options:
+        - Camera
+        - Mount
+        - Focuser
+        - Filter wheel
+        - Rotator
+        - Guider
+        - Dome
+        - Weather / safety
+        - Switch / cover / calibrator
+    validations:
+      required: true
+
+  - type: input
+    id: device_model
+    attributes:
+      label: Device vendor & model
+      placeholder: "ZWO ASI2600MC Pro / SkyWatcher EQ6-R Pro / PegasusAstro NYX-101"
+    validations:
+      required: true
+
+  - type: input
+    id: driver_version
+    attributes:
+      label: Driver / SDK version
+      description: ASCOM driver version, Alpaca server build, INDI driver version, or native SDK version. This is critical — many issues are driver-version-specific.
+      placeholder: "ASCOM ASI driver 6.x.x.x / INDI 2.0.x / ASI SDK 1.x"
+    validations:
+      required: true
+
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Workflow tested
+      description: Which operations did you exercise? Connect, slew, plate-solve, autofocus, capture, cooling, filter change, guide+dither, meridian flip, park, etc.
+      placeholder: |
+        - Connected fine
+        - Cooling to -10C worked
+        - 300s captures OK
+        - Filter change to slot 3 did NOT move the wheel
+    validations:
+      required: true
+
+  - type: textarea
+    id: sequence_step
+    attributes:
+      label: Where it went sideways (if applicable)
+      description: The exact sequence step / screen / operation at the moment of failure.
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or error text
+      description: Paste relevant log lines or the on-screen error. Please scrub auth tokens, webhook URLs, and your latitude/longitude first — see docs/diagnostics-and-privacy.md.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues for this device
+          required: true
+        - label: I scrubbed tokens, webhook URLs, and my exact coordinates from any logs I pasted
+          required: false

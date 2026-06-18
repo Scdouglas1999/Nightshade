@@ -27,8 +27,8 @@ body:
     id: version
     attributes:
       label: Nightshade version
-      description: Help → About, installer filename, or release tag (e.g. 2.6.0)
-      placeholder: "2.6.0"
+      description: Help → About, asset filename, or release tag (e.g. 4.1.0)
+      placeholder: "4.1.0"
     validations:
       required: true
 

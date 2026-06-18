@@ -354,10 +354,24 @@ jobs:
           echo "Release assets:"
           ls -l release-assets
 
+      # Fail early with a clear message rather than letting the publish step
+      # silently fall back to an empty release body when the notes file for this
+      # tag was never written. The file name must match the tag (v4.1.0 ->
+      # docs/release/v4.1.0.md).
+      - name: Verify release notes exist for this tag
+        run: |
+          set -euo pipefail
+          notes="docs/release/${{ github.ref_name }}.md"
+          if [ ! -f "$notes" ]; then
+            echo "::error::Release notes file '$notes' is missing. Create it before tagging, or the published release would have an empty body."
+            exit 1
+          fi
+          echo "Found release notes: $notes"
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          name: Nightshade ${{ github.ref_name }} — From your couch. Wake up to a finished image.
+          name: Nightshade ${{ github.ref_name }}
           body_path: docs/release/${{ github.ref_name }}.md
           files: release-assets/*
           draft: false
