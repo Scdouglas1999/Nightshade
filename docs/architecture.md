@@ -44,7 +44,7 @@ under `native/nightshade_native/`.
 - `nightshade_updater` — update checks and manifest handling.
 
 **Dependency direction.** The layering is strict and enforced by convention (see
-`CONTRIBUTING.md` → "Where to put new code"):
+`.github/CONTRIBUTING.md` → "Where to put new code"):
 
 - `apps` depend on `packages`, never the reverse.
 - `nightshade_app` depends on `nightshade_core`.
@@ -76,7 +76,7 @@ in the workspace. Configuration lives in
   `scripts/dev.sh` (Linux) / `scripts/dev.ps1` (Windows) and the
   `melos run dev` workflow. Running `flutter run` directly skips FRB
   regeneration and the library copy, which causes runtime hash mismatches — this
-  is called out in `CONTRIBUTING.md`.
+  is called out in `.github/CONTRIBUTING.md`.
 
 The bridge crate exposes device control, imaging operations, and the sequencer
 API to Dart, and streams events back through a unified event channel that Dart

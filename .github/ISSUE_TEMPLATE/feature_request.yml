@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        For large features, maintainers prefer a short design discussion in the issue before a PR. See [CONTRIBUTING.md](../../CONTRIBUTING.md).
+        For large features, maintainers prefer a short design discussion in the issue before a PR. See [CONTRIBUTING.md](../CONTRIBUTING.md).
 
   - type: textarea
     id: problem

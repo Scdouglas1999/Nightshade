@@ -11,7 +11,7 @@
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS%20%7C%20Android-blue)](#platforms)
 [![License](https://img.shields.io/badge/license-source--available-lightgrey)](LICENSE)
 
-[**Download**](https://github.com/Scdouglas1999/Nightshade/releases/latest) · [**Documentation**](docs/index.md) · [**Changelog**](CHANGELOG.md) · [**Release notes (4.1.0)**](docs/release/v4.1.0.md)
+[**Download**](https://github.com/Scdouglas1999/Nightshade/releases/latest) · [**Documentation**](docs/index.md) · [**Changelog**](docs/CHANGELOG.md) · [**Release notes (4.1.0)**](docs/release/v4.1.0.md)
 
 <img src="assets/screenshots/desktop-dashboard.png?v=20260608" width="860" alt="Nightshade live dashboard with preview, equipment, guiding, and weather tiles">
 
@@ -172,7 +172,7 @@ New to Nightshade? Start with the [installation guide](docs/getting-started/inst
 - [Release evidence (what's verified) 4.1.0](docs/release-evidence/4.1.0.md)
 - [Architecture overview](docs/architecture.md)
 - [No-silent-fake-hardware policy](docs/no-fake-hardware-policy.md)
-- [Changelog](CHANGELOG.md)
+- [Changelog](docs/CHANGELOG.md)
 
 ## Build from source
 
@@ -227,7 +227,7 @@ If codegen or the FFI boundary misbehaves, start with [docs/FRB_TROUBLESHOOTING.
 
 ## Contributing
 
-Bug reports, hardware coverage notes, and pull requests are welcome. Real hardware is hard to simulate, so test reports from actual rigs are especially useful: name the camera, the mount, the backend (ASCOM/Alpaca/INDI/native), the OS, and the sequence step where things went sideways. Start with [CONTRIBUTING.md](CONTRIBUTING.md) and the [docs index](docs/index.md). For security issues, see [SECURITY.md](SECURITY.md) to report privately.
+Bug reports, hardware coverage notes, and pull requests are welcome. Real hardware is hard to simulate, so test reports from actual rigs are especially useful: name the camera, the mount, the backend (ASCOM/Alpaca/INDI/native), the OS, and the sequence step where things went sideways. Start with [CONTRIBUTING.md](.github/CONTRIBUTING.md) and the [docs index](docs/index.md). For security issues, see [SECURITY.md](.github/SECURITY.md) to report privately.
 
 ## License
 

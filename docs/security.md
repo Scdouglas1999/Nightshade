@@ -8,7 +8,7 @@ clients. It targets Nightshade **4.1.0**.
 
 It complements two sibling documents and does not duplicate them:
 
-- [SECURITY.md](../SECURITY.md) — supported versions and how to report a
+- [SECURITY.md](../.github/SECURITY.md) — supported versions and how to report a
   vulnerability.
 - [docs/headless-secure-setup.md](headless-secure-setup.md) — the operational
   setup guide (flags, tokens, firewall, systemd hardening).
@@ -23,7 +23,7 @@ Nightshade is designed for a **trusted local observatory LAN**. The threat model
 assumes the network the headless server is bound to is operated by the user and
 not directly reachable from the public internet. Direct WAN exposure of the
 headless API or web dashboard is **out of scope for default configurations**, as
-stated in the [SECURITY.md scope notes](../SECURITY.md).
+stated in the [SECURITY.md scope notes](../.github/SECURITY.md).
 
 Concretely, the design treats "a device is on the rig's private LAN" as a
 meaningful trust signal (see pairing, below). On an untrusted shared network
@@ -237,7 +237,7 @@ log redaction beyond tokens and client-facing error strings.
 ## 10. Reporting a vulnerability
 
 Do not open a public GitHub issue for security vulnerabilities. Follow the
-private reporting process in [SECURITY.md](../SECURITY.md), and include whether
+private reporting process in [SECURITY.md](../.github/SECURITY.md), and include whether
 the deployment used token authentication, TLS, the relay, and host firewall
 rules.
 

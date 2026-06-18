@@ -13,8 +13,8 @@ Each pack directory includes a `pack.json` manifest (SHA-256 per file). After re
 
 | Tool | Source CSV | Setup |
 |------|------------|--------|
-| `build_opengnc` | `packages/nightshade_planetarium/assets/opengnc/NGC.csv` | [OpenNGC README](../../../../packages/nightshade_planetarium/assets/opengnc/README.md) |
-| `build_hyg_tiles` | `packages/nightshade_planetarium/assets/hyg/hyg_v42.csv` | [HYG README](../../../../packages/nightshade_planetarium/assets/hyg/README.md) |
+| `build_opengnc` | `packages/nightshade_planetarium/assets/opengnc/NGC.csv` | [OpenNGC README](../../../../../packages/nightshade_planetarium/assets/opengnc/README.md) |
+| `build_hyg_tiles` | `packages/nightshade_planetarium/assets/hyg/hyg_v42.csv` | [HYG README](../../../../../packages/nightshade_planetarium/assets/hyg/README.md) |
 
 ## Build steps (from repository root)
 

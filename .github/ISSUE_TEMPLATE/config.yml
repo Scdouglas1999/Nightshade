@@ -10,8 +10,8 @@ contact_links:
     url: https://github.com/Scdouglas1999/Nightshade/blob/main/docs/supported-hardware-by-platform.md
     about: Backend availability and the verified-hardware table
   - name: Report a security vulnerability (privately)
-    url: https://github.com/Scdouglas1999/Nightshade/blob/main/SECURITY.md
+    url: https://github.com/Scdouglas1999/Nightshade/blob/main/.github/SECURITY.md
     about: Do NOT open a public issue for security problems — report privately
   - name: Changelog
-    url: https://github.com/Scdouglas1999/Nightshade/blob/main/CHANGELOG.md
+    url: https://github.com/Scdouglas1999/Nightshade/blob/main/docs/CHANGELOG.md
     about: Version history and release notes

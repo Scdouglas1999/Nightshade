@@ -17,7 +17,7 @@
 - [ ] `melos run test` passes for affected packages
 - [ ] Rust changes: `cargo test --all-features` and `cargo clippy --all-features -- -D warnings` in `native/nightshade_native`
 - [ ] Rust/API changes: ran `melos run dev` or `melos run generate` so FFI bindings stay in sync
-- [ ] No new stubs, silent fallbacks, or placeholder markers (see [CONTRIBUTING.md](../CONTRIBUTING.md))
+- [ ] No new stubs, silent fallbacks, or placeholder markers (see [CONTRIBUTING.md](CONTRIBUTING.md))
 - [ ] Generated-code commits are separate and titled `chore: regenerate generated code` when applicable
 
 ## Screenshots / recordings

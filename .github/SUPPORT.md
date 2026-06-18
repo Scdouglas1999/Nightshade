@@ -12,11 +12,11 @@
 |------|--------|
 | Bug or regression | [Open a bug report](https://github.com/Scdouglas1999/Nightshade/issues/new?template=bug_report.yml) |
 | Feature idea | [Open a feature request](https://github.com/Scdouglas1999/Nightshade/issues/new?template=feature_request.yml) |
-| Security concern | [SECURITY.md](../SECURITY.md) — private report only |
-| Releases & upgrades | [GitHub Releases](https://github.com/Scdouglas1999/Nightshade/releases) and [CHANGELOG.md](../CHANGELOG.md) |
+| Security concern | [SECURITY.md](SECURITY.md) — private report only |
+| Releases & upgrades | [GitHub Releases](https://github.com/Scdouglas1999/Nightshade/releases) and [CHANGELOG.md](../docs/CHANGELOG.md) |
 
 Include **Nightshade version**, **OS**, **driver backend** (ASCOM / Alpaca / INDI / native), and **equipment models** when reporting hardware issues.
 
 ## Contributing code
 
-See [CONTRIBUTING.md](../CONTRIBUTING.md) for setup, CI gates, and conventions.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, CI gates, and conventions.

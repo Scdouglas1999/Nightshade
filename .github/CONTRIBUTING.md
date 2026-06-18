@@ -2,7 +2,7 @@
 
 Welcome. This document covers the local setup steps every contributor should run once, plus the conventions CI enforces.
 
-Nightshade is a Flutter front end over a Rust core, bridged with flutter_rust_bridge (FRB). The Dart bindings and the native library must stay in sync, so the toolchain and dev scripts exist to keep them aligned. See [README](README.md#build-from-source) for the full build matrix.
+Nightshade is a Flutter front end over a Rust core, bridged with flutter_rust_bridge (FRB). The Dart bindings and the native library must stay in sync, so the toolchain and dev scripts exist to keep them aligned. See [README](../README.md#build-from-source) for the full build matrix.
 
 ## One-time setup
 
@@ -51,7 +51,7 @@ Useful variants:
 | `melos run dev:norun` | Rebuild the native bridge + bindings without launching Flutter. |
 | `melos run dev:clean` | Clean all build artifacts and rebuild from scratch. |
 
-If codegen or the FFI boundary misbehaves, start with [docs/FRB_TROUBLESHOOTING.md](docs/FRB_TROUBLESHOOTING.md).
+If codegen or the FFI boundary misbehaves, start with [docs/FRB_TROUBLESHOOTING.md](../docs/FRB_TROUBLESHOOTING.md).
 
 ## Regenerating code
 

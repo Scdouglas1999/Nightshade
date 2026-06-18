@@ -27,4 +27,4 @@ You should receive an acknowledgment within a reasonable timeframe. We will coor
 
 Nightshade is designed for **local observatory LANs**. Remote control and the web dashboard assume a trusted network; exposing the headless API or dashboard directly to the public internet without additional hardening is out of scope for default configurations.
 
-When reporting remote-control issues, specify whether the deployment used token authentication, TLS termination, and firewall rules from [Headless secure setup](docs/headless-secure-setup.md).
+When reporting remote-control issues, specify whether the deployment used token authentication, TLS termination, and firewall rules from [Headless secure setup](../docs/headless-secure-setup.md).
