@@ -60,6 +60,22 @@ scripts:
     run: dart run tools/production/design_tokens_audit.dart
     description: Track design-system token adoption in app screens (hardcoded radii, inline TextStyle fontSize, raw Colors.*). Informational by default; pass --max-*=N or --strict to enforce.
 
+  audit:narrative-comments:
+    run: dart run tools/production/narrative_comment_audit.dart
+    description: Flag AI-narrative / audit-trail comments (change-history, self-narration, restated-obvious lines, over-written 'why this import' blocks). Informational human-in-the-loop lint; allowlist real-invariant keepers in docs/production-readiness/narrative-comment-allowlist.txt. Pass --max N to gate.
+
+  audit:narrative-comments:self-test:
+    run: dart run tools/production/narrative_comment_audit_self_test.dart
+    description: Self-test the narrative-comment audit classifier and walk/allowlist against temporary fixtures.
+
+  audit:stale-comments:
+    run: dart run tools/production/stale_comment_audit.dart
+    description: Flag doc/line comments asserting a symbol is unused/not-wired/not-registered or that a conversion is pending, when current code contradicts the claim. Informational by default; pass --fail-on-stale to gate.
+
+  audit:stale-comments:self-test:
+    run: dart run tools/production/stale_comment_audit_self_test.dart
+    description: Self-test the stale-comment auditor against synthetic contradicted and still-true fixtures
+
   audit:public-release-gate:
     run: dart run tools/production/public_release_gate.dart
     description: Combine release evidence artifacts into one conservative ship/no-ship gate
@@ -164,6 +180,14 @@ scripts:
   audit:dependency-hygiene:
     run: dart run tools/production/dependency_hygiene.dart
     description: Verify workspace packages declare direct dependencies for lib imports
+
+  audit:bridge-boundary:
+    run: dart run tools/production/bridge_boundary_audit.dart
+    description: Enforce that nightshade_core is the only Dart package importing package:nightshade_bridge (architecture §1); whitelist holds reviewed exceptions
+
+  audit:bridge-boundary:self-test:
+    run: dart run tools/production/bridge_boundary_audit_self_test.dart
+    description: Self-test bridge boundary audit exemptions, violation detection, whitelist handling, and symbol extraction against temporary fixtures
 
   audit:hardware-availability:
     run: dart run tools/production/hardware_availability_probe.dart
