@@ -46,7 +46,10 @@ pub(crate) fn pump_blocking_recv<T>(rx: &mut tokio::sync::mpsc::Receiver<T>) -> 
         unsafe {
             let mut msg = MSG::default();
             while PeekMessageW(&mut msg, HWND::default(), 0, 0, PM_REMOVE).as_bool() {
-                let _ = TranslateMessage(&msg);
+                // TranslateMessage's BOOL only reports whether a WM_CHAR was
+                // posted; irrelevant here, so it's discarded as a bare
+                // statement like DispatchMessageW below.
+                TranslateMessage(&msg);
                 DispatchMessageW(&msg);
             }
         }

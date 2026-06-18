@@ -86,9 +86,9 @@ void main() {
     // a token or force --require-auth; it simply lets bindLocalOnly become
     // false while token stays null. This is an explicit, deliberate opt-in.
     test('--allow-unauthenticated-lan opens LAN with no token', () {
-      final config = parseHeadlessAuthConfig(
-        const ['--allow-unauthenticated-lan'],
-      );
+      final config = parseHeadlessAuthConfig(const [
+        '--allow-unauthenticated-lan',
+      ]);
       expect(config.token, isNull);
       expect(config.requireAuth, isFalse);
       expect(
@@ -134,9 +134,10 @@ void main() {
 
   group('scoped tokens', () {
     test('view and control tokens map to their scopes', () {
-      final config = parseHeadlessAuthConfig(
-        const ['--view-token=viewer', '--control-token=operator'],
-      );
+      final config = parseHeadlessAuthConfig(const [
+        '--view-token=viewer',
+        '--control-token=operator',
+      ]);
       expect(
         config.scopedTokens,
         containsPair('viewer', HeadlessTokenScope.view),
@@ -163,12 +164,10 @@ void main() {
 
   group('CORS origins', () {
     test('--cors-origin accumulates non-empty origins', () {
-      final config = parseHeadlessAuthConfig(
-        const [
-          '--cors-origin=https://a.example',
-          '--cors-origin=https://b.example',
-        ],
-      );
+      final config = parseHeadlessAuthConfig(const [
+        '--cors-origin=https://a.example',
+        '--cors-origin=https://b.example',
+      ]);
       expect(
         config.corsAllowedOrigins,
         containsAll(<String>['https://a.example', 'https://b.example']),
@@ -181,9 +180,9 @@ void main() {
     });
 
     test('corsAllowedOrigins is unmodifiable', () {
-      final config = parseHeadlessAuthConfig(
-        const ['--cors-origin=https://a.example'],
-      );
+      final config = parseHeadlessAuthConfig(const [
+        '--cors-origin=https://a.example',
+      ]);
       expect(
         () => config.corsAllowedOrigins.add('https://evil.example'),
         throwsUnsupportedError,
@@ -200,17 +199,17 @@ void main() {
     });
 
     test('a --tls-cert path implies TLS even without --tls', () {
-      final config = parseHeadlessAuthConfig(
-        const ['--tls-cert=/etc/ssl/rig.pem'],
-      );
+      final config = parseHeadlessAuthConfig(const [
+        '--tls-cert=/etc/ssl/rig.pem',
+      ]);
       expect(config.tlsEnabled, isTrue);
       expect(config.tlsCertPath, '/etc/ssl/rig.pem');
     });
 
     test('a --tls-key path alone also implies TLS', () {
-      final config = parseHeadlessAuthConfig(
-        const ['--tls-key=/etc/ssl/rig.key'],
-      );
+      final config = parseHeadlessAuthConfig(const [
+        '--tls-key=/etc/ssl/rig.key',
+      ]);
       expect(config.tlsEnabled, isTrue);
       expect(config.tlsKeyPath, '/etc/ssl/rig.key');
     });
@@ -223,9 +222,10 @@ void main() {
     });
 
     test('both cert and key paths are captured', () {
-      final config = parseHeadlessAuthConfig(
-        const ['--tls-cert=/c.pem', '--tls-key=/k.pem'],
-      );
+      final config = parseHeadlessAuthConfig(const [
+        '--tls-cert=/c.pem',
+        '--tls-key=/k.pem',
+      ]);
       expect(config.tlsEnabled, isTrue);
       expect(config.tlsCertPath, '/c.pem');
       expect(config.tlsKeyPath, '/k.pem');

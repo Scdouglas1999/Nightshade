@@ -282,8 +282,10 @@ Future<HeadlessApiServer> startHeadlessServices(
       }
       stdout.writeln('');
     }
-  } catch (_) {
-    // Best-effort local IP discovery only.
+  } catch (e) {
+    // The LAN-address banner is informational; surface the failure on stdout
+    // rather than swallowing it, but never let it abort startup.
+    stdout.writeln('  (local IP details unavailable: $e)');
   }
 
   return apiServer;

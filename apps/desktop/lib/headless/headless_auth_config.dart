@@ -42,9 +42,7 @@ class HeadlessAuthConfig {
 HeadlessAuthConfig parseHeadlessAuthConfig(List<String> args) {
   String? token;
   var requireAuth = false;
-  var allowUnauthenticatedLan = envFlag(
-    'NIGHTSHADE_ALLOW_UNAUTHENTICATED_LAN',
-  );
+  var allowUnauthenticatedLan = envFlag('NIGHTSHADE_ALLOW_UNAUTHENTICATED_LAN');
   var port = 8080;
   final scopedTokens = <String, HeadlessTokenScope>{};
   final corsAllowedOrigins = <String>[];
@@ -54,9 +52,7 @@ HeadlessAuthConfig parseHeadlessAuthConfig(List<String> args) {
     Platform.environment['NIGHTSHADE_PAIRING_MODE'],
   );
   var tlsEnabled = envFlag('NIGHTSHADE_TLS');
-  String? tlsCertPath = trimToNull(
-    Platform.environment['NIGHTSHADE_TLS_CERT'],
-  );
+  String? tlsCertPath = trimToNull(Platform.environment['NIGHTSHADE_TLS_CERT']);
   String? tlsKeyPath = trimToNull(Platform.environment['NIGHTSHADE_TLS_KEY']);
 
   token = Platform.environment['NIGHTSHADE_AUTH_TOKEN'];

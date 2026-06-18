@@ -63,10 +63,10 @@ const _avahiServiceFileName = 'nightshade.service';
 /// `_nightshade._tcp` discovery connects to the wrong port/scheme. Rewriting it
 /// at boot from the live values keeps mDNS discovery correct.
 ///
-/// BEST-EFFORT: the services dir only exists (and is only writable) when
-/// running as the packaged appliance. Anywhere else — dev desktop, CI, a host
-/// without Avahi, or a read-only `/etc` — we log-and-continue. This must NEVER
-/// crash the daemon: every failure mode is caught and downgraded to a log line.
+/// The services dir only exists (and is only writable) when running as the
+/// packaged appliance. Anywhere else — dev desktop, CI, a host without Avahi,
+/// or a read-only `/etc` — we log-and-continue. This must NEVER crash the
+/// daemon: every failure mode is caught and downgraded to a log line.
 void refreshAvahiServiceFile({
   required LoggingService logger,
   required int port,

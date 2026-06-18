@@ -311,11 +311,14 @@ jobs:
     timeout-minutes: 30
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # windows pinned to windows-2022: windows-latest moved to
+        # windows-2025-vs2026 (2026-06-18), whose CMake breaks flutter_webrtc's
+        # Windows native build (extract-through-symlink). See release.yml.
+        os: [ubuntu-latest, windows-2022, macos-latest]
         include:
           - os: ubuntu-latest
             platform: linux
-          - os: windows-latest
+          - os: windows-2022
             platform: windows
           - os: macos-latest
             platform: macos
@@ -360,7 +363,7 @@ jobs:
         run: cargo build --release --manifest-path bridge/Cargo.toml
 
       - name: Build Rust library (Windows)
-        if: matrix.os == 'windows-latest'
+        if: matrix.os == 'windows-2022'
         working-directory: native/nightshade_native
         run: cargo build --release --manifest-path bridge/Cargo.toml
 
