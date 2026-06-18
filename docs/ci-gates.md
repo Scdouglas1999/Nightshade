@@ -35,7 +35,7 @@ step exits non-zero, the job fails, the check shows red on the PR, and the
 | Dart format | `format-check` → "Check Dart formatting" | `dart format --set-exit-if-changed` clean on every package. | `melos run format -- --set-exit-if-changed` |
 | Rust format | `format-check` → "Check Rust formatting" | `cargo fmt --all -- --check` clean. | `cd native/nightshade_native && cargo fmt --all -- --check` |
 | Build test | `build-test` → "Test build Flutter app" | Flutter debug build succeeds on Ubuntu, Windows, and macOS runners. Catches platform-specific build regressions before they reach release. | `cd apps/desktop && flutter build <platform> --debug` |
-| Coverage upload | `coverage` → "Upload coverage to Codecov" | `fail_ci_if_error: true` and Codecov target/threshold from `codecov.yml`. Forked-PR uploads tolerated when token absent. | `melos run test -- --coverage` then run `codecov` locally. |
+| Coverage upload | `coverage` → "Upload coverage to Codecov" | `fail_ci_if_error: true` and Codecov target/threshold from `.github/codecov.yml`. Forked-PR uploads tolerated when token absent. | `melos run test -- --coverage` then run `codecov` locally. |
 
 ---
 
