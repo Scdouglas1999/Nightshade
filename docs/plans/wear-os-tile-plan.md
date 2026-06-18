@@ -4,7 +4,7 @@ shipped the Apple Watch complication; Wear OS parity is parked
 behind this plan. The work is non-trivial — a Wear OS Tile is a separate
 Gradle module with its own manifest, Tile service, and complication data
 source — but the design and file layout are documented here so a future
-agent can pick this up without re-discovering everything.
+contributor can pick this up without re-discovering everything.
 
 ## Goal
 
