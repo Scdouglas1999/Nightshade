@@ -90,6 +90,46 @@ class CatalogManager {
       name: 'CatalogManager',
       level: 800,
     );
+
+    // Warm the name-search caches off the critical path so the FIRST
+    // `search()` doesn't block for several seconds parsing the multi-MB
+    // star/DSO files (B10). Fire-and-forget: a failed pre-warm just means the
+    // first real search pays the parse cost, exactly as before.
+    unawaited(prewarmSearchCaches());
+  }
+
+  /// Eagerly parse the installed DSO + star catalogs into their in-memory
+  /// loader caches so subsequent [search] calls hit warm data.
+  ///
+  /// Safe to call repeatedly — the loaders memoise their parsed payload, so a
+  /// second call is a no-op. Errors are swallowed by design (this is a latency
+  /// optimisation, not a correctness path).
+  Future<void> prewarmSearchCaches() async {
+    if (!isInitialized) return;
+    try {
+      final dsoStatus = await getDsoCatalogStatus();
+      if (dsoStatus.isInstalled && dsoStatus.installedPath != null) {
+        await _getDsoLoader(dsoStatus.installedPath!).loadAll();
+      }
+    } catch (e) {
+      developer.log(
+        '[Catalog] DSO search pre-warm failed: $e',
+        name: 'CatalogManager',
+        level: 800,
+      );
+    }
+    try {
+      final starStatus = await getStarCatalogStatus();
+      if (starStatus.isInstalled && starStatus.installedPath != null) {
+        await _getStarLoader(starStatus.installedPath!).loadAll();
+      }
+    } catch (e) {
+      developer.log(
+        '[Catalog] star search pre-warm failed: $e',
+        name: 'CatalogManager',
+        level: 800,
+      );
+    }
   }
 
   /// Get the catalog directory path

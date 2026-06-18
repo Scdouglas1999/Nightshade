@@ -336,7 +336,12 @@ class PlanetariumHandlers {
           (r) => {
             'name': r.name,
             'catalogId': r.catalogId,
+            // `ra` is degrees (catalog-native, kept for back-compat); `raHours`
+            // is the canonical RA field used across the rest of the API —
+            // mount/target/scheduler all speak hours. New clients should prefer
+            // `raHours` so RA is consistently in hours on every surface. (B14)
             'ra': r.ra,
+            'raHours': r.ra / 15.0,
             'dec': r.dec,
             'type': r.type,
             'magnitude': r.magnitude,
@@ -390,6 +395,7 @@ class PlanetariumHandlers {
           'name': dso.displayName,
           'catalogId': dso.name,
           'ra': dso.ra,
+          'raHours': dso.ra / 15.0, // canonical hours field; see B14
           'dec': dso.dec,
           'type': dso.typeDescription,
           'magnitude': dso.magnitude,
@@ -414,6 +420,7 @@ class PlanetariumHandlers {
           'name': star.name,
           'catalogId': star.catalogId,
           'ra': star.ra,
+          'raHours': star.ra / 15.0, // canonical hours field; see B14
           'dec': star.dec,
           'type': 'Star',
           'magnitude': star.magnitude,
@@ -497,6 +504,7 @@ class PlanetariumHandlers {
       'name': exactMatch.name,
       'catalogId': exactMatch.catalogId,
       'ra': exactMatch.ra,
+      'raHours': exactMatch.ra / 15.0, // canonical hours field; see B14
       'dec': exactMatch.dec,
       'raFormatted': CoordinateFormat.ra(exactMatch.ra / 15.0),
       'decFormatted': CoordinateFormat.dec(exactMatch.dec),

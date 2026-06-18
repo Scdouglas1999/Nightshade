@@ -348,3 +348,38 @@ not senior-grade):
   - **B10 / B13** (search latency / discovery re-scan under concurrency): real but low-impact perf
     optimizations (B13 only bit under a synthetic 6-way concurrent sweep); behaviour-changing, so
     deferred rather than risk a blind change for marginal value.
+
+### Fix batch 3 (2026-06-18) — B10, B13, B14 (implemented + verified)
+- **B10 (search cold-start):** root cause was the FIRST `search()` lazily parsing the 119k-star
+  file (the loader + data are already cached, so subsequent searches are fast). Added
+  `CatalogManager.prewarmSearchCaches()`, fired fire-and-forget from `initialize()`, so the parse
+  happens off the critical path and the first user search is warm. Analyze clean.
+- **B13 (discovery pile-up):** added single-flight coalescing — concurrent `GET /api/devices`
+  callers share ONE in-flight all-types sweep (`_fullDiscoveryCoalesced` → `_discoverAllTypes`)
+  instead of each launching N-type fan-outs that serialised in the native layer and timed out. The
+  slot is cleared on completion, so freshness/hot-plug is preserved. 7 discovery tests still pass.
+- **B14 (RA units — DECISION: hours, consistent):** the end-user surfaces were already consistent
+  (mobile does `ra/15`, web uses `raHours`), but the API field `ra` was overloaded — hours in
+  scheduler/mount, degrees in catalog. Converting catalog `ra` to hours would double-convert and
+  break the mobile client. Correct fix: added **`raHours`** (the canonical hours field the rest of
+  the API already uses) to all catalog endpoints (search/object/region), converting from the
+  catalog-native degrees; kept `ra` (degrees) for back-compat with a doc comment steering new
+  clients to `raHours`. Now RA is available in hours on every surface. Planetarium tests pass.
+
+### B1 — FIXED (was NOT rig-dependent; root cause was in our code)
+The ASCOM camera connect dispatch (`bridge/src/dispatch/ascom.rs`) UNCONDITIONALLY called
+`camera.setup_dialog()` before `connect()` — i.e. WE explicitly popped the vendor driver's modal
+SetupDialog on every camera connect (only the camera; mount/focuser just connect). Fine for the
+desktop GUI (lets the operator pick the camera), fatal headless (nobody to dismiss it → connect
+hangs forever). Fix: gate the call behind `interactive_dialogs_allowed()`, which is `false` in
+headless mode (detected via the `--headless` arg / `NIGHTSHADE_HEADLESS=1`, mirroring main.dart;
+the native process shares argv/env with Dart, so no new FFI/FRB-regen). Desktop behaviour is
+unchanged (dialog still shown on connect); headless skips it and uses the driver's saved config.
+Helper verified in isolation; Linux bridge build intact (windows path can't be cross-checked here
+due to vendored C libusb, but the change is a trivial `if`-wrap of a verified `std`-only helper).
+
+### REVISED TALLY: 14 of 17 real bugs fixed
+Fixed: B1 B2 B3 B4 B5 B8 B10 B11 B12 B13 B14 B15 B16 B18. Not bugs: B9 B17.
+Remaining: **B7** (Dart↔Rust connected-list desync) — still needs the rig to reproduce/verify;
+likely downstream of B18, so may already be resolved by the COM pump. **B6** likewise likely
+resolved by the pump (focuser STA loop is now serviced).

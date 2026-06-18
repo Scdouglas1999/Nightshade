@@ -22,6 +22,29 @@ use std::sync::Arc;
 #[cfg(windows)]
 use tokio::sync::RwLock;
 
+/// Whether interactive driver dialogs (e.g. an ASCOM camera `SetupDialog`) may
+/// be shown during connect.
+///
+/// `false` in headless mode: there is no operator to dismiss a modal dialog, so
+/// showing one blocks the connect indefinitely (B1 — the ASCOM camera connect
+/// pops the vendor chooser and hangs the appliance). Headless is detected the
+/// same way the Flutter entrypoint decides it (`apps/desktop/lib/main.dart`):
+/// the `--headless` process argument or `NIGHTSHADE_HEADLESS=1`. The native
+/// process shares its argv/env with the Dart side, so no extra FFI is needed.
+/// Cached — neither signal changes after process start.
+#[cfg(windows)]
+fn interactive_dialogs_allowed() -> bool {
+    use std::sync::OnceLock;
+    static ALLOWED: OnceLock<bool> = OnceLock::new();
+    *ALLOWED.get_or_init(|| {
+        let headless = std::env::args().any(|a| a == "--headless")
+            || std::env::var("NIGHTSHADE_HEADLESS")
+                .map(|v| v == "1")
+                .unwrap_or(false);
+        !headless
+    })
+}
+
 /// Probe an ASCOM typed wrapper for its four ASCOM-Common identification
 /// properties, releasing the per-type map lock before acquiring the
 /// per-wrapper lock so other ops can interleave.
@@ -105,8 +128,14 @@ impl DeviceManager {
                 use crate::ascom_wrapper::camera::AscomCameraWrapper;
                 disconnect_existing_ascom!(self.ascom_cameras, "camera");
                 let mut camera = AscomCameraWrapper::new(prog_id.to_string())?;
-                // Let user select the specific camera/config via ASCOM SetupDialog before connecting
-                camera.setup_dialog().await.map_err(|e| e.to_string())?;
+                // Let the operator pick the specific camera/config via the ASCOM
+                // SetupDialog before connecting — but ONLY when one is present.
+                // In headless mode the modal dialog has nobody to dismiss it and
+                // would hang the connect forever (B1), so we skip it and rely on
+                // the driver's saved configuration.
+                if interactive_dialogs_allowed() {
+                    camera.setup_dialog().await.map_err(|e| e.to_string())?;
+                }
                 camera.connect().await.map_err(|e| e.to_string())?;
 
                 // Store in typed map for camera-specific operations, wrapped in Arc<RwLock>

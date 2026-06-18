@@ -32,6 +32,11 @@ class DeviceDiscoveryHandlers {
 
   DeviceDiscoveryHandlers(this.container);
 
+  /// In-flight full (all-types) discovery, shared by concurrent callers. Null
+  /// when no sweep is running. See [_fullDiscoveryCoalesced].
+  Future<({List<DeviceInfo> devices, Map<String, String> errors})>?
+  _inFlightFullDiscovery;
+
   LoggingService get _logger => container.read(loggingServiceProvider);
 
   void _logWarning(String message, {Map<String, Object?>? fields}) => _logger
@@ -79,54 +84,12 @@ class DeviceDiscoveryHandlers {
           }
         }
       } else {
-        // Why parallel fan-out: the native sweep probes every vendor SDK once
-        // per DeviceType, so a sequential loop over all 11 types serialized
-        // ~1 minute of mostly-idle I/O wait. Each `discoverDevices` call is an
-        // independent async FFI round-trip, so we fan them out concurrently and
-        // join with `Future.wait`, cutting wall-clock time to the slowest single
-        // type. Correctness does NOT depend on completion order: every future
-        // resolves to a (DeviceType, devices) pair, and the merge below is a
-        // pure id-keyed reduction that is associative/commutative over the
-        // result list. The per-type try/catch still maps each failure to
-        // `discoveryErrors[dt.name]` with the exact same log fields, so the
-        // §2.26 "surface persistent driver failures" contract is preserved.
-        //
-        // `discoveryErrors` writes from the per-future catch blocks are safe
-        // without a lock: Dart's event loop is single-threaded, so each future's
-        // catch body runs to completion as one atomic turn — there is no
-        // interleaving that could drop or clobber a sibling's entry.
-        final futures = DeviceType.values.map((dt) async {
-          try {
-            return MapEntry(dt, await backend.discoverDevices(dt));
-          } catch (e, stackTrace) {
-            discoveryErrors[dt.name] = _sanitizeDiscoveryError(e);
-            _logWarning(
-              '[API][$requestId] Discovery failed for ${dt.name}: $e',
-              fields: {
-                'requestId': requestId,
-                'deviceType': dt.name,
-                'error': '$e',
-                'stack': '$stackTrace',
-              },
-            );
-            return MapEntry(dt, const <DeviceInfo>[]);
-          }
-        });
-
-        final results = await Future.wait(futures);
-
-        // Cross-type dedupe keyed by the globally-unique DeviceInfo.id. A single
-        // physical device can be reported under more than one DeviceType sweep
-        // (e.g. a multi-function driver enumerated as both camera and filter
-        // wheel paths), and a last-write-wins map collapses those to one entry
-        // while remaining order-independent across the concurrent results.
-        final byId = <String, DeviceInfo>{};
-        for (final entry in results) {
-          for (final device in entry.value) {
-            byId[device.id] = device;
-          }
-        }
-        allDevices = byId.values.toList();
+        // Full (all-types) sweep, single-flighted: concurrent `/api/devices`
+        // callers share ONE in-flight discovery instead of each launching their
+        // own 11-type fan-out (see [_fullDiscoveryCoalesced]).
+        final result = await _fullDiscoveryCoalesced(requestId);
+        allDevices = result.devices;
+        discoveryErrors.addAll(result.errors);
       }
 
       return jsonOk({
@@ -147,6 +110,76 @@ class DeviceDiscoveryHandlers {
       _logError('[API][$requestId] Get devices error: $e\n$stackTrace');
       return jsonInternalServerError({"error": "Internal server error"});
     }
+  }
+
+  /// Single-flight wrapper around [_discoverAllTypes].
+  ///
+  /// A full sweep probes every vendor SDK once per [DeviceType]; the native
+  /// layer serialises those probes (the ASCOM STA worker, INDI sockets, etc.).
+  /// Under concurrent `/api/devices` load each caller used to launch its own
+  /// fan-out, so N callers triggered N×(type-count) probes that piled up and
+  /// timed out (B13). Coalescing caps it at ONE sweep at a time: late callers
+  /// await the in-flight future. Freshness is preserved because the slot is
+  /// cleared on completion — the next call after a sweep finishes runs a brand
+  /// new discovery (no stale cache), so hot-plug changes are still picked up.
+  Future<({List<DeviceInfo> devices, Map<String, String> errors})>
+  _fullDiscoveryCoalesced(String requestId) async {
+    final existing = _inFlightFullDiscovery;
+    if (existing != null) {
+      _logInfo('[API][$requestId] joining in-flight device discovery');
+      return existing;
+    }
+    final future = _discoverAllTypes(requestId);
+    _inFlightFullDiscovery = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_inFlightFullDiscovery, future)) {
+        _inFlightFullDiscovery = null;
+      }
+    }
+  }
+
+  /// Fan out discovery across every [DeviceType] concurrently and merge.
+  ///
+  /// Each `discoverDevices` call is an independent async FFI round-trip, so we
+  /// join with `Future.wait` to cut wall-clock time to the slowest single type
+  /// rather than the sum. Correctness is order-independent: results reduce into
+  /// an id-keyed map (a single physical device reported under multiple type
+  /// sweeps collapses to one entry). Per-type failures map to `errors[dt.name]`
+  /// so persistent driver faults surface instead of being swallowed (§2.26).
+  /// `errors` writes from the per-future catch blocks need no lock — Dart's
+  /// event loop runs each catch body as one atomic turn.
+  Future<({List<DeviceInfo> devices, Map<String, String> errors})>
+  _discoverAllTypes(String requestId) async {
+    final backend = container.read(deviceBackendProvider);
+    final errors = <String, String>{};
+    final futures = DeviceType.values.map((dt) async {
+      try {
+        return MapEntry(dt, await backend.discoverDevices(dt));
+      } catch (e, stackTrace) {
+        errors[dt.name] = _sanitizeDiscoveryError(e);
+        _logWarning(
+          '[API][$requestId] Discovery failed for ${dt.name}: $e',
+          fields: {
+            'requestId': requestId,
+            'deviceType': dt.name,
+            'error': '$e',
+            'stack': '$stackTrace',
+          },
+        );
+        return MapEntry(dt, const <DeviceInfo>[]);
+      }
+    });
+
+    final results = await Future.wait(futures);
+    final byId = <String, DeviceInfo>{};
+    for (final entry in results) {
+      for (final device in entry.value) {
+        byId[device.id] = device;
+      }
+    }
+    return (devices: byId.values.toList(), errors: errors);
   }
 
   String _sanitizeDiscoveryError(Object error) {
