@@ -250,7 +250,14 @@ jobs:
   # --------------------------------------------------------------------------
   windows:
     name: Windows x64
-    runs-on: windows-latest
+    # Pinned to windows-2022 (not windows-latest): GitHub rolled windows-latest
+    # to windows-2025-vs2026 on 2026-06-18, whose newer CMake refuses to extract
+    # archives through symlinks and breaks flutter_webrtc's Windows native build
+    # ("Cannot extract through symlink ...flutter_webrtc"). windows-2022 is the
+    # known-good image yesterday's 4.1.0 build shipped on. TODO: revisit with a
+    # durable fix (pin CMake / flutter_webrtc workaround) before windows-2022 is
+    # deprecated.
+    runs-on: windows-2022
     timeout-minutes: 60
     env:
       # The imaging crate's build.rs links libraw; point it at the vendored
