@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:meta/meta.dart';
 import '../backend/network_backend.dart';
 import '../models/backend/event_types.dart'
     show EventCategory, NightshadeEvent, settingsChangedEventType;

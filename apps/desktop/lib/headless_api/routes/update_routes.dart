@@ -15,7 +15,10 @@ import 'headless_route.dart';
 /// this when [HeadlessApiServer.setUpdateController] has been
 /// invoked, i.e. when an [UpdateController] is wired into the server.
 List<HeadlessRoute> buildUpdateRoutes(UpdateHandlers h) => <HeadlessRoute>[
-  HeadlessRoute(HttpMethod.get, '/api/system/version', h.handleGetVersion),
+  // NOTE: `/api/system/version` is now an always-on route served by
+  // SystemHandlers (see system_routes.dart) so the running build is readable
+  // even without an UpdateController. It is intentionally NOT registered here
+  // to avoid a duplicate route.
   HeadlessRoute(
     HttpMethod.post,
     '/api/system/update/check',

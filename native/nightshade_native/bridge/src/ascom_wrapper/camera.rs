@@ -265,7 +265,7 @@ impl AscomCameraWrapper {
             // `None` = not yet probed; `Some(_)` = cached result.
             let mut cooler_power_cache: Option<bool> = None;
 
-            while let Some(cmd) = rx.blocking_recv() {
+            while let Some(cmd) = super::pump_blocking_recv(&mut rx) {
                 match cmd {
                     AscomCommand::Connect(reply) => {
                         if let Some(cam) = &mut camera {
@@ -1359,7 +1359,7 @@ mod tests {
         let (tx, mut rx) = mpsc::channel(8);
         let handle = thread::spawn(move || {
             let mut handler = handler;
-            while let Some(cmd) = rx.blocking_recv() {
+            while let Some(cmd) = super::pump_blocking_recv(&mut rx) {
                 if handler(cmd) {
                     break;
                 }

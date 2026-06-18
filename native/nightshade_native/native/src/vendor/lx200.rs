@@ -724,7 +724,19 @@ impl NativeDevice for Lx200Mount {
                 self.name = format!("{} ({})", name, self.port_name);
             }
             Err(_) => {
-                self.send_command(commands::GET_RA)?;
+                // Fall back to a :GR# probe. If that ALSO times out the mount
+                // isn't really talking to us, so bail — but first release the
+                // serial port we opened above. Otherwise the live handle lingers
+                // in `self.serial_port` with `connected` still false, so a later
+                // `disconnect()` no-ops (it early-returns on `!is_connected()`),
+                // leaking the COM port and locking out every subsequent connect
+                // attempt (native OR ASCOM) until the process restarts.
+                if let Err(e) = self.send_command(commands::GET_RA) {
+                    if let Ok(mut guard) = self.serial_port.lock() {
+                        *guard = None;
+                    }
+                    return Err(e);
+                }
             }
         }
 

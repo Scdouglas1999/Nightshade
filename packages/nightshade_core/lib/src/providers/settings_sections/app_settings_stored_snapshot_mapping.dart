@@ -436,6 +436,245 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
     );
   }
 
+  /// Canonical INVERSE of [_settingsFromStoredMap]: serialise an
+  /// [AppSettingsState] into the full `{db_key: string}` snapshot that the
+  /// [SettingsDao] persists.
+  ///
+  /// This exists so the headless settings API can persist a complete
+  /// [models.AppSettings] through the same DB-backed path the desktop uses,
+  /// instead of the lossy 7-field Rust-bridge round-trip (only `location`,
+  /// `theme`, `language`, `autoConnect` survived that — see B16). Every field
+  /// is written explicitly so the produced map is a self-contained snapshot.
+  ///
+  /// INVARIANT — this MUST stay a true inverse of [_settingsFromStoredMap]:
+  ///   `_settingsFromStoredMap(_storedMapFromState(s)) == s` for all `s`.
+  /// That property is enforced by `app_settings_stored_roundtrip_test.dart`,
+  /// which fails loudly if a field is added to one direction but not the
+  /// other, or if an encoding here disagrees with the parser there. Keep the
+  /// encodings identical to the section setters (enum → `.name`, filter maps →
+  /// `jsonEncode`, optional numerics → value or the literal string `"null"`,
+  /// empty-as-null strings → `""`).
+  Map<String, String> _storedMapFromState(AppSettingsState s) {
+    String optDouble(double? v) => v == null ? 'null' : v.toString();
+    String optInt(int? v) => v == null ? 'null' : v.toString();
+
+    return <String, String>{
+      // General
+      'start_minimized': s.startMinimized.toString(),
+      'auto_connect_equipment': s.autoConnectEquipment.toString(),
+      'auto_save_sequences': s.autoSaveSequences.toString(),
+      'confirm_before_closing': s.confirmBeforeClosing.toString(),
+      'auto_discover_on_launch': s.autoDiscoverOnLaunch.toString(),
+
+      // Appearance
+      'theme': s.theme,
+      'language': s.language,
+      'accent_color': s.accentColor,
+      'font_size': s.fontSize,
+      'ui_scale': s.uiScale,
+      'sidebar_collapsed': s.sidebarCollapsed.toString(),
+
+      // Location
+      'observer_latitude': s.latitude.toString(),
+      'observer_longitude': s.longitude.toString(),
+      'observer_elevation': s.elevation.toString(),
+      'timezone': s.timezone,
+      'use_system_time': s.useSystemTime.toString(),
+
+      // Imaging
+      'image_format': s.imageFormat,
+      'file_naming_pattern': s.fileNamingPattern,
+      'bit_depth': s.bitDepth,
+
+      // Sequencer
+      'park_on_unsafe_weather': s.parkOnUnsafeWeather.toString(),
+      'park_before_dawn': s.parkBeforeDawn.toString(),
+      'meridian_flip_minutes': s.meridianFlipMinutes.toString(),
+      'auto_focus_on_filter_change': s.autoFocusOnFilterChange.toString(),
+      'use_filter_focus_offsets': s.useFilterFocusOffsets.toString(),
+      'auto_focus_every_minutes': s.autoFocusEveryMinutes.toString(),
+      'dither_enabled': s.ditherEnabled.toString(),
+      'dither_every_frames': s.ditherEveryFrames.toString(),
+      'safety_fail_mode': s.safetyFailMode.name,
+
+      // Plate Solving
+      'plate_solver': s.plateSolver,
+      'astap_path': s.astapPath,
+      'astrometry_path': s.astrometryPath,
+      'plate_solve_timeout': s.plateSolveTimeout.toString(),
+      'plate_solve_search_radius': s.plateSolveSearchRadius.toString(),
+      'blind_solve': s.blindSolve.toString(),
+
+      // PHD2 Guiding
+      'phd2_path': s.phd2Path,
+      'phd2_host': s.phd2Host,
+      'phd2_port': s.phd2Port.toString(),
+
+      // Notifications
+      'notifications_enabled': s.notificationsEnabled.toString(),
+      'discord_webhook': s.discordWebhook,
+      'pushover_key': s.pushoverKey,
+      'pushover_user': s.pushoverUser,
+      'notify_on_sequence_complete': s.notifyOnSequenceComplete.toString(),
+      'notify_on_error': s.notifyOnError.toString(),
+      'notify_on_meridian_flip': s.notifyOnMeridianFlip.toString(),
+      'sound_enabled': s.soundEnabled.toString(),
+
+      // File Paths
+      'image_output_path': s.imageOutputPath,
+      'sequences_path': s.sequencesPath,
+      'database_path': s.databasePath,
+      'logs_path': s.logsPath,
+
+      // Protocol Settings
+      'indi_server_host': s.indiServerHost,
+      'indi_server_port': s.indiServerPort.toString(),
+      'indi_auto_connect': s.indiAutoConnect.toString(),
+      'alpaca_server_host': s.alpacaServerHost,
+      'alpaca_server_port': s.alpacaServerPort.toString(),
+      'alpaca_auto_discover': s.alpacaAutoDiscover.toString(),
+
+      // Sequencer Execution
+      'use_native_execution': s.useNativeExecution.toString(),
+      'use_simulation_mode': s.useSimulationMode.toString(),
+
+      // Remote Access / Web Server
+      'web_server_enabled': s.webServerEnabled.toString(),
+      'web_server_port': s.webServerPort.toString(),
+
+      // Equipment Settings - Camera
+      'cooling_behavior': s.coolingBehavior,
+      'default_gain': s.defaultGain.toString(),
+      'default_offset': s.defaultOffset.toString(),
+
+      // Equipment Settings - Mount
+      'enable_meridian_flip': s.enableMeridianFlip.toString(),
+
+      // Equipment Settings - Focuser
+      'temp_compensation': s.tempCompensation.toString(),
+      'temp_coefficient': s.tempCoefficient.toString(),
+      'backlash_compensation': s.backlashCompensation.toString(),
+
+      // Equipment Settings - Guider
+      'dither_scale': s.ditherScale,
+      'settle_threshold': s.settleThreshold.toString(),
+      'settle_timeout': s.settleTimeout.toString(),
+
+      // Observing Environment
+      'bortle_class': s.bortleClass.toString(),
+      'horizon_profile_json': s.horizonProfileJson,
+      'effective_horizon_deg': s.effectiveHorizonDeg.toString(),
+      'audible_alerts_on_critical': s.audibleAlertsOnCritical.toString(),
+      'critical_alert_sound': s.criticalAlertSound,
+      'push_critical_alerts': s.pushCriticalAlerts.toString(),
+
+      // Recovery Mode
+      'recovery_default_retry_interval_mins':
+          s.recoveryDefaultRetryIntervalMins.toString(),
+      'recovery_default_max_duration_mins':
+          s.recoveryDefaultMaxDurationMins.toString(),
+      'recovery_stop_tracking_during_recovery':
+          s.recoveryStopTrackingDuringRecovery.toString(),
+      'recovery_abort_on_meridian': s.recoveryAbortOnMeridian.toString(),
+      'recovery_audible_alert_when_entered':
+          s.recoveryAudibleAlertWhenEntered.toString(),
+
+      // Autofocus
+      'af_method': s.afMethod,
+      'af_curve_fitting': s.afCurveFitting,
+      'af_step_size': s.afStepSize.toString(),
+      'af_exposure_time': s.afExposureTime.toString(),
+      'af_initial_offset_steps': s.afInitialOffsetSteps.toString(),
+      'af_number_of_attempts': s.afNumberOfAttempts.toString(),
+      'af_use_brightest_n_stars': s.afUseBrightestNStars.toString(),
+      'af_outer_crop_ratio': s.afOuterCropRatio.toString(),
+      'af_inner_crop_ratio': s.afInnerCropRatio.toString(),
+      'af_binning': s.afBinning.toString(),
+      'af_r_squared_threshold': s.afRSquaredThreshold.toString(),
+      'af_disable_guiding': s.afDisableGuidingDuringAf.toString(),
+      'af_focuser_settle_time_ms': s.afFocuserSettleTimeMs.toString(),
+      'af_exposures_per_point': s.afExposuresPerPoint.toString(),
+      'af_backlash_comp_method': s.afBacklashCompMethod,
+      'af_backlash_in': s.afBacklashIn.toString(),
+      'af_backlash_out': s.afBacklashOut.toString(),
+      'af_autofocus_filter_name': s.afAutofocusFilterName,
+      'af_filter_settings': s.afFilterSettingsJson,
+
+      // Observer name
+      'observer_name': s.observerName,
+
+      // Image Grading
+      'image_grading_enabled': s.enableImageGrading.toString(),
+      'image_grading_hfr_threshold_px': optDouble(s.imageGradingHfrThresholdPx),
+      'image_grading_hfr_baseline_percent':
+          optDouble(s.imageGradingHfrBaselinePercent),
+      'image_grading_eccentricity_threshold':
+          optDouble(s.imageGradingEccentricityThreshold),
+      'image_grading_star_count_min': optInt(s.imageGradingStarCountMin),
+      'image_grading_max_consecutive_rejects':
+          s.imageGradingMaxConsecutiveRejects.toString(),
+      'image_grading_reject_folder_path': s.imageGradingRejectFolderPath ?? '',
+
+      // Sky-brightness adaptive exposure
+      'adaptive_exposure_enabled': s.adaptiveExposureEnabled.toString(),
+      'adaptive_exposure_target_snr': s.adaptiveExposureTargetSnr.toString(),
+      'adaptive_exposure_reference_mag':
+          s.adaptiveExposureReferenceMag.toString(),
+      'adaptive_exposure_min_secs': s.adaptiveExposureMinSecs.toString(),
+      'adaptive_exposure_max_secs': s.adaptiveExposureMaxSecs.toString(),
+      'adaptive_exposure_per_filter_enabled':
+          jsonEncode(s.adaptiveExposurePerFilterEnabled),
+      'adaptive_exposure_per_filter_min_secs':
+          jsonEncode(s.adaptiveExposurePerFilterMinSecs),
+      'adaptive_exposure_per_filter_max_secs':
+          jsonEncode(s.adaptiveExposurePerFilterMaxSecs),
+
+      // Pre-flight checks
+      'preflight_strictness': s.preflightStrictness.name,
+      'polar_alignment_max_age_days': s.polarAlignmentMaxAgeDays.toString(),
+      'dark_library_min_coverage': s.darkLibraryMinCoverage.toString(),
+      'optical_train_drift_threshold': s.opticalTrainDriftThreshold.toString(),
+
+      // Smart Night
+      'smart_night_max_session_hours': optDouble(s.smartNightMaxSessionHours),
+      'smart_night_default_af_cadence_frames':
+          s.smartNightDefaultAfCadenceFrames.toString(),
+      'smart_night_default_integration_budget_mins_per_target':
+          s.smartNightDefaultIntegrationBudgetMinsPerTarget.toString(),
+      'smart_night_include_flats_at_end':
+          s.smartNightIncludeFlatsAtEnd.toString(),
+      'smart_night_use_scheduler_for_multi_target':
+          s.smartNightUseSchedulerForMultiTarget.toString(),
+      'smart_night_scheduler_target_threshold':
+          s.smartNightSchedulerTargetThreshold.toString(),
+      'smart_night_default_strategy': s.smartNightDefaultStrategy,
+      'smart_night_polar_alignment_stale_after_days':
+          s.smartNightPolarAlignmentStaleAfterDays.toString(),
+      'smart_night_sub_exposure_floor_secs':
+          s.smartNightSubExposureFloorSecs.toString(),
+      'smart_night_sub_exposure_ceiling_secs':
+          s.smartNightSubExposureCeilingSecs.toString(),
+      'smart_night_target_snr': s.smartNightTargetSnr.toString(),
+      'smart_night.auto_prompt_enabled': s.smartNightAutoPromptEnabled.toString(),
+      'notes.prompt_after_run': s.promptForNotesAfterRun.toString(),
+
+      // Session lifecycle
+      'session.handoff_auto_prompt': s.sessionHandoffAutoPrompt.toString(),
+      'campaign_rollup.surface_targets_tab':
+          s.campaignRollupSurfaceTargetsTab.toString(),
+      'campaign_rollup.grouping_mode': s.campaignRollupGroupingMode,
+
+      // Adaptive sky-conditions
+      'adaptive_swap.enabled_by_default':
+          s.adaptiveSwapEnabledByDefault.toString(),
+      'adaptive_swap.default_threshold':
+          s.adaptiveSwapDefaultThreshold.toString(),
+      'adaptive_swap.default_hysteresis_secs':
+          s.adaptiveSwapDefaultHysteresisSecs.toString(),
+      'adaptive_swap.score_weights': jsonEncode(s.conditionsScoreWeights),
+    };
+  }
+
   /// Parse the persisted [conditionsScoreWeights] JSON object.
   /// Falls back to the canonical defaults when the value is missing,
   /// malformed, or weighted-key-set-incomplete.

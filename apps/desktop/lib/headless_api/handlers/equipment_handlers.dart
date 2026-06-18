@@ -16,40 +16,55 @@ class EquipmentHandlers {
   void _logInfo(String message) =>
       _logger.info(message, source: 'EquipmentHandlers');
 
+  /// Reads the required `deviceId` query parameter, rejecting a missing or
+  /// empty value with a structured 400 rather than letting an empty id reach
+  /// the backend (which surfaced as an opaque 500 `"<type>  not found"`).
+  String _requireDeviceId(Request request) {
+    final deviceId = request.url.queryParameters['deviceId'];
+    if (deviceId == null || deviceId.isEmpty) {
+      throw BadRequestError(
+        field: 'deviceId',
+        expected: 'string',
+        message: "Missing 'deviceId' query parameter",
+      );
+    }
+    return deviceId;
+  }
+
   // ===========================================================================
   // Equipment Status
   // ===========================================================================
 
   Future<Response> handleCameraStatus(Request request) async {
-    final deviceId = request.url.queryParameters['deviceId'] ?? '';
+    final deviceId = _requireDeviceId(request);
     final backend = container.read(deviceBackendProvider);
     final status = await backend.getCameraStatus(deviceId);
     return jsonOk(status.toJson());
   }
 
   Future<Response> handleMountStatus(Request request) async {
-    final deviceId = request.url.queryParameters['deviceId'] ?? '';
+    final deviceId = _requireDeviceId(request);
     final backend = container.read(deviceBackendProvider);
     final status = await backend.getMountStatus(deviceId);
     return jsonOk(status.toJson());
   }
 
   Future<Response> handleFocuserStatus(Request request) async {
-    final deviceId = request.url.queryParameters['deviceId'] ?? '';
+    final deviceId = _requireDeviceId(request);
     final backend = container.read(deviceBackendProvider);
     final status = await backend.getFocuserStatus(deviceId);
     return jsonOk(status.toJson());
   }
 
   Future<Response> handleFilterWheelStatus(Request request) async {
-    final deviceId = request.url.queryParameters['deviceId'] ?? '';
+    final deviceId = _requireDeviceId(request);
     final backend = container.read(deviceBackendProvider);
     final status = await backend.getFilterWheelStatus(deviceId);
     return jsonOk(status.toJson());
   }
 
   Future<Response> handleRotatorStatus(Request request) async {
-    final deviceId = request.url.queryParameters['deviceId'] ?? '';
+    final deviceId = _requireDeviceId(request);
     final backend = container.read(deviceBackendProvider);
     final status = await backend.getRotatorStatus(deviceId);
     return jsonOk(status.toJson());
@@ -60,7 +75,7 @@ class EquipmentHandlers {
   // ===========================================================================
 
   Future<Response> handleCameraCapabilities(Request request) async {
-    final deviceId = request.url.queryParameters['deviceId'] ?? '';
+    final deviceId = _requireDeviceId(request);
     final backend = container.read(deviceBackendProvider);
     final caps = await backend.getCameraCapabilities(deviceId);
     if (caps == null) {
@@ -72,7 +87,7 @@ class EquipmentHandlers {
   }
 
   Future<Response> handleMountCapabilities(Request request) async {
-    final deviceId = request.url.queryParameters['deviceId'] ?? '';
+    final deviceId = _requireDeviceId(request);
     final backend = container.read(deviceBackendProvider);
     final caps = await backend.getMountCapabilities(deviceId);
     if (caps == null) {
@@ -84,7 +99,7 @@ class EquipmentHandlers {
   }
 
   Future<Response> handleFocuserCapabilities(Request request) async {
-    final deviceId = request.url.queryParameters['deviceId'] ?? '';
+    final deviceId = _requireDeviceId(request);
     final backend = container.read(deviceBackendProvider);
     final caps = await backend.getFocuserCapabilities(deviceId);
     if (caps == null) {
@@ -96,7 +111,7 @@ class EquipmentHandlers {
   }
 
   Future<Response> handleFilterWheelCapabilities(Request request) async {
-    final deviceId = request.url.queryParameters['deviceId'] ?? '';
+    final deviceId = _requireDeviceId(request);
     final backend = container.read(deviceBackendProvider);
     final caps = await backend.getFilterWheelCapabilities(deviceId);
     if (caps == null) {
@@ -108,7 +123,7 @@ class EquipmentHandlers {
   }
 
   Future<Response> handleRotatorCapabilities(Request request) async {
-    final deviceId = request.url.queryParameters['deviceId'] ?? '';
+    final deviceId = _requireDeviceId(request);
     final backend = container.read(deviceBackendProvider);
     final caps = await backend.getRotatorCapabilities(deviceId);
     if (caps == null) {

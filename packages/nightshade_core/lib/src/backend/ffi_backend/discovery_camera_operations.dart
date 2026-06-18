@@ -1,5 +1,15 @@
 part of '../ffi_backend.dart';
 
+/// Strips control characters (CR/LF/tab) and collapses whitespace in device
+/// names/descriptions. Serial drivers — e.g. an OnStep mount answering the
+/// LX200 `:GVP#` product query — can leak raw `\r\n` from the wire straight
+/// into the display name (`"Pegasus NYX-101#\r\n (COM4)"`), which then renders
+/// as a broken multi-line entry in device pickers.
+String _sanitizeDeviceText(String value) => value
+    .replaceAll(RegExp(r'[\x00-\x1f]+'), ' ')
+    .replaceAll(RegExp(r'\s+'), ' ')
+    .trim();
+
 mixin _FfiDiscoveryCameraOperations on _FfiBackendBase {
   // =========================================================================
   // Device Discovery & Connection
@@ -14,10 +24,10 @@ mixin _FfiDiscoveryCameraOperations on _FfiBackendBase {
         .map(
           (d) => DeviceInfo(
             id: d.id,
-            name: d.name,
+            name: _sanitizeDeviceText(d.name),
             deviceType: deviceType,
             driverType: _fromBridgeDriverType(d.driverType),
-            description: d.description,
+            description: _sanitizeDeviceText(d.description),
             driverVersion: d.driverVersion,
           ),
         )
@@ -37,10 +47,10 @@ mixin _FfiDiscoveryCameraOperations on _FfiBackendBase {
         .map(
           (d) => DeviceInfo(
             id: d.id,
-            name: d.name,
+            name: _sanitizeDeviceText(d.name),
             deviceType: _fromBridgeDeviceType(d.deviceType),
             driverType: _fromBridgeDriverType(d.driverType),
-            description: d.description,
+            description: _sanitizeDeviceText(d.description),
             driverVersion: d.driverVersion,
           ),
         )
@@ -63,10 +73,10 @@ mixin _FfiDiscoveryCameraOperations on _FfiBackendBase {
         .map(
           (d) => DeviceInfo(
             id: d.id,
-            name: d.name,
+            name: _sanitizeDeviceText(d.name),
             deviceType: _fromBridgeDeviceType(d.deviceType),
             driverType: _fromBridgeDriverType(d.driverType),
-            description: d.description,
+            description: _sanitizeDeviceText(d.description),
             driverVersion: d.driverVersion,
           ),
         )
@@ -119,10 +129,10 @@ mixin _FfiDiscoveryCameraOperations on _FfiBackendBase {
         .map(
           (d) => DeviceInfo(
             id: d.id,
-            name: d.name,
+            name: _sanitizeDeviceText(d.name),
             deviceType: _fromBridgeDeviceType(d.deviceType),
             driverType: _fromBridgeDriverType(d.driverType),
-            description: d.description,
+            description: _sanitizeDeviceText(d.description),
             driverVersion: d.driverVersion,
           ),
         )

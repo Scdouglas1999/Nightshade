@@ -104,9 +104,12 @@ class ProfileHandlers {
   // ===========================================================================
 
   Future<Response> handleGetSettings(Request request) async {
-    final backend = container.read(profileSettingsBackendProvider);
-    final settings = await backend.getSettings();
-    return jsonOk({"settings": settings.toJson()});
+    // Read from the DB-backed settings notifier (the desktop's source of
+    // truth) rather than the Rust bridge, which only carries the ~7
+    // engine-relevant fields and would report defaults for everything else.
+    final notifier = container.read(appSettingsProvider.notifier);
+    await container.read(appSettingsProvider.future);
+    return jsonOk({"settings": notifier.exportRemoteSettings().toJson()});
   }
 
   Future<Response> handleUpdateSettings(Request request) async {
@@ -122,14 +125,16 @@ class ProfileHandlers {
     final settings = settings_models.AppSettings.fromJson(settingsJson);
 
     final backend = container.read(profileSettingsBackendProvider);
-    // [settings sync] read previous so we can diff against the
-    // new state and emit one fine-grained `settings.changed` event per
-    // changed field. If the read fails (first-boot / driver hiccup),
-    // fall back to a single full-snapshot event so remote clients still
-    // see the update.
+    final settingsNotifier = container.read(appSettingsProvider.notifier);
+    // [settings sync] capture the full previous settings (DB-backed) so we can
+    // diff against the new state and emit one fine-grained `settings.changed`
+    // event per changed field. If the read fails (first-boot / driver hiccup),
+    // fall back to a single full-snapshot event so remote clients still see
+    // the update.
     settings_models.AppSettings? previous;
     try {
-      previous = await backend.getSettings();
+      await container.read(appSettingsProvider.future);
+      previous = settingsNotifier.exportRemoteSettings();
     } on Object catch (e) {
       // Why: `previous` only feeds an optional change-diff/notification below;
       // if the prior settings can't be read we proceed without the diff
@@ -142,6 +147,13 @@ class ProfileHandlers {
       previous = null;
     }
 
+    // Persist the COMPLETE settings to the database — the single source of
+    // truth shared with the desktop — then sync the engine-relevant subset
+    // (location/theme/language/autoConnect) to the native bridge so the
+    // executor stays consistent. Writing only the bridge previously dropped
+    // every other field on the floor (B16): the API returned "updated" but
+    // the value never persisted.
+    await settingsNotifier.applyRemoteSettings(settings);
     await backend.updateSettings(settings);
     publishHostMutationFromContainer(
       container,

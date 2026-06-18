@@ -20,6 +20,10 @@ List<HeadlessRoute> buildSystemRoutes(SystemHandlers h) => <HeadlessRoute>[
   HeadlessRoute(HttpMethod.get, '/api/info', h.handleInfo),
   HeadlessRoute(HttpMethod.get, '/api/status', h.handleStatus),
   HeadlessRoute(HttpMethod.get, '/api/self-test', h.handleSelfTest),
+  // Always-on build-version endpoint. Lives here (not in the OTA update
+  // routes) so it is reachable even when no UpdateController is wired — the
+  // update-routes group is skipped in that case, which used to 404 this.
+  HeadlessRoute(HttpMethod.get, '/api/system/version', h.handleVersion),
   HeadlessRoute(HttpMethod.get, '/api/openapi.json', h.handleOpenApiSpec),
   // Public browser pairing page. NOT under /api/ — it is a self-contained
   // HTML page (auth-exempt, see http_middleware publicPaths) that drives the

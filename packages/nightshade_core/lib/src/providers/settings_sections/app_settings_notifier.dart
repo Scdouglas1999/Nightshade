@@ -244,6 +244,53 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
   /// keeping all `state` access inside the notifier class body.
   AppSettingsState? get _currentValueOrNull => state.valueOrNull;
 
+  /// Test-only: round-trip a state through the stored-map serialiser and back.
+  ///
+  /// Exposed (instead of the two private mapping helpers) so the inverse
+  /// invariant `_settingsFromStoredMap(_storedMapFromState(s)) == s` can be
+  /// asserted exhaustively without leaking the DB-key map representation. See
+  /// `app_settings_stored_roundtrip_test.dart`. The two helpers are extension
+  /// methods that dispatch through `this`, hence this lives on the notifier.
+  @visibleForTesting
+  AppSettingsState debugRoundTripThroughStoredMap(AppSettingsState s) =>
+      _settingsFromStoredMap(_storedMapFromState(s));
+
+  /// Test-only: the stored DB-key snapshot for [s]. See
+  /// [debugRoundTripThroughStoredMap].
+  @visibleForTesting
+  Map<String, String> debugStoredMapFromState(AppSettingsState s) =>
+      _storedMapFromState(s);
+
+  /// Apply a full remote [models.AppSettings] on the HOST and persist EVERY
+  /// field to the database — the same store the desktop reads and writes.
+  ///
+  /// The remote wire model only carries the remotable subset, so we overlay
+  /// those fields onto the current state (preserving host-only settings such as
+  /// `database_path` / `logs_path` that are deliberately non-remotable) and
+  /// then write the complete snapshot in one transaction. This is what the
+  /// headless `POST /api/settings` uses so remote settings actually persist,
+  /// instead of being silently dropped by the 7-field Rust-bridge round-trip
+  /// (the original B16 bug).
+  ///
+  /// MUST run on a host container (non-[NetworkBackend]) — the desktop or the
+  /// headless server itself; on that path [_saveSettings] writes straight to
+  /// the [SettingsDao]. (On a network client, settings flow through the section
+  /// setters / `_writeRemoteSettings` instead.)
+  Future<void> applyRemoteSettings(models.AppSettings remote) async {
+    var next = _currentValueOrNull ?? const AppSettingsState();
+    remote.toJson().forEach((key, value) {
+      final updated = _applyJsonSettingChange(next, key, value);
+      if (updated != null) next = updated;
+    });
+    await _saveSettings(_storedMapFromState(next));
+    state = AsyncData(next);
+  }
+
+  /// The current settings projected to the remote wire model — companion to
+  /// [applyRemoteSettings] for the headless `GET /api/settings` handler.
+  models.AppSettings exportRemoteSettings() =>
+      _toRemoteSettings(_currentValueOrNull ?? const AppSettingsState());
+
   // Section setters are defined in `settings_sections/*.dart` (split via
   // Dart `part` files). The class body below keeps only the lifecycle
   // (build), persistence writes (_saveSetting, _saveSettings), remote-sync

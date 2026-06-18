@@ -681,6 +681,22 @@ class SystemHandlers {
   void _logError(String message) =>
       logger.error(message, source: 'SystemHandlers');
 
+  /// `GET /api/system/version` — build metadata, ALWAYS available.
+  ///
+  /// Sourced from [appVersionProvider] (populated at startup), so it works even
+  /// on a headless instance with no OTA [UpdateController] wired. The richer
+  /// update-aware version handler lives in the optional update-routes group,
+  /// which is skipped (→ 404) when updates aren't provisioned; this base
+  /// endpoint guarantees a client can always read the running build.
+  Future<Response> handleVersion(Request request) async {
+    final versionInfo = container.read(appVersionProvider);
+    return jsonOk({
+      'currentVersion': versionInfo.version,
+      'buildNumber': versionInfo.buildNumber,
+      'platform': Platform.operatingSystem,
+    });
+  }
+
   /// `GET /api/info` — server discovery envelope. Returns the build
   /// version, API-version envelope, fingerprint, paired/scoped auth
   /// metadata, the replay-buffer cursor, and the full endpoint

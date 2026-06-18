@@ -310,12 +310,33 @@ extension CatalogManagerLegacyIo on CatalogManager {
     final metaPath = path.join(catalogDirectory, '${type}_metadata.json');
     final metaFile = File(metaPath);
 
+    // Record the SHA-256 of the installed data file so a later
+    // `POST /api/catalog/verify` has an expected digest to compare against —
+    // without it, verify can only ever report `no_expected_hash`. Streamed
+    // from disk rather than read whole to avoid a memory spike on the
+    // multi-MB catalog payloads.
+    String? sha256Hash;
+    final dataFile = File(path.join(catalogDirectory, source.fileName));
+    if (await dataFile.exists()) {
+      try {
+        final digest = await sha256.bind(dataFile.openRead()).first;
+        sha256Hash = digest.toString();
+      } catch (e) {
+        developer.log(
+          '[Catalog] _saveMetadata($type): sha256 computation failed: $e',
+          name: 'CatalogManager',
+          level: 900,
+        );
+      }
+    }
+
     final metadata = {
       'source': source.name,
       'version': source.version,
       'package': package.name,
       'objectCount': objectCount,
       'installedDate': DateTime.now().toIso8601String(),
+      if (sha256Hash != null) 'sha256': sha256Hash,
     };
 
     await metaFile.writeAsString(jsonEncode(metadata));
