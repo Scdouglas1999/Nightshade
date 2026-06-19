@@ -135,6 +135,28 @@ foreach ($name in $runtimeDlls) {
 }
 
 # ---------------------------------------------------------------------------
+# Vendor device SDKs (camera / focuser / filter-wheel drivers the native bridge
+# loads at runtime). sdk_loader searches next to the executable first, so any
+# DLL in native\sdk\windows\ ships beside the exe and is found without the user
+# installing the vendor's driver package. An empty folder bundles nothing.
+# ---------------------------------------------------------------------------
+$sdkDir = Join-Path $ProjectRoot 'native\sdk\windows'
+if (Test-Path $sdkDir) {
+    $sdkDlls = @(Get-ChildItem -Path $sdkDir -Filter '*.dll' -File -ErrorAction SilentlyContinue)
+    if ($sdkDlls.Count -gt 0) {
+        Write-Host "Bundling $($sdkDlls.Count) vendor device SDK DLL(s) from native\sdk\windows" -ForegroundColor Cyan
+        foreach ($dll in $sdkDlls) {
+            $dest = Join-Path $OutputDir $dll.Name
+            Copy-RequiredFile $dll.FullName $dest
+            Assert-Dll64Bit $dest
+        }
+    }
+    else {
+        Write-Host "No vendor SDK DLLs in native\sdk\windows (devices need vendor drivers installed)" -ForegroundColor DarkYellow
+    }
+}
+
+# ---------------------------------------------------------------------------
 # Verify load chain
 # ---------------------------------------------------------------------------
 foreach ($required in @('nightshade_bridge.dll', 'libraw.dll')) {
