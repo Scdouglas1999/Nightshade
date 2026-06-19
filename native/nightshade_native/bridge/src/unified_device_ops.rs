@@ -732,6 +732,7 @@ impl DeviceOps for UnifiedDeviceOps {
                     median: stats.median,
                     std_dev: stats.std_dev,
                     hfr: None,
+                    fwhm: None,
                     eccentricity: median_eccentricity,
                     star_count,
                 },

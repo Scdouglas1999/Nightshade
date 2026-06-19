@@ -34,12 +34,43 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
   }
 
   Widget _buildRunMatchButton(NightshadeColors colors) {
-    return Center(
-      child: NightshadeButton(
-        onPressed: _runStarMatching,
-        icon: LucideIcons.scan,
-        label: 'Match Stars',
-      ),
+    final failed = _statusMessage.startsWith('Star matching failed');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (failed) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: NightshadeDecorations.emphasisSurface(
+              colors.error,
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline8),
+            ),
+            child: Row(
+              children: [
+                Icon(LucideIcons.alertTriangle, color: colors.error, size: 16),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _statusMessage,
+                    style: NightshadeTypography.label.copyWith(
+                      color: colors.error,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        Center(
+          child: NightshadeButton(
+            onPressed: _runStarMatching,
+            icon: LucideIcons.scan,
+            label: failed ? 'Retry Match' : 'Match Stars',
+          ),
+        ),
+      ],
     );
   }
 
@@ -68,6 +99,18 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
               ],
             ),
           ),
+          if (_statusMessage.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              _statusMessage,
+              style: TextStyle(
+                color: _statusMessage.contains('extinction is fittable')
+                    ? colors.success
+                    : colors.textSecondary,
+                fontSize: NightshadeTypography.fontSize12,
+              ),
+            ),
+          ],
           const SizedBox(height: 8),
           Expanded(
             child: ListView.builder(
@@ -223,6 +266,8 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
     // unavailable.
     final pixelScale =
         image.solvedPixelScale ?? await _resolveFallbackPixelScale();
+    final distortion = await imagesDao.getStoredWcsDistortion(image.id);
+    final sip = decodeSolvedSip(distortion?.sip);
     final wcs = WcsSolution(
       raHours: image.solvedRa!,
       decDegrees: image.solvedDec!,
@@ -231,6 +276,18 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
       fieldWidthDegrees: 1.0,
       fieldHeightDegrees: 1.0,
       solverId: 'stored',
+      cd1_1: distortion?.cd1_1,
+      cd1_2: distortion?.cd1_2,
+      cd2_1: distortion?.cd2_1,
+      cd2_2: distortion?.cd2_2,
+      aOrder: sip?.aOrder ?? 0,
+      bOrder: sip?.bOrder ?? 0,
+      aCoeffs: sip?.aCoeffs ?? const [],
+      bCoeffs: sip?.bCoeffs ?? const [],
+      apOrder: sip?.apOrder ?? 0,
+      bpOrder: sip?.bpOrder ?? 0,
+      apCoeffs: sip?.apCoeffs ?? const [],
+      bpCoeffs: sip?.bpCoeffs ?? const [],
     );
 
     // calibrateFramePhotometry requires a real frame context (it refuses a
@@ -298,6 +355,18 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
       pixelScaleArcsec: wcs.pixelScaleArcsecPerPixel,
       imageWidth: imageSize.width.round(),
       imageHeight: imageSize.height.round(),
+      cd1_1: wcs.cd1_1,
+      cd1_2: wcs.cd1_2,
+      cd2_1: wcs.cd2_1,
+      cd2_2: wcs.cd2_2,
+      aOrder: wcs.aOrder,
+      bOrder: wcs.bOrder,
+      aCoeffs: wcs.aCoeffs,
+      bCoeffs: wcs.bCoeffs,
+      apOrder: wcs.apOrder,
+      bpOrder: wcs.bpOrder,
+      apCoeffs: wcs.apCoeffs,
+      bpCoeffs: wcs.bpCoeffs,
     );
     if (!solvedWcs.isValid) {
       throw StateError(

@@ -214,6 +214,17 @@ class _PeriodogramCustomPainter extends CustomPainter {
         plotRect.bottom + 16,
       ),
     );
+
+    final yLabelPainter = TextPainter(
+      text: TextSpan(text: yLabel, style: textStyle),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    canvas.save();
+    canvas.translate(
+        10, plotRect.top + plotRect.height / 2 + yLabelPainter.width / 2);
+    canvas.rotate(-math.pi / 2);
+    yLabelPainter.paint(canvas, Offset.zero);
+    canvas.restore();
   }
 
   @override

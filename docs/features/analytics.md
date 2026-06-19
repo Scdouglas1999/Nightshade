@@ -4,13 +4,14 @@ The Analytics screen provides comprehensive session analysis, historical data vi
 
 ## Overview
 
-The Analytics screen has six tabs:
+The Analytics screen has five tabs:
 - **Session**: Current session statistics and charts, plus a compact "Tonight's science" KPI row
 - **History**: Past session records and analysis
 - **Projects**: Multi-night target progress and integration goals
 - **Equipment Stats**: Long-term equipment performance metrics
-- **Science**: Live photometry, plate-solve health, PSF maps, transparency, residuals, and anomaly detection
 - **Diagnostics**: Engineering-level logs and traces
+
+Science (live photometry, plate-solve health, PSF maps, transparency, residuals, and anomaly detection) is now its own top-level destination at `/science`; see [Science](#science) below.
 
 ## Session Tab
 
@@ -254,13 +255,25 @@ Relate session quality to conditions:
 - Environmental data
 - Timing information
 
-## Science Tab
+## Science
 
-The Science tab is the analytics surface for scientifically meaningful measurements derived from your captures. It is **always visible** — no "Advanced Science Mode" toggle is required to see the tab itself. Advanced Mode only controls the optional overlay layers on the imaging preview.
+Science is now a top-level destination at `/science` rather than a tab buried in Analytics. The legacy `/analytics?tab=science` deep link redirects there, so old bookmarks and narrator links still work. The Science HUD, the calibration readout, and the photometry anchors are **ungated** — no toggle is required to reach them. The only thing behind a preference is the optional overlay *layers* on the imaging preview, controlled by **Show advanced overlay controls** (Settings → Science).
+
+### On-ramp ladder
+
+The Science destination opens with a five-rung ladder that walks you from "I take pretty pictures" to "I contribute real measurements." Each rung is gated on the one before it, so the next thing to do is the only thing lit up:
+
+1. **Measure your sky** — run a photometric calibration against real catalog stars.
+2. **Track a star** — point at a target and let photometry follow it frame to frame.
+3. **Build a light curve** — accumulate measurements until the dots become a shape (10 points to start).
+4. **Find the period** — fold a repeating curve to recover an orbit, rotation, or pulsation.
+5. **Contribute it** — export for the AAVSO or the MPC.
+
+The guide header collapses to stay out of the way once you know the ropes; its state persists via the `science.guide.collapsed` setting.
 
 ### Pipeline Status Banner
 
-Sits at the top of the Science tab (and a compact form lives in the Imaging HUD). Tells you exactly what the science processor is doing in real time:
+Sits at the top of the Science screen (and a compact form lives in the Imaging HUD). Tells you exactly what the science processor is doing in real time:
 
 - **Idle (gray)**: Pipeline is waiting. Shows the total number of frames processed so far and how long since the last one.
 - **Busy (blue, animated)**: A frame is being processed. Shows the current stage (e.g. "Plate solve…", "Calibration…") and the queue depth.
@@ -277,11 +290,11 @@ A compact 4-metric row above the classic Session charts:
 - **Transparency**: Latest atmospheric transparency percentage and its quality bucket.
 - **Uniformity CV**: Background flatness, plus SNR for context.
 
-Tapping the row switches to the Science tab so you can drill into the underlying charts.
+Tapping the row opens the Science destination so you can drill into the underlying charts.
 
 ### Plate Solve Health Card
 
-Always visible at the top of the Science tab. Shows the success rate as a percentage with a colored progress bar:
+Always visible at the top of the Science screen. Shows the success rate as a percentage with a colored progress bar:
 
 - **Excellent (≥90%)**: Most frames are solving — photometry, PSF maps, and residuals all benefit.
 - **Acceptable (60–89%)**: Failures are usually transient (clouds, guiding excursions).
@@ -290,7 +303,7 @@ Always visible at the top of the Science tab. Shows the success rate as a percen
 
 ### Time-Series Trends
 
-The Science tab charts how the night evolves — not just the latest value:
+The Science screen charts how the night evolves — not just the latest value:
 
 - **Light curve** — differential photometry for the selected target (AAVSO export when a session is active).
 - **Transparency trend** — atmospheric transparency % across calibrated frames.

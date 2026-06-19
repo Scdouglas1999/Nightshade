@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -59,7 +61,7 @@ GoRouter _router({required Widget body}) {
   );
 }
 
-PlateSolveResult _solved() => const PlateSolveResult(
+PlateSolveResult _solved() => PlateSolveResult(
       success: true,
       ra: 10.6847, // ~00h 42m — Andromeda-ish, just needs to format cleanly.
       dec: 41.269,
@@ -68,6 +70,18 @@ PlateSolveResult _solved() => const PlateSolveResult(
       fieldWidth: 1.0,
       fieldHeight: 0.8,
       solveTimeSecs: 2.5,
+      cd11: 0,
+      cd12: 0,
+      cd21: 0,
+      cd22: 0,
+      sipAOrder: 0,
+      sipBOrder: 0,
+      sipACoeffs: Float64List(0),
+      sipBCoeffs: Float64List(0),
+      sipApOrder: 0,
+      sipBpOrder: 0,
+      sipApCoeffs: Float64List(0),
+      sipBpCoeffs: Float64List(0),
     );
 
 Future<void> _pumpDialog(

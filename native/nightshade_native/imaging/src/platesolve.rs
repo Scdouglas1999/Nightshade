@@ -89,7 +89,7 @@ pub enum PlateSolveError {
 }
 
 /// Plate solve result
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct PlateSolveResult {
     /// Solved RA in degrees
     pub ra: f64,
@@ -109,6 +109,28 @@ pub struct PlateSolveResult {
     pub error: Option<String>,
     /// Time taken to solve in seconds
     pub solve_time_secs: f64,
+    /// Raw CD matrix (deg/pixel) as read from the WCS — the full anisotropic
+    /// transform. `pixel_scale`/`rotation` above are the isotropic collapse
+    /// kept for backward compatibility. Zero when no WCS was parsed.
+    pub cd1_1: f64,
+    pub cd1_2: f64,
+    pub cd2_1: f64,
+    pub cd2_2: f64,
+    /// SIP forward distortion order (`A_ORDER`/`B_ORDER`). Zero when absent.
+    pub a_order: u32,
+    pub b_order: u32,
+    /// SIP forward coefficients in row-major `(i, j)` order: the slot for term
+    /// `A_i_j` is at index `i * (order + 1) + j` (likewise `B_i_j`). Empty when
+    /// no SIP keywords were present.
+    pub a_coeffs: Vec<f64>,
+    pub b_coeffs: Vec<f64>,
+    /// SIP inverse distortion order (`AP_ORDER`/`BP_ORDER`). Zero when absent.
+    pub ap_order: u32,
+    pub bp_order: u32,
+    /// SIP inverse coefficients, same row-major `(i, j)` layout as the forward
+    /// terms. Empty when the inverse keywords were not present.
+    pub ap_coeffs: Vec<f64>,
+    pub bp_coeffs: Vec<f64>,
 }
 
 /// Plate solver configuration
@@ -502,15 +524,10 @@ impl AstapSolver {
             Some(p) => p,
             None => {
                 return PlateSolveResult {
-                    ra: 0.0,
-                    dec: 0.0,
-                    pixel_scale: 0.0,
-                    rotation: 0.0,
-                    field_width: 0.0,
-                    field_height: 0.0,
                     success: false,
                     error: Some("ASTAP not found".to_string()),
                     solve_time_secs: 0.0,
+                    ..Default::default()
                 }
             }
         };
@@ -589,15 +606,10 @@ impl AstapSolver {
             Ok(c) => c,
             Err(e) => {
                 return PlateSolveResult {
-                    ra: 0.0,
-                    dec: 0.0,
-                    pixel_scale: 0.0,
-                    rotation: 0.0,
-                    field_width: 0.0,
-                    field_height: 0.0,
                     success: false,
                     error: Some(format!("Failed to launch ASTAP at {:?}: {}", astap_path, e)),
                     solve_time_secs: start.elapsed().as_secs_f64(),
+                    ..Default::default()
                 }
             }
         };
@@ -619,15 +631,10 @@ impl AstapSolver {
                 Ok(o) => o,
                 Err(e) => {
                     return PlateSolveResult {
-                        ra: 0.0,
-                        dec: 0.0,
-                        pixel_scale: 0.0,
-                        rotation: 0.0,
-                        field_width: 0.0,
-                        field_height: 0.0,
                         success: false,
                         error: Some(format!("ASTAP I/O error: {}", e)),
                         solve_time_secs: start.elapsed().as_secs_f64(),
+                        ..Default::default()
                     }
                 }
             },
@@ -645,15 +652,10 @@ impl AstapSolver {
                     timeout_secs
                 );
                 return PlateSolveResult {
-                    ra: 0.0,
-                    dec: 0.0,
-                    pixel_scale: 0.0,
-                    rotation: 0.0,
-                    field_width: 0.0,
-                    field_height: 0.0,
                     success: false,
                     error: Some(format!("ASTAP timed out after {} seconds", timeout_secs)),
                     solve_time_secs: start.elapsed().as_secs_f64(),
+                    ..Default::default()
                 };
             }
         };
@@ -685,18 +687,13 @@ impl AstapSolver {
                 detail
             );
             return PlateSolveResult {
-                ra: 0.0,
-                dec: 0.0,
-                pixel_scale: 0.0,
-                rotation: 0.0,
-                field_width: 0.0,
-                field_height: 0.0,
                 success: false,
                 error: Some(format!(
                     "ASTAP exited with status {}: {}",
                     exit_code, detail
                 )),
                 solve_time_secs: solve_time,
+                ..Default::default()
             };
         }
 
@@ -755,15 +752,10 @@ impl AstapSolver {
                         let _ = fs::remove_file(&ini_path);
                         let _ = fs::remove_file(&wcs_path);
                         return PlateSolveResult {
-                            ra: 0.0,
-                            dec: 0.0,
-                            pixel_scale: 0.0,
-                            rotation: 0.0,
-                            field_width: 0.0,
-                            field_height: 0.0,
                             success: false,
                             error: Some(msg),
                             solve_time_secs: solve_time,
+                            ..Default::default()
                         };
                     }
                 }
@@ -788,15 +780,10 @@ impl AstapSolver {
                     );
                     tracing::error!("{}", msg);
                     PlateSolveResult {
-                        ra: 0.0,
-                        dec: 0.0,
-                        pixel_scale: 0.0,
-                        rotation: 0.0,
-                        field_width: 0.0,
-                        field_height: 0.0,
                         success: false,
                         error: Some(msg),
                         solve_time_secs: solve_time,
+                        ..Default::default()
                     }
                 }
             };
@@ -825,15 +812,10 @@ impl AstapSolver {
         );
         tracing::error!("{}", msg);
         PlateSolveResult {
-            ra: 0.0,
-            dec: 0.0,
-            pixel_scale: 0.0,
-            rotation: 0.0,
-            field_width: 0.0,
-            field_height: 0.0,
             success: false,
             error: Some(msg),
             solve_time_secs: solve_time,
+            ..Default::default()
         }
     }
 
@@ -842,15 +824,10 @@ impl AstapSolver {
         match parse_astap_ini_inner(ini_path, solve_time) {
             Ok(result) => result,
             Err(err) => PlateSolveResult {
-                ra: 0.0,
-                dec: 0.0,
-                pixel_scale: 0.0,
-                rotation: 0.0,
-                field_width: 0.0,
-                field_height: 0.0,
                 success: false,
                 error: Some(err.to_string()),
                 solve_time_secs: solve_time,
+                ..Default::default()
             },
         }
     }
@@ -890,6 +867,14 @@ fn parse_wcs_file_inner(
     let mut cd1_2: Option<f64> = None;
     let mut cd2_1: Option<f64> = None;
     let mut cd2_2: Option<f64> = None;
+    let mut a_order: Option<u32> = None;
+    let mut b_order: Option<u32> = None;
+    let mut ap_order: Option<u32> = None;
+    let mut bp_order: Option<u32> = None;
+    let mut a_terms: Vec<(u32, u32, f64)> = Vec::new();
+    let mut b_terms: Vec<(u32, u32, f64)> = Vec::new();
+    let mut ap_terms: Vec<(u32, u32, f64)> = Vec::new();
+    let mut bp_terms: Vec<(u32, u32, f64)> = Vec::new();
 
     for line in content.lines() {
         if line.len() < 10 {
@@ -921,6 +906,33 @@ fn parse_wcs_file_inner(
             *slot = Some(parsed);
             Ok(())
         };
+        let parse_order = |slot: &mut Option<u32>| -> Result<(), PlateSolveError> {
+            let parsed = value_str
+                .parse::<f64>()
+                .map_err(|source| PlateSolveError::WcsParse {
+                    keyword: keyword.to_string(),
+                    raw_value: value_str.to_string(),
+                    path: path_display.clone(),
+                    source,
+                })?;
+            *slot = Some(parsed as u32);
+            Ok(())
+        };
+        let parse_term = |terms: &mut Vec<(u32, u32, f64)>, body: &str| -> Result<(), PlateSolveError> {
+            let Some((i, j)) = sip_indices(body) else {
+                return Ok(());
+            };
+            let coeff = value_str
+                .parse::<f64>()
+                .map_err(|source| PlateSolveError::WcsParse {
+                    keyword: keyword.to_string(),
+                    raw_value: value_str.to_string(),
+                    path: path_display.clone(),
+                    source,
+                })?;
+            terms.push((i, j, coeff));
+            Ok(())
+        };
 
         match keyword {
             "CRVAL1" => parse(&mut ra)?,
@@ -929,6 +941,14 @@ fn parse_wcs_file_inner(
             "CD1_2" => parse(&mut cd1_2)?,
             "CD2_1" => parse(&mut cd2_1)?,
             "CD2_2" => parse(&mut cd2_2)?,
+            "A_ORDER" => parse_order(&mut a_order)?,
+            "B_ORDER" => parse_order(&mut b_order)?,
+            "AP_ORDER" => parse_order(&mut ap_order)?,
+            "BP_ORDER" => parse_order(&mut bp_order)?,
+            k if k.starts_with("AP_") => parse_term(&mut ap_terms, &k[3..])?,
+            k if k.starts_with("BP_") => parse_term(&mut bp_terms, &k[3..])?,
+            k if k.starts_with("A_") => parse_term(&mut a_terms, &k[2..])?,
+            k if k.starts_with("B_") => parse_term(&mut b_terms, &k[2..])?,
             _ => {}
         }
     }
@@ -951,6 +971,15 @@ fn parse_wcs_file_inner(
         / 2.0;
     let rotation = cd2_1.atan2(cd1_1).to_degrees();
 
+    let a_order = a_order.unwrap_or(0);
+    let b_order = b_order.unwrap_or(0);
+    let ap_order = ap_order.unwrap_or(0);
+    let bp_order = bp_order.unwrap_or(0);
+    let a_coeffs = sip_layout(a_order, &a_terms);
+    let b_coeffs = sip_layout(b_order, &b_terms);
+    let ap_coeffs = sip_layout(ap_order, &ap_terms);
+    let bp_coeffs = sip_layout(bp_order, &bp_terms);
+
     Ok(PlateSolveResult {
         ra,
         dec,
@@ -961,7 +990,44 @@ fn parse_wcs_file_inner(
         success: true,
         error: None,
         solve_time_secs: solve_time,
+        cd1_1,
+        cd1_2,
+        cd2_1,
+        cd2_2,
+        a_order,
+        b_order,
+        a_coeffs,
+        b_coeffs,
+        ap_order,
+        bp_order,
+        ap_coeffs,
+        bp_coeffs,
     })
+}
+
+/// Split a SIP coefficient keyword body (`"2_0"` from `A_2_0`) into its
+/// `(i, j)` polynomial indices. Returns `None` for diagnostic siblings like
+/// `A_DMAX` so the caller can skip them.
+fn sip_indices(body: &str) -> Option<(u32, u32)> {
+    let (i, j) = body.split_once('_')?;
+    Some((i.parse().ok()?, j.parse().ok()?))
+}
+
+/// Pack `(i, j, coeff)` SIP terms into the row-major layout documented on
+/// `PlateSolveResult`: index `i * (order + 1) + j`. Missing terms stay 0.0.
+/// Returns an empty vec when `order == 0` and no terms were present.
+fn sip_layout(order: u32, terms: &[(u32, u32, f64)]) -> Vec<f64> {
+    if order == 0 && terms.is_empty() {
+        return Vec::new();
+    }
+    let stride = (order + 1) as usize;
+    let mut coeffs = vec![0.0; stride * stride];
+    for &(i, j, c) in terms {
+        if (i as usize) < stride && (j as usize) < stride {
+            coeffs[i as usize * stride + j as usize] = c;
+        }
+    }
+    coeffs
 }
 
 /// Free-function form of ASTAP `.ini` parsing so the test module can exercise
@@ -1051,6 +1117,7 @@ fn parse_astap_ini_inner(
         success: true,
         error: None,
         solve_time_secs: solve_time,
+        ..Default::default()
     })
 }
 
@@ -1730,6 +1797,7 @@ fn solve_internal(
         success: true,
         error: None,
         solve_time_secs: 0.0,
+        ..Default::default()
     })
 }
 
@@ -1818,18 +1886,13 @@ fn solve_with_astrometry(
     if wcs_path.exists() {
         if let Err(error) = fs::remove_file(&wcs_path) {
             return PlateSolveResult {
-                ra: 0.0,
-                dec: 0.0,
-                pixel_scale: 0.0,
-                rotation: 0.0,
-                field_width: 0.0,
-                field_height: 0.0,
                 success: false,
                 error: Some(format!(
                     "Failed to remove stale astrometry.net WCS output {:?}: {}",
                     wcs_path, error
                 )),
                 solve_time_secs: start.elapsed().as_secs_f64(),
+                ..Default::default()
             };
         }
     }
@@ -1857,18 +1920,13 @@ fn solve_with_astrometry(
         Ok(output) => output,
         Err(error) => {
             return PlateSolveResult {
-                ra: 0.0,
-                dec: 0.0,
-                pixel_scale: 0.0,
-                rotation: 0.0,
-                field_width: 0.0,
-                field_height: 0.0,
                 success: false,
                 error: Some(format!(
                     "Failed to run astrometry.net solve-field: {}",
                     error
                 )),
                 solve_time_secs: start.elapsed().as_secs_f64(),
+                ..Default::default()
             }
         }
     };
@@ -1877,48 +1935,33 @@ fn solve_with_astrometry(
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return PlateSolveResult {
-            ra: 0.0,
-            dec: 0.0,
-            pixel_scale: 0.0,
-            rotation: 0.0,
-            field_width: 0.0,
-            field_height: 0.0,
             success: false,
             error: Some(format!("astrometry.net solve-field failed: {}", stderr)),
             solve_time_secs: solve_time,
+            ..Default::default()
         };
     }
 
     match parse_wcs_file_inner(&wcs_path, solve_time) {
         Ok(result) => result,
         Err(error) => PlateSolveResult {
-            ra: 0.0,
-            dec: 0.0,
-            pixel_scale: 0.0,
-            rotation: 0.0,
-            field_width: 0.0,
-            field_height: 0.0,
             success: false,
             error: Some(error.to_string()),
             solve_time_secs: solve_time,
+            ..Default::default()
         },
     }
 }
 
 fn external_solver_unavailable(start: std::time::Instant) -> PlateSolveResult {
     PlateSolveResult {
-        ra: 0.0,
-        dec: 0.0,
-        pixel_scale: 0.0,
-        rotation: 0.0,
-        field_width: 0.0,
-        field_height: 0.0,
         success: false,
         error: Some(
             "No supported external plate solver is configured. Install ASTAP and make astap_cli available on PATH or configure its executable path before solving."
                 .to_string(),
         ),
         solve_time_secs: start.elapsed().as_secs_f64(),
+        ..Default::default()
     }
 }
 
@@ -2100,6 +2143,82 @@ mod tests {
         assert!((result.ra - 150.123).abs() < 1e-9);
         assert!((result.dec - 20.456).abs() < 1e-9);
         assert!(result.pixel_scale > 0.0);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    /// Parse round-trip (NOT an on-sky accuracy claim): a WCS carrying the full
+    /// anisotropic CD matrix plus a 2nd-order SIP forward/inverse distortion
+    /// must read back the four CD terms verbatim and pack the SIP coefficients
+    /// into the documented row-major `i * (order + 1) + j` layout.
+    #[test]
+    fn parse_wcs_file_reads_cd_matrix_and_sip_terms() {
+        let mut content = String::new();
+        content.push_str(&wcs_card("CRVAL1", "150.0"));
+        content.push_str(&wcs_card("CRVAL2", "20.0"));
+        content.push_str(&wcs_card("CD1_1", "-0.000351"));
+        content.push_str(&wcs_card("CD1_2", "0.000017"));
+        content.push_str(&wcs_card("CD2_1", "0.000019"));
+        content.push_str(&wcs_card("CD2_2", "0.000349"));
+        content.push_str(&wcs_card("A_ORDER", "2"));
+        content.push_str(&wcs_card("A_0_2", "1.1e-6"));
+        content.push_str(&wcs_card("A_1_1", "-2.2e-6"));
+        content.push_str(&wcs_card("A_2_0", "3.3e-6"));
+        content.push_str(&wcs_card("B_ORDER", "2"));
+        content.push_str(&wcs_card("B_0_2", "4.4e-6"));
+        content.push_str(&wcs_card("B_2_0", "5.5e-6"));
+        content.push_str(&wcs_card("AP_ORDER", "1"));
+        content.push_str(&wcs_card("AP_1_0", "6.6e-6"));
+        content.push_str(&wcs_card("BP_ORDER", "1"));
+        content.push_str(&wcs_card("BP_0_1", "7.7e-6"));
+        let path = write_temp("wcs-cd-sip", &content);
+
+        let result = parse_wcs_file_inner(&path, 0.0).expect("CD + SIP WCS must parse");
+        assert_eq!(result.cd1_1, -0.000351);
+        assert_eq!(result.cd1_2, 0.000017);
+        assert_eq!(result.cd2_1, 0.000019);
+        assert_eq!(result.cd2_2, 0.000349);
+
+        assert_eq!(result.a_order, 2);
+        assert_eq!(result.b_order, 2);
+        assert_eq!(result.a_coeffs.len(), 9);
+        assert_eq!(result.b_coeffs.len(), 9);
+        // Row-major (i, j) with order 2 => stride 3: A_0_2 -> 2, A_1_1 -> 4, A_2_0 -> 6.
+        assert_eq!(result.a_coeffs[2], 1.1e-6);
+        assert_eq!(result.a_coeffs[4], -2.2e-6);
+        assert_eq!(result.a_coeffs[6], 3.3e-6);
+        assert_eq!(result.b_coeffs[2], 4.4e-6);
+        assert_eq!(result.b_coeffs[6], 5.5e-6);
+        assert_eq!(result.b_coeffs[4], 0.0);
+
+        assert_eq!(result.ap_order, 1);
+        assert_eq!(result.bp_order, 1);
+        assert_eq!(result.ap_coeffs.len(), 4);
+        assert_eq!(result.ap_coeffs[2], 6.6e-6);
+        assert_eq!(result.bp_coeffs[1], 7.7e-6);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    /// SIP is optional: a CD-only WCS must leave the coefficient vectors empty
+    /// (NOT zero-filled) and the orders at zero.
+    #[test]
+    fn parse_wcs_file_leaves_sip_empty_when_absent() {
+        let mut content = String::new();
+        content.push_str(&wcs_card("CRVAL1", "150.0"));
+        content.push_str(&wcs_card("CRVAL2", "20.0"));
+        content.push_str(&wcs_card("CD1_1", "-0.000358"));
+        content.push_str(&wcs_card("CD1_2", "0.000001"));
+        content.push_str(&wcs_card("CD2_1", "0.000001"));
+        content.push_str(&wcs_card("CD2_2", "0.000358"));
+        let path = write_temp("wcs-no-sip", &content);
+
+        let result = parse_wcs_file_inner(&path, 0.0).expect("CD-only WCS must parse");
+        assert_eq!(result.a_order, 0);
+        assert!(result.a_coeffs.is_empty());
+        assert!(result.b_coeffs.is_empty());
+        assert!(result.ap_coeffs.is_empty());
+        assert!(result.bp_coeffs.is_empty());
 
         let _ = std::fs::remove_file(path);
     }

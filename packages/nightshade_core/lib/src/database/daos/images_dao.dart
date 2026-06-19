@@ -28,6 +28,7 @@ class ProducingNodeThumbnail {
   final String frameType;
   final double? hfr;
   final double? eccentricity;
+  final double? fwhm;
   final int? starCount;
   final double exposureDuration;
   final DateTime capturedAt;
@@ -45,6 +46,7 @@ class ProducingNodeThumbnail {
     required this.frameType,
     required this.hfr,
     required this.eccentricity,
+    this.fwhm,
     required this.starCount,
     required this.exposureDuration,
     required this.capturedAt,
@@ -72,6 +74,7 @@ class ProducingNodeThumbnail {
       frameType: row.read<String>('frame_type'),
       hfr: row.readNullable<double>('hfr'),
       eccentricity: row.readNullable<double>('eccentricity'),
+      fwhm: row.readNullable<double>('fwhm'),
       starCount: row.readNullable<int>('star_count'),
       exposureDuration: row.read<double>('exposure_duration'),
       capturedAt: capturedAt,
@@ -358,15 +361,23 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
         .get();
   }
 
-  /// Update plate solve result
+  /// Update plate solve result. The isotropic scalars go through the typed
+  /// companion; the anisotropic WCS (the `solved_cd*` matrix and `solved_sip`
+  /// blob) is off-table, so it's written with a follow-up statement only when
+  /// the solve carried it. Null CD scalars leave those columns untouched.
   Future<void> updatePlateSolveResult(
     int id, {
     required double solvedRa,
     required double solvedDec,
     required double solvedRotation,
     required double solvedPixelScale,
-  }) {
-    return (update(capturedImages)..where((i) => i.id.equals(id))).write(
+    double? solvedCd1_1,
+    double? solvedCd1_2,
+    double? solvedCd2_1,
+    double? solvedCd2_2,
+    String? solvedSip,
+  }) async {
+    await (update(capturedImages)..where((i) => i.id.equals(id))).write(
       CapturedImagesCompanion(
         isPlateSolved: const Value(true),
         solvedRa: Value(solvedRa),
@@ -374,6 +385,44 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
         solvedRotation: Value(solvedRotation),
         solvedPixelScale: Value(solvedPixelScale),
       ),
+    );
+    if (solvedCd1_1 != null &&
+        solvedCd1_2 != null &&
+        solvedCd2_1 != null &&
+        solvedCd2_2 != null) {
+      await customStatement(
+        'UPDATE captured_images SET solved_cd1_1 = ?, solved_cd1_2 = ?, '
+        'solved_cd2_1 = ?, solved_cd2_2 = ?, solved_sip = ? WHERE id = ?',
+        [solvedCd1_1, solvedCd1_2, solvedCd2_1, solvedCd2_2, solvedSip, id],
+      );
+    }
+  }
+
+  /// Read the off-table WCS columns for [id] — the `solved_cd*` matrix and the
+  /// `solved_sip` blob. Any may be null when the stored solve was isotropic.
+  Future<
+    ({
+      double? cd1_1,
+      double? cd1_2,
+      double? cd2_1,
+      double? cd2_2,
+      String? sip,
+    })?
+  >
+  getStoredWcsDistortion(int id) async {
+    final row = await customSelect(
+      'SELECT solved_cd1_1, solved_cd1_2, solved_cd2_1, solved_cd2_2, '
+      'solved_sip FROM captured_images WHERE id = ?',
+      variables: [Variable<int>(id)],
+      readsFrom: {capturedImages},
+    ).getSingleOrNull();
+    if (row == null) return null;
+    return (
+      cd1_1: row.data['solved_cd1_1'] as double?,
+      cd1_2: row.data['solved_cd1_2'] as double?,
+      cd2_1: row.data['solved_cd2_1'] as double?,
+      cd2_2: row.data['solved_cd2_2'] as double?,
+      sip: row.data['solved_sip'] as String?,
     );
   }
 
@@ -426,6 +475,7 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
     String? producingRunId,
     String? runtimeGrade,
     double? eccentricity,
+    double? fwhm,
   }) async {
     final assignments = <String>[];
     final args = <Object?>[];
@@ -445,6 +495,10 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
       assignments.add('eccentricity = ?');
       args.add(eccentricity);
     }
+    if (fwhm != null) {
+      assignments.add('fwhm = ?');
+      args.add(fwhm);
+    }
     if (assignments.isEmpty) {
       return;
     }
@@ -453,6 +507,18 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
       'UPDATE captured_images SET ${assignments.join(", ")} WHERE id = ?',
       args,
     );
+  }
+
+  /// Read the persisted median FWHM for [imageId], or null when the
+  /// producing path measured none.
+  Future<double?> getFwhm(int imageId) async {
+    final row = await customSelect(
+      'SELECT fwhm FROM captured_images WHERE id = ?',
+      variables: [Variable<int>(imageId)],
+      readsFrom: {capturedImages},
+    ).getSingleOrNull();
+    if (row == null) return null;
+    return row.data['fwhm'] as double?;
   }
 
   /// Lightweight thumbnail-friendly view of a captured image row: only the
@@ -477,7 +543,7 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
     variables.add(Variable<int>(limit));
     final rows = await customSelect(
       'SELECT id, file_path, file_name, filter, frame_type, hfr, '
-      'eccentricity, star_count, exposure_duration, captured_at, '
+      'eccentricity, fwhm, star_count, exposure_duration, captured_at, '
       'is_accepted, rejection_reason, runtime_grade, producing_node_id, '
       'producing_run_id '
       'FROM captured_images '
@@ -506,7 +572,7 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
     variables.add(Variable<int>(limit));
     return customSelect(
       'SELECT id, file_path, file_name, filter, frame_type, hfr, '
-      'eccentricity, star_count, exposure_duration, captured_at, '
+      'eccentricity, fwhm, star_count, exposure_duration, captured_at, '
       'is_accepted, rejection_reason, runtime_grade, producing_node_id, '
       'producing_run_id '
       'FROM captured_images '

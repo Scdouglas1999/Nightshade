@@ -150,7 +150,7 @@ void main() {
         // Plate solve returns coordinates very close to target (within
         // tolerance). NB the solver returns RA in DEGREES, so the on-target
         // value is `targetRa * 15` (10h -> 150°), not `targetRa`.
-        const solveResult = PlateSolveResult(
+        final solveResult = PlateSolveResult(
           success: true,
           ra: targetRa * 15.0, // Same as target, expressed in degrees
           dec: targetDec, // Same as target
@@ -159,6 +159,18 @@ void main() {
           fieldWidth: 2.0,
           fieldHeight: 1.5,
           solveTimeSecs: 0.0,
+          cd11: 0,
+          cd12: 0,
+          cd21: 0,
+          cd22: 0,
+          sipAOrder: 0,
+          sipBOrder: 0,
+          sipACoeffs: Float64List(0),
+          sipBCoeffs: Float64List(0),
+          sipApOrder: 0,
+          sipBpOrder: 0,
+          sipApCoeffs: Float64List(0),
+          sipBpCoeffs: Float64List(0),
         );
 
         when(
@@ -258,7 +270,7 @@ void main() {
             timeoutSeconds: anyNamed('timeoutSeconds'),
           ),
         ).thenAnswer(
-          (_) async => const PlateSolveResult(
+          (_) async => PlateSolveResult(
             success: true,
             ra: solvedRaDeg, // DEGREES
             dec: targetDecDeg,
@@ -267,6 +279,18 @@ void main() {
             fieldWidth: 2.0,
             fieldHeight: 1.5,
             solveTimeSecs: 0.0,
+            cd11: 0,
+            cd12: 0,
+            cd21: 0,
+            cd22: 0,
+            sipAOrder: 0,
+            sipBOrder: 0,
+            sipACoeffs: Float64List(0),
+            sipBCoeffs: Float64List(0),
+            sipApOrder: 0,
+            sipBpOrder: 0,
+            sipApCoeffs: Float64List(0),
+            sipBpCoeffs: Float64List(0),
           ),
         );
 
@@ -336,7 +360,7 @@ void main() {
               timeoutSeconds: anyNamed('timeoutSeconds'),
             ),
           ).thenAnswer(
-            (_) async => const PlateSolveResult(
+            (_) async => PlateSolveResult(
               success: true,
               ra: solvedRaDeg, // DEGREES
               dec: targetDecDeg,
@@ -345,6 +369,18 @@ void main() {
               fieldWidth: 2.0,
               fieldHeight: 1.5,
               solveTimeSecs: 0.0,
+              cd11: 0,
+              cd12: 0,
+              cd21: 0,
+              cd22: 0,
+              sipAOrder: 0,
+              sipBOrder: 0,
+              sipACoeffs: Float64List(0),
+              sipBCoeffs: Float64List(0),
+              sipApOrder: 0,
+              sipBpOrder: 0,
+              sipApCoeffs: Float64List(0),
+              sipBpCoeffs: Float64List(0),
             ),
           );
           when(
@@ -417,7 +453,7 @@ void main() {
           ).thenAnswer((_) async {
             iter++;
             if (iter == 1) {
-              return const PlateSolveResult(
+              return PlateSolveResult(
                 success: true,
                 ra: solvedRaDeg, // off-target, degrees
                 dec: targetDecDeg,
@@ -426,10 +462,22 @@ void main() {
                 fieldWidth: 2.0,
                 fieldHeight: 1.5,
                 solveTimeSecs: 0.0,
+                cd11: 0,
+                cd12: 0,
+                cd21: 0,
+                cd22: 0,
+                sipAOrder: 0,
+                sipBOrder: 0,
+                sipACoeffs: Float64List(0),
+                sipBCoeffs: Float64List(0),
+                sipApOrder: 0,
+                sipBpOrder: 0,
+                sipApCoeffs: Float64List(0),
+                sipBpCoeffs: Float64List(0),
               );
             }
             // Second solve: on target, in degrees.
-            return const PlateSolveResult(
+            return PlateSolveResult(
               success: true,
               ra: targetRaHours * 15.0,
               dec: targetDecDeg,
@@ -438,6 +486,18 @@ void main() {
               fieldWidth: 2.0,
               fieldHeight: 1.5,
               solveTimeSecs: 0.0,
+              cd11: 0,
+              cd12: 0,
+              cd21: 0,
+              cd22: 0,
+              sipAOrder: 0,
+              sipBOrder: 0,
+              sipACoeffs: Float64List(0),
+              sipBCoeffs: Float64List(0),
+              sipApOrder: 0,
+              sipBpOrder: 0,
+              sipApCoeffs: Float64List(0),
+              sipBpCoeffs: Float64List(0),
             );
           });
           when(
@@ -534,7 +594,7 @@ void main() {
             // First solve: 2 arcmin (120 arcsec) off in RA. Solver RA is in
             // DEGREES: on-target is targetRa*15 (=150°), plus 120 arcsec
             // expressed in degrees (120/3600).
-            return const PlateSolveResult(
+            return PlateSolveResult(
               success: true,
               ra: targetRa * 15.0 + (120.0 / 3600.0),
               dec: targetDec,
@@ -543,10 +603,22 @@ void main() {
               fieldWidth: 2.0,
               fieldHeight: 1.5,
               solveTimeSecs: 0.0,
+              cd11: 0,
+              cd12: 0,
+              cd21: 0,
+              cd22: 0,
+              sipAOrder: 0,
+              sipBOrder: 0,
+              sipACoeffs: Float64List(0),
+              sipBCoeffs: Float64List(0),
+              sipApOrder: 0,
+              sipBpOrder: 0,
+              sipApCoeffs: Float64List(0),
+              sipBpCoeffs: Float64List(0),
             );
           } else {
             // Second solve: within tolerance (on-target, in degrees).
-            return const PlateSolveResult(
+            return PlateSolveResult(
               success: true,
               ra: targetRa * 15.0,
               dec: targetDec,
@@ -555,6 +627,18 @@ void main() {
               fieldWidth: 2.0,
               fieldHeight: 1.5,
               solveTimeSecs: 0.0,
+              cd11: 0,
+              cd12: 0,
+              cd21: 0,
+              cd22: 0,
+              sipAOrder: 0,
+              sipBOrder: 0,
+              sipACoeffs: Float64List(0),
+              sipBCoeffs: Float64List(0),
+              sipApOrder: 0,
+              sipBpOrder: 0,
+              sipApCoeffs: Float64List(0),
+              sipBpCoeffs: Float64List(0),
             );
           }
         });
@@ -636,7 +720,7 @@ void main() {
         ).thenAnswer((_) async {
           // Solver RA in DEGREES: on-target targetRa*15 plus 300 arcsec
           // (5 arcmin) expressed in degrees (300/3600).
-          return const PlateSolveResult(
+          return PlateSolveResult(
             success: true,
             ra: targetRa * 15.0 + (300.0 / 3600.0),
             dec: targetDec,
@@ -645,6 +729,18 @@ void main() {
             fieldWidth: 2.0,
             fieldHeight: 1.5,
             solveTimeSecs: 0.0,
+            cd11: 0,
+            cd12: 0,
+            cd21: 0,
+            cd22: 0,
+            sipAOrder: 0,
+            sipBOrder: 0,
+            sipACoeffs: Float64List(0),
+            sipBCoeffs: Float64List(0),
+            sipApOrder: 0,
+            sipBpOrder: 0,
+            sipApCoeffs: Float64List(0),
+            sipBpCoeffs: Float64List(0),
           );
         });
 
@@ -815,7 +911,7 @@ void main() {
             timeoutSeconds: anyNamed('timeoutSeconds'),
           ),
         ).thenAnswer((_) async {
-          return const PlateSolveResult(
+          return PlateSolveResult(
             success: false,
             ra: 0,
             dec: 0,
@@ -825,6 +921,18 @@ void main() {
             fieldHeight: 0,
             solveTimeSecs: 0,
             error: 'No stars found in image',
+            cd11: 0,
+            cd12: 0,
+            cd21: 0,
+            cd22: 0,
+            sipAOrder: 0,
+            sipBOrder: 0,
+            sipACoeffs: Float64List(0),
+            sipBCoeffs: Float64List(0),
+            sipApOrder: 0,
+            sipBpOrder: 0,
+            sipApCoeffs: Float64List(0),
+            sipBpCoeffs: Float64List(0),
           );
         });
 
@@ -890,7 +998,7 @@ void main() {
           iterationCount++;
           if (iterationCount == 1) {
             // Solver RA in DEGREES: targetRa*15 + 120 arcsec (in degrees).
-            return const PlateSolveResult(
+            return PlateSolveResult(
               success: true,
               ra: targetRa * 15.0 + (120.0 / 3600.0),
               dec: targetDec,
@@ -899,9 +1007,21 @@ void main() {
               fieldWidth: 2.0,
               fieldHeight: 1.5,
               solveTimeSecs: 0.0,
+              cd11: 0,
+              cd12: 0,
+              cd21: 0,
+              cd22: 0,
+              sipAOrder: 0,
+              sipBOrder: 0,
+              sipACoeffs: Float64List(0),
+              sipBCoeffs: Float64List(0),
+              sipApOrder: 0,
+              sipBpOrder: 0,
+              sipApCoeffs: Float64List(0),
+              sipBpCoeffs: Float64List(0),
             );
           } else {
-            return const PlateSolveResult(
+            return PlateSolveResult(
               success: true,
               ra: targetRa * 15.0,
               dec: targetDec,
@@ -910,6 +1030,18 @@ void main() {
               fieldWidth: 2.0,
               fieldHeight: 1.5,
               solveTimeSecs: 0.0,
+              cd11: 0,
+              cd12: 0,
+              cd21: 0,
+              cd22: 0,
+              sipAOrder: 0,
+              sipBOrder: 0,
+              sipACoeffs: Float64List(0),
+              sipBCoeffs: Float64List(0),
+              sipApOrder: 0,
+              sipBpOrder: 0,
+              sipApCoeffs: Float64List(0),
+              sipBpCoeffs: Float64List(0),
             );
           }
         });
@@ -1016,10 +1148,22 @@ void main() {
               fieldWidth: 2.0,
               fieldHeight: 1.5,
               solveTimeSecs: 0.0,
+              cd11: 0,
+              cd12: 0,
+              cd21: 0,
+              cd22: 0,
+              sipAOrder: 0,
+              sipBOrder: 0,
+              sipACoeffs: Float64List(0),
+              sipBCoeffs: Float64List(0),
+              sipApOrder: 0,
+              sipBpOrder: 0,
+              sipApCoeffs: Float64List(0),
+              sipBpCoeffs: Float64List(0),
             );
           }
           // On-target: 10h in degrees = 150°.
-          return const PlateSolveResult(
+          return PlateSolveResult(
             success: true,
             ra: 150.0,
             dec: 45.0,
@@ -1028,6 +1172,18 @@ void main() {
             fieldWidth: 2.0,
             fieldHeight: 1.5,
             solveTimeSecs: 0.0,
+            cd11: 0,
+            cd12: 0,
+            cd21: 0,
+            cd22: 0,
+            sipAOrder: 0,
+            sipBOrder: 0,
+            sipACoeffs: Float64List(0),
+            sipBCoeffs: Float64List(0),
+            sipApOrder: 0,
+            sipBpOrder: 0,
+            sipApCoeffs: Float64List(0),
+            sipBpCoeffs: Float64List(0),
           );
         });
         when(
@@ -1140,7 +1296,7 @@ void main() {
           ),
         ).thenAnswer((_) async {
           // Solver RA in DEGREES: 2 arcmin off = targetRa*15 + 120/3600.
-          return const PlateSolveResult(
+          return PlateSolveResult(
             success: true,
             ra: targetRa * 15.0 + (120.0 / 3600.0),
             dec: targetDec,
@@ -1149,6 +1305,18 @@ void main() {
             fieldWidth: 2.0,
             fieldHeight: 1.5,
             solveTimeSecs: 0.0,
+            cd11: 0,
+            cd12: 0,
+            cd21: 0,
+            cd22: 0,
+            sipAOrder: 0,
+            sipBOrder: 0,
+            sipACoeffs: Float64List(0),
+            sipBCoeffs: Float64List(0),
+            sipApOrder: 0,
+            sipBpOrder: 0,
+            sipApCoeffs: Float64List(0),
+            sipBpCoeffs: Float64List(0),
           );
         });
         when(
@@ -1329,7 +1497,7 @@ void main() {
           ),
         ).thenAnswer((_) async {
           // Solver RA in DEGREES: on-target is targetRa*15 (=150°).
-          return const PlateSolveResult(
+          return PlateSolveResult(
             success: true,
             ra: targetRa * 15.0,
             dec: targetDec,
@@ -1338,6 +1506,18 @@ void main() {
             fieldWidth: 2.0,
             fieldHeight: 1.5,
             solveTimeSecs: 0.0,
+            cd11: 0,
+            cd12: 0,
+            cd21: 0,
+            cd22: 0,
+            sipAOrder: 0,
+            sipBOrder: 0,
+            sipACoeffs: Float64List(0),
+            sipBCoeffs: Float64List(0),
+            sipApOrder: 0,
+            sipBpOrder: 0,
+            sipApCoeffs: Float64List(0),
+            sipBpCoeffs: Float64List(0),
           );
         });
 
@@ -1402,7 +1582,7 @@ void main() {
           ),
         ).thenAnswer((_) async {
           // Solver RA in DEGREES: 5 arcmin off = targetRa*15 + 300/3600.
-          return const PlateSolveResult(
+          return PlateSolveResult(
             success: true,
             ra: targetRa * 15.0 + (300.0 / 3600.0),
             dec: targetDec,
@@ -1411,6 +1591,18 @@ void main() {
             fieldWidth: 2.0,
             fieldHeight: 1.5,
             solveTimeSecs: 0.0,
+            cd11: 0,
+            cd12: 0,
+            cd21: 0,
+            cd22: 0,
+            sipAOrder: 0,
+            sipBOrder: 0,
+            sipACoeffs: Float64List(0),
+            sipBCoeffs: Float64List(0),
+            sipApOrder: 0,
+            sipBpOrder: 0,
+            sipApCoeffs: Float64List(0),
+            sipBpCoeffs: Float64List(0),
           );
         });
 
@@ -1473,7 +1665,7 @@ void main() {
           ),
         ).thenAnswer((_) async {
           // Solver RA in DEGREES: on-target mount RA (10h) = 150°.
-          return const PlateSolveResult(
+          return PlateSolveResult(
             success: true,
             ra: mountRa * 15.0,
             dec: mountDec,
@@ -1482,6 +1674,18 @@ void main() {
             fieldWidth: 2.0,
             fieldHeight: 1.5,
             solveTimeSecs: 0.0,
+            cd11: 0,
+            cd12: 0,
+            cd21: 0,
+            cd22: 0,
+            sipAOrder: 0,
+            sipBOrder: 0,
+            sipACoeffs: Float64List(0),
+            sipBCoeffs: Float64List(0),
+            sipApOrder: 0,
+            sipBpOrder: 0,
+            sipApCoeffs: Float64List(0),
+            sipBpCoeffs: Float64List(0),
           );
         });
 

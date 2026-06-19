@@ -112,8 +112,8 @@ void main() {
   });
 
   testWidgets(
-      'renders all five sub-tabs (Recommendation, Projects, Target Queue, '
-      'This Week, Progress)', (tester) async {
+      'renders all sub-tabs (Recommendation, Projects, Target Queue, '
+      'This Week, Progress, Sky)', (tester) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(1400, 900);
     addTearDown(() {
@@ -144,6 +144,7 @@ void main() {
         'Target Queue',
         'This Week',
         'Progress',
+        'Sky',
       ],
     );
   });

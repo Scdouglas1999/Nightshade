@@ -29,19 +29,24 @@ class FrameAutoGrader {
     final rules = settings.resolvedFrameGradeRules();
     if (rules.isEmpty) return null;
 
-    // FWHM and eccentricity are not persisted on captured_images;
-    // gradeFrame requires the caller to supply them or those rules
-    // silently never fire. The PSF field map (written earlier in this same
-    // pipeline run) carries per-tile medians — aggregate them when the
-    // corresponding rule is active. When the PSF stage is disabled or
-    // produced nothing, the metric stays null and that rule is skipped,
-    // matching the "cannot grade this dimension" contract.
+    // gradeFrame requires the caller to supply FWHM / eccentricity or those
+    // rules silently never fire. FWHM is now persisted on captured_images by
+    // the stats path — prefer it; fall back to the per-tile PSF medians
+    // (written earlier in this same pipeline run) only when it's absent.
+    // Eccentricity stays PSF-tile-derived. When neither source has the
+    // metric it stays null and that rule is skipped, matching the "cannot
+    // grade this dimension" contract.
     double? fwhm;
     double? eccentricity;
     if (rules.maxFwhm != null || rules.maxEccentricity != null) {
-      final psfMetrics = await _psfFieldMetrics(image.id);
-      fwhm = psfMetrics.fwhm;
-      eccentricity = psfMetrics.eccentricity;
+      if (rules.maxFwhm != null) {
+        fwhm = await _ref.read(imagesDaoProvider).getFwhm(image.id);
+      }
+      if (fwhm == null || rules.maxEccentricity != null) {
+        final psfMetrics = await _psfFieldMetrics(image.id);
+        fwhm ??= psfMetrics.fwhm;
+        eccentricity = psfMetrics.eccentricity;
+      }
     }
 
     final reason = rules.gradeFrame(

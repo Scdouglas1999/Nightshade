@@ -12250,6 +12250,7 @@ impl SseDecode for crate::api::imaging::ImageStatsResult {
         let mut var_stdDev = <f64>::sse_decode(deserializer);
         let mut var_hfr = <Option<f64>>::sse_decode(deserializer);
         let mut var_eccentricity = <Option<f64>>::sse_decode(deserializer);
+        let mut var_fwhm = <Option<f64>>::sse_decode(deserializer);
         let mut var_starCount = <u32>::sse_decode(deserializer);
         return crate::api::imaging::ImageStatsResult {
             min: var_min,
@@ -12259,6 +12260,7 @@ impl SseDecode for crate::api::imaging::ImageStatsResult {
             std_dev: var_stdDev,
             hfr: var_hfr,
             eccentricity: var_eccentricity,
+            fwhm: var_fwhm,
             star_count: var_starCount,
         };
     }
@@ -13641,6 +13643,18 @@ impl SseDecode for crate::api::plate_solve::PlateSolveResult {
         let mut var_fieldHeight = <f64>::sse_decode(deserializer);
         let mut var_solveTimeSecs = <f64>::sse_decode(deserializer);
         let mut var_error = <Option<String>>::sse_decode(deserializer);
+        let mut var_cd11 = <f64>::sse_decode(deserializer);
+        let mut var_cd12 = <f64>::sse_decode(deserializer);
+        let mut var_cd21 = <f64>::sse_decode(deserializer);
+        let mut var_cd22 = <f64>::sse_decode(deserializer);
+        let mut var_sipAOrder = <u32>::sse_decode(deserializer);
+        let mut var_sipBOrder = <u32>::sse_decode(deserializer);
+        let mut var_sipACoeffs = <Vec<f64>>::sse_decode(deserializer);
+        let mut var_sipBCoeffs = <Vec<f64>>::sse_decode(deserializer);
+        let mut var_sipApOrder = <u32>::sse_decode(deserializer);
+        let mut var_sipBpOrder = <u32>::sse_decode(deserializer);
+        let mut var_sipApCoeffs = <Vec<f64>>::sse_decode(deserializer);
+        let mut var_sipBpCoeffs = <Vec<f64>>::sse_decode(deserializer);
         return crate::api::plate_solve::PlateSolveResult {
             success: var_success,
             ra: var_ra,
@@ -13651,6 +13665,18 @@ impl SseDecode for crate::api::plate_solve::PlateSolveResult {
             field_height: var_fieldHeight,
             solve_time_secs: var_solveTimeSecs,
             error: var_error,
+            cd1_1: var_cd11,
+            cd1_2: var_cd12,
+            cd2_1: var_cd21,
+            cd2_2: var_cd22,
+            sip_a_order: var_sipAOrder,
+            sip_b_order: var_sipBOrder,
+            sip_a_coeffs: var_sipACoeffs,
+            sip_b_coeffs: var_sipBCoeffs,
+            sip_ap_order: var_sipApOrder,
+            sip_bp_order: var_sipBpOrder,
+            sip_ap_coeffs: var_sipApCoeffs,
+            sip_bp_coeffs: var_sipBpCoeffs,
         };
     }
 }
@@ -16797,6 +16823,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::imaging::ImageStatsResult {
             self.std_dev.into_into_dart().into_dart(),
             self.hfr.into_into_dart().into_dart(),
             self.eccentricity.into_into_dart().into_dart(),
+            self.fwhm.into_into_dart().into_dart(),
             self.star_count.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -17534,6 +17561,18 @@ impl flutter_rust_bridge::IntoDart for crate::api::plate_solve::PlateSolveResult
             self.field_height.into_into_dart().into_dart(),
             self.solve_time_secs.into_into_dart().into_dart(),
             self.error.into_into_dart().into_dart(),
+            self.cd1_1.into_into_dart().into_dart(),
+            self.cd1_2.into_into_dart().into_dart(),
+            self.cd2_1.into_into_dart().into_dart(),
+            self.cd2_2.into_into_dart().into_dart(),
+            self.sip_a_order.into_into_dart().into_dart(),
+            self.sip_b_order.into_into_dart().into_dart(),
+            self.sip_a_coeffs.into_into_dart().into_dart(),
+            self.sip_b_coeffs.into_into_dart().into_dart(),
+            self.sip_ap_order.into_into_dart().into_dart(),
+            self.sip_bp_order.into_into_dart().into_dart(),
+            self.sip_ap_coeffs.into_into_dart().into_dart(),
+            self.sip_bp_coeffs.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -20351,6 +20390,7 @@ impl SseEncode for crate::api::imaging::ImageStatsResult {
         <f64>::sse_encode(self.std_dev, serializer);
         <Option<f64>>::sse_encode(self.hfr, serializer);
         <Option<f64>>::sse_encode(self.eccentricity, serializer);
+        <Option<f64>>::sse_encode(self.fwhm, serializer);
         <u32>::sse_encode(self.star_count, serializer);
     }
 }
@@ -21443,6 +21483,18 @@ impl SseEncode for crate::api::plate_solve::PlateSolveResult {
         <f64>::sse_encode(self.field_height, serializer);
         <f64>::sse_encode(self.solve_time_secs, serializer);
         <Option<String>>::sse_encode(self.error, serializer);
+        <f64>::sse_encode(self.cd1_1, serializer);
+        <f64>::sse_encode(self.cd1_2, serializer);
+        <f64>::sse_encode(self.cd2_1, serializer);
+        <f64>::sse_encode(self.cd2_2, serializer);
+        <u32>::sse_encode(self.sip_a_order, serializer);
+        <u32>::sse_encode(self.sip_b_order, serializer);
+        <Vec<f64>>::sse_encode(self.sip_a_coeffs, serializer);
+        <Vec<f64>>::sse_encode(self.sip_b_coeffs, serializer);
+        <u32>::sse_encode(self.sip_ap_order, serializer);
+        <u32>::sse_encode(self.sip_bp_order, serializer);
+        <Vec<f64>>::sse_encode(self.sip_ap_coeffs, serializer);
+        <Vec<f64>>::sse_encode(self.sip_bp_coeffs, serializer);
     }
 }
 
@@ -24065,6 +24117,7 @@ mod io {
                 std_dev: self.std_dev.cst_decode(),
                 hfr: self.hfr.cst_decode(),
                 eccentricity: self.eccentricity.cst_decode(),
+                fwhm: self.fwhm.cst_decode(),
                 star_count: self.star_count.cst_decode(),
             }
         }
@@ -24916,6 +24969,18 @@ mod io {
                 field_height: self.field_height.cst_decode(),
                 solve_time_secs: self.solve_time_secs.cst_decode(),
                 error: self.error.cst_decode(),
+                cd1_1: self.cd1_1.cst_decode(),
+                cd1_2: self.cd1_2.cst_decode(),
+                cd2_1: self.cd2_1.cst_decode(),
+                cd2_2: self.cd2_2.cst_decode(),
+                sip_a_order: self.sip_a_order.cst_decode(),
+                sip_b_order: self.sip_b_order.cst_decode(),
+                sip_a_coeffs: self.sip_a_coeffs.cst_decode(),
+                sip_b_coeffs: self.sip_b_coeffs.cst_decode(),
+                sip_ap_order: self.sip_ap_order.cst_decode(),
+                sip_bp_order: self.sip_bp_order.cst_decode(),
+                sip_ap_coeffs: self.sip_ap_coeffs.cst_decode(),
+                sip_bp_coeffs: self.sip_bp_coeffs.cst_decode(),
             }
         }
     }
@@ -26653,6 +26718,7 @@ mod io {
                 std_dev: Default::default(),
                 hfr: core::ptr::null_mut(),
                 eccentricity: core::ptr::null_mut(),
+                fwhm: core::ptr::null_mut(),
                 star_count: Default::default(),
             }
         }
@@ -26960,6 +27026,18 @@ mod io {
                 field_height: Default::default(),
                 solve_time_secs: Default::default(),
                 error: core::ptr::null_mut(),
+                cd1_1: Default::default(),
+                cd1_2: Default::default(),
+                cd2_1: Default::default(),
+                cd2_2: Default::default(),
+                sip_a_order: Default::default(),
+                sip_b_order: Default::default(),
+                sip_a_coeffs: core::ptr::null_mut(),
+                sip_b_coeffs: core::ptr::null_mut(),
+                sip_ap_order: Default::default(),
+                sip_bp_order: Default::default(),
+                sip_ap_coeffs: core::ptr::null_mut(),
+                sip_bp_coeffs: core::ptr::null_mut(),
             }
         }
     }
@@ -33225,6 +33303,7 @@ mod io {
         std_dev: f64,
         hfr: *mut f64,
         eccentricity: *mut f64,
+        fwhm: *mut f64,
         star_count: u32,
     }
     #[repr(C)]
@@ -33929,6 +34008,18 @@ mod io {
         field_height: f64,
         solve_time_secs: f64,
         error: *mut wire_cst_list_prim_u_8_strict,
+        cd1_1: f64,
+        cd1_2: f64,
+        cd2_1: f64,
+        cd2_2: f64,
+        sip_a_order: u32,
+        sip_b_order: u32,
+        sip_a_coeffs: *mut wire_cst_list_prim_f_64_strict,
+        sip_b_coeffs: *mut wire_cst_list_prim_f_64_strict,
+        sip_ap_order: u32,
+        sip_bp_order: u32,
+        sip_ap_coeffs: *mut wire_cst_list_prim_f_64_strict,
+        sip_bp_coeffs: *mut wire_cst_list_prim_f_64_strict,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]

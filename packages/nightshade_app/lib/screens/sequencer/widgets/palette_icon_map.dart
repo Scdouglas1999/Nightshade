@@ -76,6 +76,10 @@ IconData nodePaletteIconFor(String iconName) {
     // SmartExposure uses the layered-stack glyph for its tabular editor.
     case 'layers':
       return LucideIcons.layers;
+    case 'lineChart':
+      return LucideIcons.lineChart;
+    case 'analytics':
+      return LucideIcons.activity;
     // Audit §11 — plugin-contributed nodes default to the puzzle-piece glyph.
     case 'puzzle':
       return LucideIcons.puzzle;
@@ -118,6 +122,8 @@ Color nodePaletteCategoryColor(String categoryName, NightshadeColors colors) {
       return colors.info;
     case 'Guiding':
       return colors.primary;
+    case 'Science':
+      return colors.accent;
     default:
       return colors.textSecondary;
   }

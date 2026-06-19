@@ -63,6 +63,8 @@ class _PhotometricCalibrationWizardState
 
   int _step = 0;
   String _filterName = '';
+  final TextEditingController _filterController = TextEditingController();
+  int? _selectedSessionId;
 
   /// One or more plate-solved frames feeding the fit. A single frame
   /// constrains zero point + color term; frames of the same field at
@@ -77,45 +79,38 @@ class _PhotometricCalibrationWizardState
   void _update(VoidCallback fn) => setState(fn);
 
   @override
+  void dispose() {
+    _filterController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
 
-    return Dialog(
-      backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        side: BorderSide(color: colors.borderHighlight),
-      ),
-      child: ConstrainedBox(
-        constraints: AdaptiveDialogConstraints.hybrid(
-          context,
-          designMaxWidth: 680,
-          designMaxHeight: 600,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildHeader(colors),
-              const SizedBox(height: 16),
-              _buildStepIndicator(colors),
-              const SizedBox(height: 16),
-              Flexible(
-                child: switch (_step) {
-                  0 => _buildStep1SelectFrame(colors),
-                  1 => _buildStep2MatchStars(colors),
-                  2 => _buildStep3ComputeCoefficients(colors),
-                  3 => _buildStep4Save(colors),
-                  _ => const SizedBox.shrink(),
-                },
-              ),
-              const SizedBox(height: 16),
-              _buildNavigationButtons(colors),
-            ],
-          ),
-        ),
+    return NightshadeDialog(
+      title: 'Photometric Calibration Wizard',
+      icon: LucideIcons.sparkles,
+      width: 680,
+      height: 600,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildHeader(colors),
+          const SizedBox(height: NightshadeTokens.spaceLg),
+          _buildStepIndicator(colors),
+          const SizedBox(height: NightshadeTokens.spaceLg),
+          switch (_step) {
+            0 => _buildStep1SelectFrame(colors),
+            1 => _buildStep2MatchStars(colors),
+            2 => _buildStep3ComputeCoefficients(colors),
+            3 => _buildStep4Save(colors),
+            _ => const SizedBox.shrink(),
+          },
+          const SizedBox(height: NightshadeTokens.spaceLg),
+          _buildNavigationButtons(colors),
+        ],
       ),
     );
   }

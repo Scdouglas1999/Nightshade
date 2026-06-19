@@ -26,6 +26,8 @@ export 'src/components/nightshade_card.dart';
 export 'src/components/nightshade_dropdown.dart';
 export 'src/components/nightshade_text_field.dart';
 export 'src/components/nightshade_checkbox.dart';
+export 'src/components/nightshade_chip.dart';
+export 'src/components/nightshade_slider.dart';
 export 'src/components/nightshade_switch.dart';
 export 'src/components/nightshade_switch_row.dart';
 export 'src/components/nightshade_switch_style.dart';
@@ -48,6 +50,7 @@ export 'src/components/screen_header.dart';
 export 'src/components/collapsible_sidebar.dart';
 export 'src/components/hold_to_confirm_button.dart';
 export 'src/components/nightshade_stepper.dart';
+export 'src/components/science_info_button.dart';
 
 // Dialogs
 export 'src/dialogs/nightshade_dialog.dart';

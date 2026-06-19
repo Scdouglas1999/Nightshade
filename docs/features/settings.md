@@ -4,7 +4,7 @@ The Settings screen provides comprehensive configuration options for all aspects
 
 ## Settings Categories
 
-Nightshade has 15 settings categories:
+Nightshade has the following settings categories:
 
 1. Connection
 2. General
@@ -17,10 +17,11 @@ Nightshade has 15 settings categories:
 9. Sequencer
 10. Plate Solving
 11. PHD2 Guiding
-12. Notifications
-13. File Paths
-14. Plugins
-15. About
+12. Science
+13. Notifications
+14. File Paths
+15. Plugins
+16. About
 
 ## Connection Settings
 
@@ -318,6 +319,52 @@ Configure PHD2 connection.
 ### PHD2 Path
 
 - **Executable path**: Optional, for auto-detection
+
+## Science Settings
+
+Configure the scientific-analysis pipeline. Everything here is informational-only — no frames are auto-deleted.
+
+### Mode
+
+| Setting | Description |
+|---------|-------------|
+| **Show advanced overlay controls** | Adds PSF, residual, and tile-map layers to the Imaging overlays menu. The Science destination, HUD, calibration readout, and photometry are always available regardless of this toggle — it only controls the advanced overlay *layers*. |
+| **Science overlays** | Master switch for science overlays such as the PSF map, residual vectors, and moving-object tracks. |
+
+### Features
+
+Per-feature toggles for each science product. Disabling one stops that processing stage without affecting the others:
+
+| Setting | Description |
+|---------|-------------|
+| **Live differential photometry** | Target/comparison tracking and live light curves |
+| **Per-frame photometric calibration** | Compute zeropoint and limiting magnitude |
+| **Transparency and extinction** | Track atmospheric transparency over time |
+| **PSF field map** | Analyze field-wide seeing and tilt patterns |
+| **Astrometric residuals** | Build residual heatmaps and mount feedback |
+| **Moving object mode** | Detect and track moving candidates |
+| **Narrowband line ratios** | Generate SII/Ha, OIII/Ha, and SII/OIII products |
+| **Frame quality maps** | Compute clipping, uniformity, background, and SNR tile maps |
+| **3D science surfaces** | Enable the surface explorer and interactive mesh rendering |
+| **Auto-reject bad frames** | After each light frame, reject captures that exceed the thresholds set in Analytics → Science → Grade frames (files are never deleted) |
+| **Write science keywords to FITS** | Stamp MAGZP / MAGZPERR / TRANSPAR back into the FITS header so PixInsight, AstroPixelProcessor, and Siril can read Nightshade's measurements directly from the frame |
+
+### Photometric Catalog
+
+| Setting | Description |
+|---------|-------------|
+| **Deep catalog lookups (APASS DR9)** | Fetch B/V photometry to ~mag 16 from VizieR for zero-point calibration and the transform wizard. Cached per field for offline reuse; falls back to the bundled star catalog when off or unreachable. |
+
+### Observer Codes
+
+| Setting | Description |
+|---------|-------------|
+| **AAVSO observer code** | Your assigned AAVSO observer initials (1–5 characters). Required for AAVSO Extended Format export. |
+| **MPC observatory code** | Your 3-character MPC observatory code (e.g., "G40"). Required for MPC report export. |
+
+### Camera
+
+Read-noise, gain, and saturation values used for limiting-magnitude and photometry calculations. **Auto-configure from camera** keeps them synced with the connected camera or active profile; editing any value by hand flips auto-configure off so your value is never overwritten.
 
 ## Notifications Settings
 

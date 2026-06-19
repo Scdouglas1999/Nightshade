@@ -16,8 +16,7 @@ import 'overlay_widgets.dart';
 /// than floating over it. Hosts three groups, left-to-right:
 ///
 ///  1. A low-emphasis status readout cluster (resolution / binning / zoom% and
-///     a grouped ZP+Sky calibration telemetry pair). Reads as STATUS — no
-///     button chrome.
+///     a Sky transparency readout). Reads as STATUS — no button chrome.
 ///  2. A single labelled **Overlays** popover that replaces the six former
 ///     loose overlay-toggle icons. Each menu row drives the exact same
 ///     provider/callback the old icon did.
@@ -63,10 +62,7 @@ class ImagingPreviewToolbar extends ConsumerWidget {
     final currentImage = ref.watch(currentImageProvider);
     final exposureSettings = ref.watch(exposureSettingsProvider);
     final exposureProgress = ref.watch(exposureProgressProvider);
-    final scienceSettings = ref.watch(scienceSettingsProvider).valueOrNull ??
-        const ScienceSettings();
     final scienceSnapshot = ref.watch(currentScienceSnapshotProvider);
-    final latestCalibration = scienceSnapshot.$1;
     final latestTransparency = scienceSnapshot.$2;
 
     final status = _StatusReadoutCluster(
@@ -76,10 +72,7 @@ class ImagingPreviewToolbar extends ConsumerWidget {
           : '--- × ---',
       binningLabel: 'Bin ${exposureSettings.binning}',
       zoomLabel: '${(zoomLevel * 100).round()}%',
-      showCalibration: scienceSettings.advancedModeEnabled,
-      zeroPointLabel: latestCalibration?.zeroPoint == null
-          ? 'ZP --'
-          : 'ZP ${latestCalibration!.zeroPoint!.toStringAsFixed(2)}',
+      showCalibration: true,
       skyLabel: latestTransparency == null
           ? 'Sky --'
           : 'Sky ${latestTransparency.qualityBucket}',
@@ -191,15 +184,15 @@ class _DrawModeButton extends ConsumerWidget {
 
 /// Low-emphasis, non-interactive status readout. Renders as a row of muted
 /// text segments separated by thin dividers — deliberately *not* chips with
-/// button chrome, so it never reads as tappable. ZP + Sky are visually grouped
-/// (calibration / transparency telemetry) behind a single leading gauge icon.
+/// button chrome, so it never reads as tappable. The Sky/transparency readout
+/// sits behind a leading gauge icon; zero-point now lives only in the richer
+/// tappable [FrameScienceChip] on the canvas.
 class _StatusReadoutCluster extends StatelessWidget {
   final NightshadeColors colors;
   final String resolutionLabel;
   final String binningLabel;
   final String zoomLabel;
   final bool showCalibration;
-  final String zeroPointLabel;
   final String skyLabel;
 
   const _StatusReadoutCluster({
@@ -208,7 +201,6 @@ class _StatusReadoutCluster extends StatelessWidget {
     required this.binningLabel,
     required this.zoomLabel,
     required this.showCalibration,
-    required this.zeroPointLabel,
     required this.skyLabel,
   });
 
@@ -225,10 +217,7 @@ class _StatusReadoutCluster extends StatelessWidget {
     if (showCalibration) {
       children
         ..add(_divider())
-        // ZP + Sky share one leading gauge glyph and sit adjacent: they are a
-        // single calibration/transparency telemetry group, not two unrelated
-        // readouts.
-        ..add(_segment(NightshadeIcons.gauge, '$zeroPointLabel   $skyLabel'));
+        ..add(_segment(NightshadeIcons.gauge, skyLabel));
     }
 
     return Row(
@@ -244,11 +233,10 @@ class _StatusReadoutCluster extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 12, color: colors.textMuted),
-          const SizedBox(width: 6),
+          const SizedBox(width: NightshadeTokens.spaceXs),
           Text(
             label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
+            style: NightshadeTypography.captionSm.copyWith(
               color: colors.textSecondary,
             ),
           ),
@@ -291,8 +279,6 @@ class OverlaysMenuButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final scienceSettings = ref.watch(scienceSettingsProvider).valueOrNull ??
-        const ScienceSettings();
     final annotationSettings =
         ref.watch(annotationSettingsProvider).valueOrNull ??
             const AnnotationSettings();
@@ -307,7 +293,7 @@ class OverlaysMenuButton extends ConsumerWidget {
         showStarOverlay ||
         annotationPanelVisible ||
         catalogEnabled ||
-        (scienceSettings.advancedModeEnabled && scienceHudVisible);
+        scienceHudVisible;
 
     return PopupMenuButton<int>(
       tooltip: 'Overlays',
@@ -373,17 +359,16 @@ class OverlaysMenuButton extends ConsumerWidget {
                 .read(catalogOverlayEnabledProvider.notifier)
                 .state = !catalogEnabled,
           ),
-          if (scienceSettings.advancedModeEnabled)
-            _overlayItem(
-              value: 5,
-              icon: NightshadeIcons.science,
-              label: 'Science HUD',
-              active: scienceHudVisible,
-              onTap: () => ref.read(scienceModeStateProvider.notifier).state =
-                  scienceMode.copyWith(
-                scienceHudVisible: !scienceHudVisible,
-              ),
+          _overlayItem(
+            value: 5,
+            icon: NightshadeIcons.science,
+            label: 'Science HUD',
+            active: scienceHudVisible,
+            onTap: () => ref.read(scienceModeStateProvider.notifier).state =
+                scienceMode.copyWith(
+              scienceHudVisible: !scienceHudVisible,
             ),
+          ),
         ];
       },
       child: _LabeledToolbarToggle(
@@ -493,7 +478,7 @@ class _LabeledToolbarToggleState extends State<_LabeledToolbarToggle> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(widget.icon, size: 15, color: accent),
-            const SizedBox(width: 6),
+            const SizedBox(width: NightshadeTokens.spaceXs),
             Text(
               widget.label,
               style: NightshadeTypography.labelSm.copyWith(color: accent),
@@ -560,8 +545,7 @@ class _OverlayMenuRow extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
+              style: NightshadeTypography.bodySm.copyWith(
                 color: colors.textPrimary,
               ),
             ),
@@ -570,8 +554,7 @@ class _OverlayMenuRow extends StatelessWidget {
             const SizedBox(width: NightshadeTokens.spaceSm),
             Text(
               subtitle!,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
+              style: NightshadeTypography.captionSm.copyWith(
                 color: colors.textMuted,
               ),
             ),
@@ -689,7 +672,7 @@ class _CatalogOverlaySettingsButton extends ConsumerWidget {
       ],
       icon: Icon(NightshadeIcons.target, color: colors.textMuted, size: 16),
       splashRadius: 16,
-      padding: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.symmetric(horizontal: NightshadeTokens.spaceXs),
     );
   }
 }

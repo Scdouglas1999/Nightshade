@@ -129,9 +129,9 @@ void main() {
           layout.tiles.where((t) => t.enabled).map((t) => t.widgetId).toSet();
 
       // The dense default: the merged now-imaging + frames tiles and guiding
-      // up top, supporting telemetry (incl. v6 Quality) on the right rail. The
-      // superseded panels, the opt-in cockpit extras (session vitals, sky
-      // context, forensics), and ALL legacy cards are off.
+      // up top, supporting telemetry (incl. v6 Quality) and the light curve on
+      // the right rail. The superseded panels, the opt-in cockpit extras
+      // (session vitals, sky context, forensics), and ALL legacy cards are off.
       expect(
         enabledIds,
         unorderedEquals(<DashboardWidgetId>{
@@ -142,6 +142,7 @@ void main() {
           DashboardWidgetId.cockpitWeatherSafety,
           DashboardWidgetId.cockpitQuality,
           DashboardWidgetId.cockpitTriggerFeed,
+          DashboardWidgetId.cockpitLightCurve,
         }),
       );
     });

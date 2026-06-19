@@ -42,6 +42,7 @@ import 'cockpit_frames.dart';
 import 'cockpit_session_vitals.dart';
 import 'cockpit_sky_context.dart';
 import 'cockpit_narrator.dart';
+import 'cockpit_morning_report.dart';
 
 typedef DashboardWidgetBuilder = Widget Function(
   BuildContext context,
@@ -291,6 +292,15 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
     defaultZone: DashboardZone.secondary,
     selfChromed: true,
     builder: _buildCockpitNarrator,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitMorningReport,
+    title: 'Morning Report',
+    subtitle: "Last night's accepted/rejected counts — tap to review",
+    icon: LucideIcons.sunrise,
+    defaultZone: DashboardZone.secondary,
+    selfChromed: true,
+    builder: _buildCockpitMorningReport,
   ),
 
   // ===========================================================================
@@ -605,6 +615,14 @@ Widget _buildCockpitNarrator(
   AnimationController pulseController,
 ) {
   return const CockpitNarrator();
+}
+
+Widget _buildCockpitMorningReport(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const CockpitMorningReport();
 }
 
 Widget _buildLivePreview(

@@ -684,6 +684,39 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
         'ALTER TABLE captured_images ADD COLUMN eccentricity REAL',
       );
     }
+    if (!await _columnExists('captured_images', 'fwhm')) {
+      await customStatement(
+        'ALTER TABLE captured_images ADD COLUMN fwhm REAL',
+      );
+    }
+    // v51: anisotropic WCS — the four CD-matrix scalars plus a `solved_sip`
+    // JSON blob. Raw-DDL columns retrofitted by the v51 onUpgrade branch;
+    // fresh installs add them here.
+    if (!await _columnExists('captured_images', 'solved_cd1_1')) {
+      await customStatement(
+        'ALTER TABLE captured_images ADD COLUMN solved_cd1_1 REAL',
+      );
+    }
+    if (!await _columnExists('captured_images', 'solved_cd1_2')) {
+      await customStatement(
+        'ALTER TABLE captured_images ADD COLUMN solved_cd1_2 REAL',
+      );
+    }
+    if (!await _columnExists('captured_images', 'solved_cd2_1')) {
+      await customStatement(
+        'ALTER TABLE captured_images ADD COLUMN solved_cd2_1 REAL',
+      );
+    }
+    if (!await _columnExists('captured_images', 'solved_cd2_2')) {
+      await customStatement(
+        'ALTER TABLE captured_images ADD COLUMN solved_cd2_2 REAL',
+      );
+    }
+    if (!await _columnExists('captured_images', 'solved_sip')) {
+      await customStatement(
+        'ALTER TABLE captured_images ADD COLUMN solved_sip TEXT',
+      );
+    }
     // Thumbnail sidecar path. Declared as a raw-DDL column rather than
     // a Drift table column to match the existing producing-node convention —
     // additive nullable text columns don't need Drift codegen churn and the

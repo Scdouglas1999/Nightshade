@@ -436,6 +436,7 @@ pub struct ImageStatsResult {
     /// `None` when too few reliable stars to honestly measure — never a
     /// fabricated value.
     pub eccentricity: Option<f64>,
+    pub fwhm: Option<f64>,
     pub star_count: u32,
 }
 
@@ -613,6 +614,7 @@ pub async fn api_camera_start_exposure(
                 // Simulated stars are round Gaussians; report a small,
                 // realistic eccentricity (well-guided rigs sit ~0.1–0.3).
                 eccentricity: Some(0.15 + (rand::random::<f64>() - 0.5) * 0.1),
+                fwhm: None,
                 star_count,
             },
             exposure_time: duration_secs,
@@ -845,6 +847,24 @@ pub async fn api_camera_start_exposure(
         } else {
             None
         };
+        // Compute median FWHM from detected stars (top 50% brightest, capped at 50)
+        let median_fwhm = if !stars.is_empty() {
+            let count = (stars.len() / 2).clamp(1, 50);
+            let mut fwhms: Vec<f64> = stars
+                .iter()
+                .take(count)
+                .map(|s| s.fwhm)
+                .filter(|&f| f > 0.0 && f < 20.0)
+                .collect();
+            if fwhms.is_empty() {
+                None
+            } else {
+                fwhms.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+                Some(fwhms[fwhms.len() / 2])
+            }
+        } else {
+            None
+        };
         // Per-frame median eccentricity from the same detected stars. Fails
         // closed (None) when too few reliable stars — never fabricated.
         let median_eccentricity = nightshade_imaging::frame_eccentricity(&stars);
@@ -879,6 +899,7 @@ pub async fn api_camera_start_exposure(
                 std_dev: stats.std_dev,
                 hfr: median_hfr,
                 eccentricity: median_eccentricity,
+                fwhm: median_fwhm,
                 star_count,
             },
             exposure_time: duration_secs,
@@ -1360,6 +1381,7 @@ pub async fn api_read_fits_file(file_path: String) -> Result<FitsReadResult, Nig
             // eccentricity is measured here — honest None, not a fabricated 0.
             hfr: None,
             eccentricity: None,
+            fwhm: None,
             star_count: 0,
         },
         object_name,
@@ -2446,6 +2468,7 @@ pub async fn api_read_xisf_file(file_path: String) -> Result<XisfReadResult, Nig
             // XISF load runs no star detection: honest None for both.
             hfr: None,
             eccentricity: None,
+            fwhm: None,
             star_count: 0,
         },
         properties,
@@ -3794,6 +3817,7 @@ pub fn api_get_image_stats(
         // Basic-stats path runs no star detection: honest None for both.
         hfr: None,
         eccentricity: None,
+        fwhm: None,
         star_count: 0,
     })
 }
@@ -4979,6 +5003,7 @@ mod unified_image_storage_tests {
                 std_dev: 0.0,
                 hfr: None,
                 eccentricity: None,
+                fwhm: None,
                 star_count: 0,
             },
             exposure_time: 0.1,

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -28,367 +29,371 @@ class ScienceHudPanel extends ConsumerWidget {
     final photometryTarget = photometrySelection.target;
     final comparisonAnchors = photometrySelection.comparisons;
 
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-        border: Border.all(color: colors.border),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Icon(NightshadeIcons.science, size: 15, color: colors.primary),
-                const SizedBox(width: 8),
-                Text(
-                  'Science HUD',
-                  style: NightshadeTypography.labelStrong
-                      .copyWith(color: colors.textPrimary),
-                ),
-                const Spacer(),
-                Text(
-                  'Informational only',
-                  style: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: NightshadeTypography.fontSize10,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            // P0.2: status banner — collapses to a single line when there is
-            // nothing in flight, expands when science is working. Hidden
-            // entirely if the pipeline is idle AND empty.
-            const ScienceStatusBanner(hideWhenIdle: true),
-            const SizedBox(height: 10),
-            _FeatureToggle(
-              colors: colors,
-              title: 'Moving object mode',
-              value: sessionConfig.movingObjectsEnabled,
-              onChanged: (value) {
-                ref.read(scienceModeStateProvider.notifier).state =
-                    modeState.copyWith(movingObjectModeEnabled: value);
-                _updateSessionConfig(
-                  ref,
-                  sessionConfig.copyWith(movingObjectsEnabled: value),
-                );
-              },
-            ),
-            // P3.1: contextual suggestions. Watches the current session's
-            // image list and offers one-tap enable for features the user
-            // looks ready for (multi-frame for moving objects, NB filter
-            // set for line ratios). Hidden when the feature is already on.
-            _ContextualOffers(
-              colors: colors,
-              sessionConfig: sessionConfig,
-              onEnableMovingObjects: () => _updateSessionConfig(
-                ref,
-                sessionConfig.copyWith(movingObjectsEnabled: true),
-              ),
-              onEnableNarrowband: () => _updateSessionConfig(
-                ref,
-                sessionConfig.copyWith(narrowbandEnabled: true),
-              ),
-            ),
-            _FeatureToggle(
-              colors: colors,
-              title: 'Session photometry',
-              value: sessionConfig.photometryEnabled,
-              onChanged: (value) => _updateSessionConfig(
-                  ref, sessionConfig.copyWith(photometryEnabled: value)),
-            ),
-            _FeatureToggle(
-              colors: colors,
-              title: 'Photometric calibration',
-              value: sessionConfig.calibrationEnabled,
-              onChanged: (value) => _updateSessionConfig(
-                ref,
-                sessionConfig.copyWith(calibrationEnabled: value),
-              ),
-            ),
-            _FeatureToggle(
-              colors: colors,
-              title: 'Transparency model',
-              value: sessionConfig.transparencyEnabled,
-              onChanged: (value) => _updateSessionConfig(
-                ref,
-                sessionConfig.copyWith(transparencyEnabled: value),
-              ),
-            ),
-            // P3.2: transparency unlock progress — surfaces the
-            // "N more calibrated frames" hint directly in the HUD so the
-            // user understands why the transparency reading is blank.
-            if (sessionConfig.transparencyEnabled)
-              _TransparencyUnlockProgress(colors: colors),
-            _FeatureToggle(
-              colors: colors,
-              title: 'PSF map',
-              value: sessionConfig.psfMapEnabled,
-              onChanged: (value) => _updateSessionConfig(
-                  ref, sessionConfig.copyWith(psfMapEnabled: value)),
-            ),
-            _FeatureToggle(
-              colors: colors,
-              title: 'Astrometric residuals',
-              value: sessionConfig.residualsEnabled,
-              onChanged: (value) => _updateSessionConfig(
-                ref,
-                sessionConfig.copyWith(residualsEnabled: value),
-              ),
-            ),
-            _FeatureToggle(
-              colors: colors,
-              title: 'Narrowband tools',
-              value: sessionConfig.narrowbandEnabled,
-              onChanged: (value) => _updateSessionConfig(
-                ref,
-                sessionConfig.copyWith(narrowbandEnabled: value),
-              ),
-            ),
-            const Divider(height: 18),
-            Text(
-              'Overlay layers',
-              style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: NightshadeTypography.fontSize11,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                _OverlayChip(
-                  colors: colors,
-                  label: 'PSF Heatmap',
-                  active: overlayState.showPsfHeatmap,
-                  onTap: () {
-                    ref.read(scienceOverlayStateProvider.notifier).state =
-                        overlayState.copyWith(
-                      showPsfHeatmap: !overlayState.showPsfHeatmap,
-                    );
-                  },
-                ),
-                _OverlayChip(
-                  colors: colors,
-                  label: 'Residual Vectors',
-                  active: overlayState.showResidualVectors,
-                  onTap: () {
-                    ref.read(scienceOverlayStateProvider.notifier).state =
-                        overlayState.copyWith(
-                      showResidualVectors: !overlayState.showResidualVectors,
-                    );
-                  },
-                ),
-                _OverlayChip(
-                  colors: colors,
-                  label: 'Object Tracks',
-                  active: overlayState.showMovingObjectTracks,
-                  onTap: () {
-                    ref.read(scienceOverlayStateProvider.notifier).state =
-                        overlayState.copyWith(
-                      showMovingObjectTracks:
-                          !overlayState.showMovingObjectTracks,
-                    );
-                  },
-                ),
-                _OverlayChip(
-                  colors: colors,
-                  label: 'Uniformity',
-                  active: overlayState.showUniformityMap,
-                  onTap: () {
-                    ref.read(scienceOverlayStateProvider.notifier).state =
-                        overlayState.copyWith(
-                      showUniformityMap: !overlayState.showUniformityMap,
-                    );
-                  },
-                ),
-                _OverlayChip(
-                  colors: colors,
-                  label: 'Clip High',
-                  active: overlayState.showClipHighMap,
-                  onTap: () {
-                    ref.read(scienceOverlayStateProvider.notifier).state =
-                        overlayState.copyWith(
-                      showClipHighMap: !overlayState.showClipHighMap,
-                    );
-                  },
-                ),
-                _OverlayChip(
-                  colors: colors,
-                  label: 'Clip Low',
-                  active: overlayState.showClipLowMap,
-                  onTap: () {
-                    ref.read(scienceOverlayStateProvider.notifier).state =
-                        overlayState.copyWith(
-                      showClipLowMap: !overlayState.showClipLowMap,
-                    );
-                  },
-                ),
-                _OverlayChip(
-                  colors: colors,
-                  label: 'FWHM Surface',
-                  active: overlayState.showFwhmSurface,
-                  onTap: () {
-                    ref.read(scienceOverlayStateProvider.notifier).state =
-                        overlayState.copyWith(
-                      showFwhmSurface: !overlayState.showFwhmSurface,
-                    );
-                  },
-                ),
-              ],
-            ),
-            const Divider(height: 18),
-            Text(
-              'Differential photometry',
-              style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: NightshadeTypography.fontSize11,
-              ),
-            ),
-            const SizedBox(height: 6),
-            if (selectedObject != null)
+    return NightshadeCard(
+      backgroundColor: colors.surface,
+      borderRadius: NightshadeTokens.radiusLg,
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(NightshadeIcons.science, size: 15, color: colors.primary),
+              const SizedBox(width: NightshadeTokens.spaceSm),
               Text(
-                'Selected: ${selectedObject.commonName ?? selectedObject.name}',
-                style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: NightshadeTypography.fontSize11),
-              )
-            else
-              Text(
-                'Click an annotated object to select it.',
-                style: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: NightshadeTypography.fontSize11),
+                'Science HUD',
+                style: NightshadeTypography.labelStrong
+                    .copyWith(color: colors.textPrimary),
               ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: NightshadeButton(
-                    onPressed: selectedObject == null
-                        ? null
-                        : () async {
-                            await ref
-                                .read(
-                                    sciencePhotometrySelectionProvider.notifier)
-                                .setTarget(
-                                  PhotometryAnchor(
-                                    objectId: selectedObject.id,
-                                    label: selectedObject.commonName ??
-                                        selectedObject.name,
-                                    raDegrees: selectedObject.ra,
-                                    decDegrees: selectedObject.dec,
-                                  ),
-                                );
-                          },
-                    label: 'Set Target',
-                    variant: ButtonVariant.outline,
-                    size: ButtonSize.small,
+              const Spacer(),
+              Text(
+                'Informational only',
+                style: NightshadeTypography.captionSm
+                    .copyWith(color: colors.textMuted),
+              ),
+            ],
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          InkWell(
+            onTap: () => context.go('/science'),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Open in Science analytics',
+                    style: NightshadeTypography.labelSm.copyWith(
+                      color: colors.primary,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: NightshadeButton(
-                    onPressed: selectedObject == null
-                        ? null
-                        : () async {
-                            await ref
-                                .read(
-                                    sciencePhotometrySelectionProvider.notifier)
-                                .toggleComparison(
-                                  PhotometryAnchor(
-                                    objectId: selectedObject.id,
-                                    label: selectedObject.commonName ??
-                                        selectedObject.name,
-                                    raDegrees: selectedObject.ra,
-                                    decDegrees: selectedObject.dec,
-                                  ),
-                                );
-                          },
-                    label: 'Toggle Comp',
-                    variant: ButtonVariant.ghost,
-                    size: ButtonSize.small,
-                  ),
-                ),
-              ],
+                  const SizedBox(width: NightshadeTokens.spaceXs),
+                  Icon(LucideIcons.arrowRight,
+                      size: NightshadeTokens.iconXs, color: colors.primary),
+                ],
+              ),
             ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Expanded(
-                  child: NightshadeButton(
-                    onPressed: () async {
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          // P0.2: status banner — collapses to a single line when there is
+          // nothing in flight, expands when science is working. Hidden
+          // entirely if the pipeline is idle AND empty.
+          const ScienceStatusBanner(hideWhenIdle: true),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          _FeatureToggle(
+            colors: colors,
+            title: 'Moving object mode',
+            value: sessionConfig.movingObjectsEnabled,
+            onChanged: (value) {
+              ref.read(scienceModeStateProvider.notifier).state =
+                  modeState.copyWith(movingObjectModeEnabled: value);
+              _updateSessionConfig(
+                ref,
+                sessionConfig.copyWith(movingObjectsEnabled: value),
+              );
+            },
+          ),
+          // P3.1: contextual suggestions. Watches the current session's
+          // image list and offers one-tap enable for features the user
+          // looks ready for (multi-frame for moving objects, NB filter
+          // set for line ratios). Hidden when the feature is already on.
+          _ContextualOffers(
+            colors: colors,
+            sessionConfig: sessionConfig,
+            onEnableMovingObjects: () => _updateSessionConfig(
+              ref,
+              sessionConfig.copyWith(movingObjectsEnabled: true),
+            ),
+            onEnableNarrowband: () => _updateSessionConfig(
+              ref,
+              sessionConfig.copyWith(narrowbandEnabled: true),
+            ),
+          ),
+          _FeatureToggle(
+            colors: colors,
+            title: 'Session photometry',
+            value: sessionConfig.photometryEnabled,
+            onChanged: (value) => _updateSessionConfig(
+                ref, sessionConfig.copyWith(photometryEnabled: value)),
+          ),
+          _FeatureToggle(
+            colors: colors,
+            title: 'Photometric calibration',
+            value: sessionConfig.calibrationEnabled,
+            onChanged: (value) => _updateSessionConfig(
+              ref,
+              sessionConfig.copyWith(calibrationEnabled: value),
+            ),
+          ),
+          _FeatureToggle(
+            colors: colors,
+            title: 'Transparency model',
+            value: sessionConfig.transparencyEnabled,
+            onChanged: (value) => _updateSessionConfig(
+              ref,
+              sessionConfig.copyWith(transparencyEnabled: value),
+            ),
+          ),
+          // P3.2: transparency unlock progress — surfaces the
+          // "N more calibrated frames" hint directly in the HUD so the
+          // user understands why the transparency reading is blank.
+          if (sessionConfig.transparencyEnabled)
+            _TransparencyUnlockProgress(colors: colors),
+          _FeatureToggle(
+            colors: colors,
+            title: 'PSF map',
+            value: sessionConfig.psfMapEnabled,
+            onChanged: (value) => _updateSessionConfig(
+                ref, sessionConfig.copyWith(psfMapEnabled: value)),
+          ),
+          _FeatureToggle(
+            colors: colors,
+            title: 'Astrometric residuals',
+            value: sessionConfig.residualsEnabled,
+            onChanged: (value) => _updateSessionConfig(
+              ref,
+              sessionConfig.copyWith(residualsEnabled: value),
+            ),
+          ),
+          _FeatureToggle(
+            colors: colors,
+            title: 'Narrowband tools',
+            value: sessionConfig.narrowbandEnabled,
+            onChanged: (value) => _updateSessionConfig(
+              ref,
+              sessionConfig.copyWith(narrowbandEnabled: value),
+            ),
+          ),
+          const Divider(height: 18),
+          Text(
+            'Overlay layers',
+            style: NightshadeTypography.captionSm
+                .copyWith(color: colors.textSecondary),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _OverlayChip(
+                colors: colors,
+                label: 'PSF Heatmap',
+                active: overlayState.showPsfHeatmap,
+                onTap: () {
+                  ref.read(scienceOverlayStateProvider.notifier).state =
+                      overlayState.copyWith(
+                    showPsfHeatmap: !overlayState.showPsfHeatmap,
+                  );
+                },
+              ),
+              _OverlayChip(
+                colors: colors,
+                label: 'Residual Vectors',
+                active: overlayState.showResidualVectors,
+                onTap: () {
+                  ref.read(scienceOverlayStateProvider.notifier).state =
+                      overlayState.copyWith(
+                    showResidualVectors: !overlayState.showResidualVectors,
+                  );
+                },
+              ),
+              _OverlayChip(
+                colors: colors,
+                label: 'Object Tracks',
+                active: overlayState.showMovingObjectTracks,
+                onTap: () {
+                  ref.read(scienceOverlayStateProvider.notifier).state =
+                      overlayState.copyWith(
+                    showMovingObjectTracks:
+                        !overlayState.showMovingObjectTracks,
+                  );
+                },
+              ),
+              _OverlayChip(
+                colors: colors,
+                label: 'Uniformity',
+                active: overlayState.showUniformityMap,
+                onTap: () {
+                  ref.read(scienceOverlayStateProvider.notifier).state =
+                      overlayState.copyWith(
+                    showUniformityMap: !overlayState.showUniformityMap,
+                  );
+                },
+              ),
+              _OverlayChip(
+                colors: colors,
+                label: 'Clip High',
+                active: overlayState.showClipHighMap,
+                onTap: () {
+                  ref.read(scienceOverlayStateProvider.notifier).state =
+                      overlayState.copyWith(
+                    showClipHighMap: !overlayState.showClipHighMap,
+                  );
+                },
+              ),
+              _OverlayChip(
+                colors: colors,
+                label: 'Clip Low',
+                active: overlayState.showClipLowMap,
+                onTap: () {
+                  ref.read(scienceOverlayStateProvider.notifier).state =
+                      overlayState.copyWith(
+                    showClipLowMap: !overlayState.showClipLowMap,
+                  );
+                },
+              ),
+              _OverlayChip(
+                colors: colors,
+                label: 'FWHM Surface',
+                active: overlayState.showFwhmSurface,
+                onTap: () {
+                  ref.read(scienceOverlayStateProvider.notifier).state =
+                      overlayState.copyWith(
+                    showFwhmSurface: !overlayState.showFwhmSurface,
+                  );
+                },
+              ),
+            ],
+          ),
+          const Divider(height: 18),
+          Text(
+            'Differential photometry',
+            style: NightshadeTypography.captionSm
+                .copyWith(color: colors.textSecondary),
+          ),
+          const SizedBox(height: 6),
+          if (selectedObject != null)
+            Text(
+              'Selected: ${selectedObject.commonName ?? selectedObject.name}',
+              style: NightshadeTypography.captionSm
+                  .copyWith(color: colors.textPrimary),
+            )
+          else
+            Text(
+              'Click an annotated object to select it.',
+              style: NightshadeTypography.captionSm
+                  .copyWith(color: colors.textMuted),
+            ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          Row(
+            children: [
+              Expanded(
+                child: NightshadeButton(
+                  onPressed: selectedObject == null
+                      ? null
+                      : () async {
+                          await ref
+                              .read(sciencePhotometrySelectionProvider.notifier)
+                              .setTarget(
+                                PhotometryAnchor(
+                                  objectId: selectedObject.id,
+                                  label: selectedObject.commonName ??
+                                      selectedObject.name,
+                                  raDegrees: selectedObject.ra,
+                                  decDegrees: selectedObject.dec,
+                                ),
+                              );
+                        },
+                  label: 'Set Target',
+                  variant: ButtonVariant.outline,
+                  size: ButtonSize.small,
+                ),
+              ),
+              const SizedBox(width: NightshadeTokens.spaceSm),
+              Expanded(
+                child: NightshadeButton(
+                  onPressed: selectedObject == null
+                      ? null
+                      : () async {
+                          await ref
+                              .read(sciencePhotometrySelectionProvider.notifier)
+                              .toggleComparison(
+                                PhotometryAnchor(
+                                  objectId: selectedObject.id,
+                                  label: selectedObject.commonName ??
+                                      selectedObject.name,
+                                  raDegrees: selectedObject.ra,
+                                  decDegrees: selectedObject.dec,
+                                ),
+                              );
+                        },
+                  label: 'Toggle Comp',
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: NightshadeButton(
+                  onPressed: () async {
+                    await ref
+                        .read(sciencePhotometrySelectionProvider.notifier)
+                        .setTarget(null);
+                  },
+                  label: 'Clear Target',
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
+                ),
+              ),
+              const SizedBox(width: NightshadeTokens.spaceSm),
+              Expanded(
+                child: NightshadeButton(
+                  onPressed: () async {
+                    await ref
+                        .read(sciencePhotometrySelectionProvider.notifier)
+                        .clearComparisons();
+                  },
+                  label: 'Clear Comps',
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Target: ${photometryTarget?.label ?? 'auto-target'}',
+            style: NightshadeTypography.captionSm
+                .copyWith(color: colors.textMuted),
+          ),
+          Text(
+            'Comparisons: ${comparisonAnchors.isEmpty ? 'auto' : comparisonAnchors.length}',
+            style: NightshadeTypography.captionSm
+                .copyWith(color: colors.textMuted),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          SizedBox(
+            width: double.infinity,
+            child: NightshadeButton(
+              onPressed: settings.photometryEnabled
+                  ? () async {
+                      final nextEnabled =
+                          !photometrySelection.differentialEnabled;
                       await ref
                           .read(sciencePhotometrySelectionProvider.notifier)
-                          .setTarget(null);
-                    },
-                    label: 'Clear Target',
-                    variant: ButtonVariant.ghost,
-                    size: ButtonSize.small,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: NightshadeButton(
-                    onPressed: () async {
-                      await ref
-                          .read(sciencePhotometrySelectionProvider.notifier)
-                          .clearComparisons();
-                    },
-                    label: 'Clear Comps',
-                    variant: ButtonVariant.ghost,
-                    size: ButtonSize.small,
-                  ),
-                ),
-              ],
+                          .setDifferentialEnabled(nextEnabled);
+                      ref.read(scienceModeStateProvider.notifier).state =
+                          modeState.copyWith(
+                        differentialPhotometryActive: nextEnabled,
+                      );
+                    }
+                  : null,
+              label: photometrySelection.differentialEnabled
+                  ? 'Stop Differential Photometry'
+                  : 'Start Differential Photometry',
+              variant: photometrySelection.differentialEnabled
+                  ? ButtonVariant.destructive
+                  : ButtonVariant.primary,
+              size: ButtonSize.small,
             ),
-            const SizedBox(height: 6),
-            Text(
-              'Target: ${photometryTarget?.label ?? 'auto-target'}',
-              style: TextStyle(
-                  color: colors.textMuted,
-                  fontSize: NightshadeTypography.fontSize10),
-            ),
-            Text(
-              'Comparisons: ${comparisonAnchors.isEmpty ? 'auto' : comparisonAnchors.length}',
-              style: TextStyle(
-                  color: colors.textMuted,
-                  fontSize: NightshadeTypography.fontSize10),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: NightshadeButton(
-                onPressed: settings.photometryEnabled
-                    ? () async {
-                        final nextEnabled =
-                            !photometrySelection.differentialEnabled;
-                        await ref
-                            .read(sciencePhotometrySelectionProvider.notifier)
-                            .setDifferentialEnabled(nextEnabled);
-                        ref.read(scienceModeStateProvider.notifier).state =
-                            modeState.copyWith(
-                          differentialPhotometryActive: nextEnabled,
-                        );
-                      }
-                    : null,
-                label: photometrySelection.differentialEnabled
-                    ? 'Stop Differential Photometry'
-                    : 'Start Differential Photometry',
-                variant: photometrySelection.differentialEnabled
-                    ? ButtonVariant.destructive
-                    : ButtonVariant.primary,
-                size: ButtonSize.small,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -429,10 +434,8 @@ class _FeatureToggle extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: NightshadeTypography.fontSize11,
-              ),
+              style: NightshadeTypography.captionSm
+                  .copyWith(color: colors.textSecondary),
             ),
           ),
           NightshadeSwitch(
@@ -560,7 +563,7 @@ class _OfferTile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: 6),
       child: Container(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
         decoration: NightshadeDecorations.emphasisSurface(
           colors.info,
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
@@ -569,7 +572,7 @@ class _OfferTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(icon, size: 14, color: colors.info),
-            const SizedBox(width: 8),
+            const SizedBox(width: NightshadeTokens.spaceSm),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -583,11 +586,8 @@ class _OfferTile extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     body,
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: NightshadeTypography.fontSize10,
-                      height: 1.3,
-                    ),
+                    style: NightshadeTypography.captionSm
+                        .copyWith(color: colors.textSecondary),
                   ),
                 ],
               ),
@@ -632,7 +632,11 @@ class _TransparencyUnlockProgress extends ConsumerWidget {
     final ratio = (calibrated / target).clamp(0.0, 1.0);
 
     return Padding(
-      padding: const EdgeInsets.only(left: 4, right: 4, bottom: 8),
+      padding: const EdgeInsets.only(
+        left: NightshadeTokens.spaceXs,
+        right: NightshadeTokens.spaceXs,
+        bottom: NightshadeTokens.spaceSm,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -643,26 +647,19 @@ class _TransparencyUnlockProgress extends ConsumerWidget {
               Expanded(
                 child: Text(
                   'Transparency unlocks at $calibrated / $target calibrated frames',
-                  style: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: NightshadeTypography.fontSize10,
-                  ),
+                  style: NightshadeTypography.captionSm
+                      .copyWith(color: colors.textMuted),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
-            child: LinearProgressIndicator(
-              value: ratio,
-              minHeight: 4,
-              backgroundColor: colors.surfaceAlt,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                  colors.info.withValues(alpha: 0.8)),
-            ),
+          const SizedBox(height: NightshadeTokens.spaceXs),
+          NightshadeProgressBar(
+            value: ratio,
+            style: NightshadeProgressStyle.thin,
+            foregroundColor: colors.info,
           ),
         ],
       ),
@@ -689,7 +686,10 @@ class _OverlayChip extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(
+          horizontal: NightshadeTokens.spaceSm,
+          vertical: NightshadeTokens.spaceXs,
+        ),
         decoration: active
             ? NightshadeDecorations.selectedSurface(
                 colors.primary,
@@ -703,9 +703,8 @@ class _OverlayChip extends StatelessWidget {
               ),
         child: Text(
           label,
-          style: TextStyle(
+          style: NightshadeTypography.captionSm.copyWith(
             color: active ? colors.primary : colors.textSecondary,
-            fontSize: NightshadeTypography.fontSize10,
             fontWeight: active ? FontWeight.w600 : FontWeight.w400,
           ),
         ),

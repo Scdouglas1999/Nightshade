@@ -147,6 +147,16 @@ class _BlsSpectrumCustomPainter extends CustomPainter {
       ),
     );
 
+    final yLabelPainter = TextPainter(
+      text: TextSpan(text: 'SR (signal residue)', style: textStyle),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    canvas.save();
+    canvas.translate(10, plotRect.top + plotHeight / 2 + yLabelPainter.width / 2);
+    canvas.rotate(-math.pi / 2);
+    yLabelPainter.paint(canvas, Offset.zero);
+    canvas.restore();
+
     // Draw the SR spectrum.
     final linePaint = Paint()
       ..color = plotColor

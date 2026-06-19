@@ -44,6 +44,8 @@ class ScienceSettings {
   /// conservative defaults while auto-grading is enabled.
   final String? frameGradeRulesJson;
 
+  final bool scienceGuideCollapsed;
+
   const ScienceSettings({
     this.advancedModeEnabled = false,
     this.overlayEnabled = true,
@@ -62,6 +64,7 @@ class ScienceSettings {
     this.aavsoObserverCode = '',
     this.autoFrameGradingEnabled = false,
     this.frameGradeRulesJson,
+    this.scienceGuideCollapsed = false,
   });
 
   /// Rules applied by [FrameAutoGrader] and shown in the Image Grader UI.
@@ -91,6 +94,7 @@ class ScienceSettings {
     bool? autoFrameGradingEnabled,
     String? frameGradeRulesJson,
     bool clearFrameGradeRulesJson = false,
+    bool? scienceGuideCollapsed,
   }) {
     return ScienceSettings(
       advancedModeEnabled: advancedModeEnabled ?? this.advancedModeEnabled,
@@ -118,6 +122,8 @@ class ScienceSettings {
       frameGradeRulesJson: clearFrameGradeRulesJson
           ? null
           : (frameGradeRulesJson ?? this.frameGradeRulesJson),
+      scienceGuideCollapsed:
+          scienceGuideCollapsed ?? this.scienceGuideCollapsed,
     );
   }
 }
@@ -141,6 +147,7 @@ class ScienceSettingsNotifier extends AsyncNotifier<ScienceSettings> {
     'aavsoObserverCode': 'science.aavso.observer_code',
     'autoFrameGrading': 'science.grading.auto_enabled',
     'frameGradeRules': 'science.grading.rules_json',
+    'guideCollapsed': 'science.guide.collapsed',
   };
 
   @override
@@ -182,6 +189,10 @@ class ScienceSettingsNotifier extends AsyncNotifier<ScienceSettings> {
           _parseBool(settings[_keys['autoFrameGrading']], false) ||
           _parseBool(settings['image_grading_enabled'], false),
       frameGradeRulesJson: settings[_keys['frameGradeRules']],
+      scienceGuideCollapsed: _parseBool(
+        settings[_keys['guideCollapsed']],
+        false,
+      ),
     );
   }
 
@@ -321,6 +332,15 @@ class ScienceSettingsNotifier extends AsyncNotifier<ScienceSettings> {
     state = AsyncData(
       (state.value ?? const ScienceSettings()).copyWith(
         autoFrameGradingEnabled: enabled,
+      ),
+    );
+  }
+
+  Future<void> setScienceGuideCollapsed(bool collapsed) async {
+    await _setSetting(_keys['guideCollapsed']!, collapsed);
+    state = AsyncData(
+      (state.value ?? const ScienceSettings()).copyWith(
+        scienceGuideCollapsed: collapsed,
       ),
     );
   }

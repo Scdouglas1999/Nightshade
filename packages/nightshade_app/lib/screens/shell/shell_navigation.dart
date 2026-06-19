@@ -36,7 +36,9 @@ class ShellRouteDestination {
 abstract final class ShellNavigation {
   ShellNavigation._();
 
-  /// Eleven primary features in side-nav order (matches desktop).
+  /// Eight consolidated features in side-nav order (matches desktop). Folded
+  /// destinations (Transients, Framing, Planetarium, Flat Wizard, Weather,
+  /// Guiding) live inside these screens and resolve via redirects.
   static const List<ShellPrimaryDestination> primaryDestinations = [
     ShellPrimaryDestination(
       route: '/dashboard',
@@ -57,28 +59,10 @@ abstract final class ShellNavigation {
       description: _navImagingDesc,
     ),
     ShellPrimaryDestination(
-      route: '/guiding',
-      icon: NightshadeIcons.crosshair,
-      label: _navGuiding,
-      description: _navGuidingDesc,
-    ),
-    ShellPrimaryDestination(
       route: '/sequencer',
       icon: NightshadeIcons.listOrdered,
       label: _navSequencer,
       description: _navSequencerDesc,
-    ),
-    ShellPrimaryDestination(
-      route: '/planetarium',
-      icon: NightshadeIcons.globe,
-      label: _navPlanetarium,
-      description: _navPlanetariumDesc,
-    ),
-    ShellPrimaryDestination(
-      route: '/framing',
-      icon: NightshadeIcons.frame,
-      label: _navFraming,
-      description: _navFramingDesc,
     ),
     ShellPrimaryDestination(
       route: '/analytics',
@@ -87,16 +71,10 @@ abstract final class ShellNavigation {
       description: _navAnalyticsDesc,
     ),
     ShellPrimaryDestination(
-      route: '/flat-wizard',
-      icon: NightshadeIcons.sun,
-      label: _navFlatWizard,
-      description: _navFlatWizardDesc,
-    ),
-    ShellPrimaryDestination(
-      route: '/weather',
-      icon: NightshadeIcons.rain,
-      label: _navWeather,
-      description: _navWeatherDesc,
+      route: '/science',
+      icon: LucideIcons.flaskConical,
+      label: _navScience,
+      description: _navScienceDesc,
     ),
     ShellPrimaryDestination(
       route: '/planner',
@@ -104,26 +82,26 @@ abstract final class ShellNavigation {
       label: _navPlanner,
       description: _navPlannerDesc,
     ),
+    settings,
   ];
 
-  /// Desktop title-bar routes (not in side nav).
-  static const ShellRouteDestination transients = ShellRouteDestination(
-    route: '/transients',
-    icon: NightshadeIcons.sparkle,
-    label: _navTransients,
-  );
-
-  static const ShellRouteDestination settings = ShellRouteDestination(
+  static const ShellPrimaryDestination settings = ShellPrimaryDestination(
     route: '/settings',
     icon: NightshadeIcons.settings,
     label: _settingsTitle,
+    description: _settingsDesc,
   );
 
-  /// Thirteen mobile bottom-nav slots: 11 primary + transients + settings.
+  /// Mobile bottom-nav slots — exactly the six core routes, fixed width.
   ///
-  /// Order keeps dashboard centered for thumb reach; matches desktop feature
-  /// access (transients/settings live in the title bar on desktop).
+  /// Dashboard leads for thumb reach; Settings leaves the bar and is reachable
+  /// from the mobile app-bar gear.
   static const List<ShellRouteDestination> bottomNavigationDestinations = [
+    ShellRouteDestination(
+      route: '/dashboard',
+      icon: LucideIcons.layoutDashboard,
+      label: _navDashboard,
+    ),
     ShellRouteDestination(
       route: '/equipment',
       icon: NightshadeIcons.connected,
@@ -140,47 +118,15 @@ abstract final class ShellNavigation {
       label: _navSequencer,
     ),
     ShellRouteDestination(
-      route: '/planetarium',
-      icon: NightshadeIcons.globe,
-      label: _navPlanetarium,
-    ),
-    ShellRouteDestination(
-      route: '/dashboard',
-      icon: LucideIcons.layoutDashboard,
-      label: _navDashboard,
-    ),
-    ShellRouteDestination(
-      route: '/guiding',
-      icon: NightshadeIcons.crosshair,
-      label: _navGuiding,
-    ),
-    ShellRouteDestination(
-      route: '/framing',
-      icon: NightshadeIcons.frame,
-      label: _navFraming,
-    ),
-    ShellRouteDestination(
-      route: '/analytics',
-      icon: LucideIcons.barChart3,
-      label: _navAnalytics,
-    ),
-    ShellRouteDestination(
-      route: '/flat-wizard',
-      icon: NightshadeIcons.sun,
-      label: _navFlatWizard,
-    ),
-    ShellRouteDestination(
-      route: '/weather',
-      icon: NightshadeIcons.rain,
-      label: _navWeather,
+      route: '/science',
+      icon: LucideIcons.flaskConical,
+      label: _navScience,
     ),
     ShellRouteDestination(
       route: '/planner',
       icon: LucideIcons.moonStar,
       label: _navPlanner,
     ),
-    transients,
-    settings,
   ];
 
   static final List<String> primaryRoutes =
@@ -199,7 +145,6 @@ abstract final class ShellNavigation {
 
   static bool isBottomNavRoute(String location) {
     final path = _normalizePath(location);
-    if (path == transients.route || path == settings.route) return true;
     return primaryRoutes.contains(path);
   }
 
@@ -223,40 +168,24 @@ abstract final class ShellNavigation {
       l10n.text('navImaging');
   static String _navImagingDesc(NightshadeLocalizations l10n) =>
       l10n.text('navImagingDesc');
-  static String _navGuiding(NightshadeLocalizations l10n) =>
-      l10n.text('navGuiding');
-  static String _navGuidingDesc(NightshadeLocalizations l10n) =>
-      l10n.text('navGuidingDesc');
   static String _navSequencer(NightshadeLocalizations l10n) =>
       l10n.text('navSequencer');
   static String _navSequencerDesc(NightshadeLocalizations l10n) =>
       l10n.text('navSequencerDesc');
-  static String _navPlanetarium(NightshadeLocalizations l10n) =>
-      l10n.text('navPlanetarium');
-  static String _navPlanetariumDesc(NightshadeLocalizations l10n) =>
-      l10n.text('navPlanetariumDesc');
-  static String _navFraming(NightshadeLocalizations l10n) =>
-      l10n.text('navFraming');
-  static String _navFramingDesc(NightshadeLocalizations l10n) =>
-      l10n.text('navFramingDesc');
   static String _navAnalytics(NightshadeLocalizations l10n) =>
       l10n.text('navAnalytics');
   static String _navAnalyticsDesc(NightshadeLocalizations l10n) =>
       l10n.text('navAnalyticsDesc');
-  static String _navFlatWizard(NightshadeLocalizations l10n) =>
-      l10n.text('navFlatWizard');
-  static String _navFlatWizardDesc(NightshadeLocalizations l10n) =>
-      l10n.text('navFlatWizardDesc');
-  static String _navWeather(NightshadeLocalizations l10n) =>
-      l10n.text('navWeather');
-  static String _navWeatherDesc(NightshadeLocalizations l10n) =>
-      l10n.text('navWeatherDesc');
+  static String _navScience(NightshadeLocalizations l10n) =>
+      l10n.text('navScience');
+  static String _navScienceDesc(NightshadeLocalizations l10n) =>
+      l10n.text('navScienceDesc');
   static String _navPlanner(NightshadeLocalizations l10n) =>
       l10n.text('navPlanner');
   static String _navPlannerDesc(NightshadeLocalizations l10n) =>
       l10n.text('navPlannerDesc');
-  static String _navTransients(NightshadeLocalizations l10n) =>
-      l10n.text('navTransients');
   static String _settingsTitle(NightshadeLocalizations l10n) =>
       l10n.text('settingsTitle');
+  static String _settingsDesc(NightshadeLocalizations l10n) =>
+      l10n.text('settingsDesc');
 }

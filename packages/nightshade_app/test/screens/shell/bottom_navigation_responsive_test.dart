@@ -1,10 +1,10 @@
 // Responsive widget tests for the shell bottom navigation.
 //
-// The bottom nav hosts 13 destinations. It must fit (by scrolling) without
-// overflow at the three reference phone sizes in BOTH orientations, keep its
-// tap targets at the touch-target floor, and honor SafeArea (the home
-// indicator). In landscape — where vertical space is scarce — the bar shortens
-// but still lays out cleanly.
+// The bottom nav hosts exactly six fixed-width destinations. They must all fit
+// without overflow or horizontal scroll at the three reference phone sizes in
+// BOTH orientations, keep their tap targets at the touch-target floor, and
+// honor SafeArea (the home indicator). In landscape — where vertical space is
+// scarce — the bar shortens but still lays out cleanly.
 //
 // See docs/plans/2026-06-01-mobile-responsive-standard.md.
 import 'package:flutter/material.dart';
@@ -69,11 +69,12 @@ void main() {
 
         expect(tester.takeException(), isNull);
 
-        // The strip is horizontally scrollable, so all 13 destinations exist
-        // in the list even when only a few are visible at once.
+        // All six fixed destinations lay out at once (no horizontal scroll).
         expect(find.byType(NightshadeBottomNavigation), findsOneWidget);
-        // The dashboard destination (first slot) is laid out.
         expect(find.text('Dashboard'), findsOneWidget);
+        expect(find.text('Science'), findsOneWidget);
+        expect(find.text('Plan Tonight'), findsOneWidget);
+        expect(find.byType(Scrollable), findsNothing);
       });
 
       testWidgets('bottom nav tap targets are adequate $name $orientation',

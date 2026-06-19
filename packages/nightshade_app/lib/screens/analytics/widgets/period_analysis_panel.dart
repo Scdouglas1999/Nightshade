@@ -14,6 +14,18 @@ part 'period_analysis_panel/periodogram_painter.dart';
 part 'period_analysis_panel/phase_fold_painter.dart';
 part 'period_analysis_panel/bls_spectrum_painter.dart';
 
+const _kPeriodAnalysisInfo = '''
+Period analysis searches your light curve for a repeating signal — the rotation period of a variable star, the orbital period of an eclipsing binary, or the period of a transiting exoplanet. Nightshade runs two complementary algorithms.
+
+Lomb-Scargle is a frequency-domain method that finds sinusoidal periodicity, well suited to smoothly varying stars (pulsators, spotted rotators). Box Least Squares (BLS) instead fits a flat-bottomed box dip and is the standard tool for finding the brief, periodic dimming of a planetary transit.
+
+The False Alarm Probability (FAP) reported for the Lomb-Scargle peak is the chance that noise alone would produce a peak this strong. FAP < 0.01 is a significant detection; FAP < 0.001 is a strong one.
+
+For BLS, the Signal Detection Efficiency (SDE) measures how far the best period stands above the surrounding spectrum. SDE > 6 is noteworthy; SDE > 7 is a strong transit candidate worth following up.
+
+The phase-folded plots wrap every data point onto a single cycle at the best period, so a real signal collapses into a clean shape. As with all photometry charts here, magnitude is inverted — brighter points sit higher on the plot.
+''';
+
 /// Panel that provides Lomb-Scargle and BLS period detection analysis
 /// for variable star and exoplanet transit detection.
 class PeriodAnalysisPanel extends ConsumerStatefulWidget {
@@ -32,12 +44,18 @@ class PeriodAnalysisPanel extends ConsumerStatefulWidget {
 }
 
 class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
-  final _customPeriodController = TextEditingController();
   double _minPeriod = 0.01;
   double _maxPeriod = 10.0;
+  late final _minPeriodController =
+      TextEditingController(text: _minPeriod.toStringAsFixed(3));
+  late final _maxPeriodController =
+      TextEditingController(text: _maxPeriod.toStringAsFixed(1));
+  final _customPeriodController = TextEditingController();
 
   @override
   void dispose() {
+    _minPeriodController.dispose();
+    _maxPeriodController.dispose();
     _customPeriodController.dispose();
     super.dispose();
   }
@@ -49,15 +67,16 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
 
     return NightshadeCard(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: NightshadeTokens.paddingLg,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
             Row(
               children: [
-                Icon(LucideIcons.activity, size: 16, color: colors.primary),
-                const SizedBox(width: 8),
+                Icon(LucideIcons.activity,
+                    size: NightshadeTokens.iconSm, color: colors.primary),
+                const SizedBox(width: NightshadeTokens.spaceSm),
                 Expanded(
                   child: Text(
                     'Period Analysis',
@@ -68,53 +87,56 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
                     ),
                   ),
                 ),
+                const ScienceInfoButton(
+                  title: 'Period Analysis',
+                  body: _kPeriodAnalysisInfo,
+                ),
                 if (analysisState.result != null)
                   Tooltip(
                     message: 'Clear results',
                     child: InkWell(
                       onTap: () =>
                           ref.read(periodAnalysisProvider.notifier).clear(),
-                      borderRadius:
-                          BorderRadius.circular(NightshadeTokens.radiusInline8),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
+                      borderRadius: NightshadeTokens.borderRadiusLg,
+                      child: Container(
+                        constraints: const BoxConstraints(
+                          minWidth: NightshadeTokens.minTouchTarget,
+                          minHeight: NightshadeTokens.minTouchTarget,
+                        ),
+                        alignment: Alignment.center,
                         child: Icon(LucideIcons.x,
-                            size: 14, color: colors.textMuted),
+                            size: NightshadeTokens.iconXs, color: colors.textMuted),
                       ),
                     ),
                   ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: NightshadeTokens.spaceMd),
 
             // Controls row
             _buildControls(colors, analysisState),
-            const SizedBox(height: 16),
+            const SizedBox(height: NightshadeTokens.spaceLg),
 
             // Results
             if (analysisState.isRunning)
               AdaptiveChartContainer.fixed(
                 height: 200,
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: colors.primary,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Computing periodograms...',
-                        style: TextStyle(
-                            color: colors.textSecondary,
-                            fontSize: NightshadeTypography.fontSize12),
-                      ),
-                    ],
+                child: ShimmerLoading(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: colors.surfaceAlt,
+                      borderRadius: NightshadeTokens.borderRadiusLg,
+                      border: Border.all(color: colors.border),
+                    ),
+                    padding: NightshadeTokens.paddingLg,
+                    child: const Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SkeletonBox(width: 160, height: 12),
+                        SizedBox(height: NightshadeTokens.spaceMd),
+                        Expanded(child: SkeletonBox(height: double.infinity)),
+                      ],
+                    ),
                   ),
                 ),
               )
@@ -130,207 +152,195 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
     );
   }
 
+  Widget _buildPeriodField({
+    required TextEditingController controller,
+    required ValueChanged<String> onChanged,
+    double width = 70,
+  }) {
+    return SizedBox(
+      width: width,
+      child: NightshadeTextField(
+        controller: controller,
+        hint: width >= 100 ? 'e.g. 1.234' : null,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        inputFormatters: [
+          FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
+        ],
+        onChanged: onChanged,
+      ),
+    );
+  }
+
   Widget _buildControls(
       NightshadeColors colors, PeriodAnalysisState analysisState) {
-    return Column(
-      children: [
-        Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stacked = constraints.maxWidth < 1080;
+
+        final minField = Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: Row(
-                children: [
-                  Text(
-                    'Min period (d):',
-                    style: TextStyle(
-                        color: colors.textSecondary,
-                        fontSize: NightshadeTypography.fontSize12),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 70,
-                    height: 28,
-                    child: TextField(
-                      controller: TextEditingController(
-                          text: _minPeriod.toStringAsFixed(3)),
-                      style: TextStyle(
-                          color: colors.textPrimary,
-                          fontSize: NightshadeTypography.fontSize12,
-                          fontFeatures: const [FontFeature.tabularFigures()]),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 6),
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(
-                                NightshadeTokens.radiusInline4)),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(
-                              NightshadeTokens.radiusInline4),
-                          borderSide: BorderSide(color: colors.border),
-                        ),
-                      ),
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
-                      ],
-                      onChanged: (v) {
-                        final parsed = double.tryParse(v);
-                        if (parsed != null && parsed > 0) {
-                          _minPeriod = parsed;
-                        }
-                      },
-                    ),
-                  ),
-                ],
-              ),
+            Text(
+              'Min period (d):',
+              style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: NightshadeTypography.fontSize12),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Row(
-                children: [
-                  Text(
-                    'Max period (d):',
-                    style: TextStyle(
-                        color: colors.textSecondary,
-                        fontSize: NightshadeTypography.fontSize12),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 70,
-                    height: 28,
-                    child: TextField(
-                      controller: TextEditingController(
-                          text: _maxPeriod.toStringAsFixed(1)),
-                      style: TextStyle(
-                          color: colors.textPrimary,
-                          fontSize: NightshadeTypography.fontSize12,
-                          fontFeatures: const [FontFeature.tabularFigures()]),
-                      decoration: InputDecoration(
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 6),
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(
-                                NightshadeTokens.radiusInline4)),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(
-                              NightshadeTokens.radiusInline4),
-                          borderSide: BorderSide(color: colors.border),
-                        ),
-                      ),
-                      keyboardType:
-                          const TextInputType.numberWithOptions(decimal: true),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
-                      ],
-                      onChanged: (v) {
-                        final parsed = double.tryParse(v);
-                        if (parsed != null && parsed > 0) {
-                          _maxPeriod = parsed;
-                        }
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 16),
-            NightshadeButton(
-              label: 'Run Period Search',
-              icon: LucideIcons.search,
-              size: ButtonSize.small,
-              onPressed: analysisState.isRunning
-                  ? null
-                  : () {
-                      ref.read(periodAnalysisProvider.notifier).runAnalysis(
-                            lightCurve: widget.lightCurve,
-                            config: PeriodAnalysisConfig(
-                              minPeriodDays: _minPeriod,
-                              maxPeriodDays: _maxPeriod,
-                            ),
-                          );
-                    },
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            _buildPeriodField(
+              controller: _minPeriodController,
+              onChanged: (v) {
+                final parsed = double.tryParse(v);
+                if (parsed != null && parsed > 0) {
+                  _minPeriod = parsed;
+                }
+              },
             ),
           ],
-        ),
-        if (analysisState.result != null) ...[
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Text(
-                'Custom period (d):',
-                style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: NightshadeTypography.fontSize12),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 100,
-                height: 28,
-                child: TextField(
-                  controller: _customPeriodController,
-                  style: TextStyle(
-                      color: colors.textPrimary,
-                      fontSize: NightshadeTypography.fontSize12,
-                      fontFeatures: const [FontFeature.tabularFigures()]),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    hintText: 'e.g. 1.234',
-                    hintStyle: TextStyle(
-                        color: colors.textMuted,
-                        fontSize: NightshadeTypography.fontSize11),
-                    contentPadding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(
-                            NightshadeTokens.radiusInline4)),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius:
-                          BorderRadius.circular(NightshadeTokens.radiusInline4),
-                      borderSide: BorderSide(color: colors.border),
-                    ),
-                  ),
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              NightshadeButton(
-                label: 'Fold',
-                size: ButtonSize.small,
-                onPressed: () {
-                  final period = double.tryParse(_customPeriodController.text);
-                  if (period != null && period > 0) {
-                    ref.read(periodAnalysisProvider.notifier).setCustomPeriod(
-                          periodDays: period,
-                          lightCurve: widget.lightCurve,
-                        );
-                  }
+        );
+
+        final maxField = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Max period (d):',
+              style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: NightshadeTypography.fontSize12),
+            ),
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            _buildPeriodField(
+              controller: _maxPeriodController,
+              onChanged: (v) {
+                final parsed = double.tryParse(v);
+                if (parsed != null && parsed > 0) {
+                  _maxPeriod = parsed;
+                }
+              },
+            ),
+          ],
+        );
+
+        Widget runButton = NightshadeButton(
+          label: 'Run Period Search',
+          icon: LucideIcons.search,
+          size: ButtonSize.small,
+          onPressed: analysisState.isRunning
+              ? null
+              : () {
+                  ref.read(periodAnalysisProvider.notifier).runAnalysis(
+                        lightCurve: widget.lightCurve,
+                        config: PeriodAnalysisConfig(
+                          minPeriodDays: _minPeriod,
+                          maxPeriodDays: _maxPeriod,
+                        ),
+                      );
                 },
-              ),
-            ],
-          ),
-        ],
-      ],
+        );
+        if (stacked) {
+          runButton = SizedBox(width: double.infinity, child: runButton);
+        }
+
+        final controlBar = stacked
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  minField,
+                  const SizedBox(height: NightshadeTokens.spaceSm),
+                  maxField,
+                  const SizedBox(height: NightshadeTokens.spaceSm),
+                  runButton,
+                ],
+              )
+            : Row(
+                children: [
+                  Expanded(child: minField),
+                  const SizedBox(width: NightshadeTokens.spaceLg),
+                  Expanded(child: maxField),
+                  const SizedBox(width: NightshadeTokens.spaceLg),
+                  runButton,
+                ],
+              );
+
+        if (analysisState.result == null) return controlBar;
+
+        final customLabel = Text(
+          'Custom period (d):',
+          style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: NightshadeTypography.fontSize12),
+        );
+        final customField = _buildPeriodField(
+          controller: _customPeriodController,
+          width: 100,
+          onChanged: (_) {},
+        );
+        Widget foldButton = NightshadeButton(
+          label: 'Fold',
+          size: ButtonSize.small,
+          onPressed: () {
+            final period = double.tryParse(_customPeriodController.text);
+            if (period != null && period > 0) {
+              ref.read(periodAnalysisProvider.notifier).setCustomPeriod(
+                    periodDays: period,
+                    lightCurve: widget.lightCurve,
+                  );
+            }
+          },
+        );
+        if (stacked) {
+          foldButton = SizedBox(width: double.infinity, child: foldButton);
+        }
+
+        final customRow = stacked
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      customLabel,
+                      const SizedBox(width: NightshadeTokens.spaceSm),
+                      Expanded(child: customField),
+                    ],
+                  ),
+                  const SizedBox(height: NightshadeTokens.spaceSm),
+                  foldButton,
+                ],
+              )
+            : Row(
+                children: [
+                  customLabel,
+                  const SizedBox(width: NightshadeTokens.spaceSm),
+                  customField,
+                  const SizedBox(width: NightshadeTokens.spaceSm),
+                  foldButton,
+                ],
+              );
+
+        return Column(
+          children: [
+            controlBar,
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            customRow,
+          ],
+        );
+      },
     );
   }
 
   Widget _buildError(NightshadeColors colors, String error) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: NightshadeTokens.paddingMd,
       decoration: BoxDecoration(
         color: colors.error.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+        borderRadius: NightshadeTokens.borderRadiusLg,
         border: Border.all(color: colors.error.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
-          Icon(LucideIcons.alertTriangle, size: 16, color: colors.error),
-          const SizedBox(width: 8),
+          Icon(LucideIcons.alertTriangle,
+              size: NightshadeTokens.iconSm, color: colors.error),
+          const SizedBox(width: NightshadeTokens.spaceSm),
           Expanded(
             child: Text(
               error,
@@ -346,31 +356,23 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
 
   Widget _buildEmptyState(NightshadeColors colors) {
     final pointCount = widget.lightCurve.length;
+    final tooFew = pointCount < 10;
     return AdaptiveChartContainer.fixed(
       height: 120,
       child: Container(
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+          borderRadius: NightshadeTokens.borderRadiusLg,
           border: Border.all(color: colors.border),
         ),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(LucideIcons.activity, size: 24, color: colors.textMuted),
-              const SizedBox(height: 8),
-              Text(
-                pointCount < 10
-                    ? 'Need at least 10 photometry points ($pointCount available)'
-                    : 'Click "Run Period Search" to analyze $pointCount data points',
-                style: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: NightshadeTypography.fontSize12),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
+        child: EmptyState.compact(
+          icon: LucideIcons.activity,
+          title: tooFew
+              ? 'Need at least 10 photometry points ($pointCount available)'
+              : 'Click "Run Period Search" to analyze $pointCount data points',
+          body: tooFew
+              ? 'Pick a target star in the Differential Photometry chart and capture more frames.'
+              : null,
         ),
       ),
     );
@@ -394,7 +396,7 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
       children: [
         // Best period summary
         _buildPeriodSummary(colors, ls, bls),
-        const SizedBox(height: 16),
+        const SizedBox(height: NightshadeTokens.spaceLg),
 
         // Lomb-Scargle power spectrum
         Text(
@@ -405,7 +407,7 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
             color: colors.textPrimary,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: NightshadeTokens.spaceSm),
         AdaptiveChartContainer(
           preferredHeight: 200,
           child: _PeriodogramPainter(
@@ -419,7 +421,7 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
             yLabel: 'Power',
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: NightshadeTokens.spaceLg),
 
         // Phase-folded light curve at best LS period
         Text(
@@ -430,7 +432,7 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
             color: colors.textPrimary,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: NightshadeTokens.spaceSm),
         AdaptiveChartContainer(
           preferredHeight: 200,
           child: _PhaseFoldPainter(
@@ -439,7 +441,7 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
             plotColor: NightshadeChartColors.seriesBlue,
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: NightshadeTokens.spaceLg),
 
         // BLS results
         _buildBlsSection(colors, bls),
@@ -447,7 +449,7 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
         // Custom phase fold (if set)
         if (analysisState.customPhaseFold != null &&
             analysisState.customPeriodDays != null) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: NightshadeTokens.spaceLg),
           Text(
             'Custom Phase Fold (P = ${_formatPeriod(analysisState.customPeriodDays!)})',
             style: TextStyle(
@@ -456,7 +458,7 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
               color: colors.textPrimary,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: NightshadeTokens.spaceSm),
           AdaptiveChartContainer(
             preferredHeight: 200,
             child: _PhaseFoldPainter(
@@ -472,39 +474,66 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
 
   Widget _buildPeriodSummary(
       NightshadeColors colors, LombScargleResult ls, BlsResult bls) {
+    final fap = ls.falseAlarmProbability;
+    final _Verdict? lsVerdict = fap < 0.001
+        ? _Verdict.strong
+        : fap < 0.01
+            ? _Verdict.significant
+            : null;
+    final sde = bls.signalDetectionEfficiency;
+    final _Verdict? blsVerdict = sde > 7
+        ? _Verdict.strong
+        : sde > 6
+            ? _Verdict.noteworthy
+            : null;
+
+    final lsColumn = _ResultColumn(
+      colors: colors,
+      label: 'Lomb-Scargle Best Period',
+      value: _formatPeriod(ls.bestPeriod),
+      detail:
+          'Peak power: ${ls.peakPower.toStringAsFixed(2)}  |  FAP: ${_formatFap(fap)}',
+      verdict: lsVerdict,
+    );
+    final blsColumn = _ResultColumn(
+      colors: colors,
+      label: 'BLS Best Period',
+      value: _formatPeriod(bls.bestPeriod),
+      detail:
+          'Depth: ${(bls.transitDepth * 1000).toStringAsFixed(1)} mmag  |  SDE: ${sde.toStringAsFixed(1)}',
+      verdict: blsVerdict,
+    );
+
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: NightshadeTokens.paddingMd,
       decoration: BoxDecoration(
         color: colors.primary.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+        borderRadius: NightshadeTokens.borderRadiusLg,
         border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _ResultColumn(
-              colors: colors,
-              label: 'Lomb-Scargle Best Period',
-              value: _formatPeriod(ls.bestPeriod),
-              detail:
-                  'Peak power: ${ls.peakPower.toStringAsFixed(2)}  |  FAP: ${_formatFap(ls.falseAlarmProbability)}',
-            ),
-          ),
-          Container(
-            width: 1,
-            height: 40,
-            color: colors.border,
-          ),
-          Expanded(
-            child: _ResultColumn(
-              colors: colors,
-              label: 'BLS Best Period',
-              value: _formatPeriod(bls.bestPeriod),
-              detail:
-                  'Depth: ${(bls.transitDepth * 1000).toStringAsFixed(1)} mmag  |  SDE: ${bls.signalDetectionEfficiency.toStringAsFixed(1)}',
-            ),
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 1080) {
+            return Column(
+              children: [
+                lsColumn,
+                Divider(height: NightshadeTokens.space2xl, color: colors.border),
+                blsColumn,
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(child: lsColumn),
+              Container(
+                width: 1,
+                height: 40,
+                color: colors.border,
+              ),
+              Expanded(child: blsColumn),
+            ],
+          );
+        },
       ),
     );
   }
@@ -521,7 +550,7 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
             color: colors.textPrimary,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: NightshadeTokens.spaceSm),
         // BLS SR spectrum
         AdaptiveChartContainer(
           preferredHeight: 180,
@@ -532,11 +561,11 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
             bestPeriod: bls.bestPeriod,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: NightshadeTokens.spaceSm),
         // BLS detail stats
         Wrap(
-          spacing: 24,
-          runSpacing: 8,
+          spacing: NightshadeTokens.space2xl,
+          runSpacing: NightshadeTokens.spaceSm,
           children: [
             _BlsStat(
                 colors: colors,

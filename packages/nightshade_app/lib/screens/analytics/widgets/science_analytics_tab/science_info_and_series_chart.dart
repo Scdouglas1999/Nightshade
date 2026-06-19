@@ -166,74 +166,6 @@ const _kScienceInfoContent = <String, String>{
   'Photometric Transforms': _kPhotometricTransformsInfo,
 };
 
-/// Shows a themed info dialog explaining a science visualization.
-void _showScienceInfoDialog(BuildContext context, String title, String body) {
-  final colors = NightshadeColors.of(context);
-  showDialog(
-    context: context,
-    builder: (context) => AlertDialog(
-      backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        side: BorderSide(color: colors.borderHighlight),
-      ),
-      title: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: NightshadeDecorations.tintedBadge(
-              colors.primary,
-              borderRadius:
-                  BorderRadius.circular(NightshadeTokens.radiusInline8),
-            ),
-            child: Icon(
-              LucideIcons.info,
-              color: colors.primary,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              title,
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: NightshadeTypography.fontSize17,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-      content: ConstrainedBox(
-        constraints: AdaptiveDialogConstraints.hybrid(
-          context,
-          designMaxWidth: 520,
-          designMaxHeight: 420,
-        ),
-        child: SingleChildScrollView(
-          child: Text(
-            body.trim(),
-            style: TextStyle(
-              color: colors.textSecondary,
-              fontSize: NightshadeTypography.fontSize13,
-              height: 1.6,
-            ),
-          ),
-        ),
-      ),
-      actions: [
-        NightshadeButton(
-          onPressed: () => Navigator.pop(context),
-          label: 'Got it',
-          variant: ButtonVariant.ghost,
-        ),
-      ],
-    ),
-  );
-}
-
-/// Small info icon button that opens the explanation dialog for a science card.
 class _ScienceInfoButton extends StatelessWidget {
   final String title;
 
@@ -241,25 +173,9 @@ class _ScienceInfoButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
     final body = _kScienceInfoContent[title];
     if (body == null) return const SizedBox.shrink();
-
-    return Tooltip(
-      message: 'What is this?',
-      child: InkWell(
-        onTap: () => _showScienceInfoDialog(context, title, body),
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        child: Padding(
-          padding: const EdgeInsets.all(4),
-          child: Icon(
-            LucideIcons.info,
-            size: 14,
-            color: colors.textMuted,
-          ),
-        ),
-      ),
-    );
+    return ScienceInfoButton(title: title, body: body);
   }
 }
 

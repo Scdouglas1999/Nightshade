@@ -13,6 +13,7 @@ import '../../../widgets/catalog_overlay_widget.dart';
 import '../../../widgets/tutorial_keys/imaging_keys.dart';
 import 'annotation_widgets.dart';
 import 'custom_annotation_drawing.dart';
+import 'frame_science_chip.dart';
 import 'fullscreen_image_viewer.dart';
 import 'guiding_active_chip.dart';
 import 'image_display.dart';
@@ -298,12 +299,14 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                                 ),
                                 child: Center(
                                   child: Padding(
-                                    padding: const EdgeInsets.all(16),
+                                    padding: const EdgeInsets.all(
+                                        NightshadeTokens.spaceLg),
                                     child: Column(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Container(
-                                          padding: const EdgeInsets.all(24),
+                                          padding: const EdgeInsets.all(
+                                              NightshadeTokens.space2xl),
                                           decoration: BoxDecoration(
                                             color: colors.surface
                                                 .withValues(alpha: 0.8),
@@ -313,31 +316,30 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                                           ),
                                           child: Icon(
                                             NightshadeIcons.camera,
-                                            size: 48,
+                                            size: NightshadeTokens.icon2xl,
                                             color: colors.textMuted,
                                           ),
                                         ),
-                                        const SizedBox(height: 20),
+                                        const SizedBox(
+                                            height: NightshadeTokens.spaceXl),
                                         Text(
                                           isConnected
                                               ? 'No Image'
                                               : 'No Camera Connected',
-                                          style: TextStyle(
-                                            fontSize:
-                                                NightshadeTypography.fontSize18,
-                                            fontWeight: FontWeight.w600,
+                                          style:
+                                              NightshadeTypography.h4.copyWith(
                                             color: colors.textSecondary,
                                           ),
                                         ),
-                                        const SizedBox(height: 8),
+                                        const SizedBox(
+                                            height: NightshadeTokens.spaceSm),
                                         Text(
                                           isConnected
                                               ? 'Take a snapshot or start a capture loop'
                                               : 'Connect a camera in Equipment settings',
                                           textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                            fontSize:
-                                                NightshadeTypography.fontSize13,
+                                          style: NightshadeTypography.bodySm
+                                              .copyWith(
                                             color: colors.textMuted,
                                           ),
                                         ),
@@ -465,7 +467,6 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                       ),
 
                     if (currentImage != null &&
-                        scienceSettings.advancedModeEnabled &&
                         scienceSettings.overlayEnabled &&
                         scienceOverlay.showPsfHeatmap &&
                         psfTiles.isNotEmpty)
@@ -486,8 +487,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                     if (currentImage != null &&
                         residualVectors.isNotEmpty &&
                         (annotationShowResiduals ||
-                            (scienceSettings.advancedModeEnabled &&
-                                scienceSettings.overlayEnabled &&
+                            (scienceSettings.overlayEnabled &&
                                 scienceOverlay.showResidualVectors)))
                       Positioned.fill(
                         child: IgnorePointer(
@@ -502,7 +502,6 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                       ),
 
                     if (currentImage != null &&
-                        scienceSettings.advancedModeEnabled &&
                         scienceSettings.overlayEnabled &&
                         scienceOverlay.showUniformityMap &&
                         uniformityTiles.isNotEmpty)
@@ -522,7 +521,6 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                       ),
 
                     if (currentImage != null &&
-                        scienceSettings.advancedModeEnabled &&
                         scienceSettings.overlayEnabled &&
                         (scienceOverlay.showClipHighMap ||
                             scienceOverlay.showClipLowMap))
@@ -547,7 +545,6 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                       ),
 
                     if (currentImage != null &&
-                        scienceSettings.advancedModeEnabled &&
                         scienceSettings.overlayEnabled &&
                         scienceOverlay.showMovingObjectTracks &&
                         projectedMovingTracks.isNotEmpty)
@@ -630,8 +627,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               const NarratorTicker(),
-                              if (scienceSettings.advancedModeEnabled &&
-                                  scienceMode.scienceHudVisible) ...[
+                              if (scienceMode.scienceHudVisible) ...[
                                 const SizedBox(
                                     height: NightshadeTokens.spaceSm),
                                 Flexible(
@@ -672,17 +668,20 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                       ),
                     ),
 
-                    // Bottom-left at-a-glance quality stack: live "Guiding"
-                    // indicator over a per-sub quality verdict badge. Sits above
-                    // the bottom-left histogram (which occupies bottom:16 + 80px
-                    // height) rather than at bottom:12 so it never overlaps it;
-                    // the detailed ImageStatsOverlay continues to own the
-                    // bottom-right corner. Both children self-gate on their own
-                    // providers (GuidingActiveChip collapses when not guiding,
-                    // SubQualityBadge collapses with no captured frame), so this
+                    // Bottom-left at-a-glance quality stack: the tappable
+                    // FrameScienceChip over a per-sub quality verdict badge and
+                    // a live "Guiding" indicator. The chip leads so its touch
+                    // target sits furthest from the bottom-left histogram (which
+                    // occupies bottom:16 + 80px height); the whole stack is
+                    // anchored a full spaceLg above the histogram top so a long
+                    // REJECT verdict never crowds it, and constrained to the same
+                    // previewOverlayMaxWidth as the sibling overlays so it can't
+                    // run over the bottom-right ImageStatsOverlay. The detailed
+                    // ImageStatsOverlay continues to own the bottom-right corner.
+                    // All children self-gate on their own providers, so this
                     // region is empty until there is something honest to show.
                     //
-                    // Deliberately NOT wrapped in IgnorePointer: both children
+                    // Deliberately NOT wrapped in IgnorePointer: the children
                     // expose hover tooltips (GuidingActiveChip's RMS-units note
                     // and SubQualityBadge's reject-reason) that an IgnorePointer
                     // would silently kill. Like the bottom-right ImageStatsOverlay
@@ -692,17 +691,29 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                     // of the canvas keeps its pan/zoom gestures.
                     if (currentImage != null)
                       Positioned(
-                        bottom: 104,
+                        bottom: 112,
                         left: 12,
                         child: _fadeChrome(
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const GuidingActiveChip(),
-                              const SizedBox(height: NightshadeTokens.spaceXs),
-                              SubQualityBadge(eccentricity: frameEccentricity),
-                            ],
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: Responsive.previewOverlayMaxWidth(
+                                viewportSize.width,
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const FrameScienceChip(),
+                                const SizedBox(
+                                    height: NightshadeTokens.spaceXs),
+                                SubQualityBadge(
+                                    eccentricity: frameEccentricity),
+                                const SizedBox(
+                                    height: NightshadeTokens.spaceXs),
+                                const GuidingActiveChip(),
+                              ],
+                            ),
                           ),
                         ),
                       ),

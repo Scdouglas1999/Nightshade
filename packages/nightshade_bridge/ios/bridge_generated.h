@@ -1457,6 +1457,7 @@ typedef struct wire_cst_image_stats_result {
   double std_dev;
   double *hfr;
   double *eccentricity;
+  double *fwhm;
   uint32_t star_count;
 } wire_cst_image_stats_result;
 
@@ -1960,6 +1961,18 @@ typedef struct wire_cst_plate_solve_result {
   double field_height;
   double solve_time_secs;
   struct wire_cst_list_prim_u_8_strict *error;
+  double cd1_1;
+  double cd1_2;
+  double cd2_1;
+  double cd2_2;
+  uint32_t sip_a_order;
+  uint32_t sip_b_order;
+  struct wire_cst_list_prim_f_64_strict *sip_a_coeffs;
+  struct wire_cst_list_prim_f_64_strict *sip_b_coeffs;
+  uint32_t sip_ap_order;
+  uint32_t sip_bp_order;
+  struct wire_cst_list_prim_f_64_strict *sip_ap_coeffs;
+  struct wire_cst_list_prim_f_64_strict *sip_bp_coeffs;
 } wire_cst_plate_solve_result;
 
 typedef struct wire_cst_plate_solver_detection {

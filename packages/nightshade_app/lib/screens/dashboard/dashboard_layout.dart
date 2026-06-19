@@ -61,6 +61,7 @@ extension DashboardZoneX on DashboardZone {
       DashboardWidgetId.cockpitSkyContext => DashboardZone.secondary,
       DashboardWidgetId.cockpitForensics => DashboardZone.secondary,
       DashboardWidgetId.cockpitNarrator => DashboardZone.secondary,
+      DashboardWidgetId.cockpitMorningReport => DashboardZone.secondary,
 
       // Primary zone: main content area (hero widgets)
       DashboardWidgetId.livePreview => DashboardZone.primary,
@@ -121,6 +122,10 @@ enum DashboardWidgetId {
   // science data — the dashboard surface of the Narrator feed. Opt-in.
   cockpitNarrator,
 
+  // Morning Report. Last night's accepted/rejected summary; taps through to
+  // Session Review. Self-hides when there's no last session. Opt-in.
+  cockpitMorningReport,
+
   // Legacy control/info cards. Kept for migration + power users, but disabled
   // by default now that the cockpit panels own the dashboard.
   livePreview,
@@ -166,6 +171,7 @@ extension DashboardWidgetIdX on DashboardWidgetId {
       DashboardWidgetId.cockpitSkyContext => 'cockpitSkyContext',
       DashboardWidgetId.cockpitForensics => 'cockpitForensics',
       DashboardWidgetId.cockpitNarrator => 'cockpitNarrator',
+      DashboardWidgetId.cockpitMorningReport => 'cockpitMorningReport',
       DashboardWidgetId.livePreview => 'livePreview',
       DashboardWidgetId.captureSettings => 'captureSettings',
       DashboardWidgetId.sequenceStatus => 'sequenceStatus',
@@ -209,6 +215,7 @@ extension DashboardWidgetIdX on DashboardWidgetId {
       'cockpitSkyContext' => DashboardWidgetId.cockpitSkyContext,
       'cockpitForensics' => DashboardWidgetId.cockpitForensics,
       'cockpitNarrator' => DashboardWidgetId.cockpitNarrator,
+      'cockpitMorningReport' => DashboardWidgetId.cockpitMorningReport,
       'livePreview' => DashboardWidgetId.livePreview,
       'captureSettings' => DashboardWidgetId.captureSettings,
       'sequenceStatus' => DashboardWidgetId.sequenceStatus,
@@ -616,7 +623,7 @@ class DashboardLayout {
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.cockpitLightCurve,
         size: DashboardTileSize.medium,
-        enabled: false,
+        enabled: true,
         order: 16,
         zone: DashboardZone.secondary,
       ),
@@ -777,6 +784,16 @@ class DashboardLayout {
         size: DashboardTileSize.medium,
         enabled: false,
         order: 35,
+        zone: DashboardZone.secondary,
+      ),
+
+      // Morning Report — last night's accepted/rejected summary, taps through
+      // to Session Review. Opt-in; self-hides when there's no last session.
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.cockpitMorningReport,
+        size: DashboardTileSize.medium,
+        enabled: false,
+        order: 36,
         zone: DashboardZone.secondary,
       ),
     ];

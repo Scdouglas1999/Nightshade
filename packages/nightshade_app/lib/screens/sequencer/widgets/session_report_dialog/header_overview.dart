@@ -17,60 +17,39 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colors.border)),
-      ),
-      child: Row(
-        children: [
-          Icon(LucideIcons.fileBarChart, size: 22, color: colors.primary),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${report.sessionName} - ${report.status}',
+                style: NightshadeTypography.labelStrong
+                    .copyWith(color: colors.textPrimary),
+              ),
+              if (report.endTime != null)
                 Text(
-                  'Session Report',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize18,
-                    fontWeight: FontWeight.w700,
-                    color: colors.textPrimary,
-                  ),
+                  '${dateFormat.format(report.startTime)} - ${dateFormat.format(report.endTime!)}',
+                  style: NightshadeTypography.captionSm
+                      .copyWith(color: colors.textMuted),
                 ),
-                Text(
-                  '${report.sessionName} - ${report.status}',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize13,
-                      color: colors.textMuted),
-                ),
-                if (report.endTime != null)
-                  Text(
-                    '${dateFormat.format(report.startTime)} - ${dateFormat.format(report.endTime!)}',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: colors.textMuted),
-                  ),
-              ],
-            ),
+            ],
           ),
-          IconButton(
-            onPressed: onCopyMarkdown,
-            icon: const Icon(LucideIcons.clipboardCopy, size: 18),
-            tooltip: 'Copy as Markdown',
-          ),
-          IconButton(
-            onPressed: onExportTxt,
-            icon: const Icon(LucideIcons.fileText, size: 18),
-            tooltip: 'Export to .txt',
-          ),
-          IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: Icon(LucideIcons.x, color: colors.textMuted),
-            tooltip: 'Close',
-          ),
-        ],
-      ),
+        ),
+        IconButton(
+          onPressed: onCopyMarkdown,
+          icon: const Icon(LucideIcons.clipboardCopy,
+              size: NightshadeTokens.iconSm),
+          tooltip: 'Copy as Markdown',
+        ),
+        IconButton(
+          onPressed: onExportTxt,
+          icon: const Icon(LucideIcons.fileText, size: NightshadeTokens.iconSm),
+          tooltip: 'Export to .txt',
+        ),
+      ],
     );
   }
 }
@@ -94,8 +73,8 @@ class _OverviewGrid extends StatelessWidget {
     final efficiencyPct =
         (report.effectiveImagingFraction * 100).toStringAsFixed(1);
     return Wrap(
-      spacing: 16,
-      runSpacing: 8,
+      spacing: NightshadeTokens.spaceLg,
+      runSpacing: NightshadeTokens.spaceSm,
       children: [
         _OverviewTile(
           label: 'Wall clock',
@@ -151,23 +130,23 @@ class _OverviewTile extends StatelessWidget {
     return SizedBox(
       width: 200,
       child: NightshadeCard(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        borderRadius: NightshadeTokens.radiusInline8,
+        padding: const EdgeInsets.symmetric(
+          horizontal: NightshadeTokens.spaceMd,
+          vertical: NightshadeTokens.spaceSm + 2,
+        ),
+        borderRadius: NightshadeTokens.radiusLg,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               label,
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  color: colors.textMuted),
+              style: NightshadeTypography.captionSm
+                  .copyWith(color: colors.textMuted),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: NightshadeTokens.spaceXs),
             Text(
               value,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize16,
-                fontWeight: FontWeight.w700,
+              style: NightshadeTypography.h4.copyWith(
                 color: valueColor ?? colors.textPrimary,
               ),
             ),
@@ -194,19 +173,16 @@ class _SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
       child: Row(
         children: [
-          Icon(icon, size: 14, color: titleColor ?? colors.primary),
-          const SizedBox(width: 8),
+          Icon(icon,
+              size: NightshadeTokens.iconXs, color: titleColor ?? colors.primary),
+          const SizedBox(width: NightshadeTokens.spaceSm),
           Text(
             title,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize13,
-              fontWeight: FontWeight.w700,
-              color: titleColor ?? colors.textPrimary,
-              letterSpacing: 0.3,
-            ),
+            style: NightshadeTypography.labelStrong
+                .copyWith(color: titleColor ?? colors.textPrimary),
           ),
         ],
       ),

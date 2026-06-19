@@ -10,6 +10,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -152,49 +153,96 @@ class _SciencePhotometryPropertiesState
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _sectionLabel(theme, colors, 'Target'),
-        TextField(
-          controller: _targetCtl,
-          decoration: const InputDecoration(
-            labelText: 'Target designation',
-            helperText:
-                'AAVSO / catalogue identifier (e.g. "V0376 Per", "TIC 38846515")',
-            border: OutlineInputBorder(),
+        Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: NightshadeTokens.spaceMd,
+            vertical: NightshadeTokens.spaceSm + 2,
           ),
+          decoration: NightshadeDecorations.emphasisSurface(
+            colors.accent,
+            borderRadius: NightshadeTokens.borderRadiusLg,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(NightshadeTokens.spaceXs + 2),
+                decoration: NightshadeDecorations.iconChip(colors.accent),
+                child: Icon(LucideIcons.lineChart,
+                    size: NightshadeTokens.iconXs, color: colors.accent),
+              ),
+              const SizedBox(width: NightshadeTokens.spaceSm + 2),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'This node produces a calibrated light curve you can '
+                      'export straight to AAVSO.',
+                      style: NightshadeTypography.labelStrongSm
+                          .copyWith(color: colors.textPrimary),
+                    ),
+                    if (node.reduceLive) ...[
+                      const SizedBox(height: NightshadeTokens.spaceSm),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: NightshadeButton(
+                          label: 'Open Light Curve',
+                          icon: LucideIcons.lineChart,
+                          variant: ButtonVariant.ghost,
+                          size: ButtonSize.small,
+                          onPressed: () => context.go('/science'),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: NightshadeTokens.spaceLg),
+
+        _sectionLabel(theme, colors, 'Target'),
+        NightshadeTextField(
+          controller: _targetCtl,
+          label: 'Target designation',
+          hint: 'AAVSO / catalogue identifier (e.g. "V0376 Per", "TIC 38846515")',
           onChanged: (v) =>
               _update((n) => n.copyWith(targetDesignation: v.trim())),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: NightshadeTokens.spaceLg),
 
         _sectionLabel(theme, colors, 'Reference stars'),
         Text(
           'Comparison stars for differential photometry. Order does not '
           'matter; the runtime extracts each independently.',
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: colors.textSecondary),
+          style: NightshadeTypography.captionSm
+              .copyWith(color: colors.textSecondary),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: NightshadeTokens.spaceSm),
         if (node.referenceStars.isEmpty)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(
+              horizontal: NightshadeTokens.spaceMd,
+              vertical: NightshadeTokens.spaceSm,
+            ),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+              borderRadius: NightshadeTokens.borderRadiusMd,
               border: Border.all(color: colors.border),
             ),
             child: Row(
               children: [
                 Icon(LucideIcons.alertCircle,
-                    size: 14, color: colors.textMuted),
-                const SizedBox(width: 8),
+                    size: NightshadeTokens.iconXs, color: colors.textMuted),
+                const SizedBox(width: NightshadeTokens.spaceSm),
                 Expanded(
                   child: Text(
                     'No reference stars configured. Differential '
                     'photometry will fall back to instrumental magnitude only.',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: colors.textMuted),
+                    style: NightshadeTypography.captionSm
+                        .copyWith(color: colors.textMuted),
                   ),
                 ),
               ],
@@ -202,74 +250,70 @@ class _SciencePhotometryPropertiesState
           )
         else
           Wrap(
-            spacing: 6,
-            runSpacing: 6,
+            spacing: NightshadeTokens.spaceXs + 2,
+            runSpacing: NightshadeTokens.spaceXs + 2,
             children: [
               for (final id in node.referenceStars)
-                InputChip(
-                  label: Text(id),
-                  onDeleted: () => _removeReferenceStar(id),
-                  deleteIcon: const Icon(LucideIcons.x, size: 14),
+                NightshadeChip(
+                  label: id,
+                  icon: LucideIcons.x,
+                  onTap: () => _removeReferenceStar(id),
                 ),
             ],
           ),
-        const SizedBox(height: 8),
+        const SizedBox(height: NightshadeTokens.spaceSm),
         Row(
           children: [
             Expanded(
-              child: TextField(
+              child: NightshadeTextField(
                 controller: _addRefCtl,
-                decoration: const InputDecoration(
-                  hintText: 'Catalogue id, e.g. AAVSO 000-BMP-364',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                onSubmitted: _addReferenceStar,
+                hint: 'Catalogue id, e.g. AAVSO 000-BMP-364',
               ),
             ),
-            const SizedBox(width: 8),
-            IconButton(
-              tooltip: 'Add reference star',
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            NightshadeButton(
+              label: 'Add',
+              icon: LucideIcons.plus,
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
               onPressed: () => _addReferenceStar(_addRefCtl.text),
-              icon: const Icon(LucideIcons.plus, size: 18),
             ),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: NightshadeTokens.spaceLg),
 
         _sectionLabel(theme, colors, 'Capture'),
-        DropdownButtonFormField<String>(
-          initialValue: kPhotometricFilterBands.contains(node.filter)
+        _fieldLabel(colors, 'Photometric filter'),
+        NightshadeDropdown(
+          value: kPhotometricFilterBands.contains(node.filter)
               ? node.filter
               : null,
-          items: [
-            for (final band in kPhotometricFilterBands)
-              DropdownMenuItem(value: band, child: Text(band)),
-          ],
+          hint: 'Photometric filter',
+          isExpanded: true,
+          items: kPhotometricFilterBands.toList(),
           onChanged: (v) {
             if (v == null) return;
             _update((n) => n.copyWith(filter: v));
           },
-          decoration: InputDecoration(
-            labelText: 'Photometric filter',
-            helperText: isPhotometricFilter
-                ? 'Standard photometric band'
-                : 'WARNING: not a standard photometric band',
-            border: const OutlineInputBorder(),
+        ),
+        const SizedBox(height: NightshadeTokens.spaceXs),
+        Text(
+          isPhotometricFilter
+              ? 'Standard photometric band'
+              : 'WARNING: not a standard photometric band',
+          style: NightshadeTypography.captionSm.copyWith(
+            color: isPhotometricFilter ? colors.textMuted : colors.warning,
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: NightshadeTokens.spaceMd),
         Row(
           children: [
             Expanded(
-              child: TextField(
+              child: NightshadeTextField(
                 controller: _exposureCtl,
+                label: 'Exposure (s)',
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Exposure (s)',
-                  border: OutlineInputBorder(),
                 ),
                 onChanged: (v) {
                   final parsed = double.tryParse(v);
@@ -278,15 +322,12 @@ class _SciencePhotometryPropertiesState
                 },
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: NightshadeTokens.spaceSm),
             Expanded(
-              child: TextField(
+              child: NightshadeTextField(
                 controller: _countCtl,
+                label: 'Frame count',
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Frame count',
-                  border: OutlineInputBorder(),
-                ),
                 onChanged: (v) {
                   final parsed = int.tryParse(v);
                   if (parsed == null || parsed < 1) return;
@@ -296,64 +337,57 @@ class _SciencePhotometryPropertiesState
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        TextField(
+        const SizedBox(height: NightshadeTokens.spaceMd),
+        NightshadeTextField(
           controller: _maxCadenceCtl,
+          label: 'Max cadence gap (s)',
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(
-            labelText: 'Max cadence gap (s)',
-            helperText:
-                'Extra start-to-start gap permitted on top of the exposure. '
-                'Larger values tolerate slower download / longer dithers. '
-                'A gap larger than this fires a cadence-broken warning '
-                'on the dashboard but does NOT abort the burst.',
-            border: OutlineInputBorder(),
-          ),
           onChanged: (v) {
             final parsed = double.tryParse(v);
             if (parsed == null || parsed < 0) return;
             _update((n) => n.copyWith(maxCadenceGapSecs: parsed));
           },
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: NightshadeTokens.spaceXs),
+        Text(
+          'Extra start-to-start gap permitted on top of the exposure. '
+          'Larger values tolerate slower download / longer dithers. '
+          'A gap larger than this fires a cadence-broken warning '
+          'on the dashboard but does NOT abort the burst.',
+          style: NightshadeTypography.captionSm.copyWith(color: colors.textMuted),
+        ),
+        const SizedBox(height: NightshadeTokens.spaceLg),
 
         _sectionLabel(theme, colors, 'Reduction'),
-        SwitchListTile(
+        NightshadeSwitchRow(
+          label: 'Reduce live',
+          subtitle: 'Extract instrumental magnitude per frame and write a row '
+              'to photometry_measurements as the sequence runs.',
           value: node.reduceLive,
           onChanged: (v) => _update((n) => n.copyWith(reduceLive: v)),
-          title: const Text('Reduce live'),
-          subtitle: const Text(
-            'Extract instrumental magnitude per frame and write a row '
-            'to photometry_measurements as the sequence runs.',
-          ),
-          contentPadding: EdgeInsets.zero,
         ),
-        SwitchListTile(
+        const SizedBox(height: NightshadeTokens.spaceSm),
+        NightshadeSwitchRow(
+          label: 'Apply differential',
+          subtitle: 'Compute differential magnitude against reference stars. '
+              'Requires "Reduce live" and at least one reference star.',
           value: node.applyDifferential,
+          enabled: node.reduceLive,
           onChanged: node.reduceLive
               ? (v) => _update((n) => n.copyWith(applyDifferential: v))
               : null,
-          title: const Text('Apply differential'),
-          subtitle: const Text(
-            'Compute differential magnitude against reference stars. '
-            'Requires "Reduce live" and at least one reference star.',
-          ),
-          contentPadding: EdgeInsets.zero,
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: NightshadeTokens.spaceLg),
 
         _sectionLabel(theme, colors, 'Camera overrides (optional)'),
         Row(
           children: [
             Expanded(
-              child: TextField(
+              child: NightshadeTextField(
                 controller: _gainCtl,
+                label: 'Gain',
+                hint: 'leave blank for default',
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Gain',
-                  hintText: 'leave blank for default',
-                  border: OutlineInputBorder(),
-                ),
                 onChanged: (v) {
                   if (v.isEmpty) {
                     _clearGainOrOffset(clearGain: true);
@@ -365,16 +399,13 @@ class _SciencePhotometryPropertiesState
                 },
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: NightshadeTokens.spaceSm),
             Expanded(
-              child: TextField(
+              child: NightshadeTextField(
                 controller: _offsetCtl,
+                label: 'Offset',
+                hint: 'leave blank for default',
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Offset',
-                  hintText: 'leave blank for default',
-                  border: OutlineInputBorder(),
-                ),
                 onChanged: (v) {
                   if (v.isEmpty) {
                     _clearGainOrOffset(clearOffset: true);
@@ -388,25 +419,21 @@ class _SciencePhotometryPropertiesState
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<BinningMode>(
-          initialValue: node.binning,
-          items: BinningMode.values
-              .map((b) => DropdownMenuItem(
-                    value: b,
-                    child: Text(b.name.toUpperCase()),
-                  ))
-              .toList(),
+        const SizedBox(height: NightshadeTokens.spaceMd),
+        _fieldLabel(colors, 'Binning'),
+        NightshadeDropdown(
+          value: node.binning.name,
+          isExpanded: true,
+          items: BinningMode.values.map((b) => b.name).toList(),
+          itemLabels:
+              BinningMode.values.map((b) => b.name.toUpperCase()).toList(),
           onChanged: (v) {
             if (v == null) return;
-            _update((n) => n.copyWith(binning: v));
+            final mode = BinningMode.values.firstWhere((b) => b.name == v);
+            _update((n) => n.copyWith(binning: mode));
           },
-          decoration: const InputDecoration(
-            labelText: 'Binning',
-            border: OutlineInputBorder(),
-          ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: NightshadeTokens.spaceLg),
 
         // Quality gates — collapsible because they're rarely tuned and
         // can crowd the editor.
@@ -423,27 +450,22 @@ class _SciencePhotometryPropertiesState
                     _qualityExpanded
                         ? LucideIcons.chevronDown
                         : LucideIcons.chevronRight,
-                    size: 14,
+                    size: NightshadeTokens.iconXs,
                     color: colors.textSecondary,
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: NightshadeTokens.spaceXs + 2),
                   Text(
                     'Quality gates',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textSecondary,
-                      letterSpacing: 0.4,
-                    ),
+                    style: NightshadeTypography.h6
+                        .copyWith(color: colors.textSecondary),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: NightshadeTokens.spaceSm),
                   Text(
                     '(SNR ≥ ${node.quality.minSnr.toStringAsFixed(0)}, '
                     'FWHM ≤ ${node.quality.maxFwhmArcsec.toStringAsFixed(1)}", '
                     'airmass ≤ ${node.quality.maxAirmass.toStringAsFixed(2)})',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        color: colors.textMuted),
+                    style: NightshadeTypography.captionSm
+                        .copyWith(color: colors.textMuted),
                   ),
                 ],
               ),
@@ -451,19 +473,16 @@ class _SciencePhotometryPropertiesState
           ),
         ),
         if (_qualityExpanded) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: NightshadeTokens.spaceSm),
           Row(
             children: [
               Expanded(
-                child: TextField(
+                child: NightshadeTextField(
                   controller: _minSnrCtl,
+                  label: 'Min SNR',
+                  hint: 'AAVSO research-grade ≥ 50',
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Min SNR',
-                    helperText: 'AAVSO research-grade ≥ 50',
-                    border: OutlineInputBorder(),
                   ),
                   onChanged: (v) {
                     final parsed = double.tryParse(v);
@@ -474,16 +493,13 @@ class _SciencePhotometryPropertiesState
                   },
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: NightshadeTokens.spaceSm),
               Expanded(
-                child: TextField(
+                child: NightshadeTextField(
                   controller: _maxFwhmCtl,
+                  label: 'Max FWHM (")',
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
-                  ),
-                  decoration: const InputDecoration(
-                    labelText: 'Max FWHM (")',
-                    border: OutlineInputBorder(),
                   ),
                   onChanged: (v) {
                     final parsed = double.tryParse(v);
@@ -496,15 +512,12 @@ class _SciencePhotometryPropertiesState
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          TextField(
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          NightshadeTextField(
             controller: _maxAirmassCtl,
+            label: 'Max airmass',
+            hint: 'AAVSO BSM cutoff ≈ 2.5',
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'Max airmass',
-              helperText: 'AAVSO BSM cutoff ≈ 2.5',
-              border: OutlineInputBorder(),
-            ),
             onChanged: (v) {
               final parsed = double.tryParse(v);
               if (parsed == null || parsed <= 1.0) return;
@@ -513,39 +526,39 @@ class _SciencePhotometryPropertiesState
                   ));
             },
           ),
-          const SizedBox(height: 8),
-          SwitchListTile(
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          NightshadeSwitchRow(
+            label: 'Require all reference stars',
+            subtitle:
+                'When on, frames where any reference star failed extraction '
+                'are routed to the reject folder. Off accepts the frame and '
+                'falls back to instrumental magnitude.',
             value: node.quality.requireAllRefsVisible,
             onChanged: (v) => _update(
               (n) => n.copyWith(
                 quality: n.quality.copyWith(requireAllRefsVisible: v),
               ),
             ),
-            title: const Text('Require all reference stars'),
-            subtitle: const Text(
-              'When on, frames where any reference star failed extraction '
-              'are routed to the reject folder. Off accepts the frame and '
-              'falls back to instrumental magnitude.',
-            ),
-            contentPadding: EdgeInsets.zero,
           ),
         ],
-        const SizedBox(height: 8),
+        const SizedBox(height: NightshadeTokens.spaceSm),
 
         if (node.hasImpossibleCadence)
           Container(
-            margin: const EdgeInsets.only(top: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            margin: const EdgeInsets.only(top: NightshadeTokens.spaceSm),
+            padding: const EdgeInsets.symmetric(
+              horizontal: NightshadeTokens.spaceMd,
+              vertical: NightshadeTokens.spaceSm + 2,
+            ),
             decoration: NightshadeDecorations.emphasisSurface(
               colors.warning,
-              borderRadius:
-                  BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius: NightshadeTokens.borderRadiusLg,
             ),
             child: Row(
               children: [
                 Icon(LucideIcons.alertTriangle,
-                    size: 14, color: colors.warning),
-                const SizedBox(width: 8),
+                    size: NightshadeTokens.iconXs, color: colors.warning),
+                const SizedBox(width: NightshadeTokens.spaceSm),
                 Expanded(
                   child: Text(
                     'Negative cadence gap is impossible — the executor '
@@ -567,15 +580,23 @@ class _SciencePhotometryPropertiesState
     String label,
   ) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6, top: 4),
+      padding: const EdgeInsets.only(
+        bottom: NightshadeTokens.spaceXs + 2,
+        top: NightshadeTokens.spaceXs,
+      ),
       child: Text(
         label.toUpperCase(),
-        style: TextStyle(
-          fontSize: NightshadeTypography.fontSize11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.6,
-          color: colors.textMuted,
-        ),
+        style: NightshadeTypography.overline.copyWith(color: colors.textMuted),
+      ),
+    );
+  }
+
+  Widget _fieldLabel(NightshadeColors colors, String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceXs),
+      child: Text(
+        label,
+        style: NightshadeTypography.labelSm.copyWith(color: colors.textSecondary),
       ),
     );
   }

@@ -17,6 +17,7 @@ import '../../providers/settings_provider.dart';
 import '../../services/logging_service.dart';
 import '../../models/science/science_models.dart';
 import '../wcs/gnomonic_projection.dart';
+import '../wcs/wcs_sip_codec.dart';
 import 'default_science_backend.dart';
 import 'fits_header_writer.dart';
 import 'photometric_transform_service.dart';

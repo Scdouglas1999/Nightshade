@@ -122,6 +122,18 @@ extension _DefaultScienceBackendHelpers on DefaultScienceBackend {
       pixelScaleArcsec: wcs.pixelScaleArcsecPerPixel,
       imageWidth: imageWidth,
       imageHeight: imageHeight,
+      cd1_1: wcs.cd1_1,
+      cd1_2: wcs.cd1_2,
+      cd2_1: wcs.cd2_1,
+      cd2_2: wcs.cd2_2,
+      aOrder: wcs.aOrder,
+      bOrder: wcs.bOrder,
+      aCoeffs: wcs.aCoeffs,
+      bCoeffs: wcs.bCoeffs,
+      apOrder: wcs.apOrder,
+      bpOrder: wcs.bpOrder,
+      apCoeffs: wcs.apCoeffs,
+      bpCoeffs: wcs.bpCoeffs,
     );
     if (!solved.isValid) return null;
     return GnomonicProjection(solved);

@@ -173,6 +173,64 @@ class _PolarAlignmentShortcut extends ConsumerWidget {
   }
 }
 
+class _FlatWizardShortcut extends ConsumerWidget {
+  const _FlatWizardShortcut();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
+    final profile = ref.watch(activeProfileProvider).valueOrNull;
+    final hasCamera =
+        profile?.cameraId != null && profile!.cameraId!.isNotEmpty;
+    if (!hasCamera) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: NightshadeCard(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Icon(LucideIcons.sun, color: colors.primary, size: 22),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Flat Wizard',
+                      style: NightshadeTypography.labelStrong
+                          .copyWith(color: colors.textPrimary),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Capture and validate flat frames per filter.',
+                      style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              NightshadeButton(
+                label: 'Open',
+                icon: LucideIcons.arrowRight,
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                onPressed: () => context.push('/flat-wizard'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ============================================================================
 // Main column (shared by desktop + mobile)
 // ============================================================================
@@ -267,6 +325,7 @@ class _EquipmentMainColumn extends StatelessWidget {
             const EquipmentHealthPanel(),
             const _ReadinessSummaryBar(),
             const _PolarAlignmentShortcut(),
+            const _FlatWizardShortcut(),
             Expanded(child: _cardsAndDiscovery()),
           ],
         );
@@ -374,6 +433,7 @@ class _EquipmentStatusRail extends ConsumerWidget {
                     child: EquipmentReadinessPanel(),
                   ),
                   _PolarAlignmentShortcut(),
+                  _FlatWizardShortcut(),
                 ],
               ),
             ),

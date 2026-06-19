@@ -15791,8 +15791,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ImageStatsResult dco_decode_image_stats_result(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 8)
-      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
     return ImageStatsResult(
       min: dco_decode_f_64(arr[0]),
       max: dco_decode_f_64(arr[1]),
@@ -15801,7 +15801,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       stdDev: dco_decode_f_64(arr[4]),
       hfr: dco_decode_opt_box_autoadd_f_64(arr[5]),
       eccentricity: dco_decode_opt_box_autoadd_f_64(arr[6]),
-      starCount: dco_decode_u_32(arr[7]),
+      fwhm: dco_decode_opt_box_autoadd_f_64(arr[7]),
+      starCount: dco_decode_u_32(arr[8]),
     );
   }
 
@@ -16656,8 +16657,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   PlateSolveResult dco_decode_plate_solve_result(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 9)
-      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    if (arr.length != 21)
+      throw Exception('unexpected arr length: expect 21 but see ${arr.length}');
     return PlateSolveResult(
       success: dco_decode_bool(arr[0]),
       ra: dco_decode_f_64(arr[1]),
@@ -16668,6 +16669,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       fieldHeight: dco_decode_f_64(arr[6]),
       solveTimeSecs: dco_decode_f_64(arr[7]),
       error: dco_decode_opt_String(arr[8]),
+      cd11: dco_decode_f_64(arr[9]),
+      cd12: dco_decode_f_64(arr[10]),
+      cd21: dco_decode_f_64(arr[11]),
+      cd22: dco_decode_f_64(arr[12]),
+      sipAOrder: dco_decode_u_32(arr[13]),
+      sipBOrder: dco_decode_u_32(arr[14]),
+      sipACoeffs: dco_decode_list_prim_f_64_strict(arr[15]),
+      sipBCoeffs: dco_decode_list_prim_f_64_strict(arr[16]),
+      sipApOrder: dco_decode_u_32(arr[17]),
+      sipBpOrder: dco_decode_u_32(arr[18]),
+      sipApCoeffs: dco_decode_list_prim_f_64_strict(arr[19]),
+      sipBpCoeffs: dco_decode_list_prim_f_64_strict(arr[20]),
     );
   }
 
@@ -19732,6 +19745,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_stdDev = sse_decode_f_64(deserializer);
     var var_hfr = sse_decode_opt_box_autoadd_f_64(deserializer);
     var var_eccentricity = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_fwhm = sse_decode_opt_box_autoadd_f_64(deserializer);
     var var_starCount = sse_decode_u_32(deserializer);
     return ImageStatsResult(
       min: var_min,
@@ -19741,6 +19755,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       stdDev: var_stdDev,
       hfr: var_hfr,
       eccentricity: var_eccentricity,
+      fwhm: var_fwhm,
       starCount: var_starCount,
     );
   }
@@ -21087,6 +21102,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_fieldHeight = sse_decode_f_64(deserializer);
     var var_solveTimeSecs = sse_decode_f_64(deserializer);
     var var_error = sse_decode_opt_String(deserializer);
+    var var_cd11 = sse_decode_f_64(deserializer);
+    var var_cd12 = sse_decode_f_64(deserializer);
+    var var_cd21 = sse_decode_f_64(deserializer);
+    var var_cd22 = sse_decode_f_64(deserializer);
+    var var_sipAOrder = sse_decode_u_32(deserializer);
+    var var_sipBOrder = sse_decode_u_32(deserializer);
+    var var_sipACoeffs = sse_decode_list_prim_f_64_strict(deserializer);
+    var var_sipBCoeffs = sse_decode_list_prim_f_64_strict(deserializer);
+    var var_sipApOrder = sse_decode_u_32(deserializer);
+    var var_sipBpOrder = sse_decode_u_32(deserializer);
+    var var_sipApCoeffs = sse_decode_list_prim_f_64_strict(deserializer);
+    var var_sipBpCoeffs = sse_decode_list_prim_f_64_strict(deserializer);
     return PlateSolveResult(
       success: var_success,
       ra: var_ra,
@@ -21097,6 +21124,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       fieldHeight: var_fieldHeight,
       solveTimeSecs: var_solveTimeSecs,
       error: var_error,
+      cd11: var_cd11,
+      cd12: var_cd12,
+      cd21: var_cd21,
+      cd22: var_cd22,
+      sipAOrder: var_sipAOrder,
+      sipBOrder: var_sipBOrder,
+      sipACoeffs: var_sipACoeffs,
+      sipBCoeffs: var_sipBCoeffs,
+      sipApOrder: var_sipApOrder,
+      sipBpOrder: var_sipBpOrder,
+      sipApCoeffs: var_sipApCoeffs,
+      sipBpCoeffs: var_sipBpCoeffs,
     );
   }
 
@@ -24310,6 +24349,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_f_64(self.stdDev, serializer);
     sse_encode_opt_box_autoadd_f_64(self.hfr, serializer);
     sse_encode_opt_box_autoadd_f_64(self.eccentricity, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.fwhm, serializer);
     sse_encode_u_32(self.starCount, serializer);
   }
 
@@ -25514,6 +25554,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_f_64(self.fieldHeight, serializer);
     sse_encode_f_64(self.solveTimeSecs, serializer);
     sse_encode_opt_String(self.error, serializer);
+    sse_encode_f_64(self.cd11, serializer);
+    sse_encode_f_64(self.cd12, serializer);
+    sse_encode_f_64(self.cd21, serializer);
+    sse_encode_f_64(self.cd22, serializer);
+    sse_encode_u_32(self.sipAOrder, serializer);
+    sse_encode_u_32(self.sipBOrder, serializer);
+    sse_encode_list_prim_f_64_strict(self.sipACoeffs, serializer);
+    sse_encode_list_prim_f_64_strict(self.sipBCoeffs, serializer);
+    sse_encode_u_32(self.sipApOrder, serializer);
+    sse_encode_u_32(self.sipBpOrder, serializer);
+    sse_encode_list_prim_f_64_strict(self.sipApCoeffs, serializer);
+    sse_encode_list_prim_f_64_strict(self.sipBpCoeffs, serializer);
   }
 
   @protected

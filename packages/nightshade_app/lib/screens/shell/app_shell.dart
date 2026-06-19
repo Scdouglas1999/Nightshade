@@ -332,14 +332,13 @@ class _AppShellState extends ConsumerState<AppShell> {
       return primaryIndex;
     }
 
-    // Scheduler / diagnostics redirect into tabbed parents; settings,
-    // transients, and polar alignment are title-bar or overflow routes.
+    // Scheduler / diagnostics redirect into tabbed parents; settings and
+    // polar alignment are title-bar or overflow routes.
     switch (location.split('?').first) {
       case '/scheduler':
       case '/diagnostics':
       case '/settings':
       case '/polar-alignment':
-      case '/transients':
         return -1;
       default:
         return 0;
@@ -427,6 +426,21 @@ class _AppShellState extends ConsumerState<AppShell> {
                   // mobile — bottom nav covers primary routes; saves vertical space.
                   if (!useBottomNav) const TitleBar(),
 
+                  // Mobile gear strip. Settings left the bottom bar in the
+                  // six-tab consolidation, so this thin app-bar action keeps it
+                  // one tap away on phones.
+                  if (useBottomNav)
+                    SafeArea(
+                      bottom: false,
+                      child: _MobileSettingsBar(
+                        onOpenSettings: () {
+                          try {
+                            context.go('/settings');
+                          } catch (_) {}
+                        },
+                      ),
+                    ),
+
                   // Disconnected banner — DESKTOP ONLY. On phone the dedicated
                   // connection strip is gone (it wasted the cover screen's scarce
                   // height); remote-connection state lives as a small ambient dot
@@ -479,24 +493,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                               TutorialKeys.navDashboard,
                               TutorialKeys.navEquipment,
                               TutorialKeys.navImaging,
-                              TutorialKeys.navGuiding,
                               TutorialKeys.navSequencer,
-                              TutorialKeys.navPlanetarium,
-                              TutorialKeys.navFraming,
                               TutorialKeys.navAnalytics,
-                              TutorialKeys.navFlatWizard,
-                              TutorialKeys.navWeather,
+                              null,
                               TutorialKeys.navPlanner,
-                              // Scheduler merged into Plan Tonight as a tab
-                              // (§UX consolidation, W8-SCHED-MERGE), so its
-                              // top-level nav slot is gone. TutorialKeys.
-                              // navScheduler still exists for one release so a
-                              // stale deep-link from the previous onboarding
-                              // tour does not crash; the onboarding step now
-                              // targets TutorialKeys.navPlanner instead.
-                              // Diagnostics moved into Analytics as a tab
-                              // (§UX consolidation), so its top-level nav slot
-                              // (and tutorial key) are no longer wired here.
+                              TutorialKeys.navSettings,
                             ],
                             currentIndex: currentIndex,
                             onTabSelected: (index) =>
@@ -535,12 +536,12 @@ class _AppShellState extends ConsumerState<AppShell> {
                             ),
                             child: Stack(
                               children: [
-                                // On phone there is no desktop TitleBar above the
-                                // content, so inset the top edge clear of the
-                                // status bar / notch. Desktop keeps zero inset
-                                // (the TitleBar already owns that space).
+                                // Both chromes own the top inset above this
+                                // content: desktop via the TitleBar, mobile via
+                                // the gear strip, so the content never re-insets
+                                // the notch/status-bar edge itself.
                                 SafeArea(
-                                  top: useBottomNav,
+                                  top: false,
                                   bottom: false,
                                   child: widget.child,
                                 ),
@@ -606,7 +607,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                     const StatusBar(compact: false),
                 ],
               ),
-              bottomNavigationBar: null,
             ),
           ),
         );
@@ -626,6 +626,62 @@ class _AppShellState extends ConsumerState<AppShell> {
           child: shell,
         );
       },
+    );
+  }
+}
+
+class _MobileSettingsBar extends StatelessWidget {
+  final VoidCallback onOpenSettings;
+
+  const _MobileSettingsBar({required this.onOpenSettings});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
+
+    return Container(
+      height: ShellChromeMetrics.titleBarHeight,
+      color: colors.surface,
+      padding:
+          const EdgeInsets.symmetric(horizontal: NightshadeTokens.spaceLg),
+      child: Row(
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              color: colors.primary,
+              borderRadius: NightshadeTokens.borderRadiusMd,
+            ),
+            child: Icon(NightshadeIcons.sparkle, size: 14, color: onPrimary),
+          ),
+          const SizedBox(width: NightshadeTokens.spaceSm + 2),
+          Text(
+            'NIGHTSHADE',
+            style: TextStyle(
+              color: colors.textPrimary,
+              fontSize: NightshadeTypography.fontSize13,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.5,
+            ),
+          ),
+          const Spacer(),
+          InkWell(
+            key: TutorialKeys.navSettings,
+            onTap: onOpenSettings,
+            borderRadius: NightshadeTokens.borderRadiusInline4,
+            child: Padding(
+              padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+              child: Icon(
+                NightshadeIcons.settings,
+                size: NightshadeTokens.iconSm,
+                color: colors.textSecondary,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -27,8 +27,31 @@ final _transientFilterProvider = StateProvider<TransientFilter>((ref) {
 ///
 /// Displays a filterable list of transient alerts (novae, supernovae, comets, etc.)
 /// with options to queue targets for observation, view in framing, or dismiss.
-class TransientsScreen extends ConsumerWidget {
+class TransientsScreen extends StatelessWidget {
   const TransientsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+
+    return Scaffold(
+      backgroundColor: colors.background,
+      body: const SafeArea(
+        bottom: false,
+        child: TransientsView(),
+      ),
+    );
+  }
+}
+
+/// Embeddable transient-alerts content: header, citizen-science strip, filter
+/// bar, and the filtered alert list. Supplies no Scaffold/AppBar so it can sit
+/// inside the Science screen's "Observing Alerts" tab as well as the standalone
+/// [TransientsScreen].
+class TransientsView extends ConsumerWidget {
+  const TransientsView({super.key, this.showHeader = true});
+
+  final bool showHeader;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -36,48 +59,66 @@ class TransientsScreen extends ConsumerWidget {
     final alertsAsync = ref.watch(activeTransientAlertsProvider);
     final currentFilter = ref.watch(_transientFilterProvider);
 
-    return Scaffold(
-      backgroundColor: colors.background,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            // Header with title and actions
-            _TransientsHeader(
-              colors: colors,
-              onRefresh: () => refreshTransientAlerts(ref),
-              onSettingsTap: () => _showSettingsDialog(context, ref),
+    return Column(
+      children: [
+        if (showHeader)
+          ScreenHeader(
+            title: 'Observing Alerts',
+            icon: NightshadeIcons.sparkle,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(NightshadeIcons.refresh,
+                      size: NightshadeTokens.iconMd),
+                  onPressed: () => refreshTransientAlerts(ref),
+                  tooltip: 'Refresh alerts',
+                  color: colors.textSecondary,
+                  constraints: const BoxConstraints(
+                    minWidth: NightshadeTokens.minTouchTarget,
+                    minHeight: NightshadeTokens.minTouchTarget,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(NightshadeIcons.settings,
+                      size: NightshadeTokens.iconMd),
+                  onPressed: () => showTransientSettingsDialog(context, ref),
+                  tooltip: 'Alert settings',
+                  color: colors.textSecondary,
+                  constraints: const BoxConstraints(
+                    minWidth: NightshadeTokens.minTouchTarget,
+                    minHeight: NightshadeTokens.minTouchTarget,
+                  ),
+                ),
+              ],
             ),
+          ),
 
-            // Filter tabs
-            _FilterTabBar(
-              colors: colors,
-              currentFilter: currentFilter,
-              onFilterChanged: (filter) {
-                ref.read(_transientFilterProvider.notifier).state = filter;
-              },
-            ),
+        _CitizenScienceStrip(colors: colors),
 
-            // Main content area
-            Expanded(
-              child: alertsAsync.when(
-                data: (alerts) => _buildDataState(
-                    context, ref, colors, alerts, currentFilter),
-                loading: () => _buildLoadingState(),
-                error: (error, stackTrace) =>
-                    _buildErrorState(context, ref, colors, error),
-              ),
-            ),
-          ],
+        _FilterTabBar(
+          colors: colors,
+          currentFilter: currentFilter,
+          onFilterChanged: (filter) {
+            ref.read(_transientFilterProvider.notifier).state = filter;
+          },
         ),
-      ),
+
+        Expanded(
+          child: alertsAsync.when(
+            data: (alerts) =>
+                _buildDataState(context, ref, alerts, currentFilter),
+            loading: () => _buildLoadingState(),
+            error: (error, stackTrace) => _buildErrorState(ref, error),
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildDataState(
     BuildContext context,
     WidgetRef ref,
-    NightshadeColors colors,
     List<TransientAlert> alerts,
     TransientFilter filter,
   ) {
@@ -87,7 +128,7 @@ class TransientsScreen extends ConsumerWidget {
     final filteredAlerts = _filterAlerts(alerts, states, filter);
 
     if (filteredAlerts.isEmpty) {
-      return _buildEmptyState(colors, filter);
+      return _buildEmptyState(filter);
     }
 
     return LayoutBuilder(
@@ -109,7 +150,8 @@ class TransientsScreen extends ConsumerWidget {
                 alert: alert,
                 state: alertState,
                 onQueue: () => _queueAlert(context, ref, alert),
-                onViewInFraming: () => _viewInFraming(context, alert),
+                onViewInFraming: () => _viewInFraming(context, ref, alert),
+                onOpenScience: () => _openScience(context, alert),
                 onDismiss: () => _dismissAlert(ref, alert),
               ),
             );
@@ -158,7 +200,7 @@ class TransientsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildEmptyState(NightshadeColors colors, TransientFilter filter) {
+  Widget _buildEmptyState(TransientFilter filter) {
     final String message;
     final IconData icon;
 
@@ -177,80 +219,24 @@ class TransientsScreen extends ConsumerWidget {
         icon = NightshadeIcons.visible;
     }
 
-    return Center(
-      child: Padding(
-        padding: NightshadeTokens.screenPadding,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: NightshadeTokens.icon2xl,
-              color: colors.textMuted,
-            ),
-            const SizedBox(height: NightshadeTokens.spaceLg),
-            Text(
-              message,
-              style:
-                  NightshadeTypography.h4.copyWith(color: colors.textPrimary),
-            ),
-            const SizedBox(height: NightshadeTokens.spaceSm),
-            Text(
-              filter == TransientFilter.all
-                  ? 'Transient alerts from AAVSO, TNS, and other sources will appear here when available.'
-                  : 'No alerts match the current filter.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
-                color: colors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return EmptyState(
+      icon: icon,
+      title: message,
+      body: filter == TransientFilter.all
+          ? 'Transient alerts from AAVSO, TNS, and other sources will appear here when available.'
+          : 'No alerts match the current filter.',
     );
   }
 
-  Widget _buildErrorState(
-    BuildContext context,
-    WidgetRef ref,
-    NightshadeColors colors,
-    Object error,
-  ) {
-    return Center(
-      child: Padding(
-        padding: NightshadeTokens.screenPadding,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              LucideIcons.alertCircle,
-              size: NightshadeTokens.icon2xl,
-              color: colors.error,
-            ),
-            const SizedBox(height: NightshadeTokens.spaceLg),
-            Text(
-              'Failed to load transient alerts',
-              style:
-                  NightshadeTypography.h4.copyWith(color: colors.textPrimary),
-            ),
-            const SizedBox(height: NightshadeTokens.spaceSm),
-            Text(
-              error.toString(),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
-                color: colors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: NightshadeTokens.spaceXl),
-            NightshadeButton(
-              label: 'Retry',
-              icon: NightshadeIcons.refresh,
-              onPressed: () => refreshTransientAlerts(ref),
-            ),
-          ],
-        ),
+  Widget _buildErrorState(WidgetRef ref, Object error) {
+    return EmptyState(
+      icon: LucideIcons.alertCircle,
+      title: 'Failed to load transient alerts',
+      body: error.toString(),
+      action: NightshadeButton(
+        label: 'Retry',
+        icon: NightshadeIcons.refresh,
+        onPressed: () => refreshTransientAlerts(ref),
       ),
     );
   }
@@ -260,94 +246,73 @@ class TransientsScreen extends ConsumerWidget {
     await queueTransientForTonight(ref, alert);
   }
 
-  void _viewInFraming(BuildContext context, TransientAlert alert) {
-    // Navigate to framing screen with the alert coordinates
-    // Encode RA and Dec as query parameters
-    context.go(
-      '/framing?ra=${alert.raHours}&dec=${alert.decDegrees}&name=${Uri.encodeComponent(alert.name)}',
-    );
+  void _viewInFraming(BuildContext context, WidgetRef ref, TransientAlert alert) {
+    // Seed the target before navigating: the /framing route redirects to
+    // /planner?tab=sky&view=framing, which drops any query params.
+    ref.read(framingProvider.notifier).setTargetCoordinates(
+          alert.raHours,
+          alert.decDegrees,
+          name: alert.name,
+        );
+    context.goNamed('framing');
+  }
+
+  void _openScience(BuildContext context, TransientAlert alert) {
+    context.go('/science');
   }
 
   void _dismissAlert(WidgetRef ref, TransientAlert alert) {
     ref.read(transientAlertStatesProvider.notifier).dismiss(alert.id);
   }
-
-  void _showSettingsDialog(BuildContext context, WidgetRef ref) {
-    showDialog(
-      context: context,
-      builder: (context) => _TransientSettingsDialog(ref: ref),
-    );
-  }
 }
 
-/// Header widget for the transients screen with title, refresh, and settings buttons.
-class _TransientsHeader extends StatelessWidget {
-  final NightshadeColors colors;
-  final VoidCallback onRefresh;
-  final VoidCallback onSettingsTap;
+/// Opens the transient alert settings dialog. Shared by [TransientsView] and the
+/// Science screen header when the view is embedded without its own header.
+void showTransientSettingsDialog(BuildContext context, WidgetRef ref) {
+  showDialog(
+    context: context,
+    builder: (context) => _TransientSettingsDialog(ref: ref),
+  );
+}
 
-  const _TransientsHeader({
-    required this.colors,
-    required this.onRefresh,
-    required this.onSettingsTap,
-  });
+/// Framing strip presenting transient alerts as a citizen-science feed.
+class _CitizenScienceStrip extends StatelessWidget {
+  final NightshadeColors colors;
+
+  const _CitizenScienceStrip({required this.colors});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: NightshadeTokens.appBarHeight,
-      padding: const EdgeInsets.symmetric(horizontal: NightshadeTokens.spaceLg),
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceLg,
+        vertical: NightshadeTokens.spaceMd,
+      ),
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(bottom: BorderSide(color: colors.border)),
       ),
       child: Row(
         children: [
-          IconButton(
-            icon: Icon(NightshadeIcons.arrowLeft, color: colors.textPrimary),
-            onPressed: () {
-              if (context.canPop()) {
-                context.pop();
-              } else {
-                context.go('/dashboard');
-              }
-            },
-            tooltip: 'Back',
-          ),
-          const SizedBox(width: NightshadeTokens.spaceSm),
           Container(
-            padding: const EdgeInsets.all(8),
-            decoration: NightshadeDecorations.tintedBadge(colors.warning),
+            padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+            decoration: NightshadeDecorations.tintedBadge(colors.info),
             child: Icon(
-              NightshadeIcons.sparkle,
-              size: NightshadeTokens.iconMd,
-              color: colors.warning,
+              LucideIcons.microscope,
+              size: NightshadeTokens.iconSm,
+              color: colors.info,
             ),
           ),
           const SizedBox(width: NightshadeTokens.spaceMd),
-          Text(
-            'Transient Alerts',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize18,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
+          Expanded(
+            child: Text(
+              'Real targets for citizen science. Queue an alert, capture it, '
+              'and turn the result into a photometric or astrometric report.',
+              style: NightshadeTypography.caption.copyWith(
+                color: colors.textSecondary,
+                height: 1.4,
+              ),
             ),
-          ),
-          const Spacer(),
-          IconButton(
-            icon: const Icon(NightshadeIcons.refresh,
-                size: NightshadeTokens.iconMd),
-            onPressed: onRefresh,
-            tooltip: 'Refresh alerts',
-            color: colors.textSecondary,
-          ),
-          const SizedBox(width: NightshadeTokens.spaceSm),
-          IconButton(
-            icon: const Icon(NightshadeIcons.settings,
-                size: NightshadeTokens.iconMd),
-            onPressed: onSettingsTap,
-            tooltip: 'Alert settings',
-            color: colors.textSecondary,
           ),
         ],
       ),
@@ -382,57 +347,15 @@ class _FilterTabBar extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         child: Row(
           children: TransientFilter.values.map((filter) {
-            final isSelected = filter == currentFilter;
             return Padding(
               padding: const EdgeInsets.only(right: NightshadeTokens.spaceSm),
-              child: _FilterChip(
+              child: NightshadeChip(
                 label: filter.label,
-                isSelected: isSelected,
-                colors: colors,
+                selected: filter == currentFilter,
                 onTap: () => onFilterChanged(filter),
               ),
             );
           }).toList(),
-        ),
-      ),
-    );
-  }
-}
-
-/// Individual filter chip button.
-class _FilterChip extends StatelessWidget {
-  final String label;
-  final bool isSelected;
-  final NightshadeColors colors;
-  final VoidCallback onTap;
-
-  const _FilterChip({
-    required this.label,
-    required this.isSelected,
-    required this.colors,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final onPrimary = Theme.of(context).colorScheme.onPrimary;
-
-    return Material(
-      color: isSelected ? colors.primary : colors.surfaceAlt,
-      borderRadius: NightshadeTokens.borderRadiusFull,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: NightshadeTokens.borderRadiusFull,
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: NightshadeTokens.spaceMd,
-            vertical: NightshadeTokens.spaceSm,
-          ),
-          child: Text(
-            label,
-            style: NightshadeTypography.label
-                .copyWith(color: isSelected ? onPrimary : colors.textSecondary),
-          ),
         ),
       ),
     );
@@ -516,197 +439,100 @@ class _TransientSettingsDialog extends ConsumerWidget {
     final settings = ref.watch(transientAlertSettingsProvider);
     final notifier = ref.read(transientAlertSettingsProvider.notifier);
 
-    return Dialog(
-      backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: NightshadeTokens.borderRadiusXl,
-      ),
-      child: ConstrainedBox(
-        constraints: AdaptiveDialogConstraints.hybrid(
-          context,
-          designMaxWidth: 400,
+    return NightshadeDialog(
+      title: 'Alert Settings',
+      icon: NightshadeIcons.settings,
+      width: 400,
+      actions: [
+        NightshadeButton(
+          label: 'Done',
+          onPressed: () => Navigator.of(context).pop(),
         ),
-        child: Padding(
-          padding: NightshadeTokens.dialogPadding,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+      ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Alert Sources',
+            style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          Wrap(
+            spacing: NightshadeTokens.spaceSm,
+            runSpacing: NightshadeTokens.spaceSm,
+            children: TransientSource.values.map((source) {
+              return NightshadeChip(
+                label: _getSourceLabel(source),
+                selected: settings.enabledSources.contains(source),
+                onTap: () => notifier.toggleSource(source),
+              );
+            }).toList(),
+          ),
+
+          const SizedBox(height: NightshadeTokens.spaceLg),
+
+          Text(
+            'Transient Types',
+            style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          Wrap(
+            spacing: NightshadeTokens.spaceSm,
+            runSpacing: NightshadeTokens.spaceSm,
+            children: TransientType.values.map((type) {
+              return NightshadeChip(
+                label: _getTypeLabel(type),
+                selected: settings.typesToMonitor.contains(type),
+                onTap: () => notifier.toggleType(type),
+              );
+            }).toList(),
+          ),
+
+          const SizedBox(height: NightshadeTokens.spaceLg),
+
+          Text(
+            'Magnitude Threshold',
+            style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          Row(
             children: [
-              // Header
-              Row(
-                children: [
-                  const Icon(
-                    NightshadeIcons.settings,
-                    size: NightshadeTokens.iconMd,
-                  ),
-                  const SizedBox(width: NightshadeTokens.spaceMd),
-                  Text(
-                    'Alert Settings',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize18,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(NightshadeIcons.close,
-                        size: NightshadeTokens.iconMd),
-                    onPressed: () => Navigator.of(context).pop(),
-                    color: colors.textSecondary,
-                  ),
-                ],
-              ),
-              const SizedBox(height: NightshadeTokens.spaceLg),
-
-              // Sources section
-              Text(
-                'Alert Sources',
-                style:
-                    NightshadeTypography.h5.copyWith(color: colors.textPrimary),
-              ),
-              const SizedBox(height: NightshadeTokens.spaceSm),
-              Wrap(
-                spacing: NightshadeTokens.spaceSm,
-                runSpacing: NightshadeTokens.spaceSm,
-                children: TransientSource.values.map((source) {
-                  final isEnabled = settings.enabledSources.contains(source);
-                  return FilterChip(
-                    label: Text(_getSourceLabel(source)),
-                    selected: isEnabled,
-                    onSelected: (_) => notifier.toggleSource(source),
-                    selectedColor: colors.primary.withValues(alpha: 0.2),
-                    checkmarkColor: colors.primary,
-                    labelStyle: TextStyle(
-                      color: isEnabled ? colors.primary : colors.textSecondary,
-                      fontSize: NightshadeTypography.fontSize12,
-                    ),
-                  );
-                }).toList(),
-              ),
-
-              const SizedBox(height: NightshadeTokens.spaceLg),
-
-              // Types section
-              Text(
-                'Transient Types',
-                style:
-                    NightshadeTypography.h5.copyWith(color: colors.textPrimary),
-              ),
-              const SizedBox(height: NightshadeTokens.spaceSm),
-              Wrap(
-                spacing: NightshadeTokens.spaceSm,
-                runSpacing: NightshadeTokens.spaceSm,
-                children: TransientType.values.map((type) {
-                  final isEnabled = settings.typesToMonitor.contains(type);
-                  return FilterChip(
-                    label: Text(_getTypeLabel(type)),
-                    selected: isEnabled,
-                    onSelected: (_) => notifier.toggleType(type),
-                    selectedColor: colors.primary.withValues(alpha: 0.2),
-                    checkmarkColor: colors.primary,
-                    labelStyle: TextStyle(
-                      color: isEnabled ? colors.primary : colors.textSecondary,
-                      fontSize: NightshadeTypography.fontSize12,
-                    ),
-                  );
-                }).toList(),
-              ),
-
-              const SizedBox(height: NightshadeTokens.spaceLg),
-
-              // Magnitude threshold
-              Text(
-                'Magnitude Threshold',
-                style:
-                    NightshadeTypography.h5.copyWith(color: colors.textPrimary),
-              ),
-              const SizedBox(height: NightshadeTokens.spaceSm),
-              Row(
-                children: [
-                  Expanded(
-                    child: SliderTheme(
-                      data: SliderThemeData(
-                        activeTrackColor: colors.primary,
-                        inactiveTrackColor: colors.surfaceAlt,
-                        thumbColor: colors.primary,
-                        overlayColor: colors.primary.withValues(alpha: 0.2),
-                      ),
-                      child: Slider(
-                        value: settings.magnitudeThreshold,
-                        min: 5.0,
-                        max: 20.0,
-                        divisions: 30,
-                        onChanged: (value) =>
-                            notifier.setMagnitudeThreshold(value),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: NightshadeTokens.spaceMd),
-                  SizedBox(
-                    width: 50,
-                    child: Text(
-                      'mag ${settings.magnitudeThreshold.toStringAsFixed(1)}',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        color: colors.textSecondary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              Text(
-                'Only show alerts brighter than this magnitude',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  color: colors.textMuted,
+              Expanded(
+                child: NightshadeSlider(
+                  value: settings.magnitudeThreshold,
+                  min: 5.0,
+                  max: 20.0,
+                  divisions: 30,
+                  onChanged: (value) => notifier.setMagnitudeThreshold(value),
                 ),
               ),
-
-              const SizedBox(height: NightshadeTokens.spaceLg),
-
-              // Notifications toggle
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Notifications',
-                          style: NightshadeTypography.h5
-                              .copyWith(color: colors.textPrimary),
-                        ),
-                        Text(
-                          'Show notifications for new alerts',
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize11,
-                            color: colors.textMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  NightshadeSwitch(
-                    value: settings.notifyOnNew,
-                    onChanged: (value) => notifier.setNotifyOnNew(value),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: NightshadeTokens.spaceLg),
-
-              // Close button
+              const SizedBox(width: NightshadeTokens.spaceMd),
               SizedBox(
-                width: double.infinity,
-                child: NightshadeButton(
-                  label: 'Done',
-                  onPressed: () => Navigator.of(context).pop(),
+                width: 50,
+                child: Text(
+                  'mag ${settings.magnitudeThreshold.toStringAsFixed(1)}',
+                  style: NightshadeTypography.monoSm
+                      .copyWith(color: colors.textSecondary),
                 ),
               ),
             ],
           ),
-        ),
+          Text(
+            'Only show alerts brighter than this magnitude',
+            style: NightshadeTypography.captionSm
+                .copyWith(color: colors.textMuted),
+          ),
+
+          const SizedBox(height: NightshadeTokens.spaceLg),
+
+          NightshadeSwitchRow(
+            label: 'Notifications',
+            subtitle: 'Show notifications for new alerts',
+            value: settings.notifyOnNew,
+            onChanged: (value) => notifier.setNotifyOnNew(value),
+          ),
+        ],
       ),
     );
   }

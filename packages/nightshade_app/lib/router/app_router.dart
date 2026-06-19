@@ -11,6 +11,7 @@ import '../screens/sequencer/sequencer_screen.dart';
 import '../screens/planetarium/planetarium_screen.dart';
 import '../screens/framing/framing_screen.dart';
 import '../screens/analytics/analytics_screen.dart';
+import '../screens/science/science_screen.dart';
 import '../screens/stack_result/stack_result_screen.dart';
 import '../screens/session_review/session_review_controller.dart';
 import '../screens/session_review/session_review_screen.dart';
@@ -144,18 +145,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               transitionDuration: Duration(milliseconds: 300),
             ),
           ),
+          // DEPRECATED: use /planner?tab=sky (view=planetarium). Folded into
+          // Plan Tonight → Sky as a segmented view (§UX consolidation); kept
+          // for deep-link compatibility.
           GoRoute(
             path: '/planetarium',
             name: 'planetarium',
+            redirect: (context, state) => '/planner?tab=sky&view=planetarium',
             pageBuilder: (context, state) => const CustomTransitionPage(
               child: PlanetariumScreen(),
               transitionsBuilder: PageTransitions.slideFadeTransition,
               transitionDuration: Duration(milliseconds: 300),
             ),
           ),
+          // DEPRECATED: use /planner?tab=sky (view=framing). Folded into Plan
+          // Tonight → Sky as a segmented view (§UX consolidation); kept for
+          // deep-link compatibility.
           GoRoute(
             path: '/framing',
             name: 'framing',
+            redirect: (context, state) => '/planner?tab=sky&view=framing',
             pageBuilder: (context, state) => const CustomTransitionPage(
               child: FramingScreen(),
               transitionsBuilder: PageTransitions.slideFadeTransition,
@@ -165,10 +174,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/analytics',
             name: 'analytics',
+            redirect: (context, state) =>
+                state.uri.queryParameters['tab'] == 'science'
+                    ? '/science'
+                    : null,
             pageBuilder: (context, state) {
               final tabQuery = state.uri.queryParameters['tab'];
               return CustomTransitionPage(
                 child: AnalyticsScreen(initialTabQuery: tabQuery),
+                transitionsBuilder: PageTransitions.slideFadeTransition,
+                transitionDuration: const Duration(milliseconds: 300),
+              );
+            },
+          ),
+          GoRoute(
+            path: '/science',
+            name: 'science',
+            pageBuilder: (context, state) {
+              final tabQuery = state.uri.queryParameters['tab'];
+              return CustomTransitionPage(
+                child: ScienceScreen(initialTabQuery: tabQuery),
                 transitionsBuilder: PageTransitions.slideFadeTransition,
                 transitionDuration: const Duration(milliseconds: 300),
               );
@@ -307,9 +332,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               transitionDuration: Duration(milliseconds: 300),
             ),
           ),
+          // DEPRECATED: use /science?tab=transients. Folded into Science →
+          // Observing Alerts as a tab (§UX consolidation); kept for deep-link
+          // compatibility (notifications, transient alert badge).
           GoRoute(
             path: '/transients',
             name: 'transients',
+            redirect: (context, state) => '/science?tab=transients',
             pageBuilder: (context, state) => const CustomTransitionPage(
               child: TransientsScreen(),
               transitionsBuilder: PageTransitions.slideFadeTransition,

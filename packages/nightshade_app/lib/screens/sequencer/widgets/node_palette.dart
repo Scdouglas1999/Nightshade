@@ -888,6 +888,7 @@ class _PaletteColorLegend extends StatelessWidget {
   static const _entries = <String>[
     'Target',
     'Imaging',
+    'Science',
     'Mount',
     'Camera',
     'Focus',

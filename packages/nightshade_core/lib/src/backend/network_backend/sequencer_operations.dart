@@ -29,6 +29,18 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
       fieldHeight: (response['fieldHeight'] as num).toDouble(),
       solveTimeSecs: (response['solveTimeSecs'] as num).toDouble(),
       error: response['error'] as String?,
+      cd11: 0,
+      cd12: 0,
+      cd21: 0,
+      cd22: 0,
+      sipAOrder: 0,
+      sipBOrder: 0,
+      sipACoeffs: Float64List(0),
+      sipBCoeffs: Float64List(0),
+      sipApOrder: 0,
+      sipBpOrder: 0,
+      sipApCoeffs: Float64List(0),
+      sipBpCoeffs: Float64List(0),
     );
   }
 

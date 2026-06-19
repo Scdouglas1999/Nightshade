@@ -193,7 +193,7 @@ class _TargetConfirmCard extends StatelessWidget {
       return _cardForTarget(running);
     }
     return targetAsync.when(
-      loading: () => _SkeletonCard(colors: colors),
+      loading: () => const _SkeletonCard(),
       error: (e, _) => _NoTargetCard(
         colors: colors,
         title: 'Could not pick a target',
@@ -230,16 +230,13 @@ class _TargetConfirmCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(LucideIcons.radar, size: 14, color: colors.primary),
+              Icon(LucideIcons.radar,
+                  size: NightshadeTokens.iconXs, color: colors.primary),
               const SizedBox(width: NightshadeTokens.spaceSm),
               Text(
                 "TONIGHT'S PICK",
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
-                  fontWeight: FontWeight.w700,
-                  color: colors.primary,
-                  letterSpacing: 1.2,
-                ),
+                style: NightshadeTypography.overline
+                    .copyWith(color: colors.primary),
               ),
             ],
           ),
@@ -261,20 +258,17 @@ class _TargetConfirmCard extends StatelessWidget {
             spacing: NightshadeTokens.spaceSm,
             runSpacing: NightshadeTokens.spaceSm,
             children: [
-              _StatChip(
-                colors: colors,
+              StatusPill(
                 icon: LucideIcons.arrowUpRight,
                 label: 'Peak alt',
                 value: '${peakAlt.toStringAsFixed(0)}°',
               ),
-              _StatChip(
-                colors: colors,
+              StatusPill(
                 icon: LucideIcons.clock,
                 label: 'Hours up',
                 value: '${hoursAbove.toStringAsFixed(1)} h',
               ),
-              _StatChip(
-                colors: colors,
+              StatusPill(
                 icon: LucideIcons.crosshair,
                 label: 'RA / Dec',
                 value: '$ra  $dec',
@@ -289,54 +283,6 @@ class _TargetConfirmCard extends StatelessWidget {
                   .copyWith(color: colors.textSecondary, height: 1.4),
             ),
           ],
-        ],
-      ),
-    );
-  }
-}
-
-class _StatChip extends StatelessWidget {
-  final NightshadeColors colors;
-  final IconData icon;
-  final String label;
-  final String value;
-
-  const _StatChip({
-    required this.colors,
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceMd,
-        vertical: NightshadeTokens.spaceSm,
-      ),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
-        border: Border.all(color: colors.border),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 13, color: colors.textSecondary),
-          const SizedBox(width: NightshadeTokens.spaceSm),
-          Text(
-            '$label ',
-            style: NightshadeTypography.caption
-                .copyWith(color: colors.textSecondary),
-          ),
-          Text(
-            value,
-            style: NightshadeTypography.caption.copyWith(
-              color: colors.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
         ],
       ),
     );
@@ -438,17 +384,21 @@ class _PrimaryAction extends StatelessWidget {
 }
 
 /// The morning payoff: a path to the morning report / session review.
-class _MorningPayoff extends StatelessWidget {
+class _MorningPayoff extends ConsumerWidget {
   final NightshadeColors colors;
   final bool running;
 
   const _MorningPayoff({required this.colors, required this.running});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sessionId = ref.watch(sessionStateProvider).dbSessionId ??
+        ref.watch(allSessionsProvider).valueOrNull?.firstOrNull?.id;
+    if (sessionId == null) return const SizedBox.shrink();
+
     return NightshadeCard(
       variant: CardVariant.subtle,
-      onTap: () => context.go('/session-review'),
+      onTap: () => context.go('/session-review?session=$sessionId'),
       padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
       child: Row(
         children: [
@@ -598,8 +548,7 @@ class _NoTargetCard extends StatelessWidget {
 }
 
 class _SkeletonCard extends StatelessWidget {
-  final NightshadeColors colors;
-  const _SkeletonCard({required this.colors});
+  const _SkeletonCard();
 
   @override
   Widget build(BuildContext context) {
@@ -608,24 +557,18 @@ class _SkeletonCard extends StatelessWidget {
       padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _bar(width: 110, height: 10),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          _bar(width: 180, height: 20),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          _bar(width: double.infinity, height: 14),
+        children: const [
+          SkeletonBox(
+              width: 110, height: 10, borderRadius: NightshadeTokens.radiusSm),
+          SizedBox(height: NightshadeTokens.spaceMd),
+          SkeletonBox(
+              width: 180, height: 20, borderRadius: NightshadeTokens.radiusSm),
+          SizedBox(height: NightshadeTokens.spaceMd),
+          SkeletonBox(
+              width: double.infinity,
+              height: 14,
+              borderRadius: NightshadeTokens.radiusSm),
         ],
-      ),
-    );
-  }
-
-  Widget _bar({required double width, required double height}) {
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
       ),
     );
   }

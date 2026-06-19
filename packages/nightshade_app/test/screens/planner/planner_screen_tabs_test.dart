@@ -99,6 +99,7 @@ int _tabIndex(String label) {
     'Target Queue',
     'This Week',
     'Progress',
+    'Sky',
   ];
   final i = order.indexOf(label);
   if (i < 0) throw ArgumentError('Unknown planner tab label: $label');
@@ -166,6 +167,7 @@ void main() {
           PlannerTab.scheduler,
           PlannerTab.week,
           PlannerTab.progress,
+          PlannerTab.sky,
         ],
       );
     });

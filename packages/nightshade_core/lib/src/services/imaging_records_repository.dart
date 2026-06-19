@@ -232,7 +232,17 @@ class ImagingRecordsRepository {
     required double solvedDec,
     required double solvedRotation,
     required double solvedPixelScale,
+    double? solvedCd1_1,
+    double? solvedCd1_2,
+    double? solvedCd2_1,
+    double? solvedCd2_2,
+    String? solvedSip,
   }) async {
+    final hasCd =
+        solvedCd1_1 != null &&
+        solvedCd1_2 != null &&
+        solvedCd2_1 != null &&
+        solvedCd2_2 != null;
     if (_remote != null) {
       await _remote.updateCapturedImage(id, {
         'isPlateSolved': true,
@@ -240,6 +250,11 @@ class ImagingRecordsRepository {
         'solvedDec': solvedDec,
         'solvedRotation': solvedRotation,
         'solvedPixelScale': solvedPixelScale,
+        if (hasCd) 'solvedCd1_1': solvedCd1_1,
+        if (hasCd) 'solvedCd1_2': solvedCd1_2,
+        if (hasCd) 'solvedCd2_1': solvedCd2_1,
+        if (hasCd) 'solvedCd2_2': solvedCd2_2,
+        if (hasCd) 'solvedSip': solvedSip,
       });
       return;
     }
@@ -249,7 +264,29 @@ class ImagingRecordsRepository {
       solvedDec: solvedDec,
       solvedRotation: solvedRotation,
       solvedPixelScale: solvedPixelScale,
+      solvedCd1_1: solvedCd1_1,
+      solvedCd1_2: solvedCd1_2,
+      solvedCd2_1: solvedCd2_1,
+      solvedCd2_2: solvedCd2_2,
+      solvedSip: solvedSip,
     );
+  }
+
+  /// Read the off-table v51 WCS distortion (CD matrix + SIP JSON) for [id].
+  /// Returns null in remote mode (the appliance owns the authoritative DB)
+  /// or when the row is absent; absent CD/SIP fields mean an isotropic solve.
+  Future<
+    ({
+      double? cd1_1,
+      double? cd1_2,
+      double? cd2_1,
+      double? cd2_2,
+      String? sip,
+    })?
+  >
+  getStoredWcsDistortion(int id) async {
+    if (_remote != null) return null;
+    return _imagesDao!.getStoredWcsDistortion(id);
   }
 
   Future<void> stampProducingNode({
@@ -258,6 +295,7 @@ class ImagingRecordsRepository {
     String? producingRunId,
     String? runtimeGrade,
     double? eccentricity,
+    double? fwhm,
   }) async {
     if (_remote != null) {
       await _remote.updateCapturedImage(imageId, {
@@ -265,6 +303,7 @@ class ImagingRecordsRepository {
         if (producingRunId != null) 'producingRunId': producingRunId,
         if (runtimeGrade != null) 'runtimeGrade': runtimeGrade,
         if (eccentricity != null) 'eccentricity': eccentricity,
+        if (fwhm != null) 'fwhm': fwhm,
       });
       return;
     }
@@ -274,6 +313,7 @@ class ImagingRecordsRepository {
       producingRunId: producingRunId,
       runtimeGrade: runtimeGrade,
       eccentricity: eccentricity,
+      fwhm: fwhm,
     );
   }
 
@@ -500,6 +540,7 @@ ProducingNodeThumbnail _producingThumbnailFromApiJson(
     frameType: image.frameType,
     hfr: image.hfr,
     eccentricity: (json['eccentricity'] as num?)?.toDouble(),
+    fwhm: (json['fwhm'] as num?)?.toDouble(),
     starCount: image.starCount,
     exposureDuration: image.exposureDuration,
     capturedAt: image.capturedAt,

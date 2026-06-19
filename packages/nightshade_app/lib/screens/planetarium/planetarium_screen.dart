@@ -72,14 +72,19 @@ part 'widgets/redesign/planetarium_shell.dart';
   return (dso.name, dso.id);
 }
 
-class PlanetariumScreen extends ConsumerStatefulWidget {
-  const PlanetariumScreen({super.key});
+/// Scaffold-less planetarium body: the full sky-view shell (command bar +
+/// dockable panels).
+///
+/// Hosted both inside Plan Tonight's "Sky" tab and by [PlanetariumScreen] (the
+/// thin wrapper kept for the redirected `/planetarium` standalone route).
+class PlanetariumView extends ConsumerStatefulWidget {
+  const PlanetariumView({super.key});
 
   @override
-  ConsumerState<PlanetariumScreen> createState() => _PlanetariumScreenState();
+  ConsumerState<PlanetariumView> createState() => _PlanetariumScreenState();
 }
 
-class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
+class _PlanetariumScreenState extends ConsumerState<PlanetariumView>
     with SingleTickerProviderStateMixin {
   final _searchController = TextEditingController();
 
@@ -251,6 +256,21 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Thin Scaffold wrapper kept for the redirected standalone `/planetarium`
+/// route. The reusable body lives in [PlanetariumView], also hosted by Plan
+/// Tonight's "Sky" tab.
+class PlanetariumScreen extends StatelessWidget {
+  const PlanetariumScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: NightshadeColors.of(context).background,
+      body: const PlanetariumView(),
     );
   }
 }

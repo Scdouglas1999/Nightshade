@@ -3,107 +3,105 @@ part of '../photometric_calibration_wizard.dart';
 extension _PhotometricWizardHeaderAndSteps
     on _PhotometricCalibrationWizardState {
   Widget _buildHeader(NightshadeColors colors) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: NightshadeDecorations.tintedBadge(
-            colors.primary,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-          ),
-          child: Icon(LucideIcons.sparkles, color: colors.primary, size: 20),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Photometric Calibration Wizard',
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontSize: NightshadeTypography.fontSize17,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Text(
-                'Compute transformation coefficients for absolute photometry',
-                style: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: NightshadeTypography.fontSize12),
-              ),
-            ],
-          ),
-        ),
-        IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: Icon(LucideIcons.x, color: colors.textMuted, size: 18),
-        ),
-      ],
+    return Text(
+      'Compute transformation coefficients for absolute photometry',
+      style: NightshadeTypography.bodySm.copyWith(color: colors.textMuted),
     );
   }
 
   Widget _buildStepIndicator(NightshadeColors colors) {
     const labels = ['Select Frame', 'Match Stars', 'Compute Fit', 'Save'];
-    return Row(
-      children: List.generate(labels.length, (index) {
-        final isActive = index == _step;
-        final isDone = index < _step;
-        return Expanded(
-          child: Row(
-            children: [
-              if (index > 0)
-                Expanded(
-                  child: Container(
-                    height: 2,
-                    color: isDone
-                        ? colors.primary
-                        : colors.border.withValues(alpha: 0.3),
-                  ),
-                ),
-              Container(
-                width: 24,
-                height: 24,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isActive
-                      ? colors.primary
-                      : isDone
-                          ? colors.primary.withValues(alpha: 0.7)
-                          : colors.surfaceAlt,
-                  border: Border.all(
-                    color: isActive || isDone
-                        ? colors.primary
-                        : colors.border.withValues(alpha: 0.4),
-                  ),
-                ),
-                child: Center(
-                  child: isDone
-                      ? Icon(LucideIcons.check,
-                          color: colors.textPrimary, size: 14)
-                      : Text(
-                          '${index + 1}',
-                          style: NightshadeTypography.labelStrongSm.copyWith(
-                            color: isActive
-                                ? colors.textPrimary
-                                : colors.textMuted,
-                          ),
-                        ),
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final showAllLabels = constraints.maxWidth >= 360;
+        final showRail = constraints.maxWidth >= 300;
+        Widget circle(int index) {
+          final isActive = index == _step;
+          final isDone = index < _step;
+          return Container(
+            width: 24,
+            height: 24,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isActive
+                  ? colors.primary
+                  : isDone
+                      ? colors.primary.withValues(alpha: 0.7)
+                      : colors.surfaceAlt,
+              border: Border.all(
+                color: isActive || isDone
+                    ? colors.primary
+                    : colors.border.withValues(alpha: 0.4),
               ),
-              if (index < labels.length - 1)
-                Expanded(
-                  child: Container(
-                    height: 2,
-                    color: isDone
-                        ? colors.primary
-                        : colors.border.withValues(alpha: 0.3),
+            ),
+            child: Center(
+              child: isDone
+                  ? Icon(LucideIcons.check,
+                      color: colors.textPrimary, size: NightshadeTokens.iconXs)
+                  : Text(
+                      '${index + 1}',
+                      style: NightshadeTypography.labelStrongSm.copyWith(
+                        color: isActive
+                            ? colors.textPrimary
+                            : colors.textMuted,
+                      ),
+                    ),
+            ),
+          );
+        }
+
+        Widget connector(bool filled) => Container(
+              height: 2,
+              color: filled
+                  ? colors.primary
+                  : colors.border.withValues(alpha: 0.3),
+            );
+
+        return Column(
+          children: [
+            if (showRail)
+              Row(
+                children: List.generate(labels.length, (index) {
+                  final isDone = index < _step;
+                  return Expanded(
+                    child: Row(
+                      children: [
+                        if (index > 0) Expanded(child: connector(isDone)),
+                        circle(index),
+                        if (index < labels.length - 1)
+                          Expanded(child: connector(isDone)),
+                      ],
+                    ),
+                  );
+                }),
+              )
+            else
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: List.generate(labels.length, circle),
+              ),
+            const SizedBox(height: NightshadeTokens.spaceSm - 2),
+            Row(
+              children: List.generate(labels.length, (index) {
+                final isActive = index == _step;
+                return Expanded(
+                  child: Text(
+                    showAllLabels || isActive ? labels[index] : '',
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: NightshadeTypography.labelSm.copyWith(
+                      color: isActive ? colors.primary : colors.textMuted,
+                      fontWeight:
+                          isActive ? FontWeight.w600 : FontWeight.w400,
+                    ),
                   ),
-                ),
-            ],
-          ),
+                );
+              }),
+            ),
+          ],
         );
-      }),
+      },
     );
   }
 

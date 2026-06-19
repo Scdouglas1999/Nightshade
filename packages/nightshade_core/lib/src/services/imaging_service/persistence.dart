@@ -159,6 +159,23 @@ extension _ImagingServicePersistence on ImagingService {
 
     final imageId = await records.createImage(companion);
 
+    final eccentricity = capturedImage.stats.eccentricity;
+    final fwhm = capturedImage.stats.fwhm;
+    if (eccentricity != null || fwhm != null) {
+      try {
+        await records.stampProducingNode(
+          imageId: imageId,
+          eccentricity: eccentricity,
+          fwhm: fwhm,
+        );
+      } catch (e) {
+        _logger.warning(
+          'Failed to stamp eccentricity for image $imageId ($filePath): $e',
+          source: 'ImagingService',
+        );
+      }
+    }
+
     // Schedule fire-and-forget sidecar generation for ad-hoc
     // captures (the sequencer-driven path goes through
     // `insertSequenceFrame` which schedules its own sidecar). Local-only:

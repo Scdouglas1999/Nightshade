@@ -15,7 +15,7 @@ class _PhotometricTransformsCard extends ConsumerWidget {
 
     return NightshadeCard(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -24,7 +24,7 @@ class _PhotometricTransformsCard extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     'Photometric Transforms',
-                    style: TextStyle(
+                    style: NightshadeTypography.bodyMedium.copyWith(
                       fontWeight: FontWeight.w600,
                       color: colors.textPrimary,
                     ),
@@ -33,15 +33,15 @@ class _PhotometricTransformsCard extends ConsumerWidget {
                 const _ScienceInfoButton(title: 'Photometric Transforms'),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: NightshadeTokens.spaceSm),
             transformsAsync.when(
               data: (transforms) => _buildTransformContent(context, transforms),
               loading: () => SizedBox(
                 height: 60,
                 child: Center(
                   child: SizedBox(
-                    width: 20,
-                    height: 20,
+                    width: NightshadeTokens.iconMd,
+                    height: NightshadeTokens.iconMd,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
                       color: colors.primary,
@@ -51,12 +51,12 @@ class _PhotometricTransformsCard extends ConsumerWidget {
               ),
               error: (error, _) => Text(
                 'Failed to load transforms: $error',
-                style: TextStyle(
-                    color: colors.error,
-                    fontSize: NightshadeTypography.fontSize12),
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.error,
+                ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: NightshadeTokens.spaceMd),
             SizedBox(
               width: double.infinity,
               child: NightshadeButton(
@@ -76,13 +76,13 @@ class _PhotometricTransformsCard extends ConsumerWidget {
       BuildContext context, List<PhotometricTransformRow> transforms) {
     if (transforms.isEmpty) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceSm),
         child: Text(
           'No transform coefficients computed yet. Use the Calibrate button '
           'to run the photometric calibration wizard on a standard star field.',
-          style: TextStyle(
-              color: colors.textMuted,
-              fontSize: NightshadeTypography.fontSize12),
+          style: NightshadeTypography.caption.copyWith(
+            color: colors.textMuted,
+          ),
         ),
       );
     }
@@ -92,7 +92,7 @@ class _PhotometricTransformsCard extends ConsumerWidget {
       children: [
         for (final t in transforms) ...[
           _TransformRow(colors: colors, transform: t),
-          if (t != transforms.last) const SizedBox(height: 6),
+          if (t != transforms.last) const SizedBox(height: NightshadeTokens.spaceXs + 2),
         ],
       ],
     );
@@ -127,7 +127,7 @@ class _TransformRow extends StatelessWidget {
             : '${age.inDays} days ago';
 
     return Container(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
       decoration: BoxDecoration(
         color: colors.surface.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
@@ -139,11 +139,13 @@ class _TransformRow extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: NightshadeTokens.spaceXs + 2,
+                  vertical: 2,
+                ),
                 decoration: NightshadeDecorations.statusChip(
                   colors.primary,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusInline4),
+                  borderRadius: NightshadeTokens.borderRadiusSm,
                   bordered: false,
                 ),
                 child: Text(
@@ -153,13 +155,15 @@ class _TransformRow extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: NightshadeTokens.spaceSm),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: NightshadeTokens.spaceXs + 2,
+                  vertical: 2,
+                ),
                 decoration: NightshadeDecorations.statusChip(
                   qualityColor,
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusInline4),
+                  borderRadius: NightshadeTokens.borderRadiusSm,
                   bordered: false,
                 ),
                 child: Text(
@@ -175,12 +179,13 @@ class _TransformRow extends StatelessWidget {
               Text(
                 ageLabel,
                 style: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: NightshadeTypography.fontSize10),
+                  color: colors.textMuted,
+                  fontSize: NightshadeTypography.fontSize10,
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: NightshadeTokens.spaceXs + 2),
           Row(
             children: [
               _CoefficientChip(
@@ -188,19 +193,19 @@ class _TransformRow extends StatelessWidget {
                 label: 'ZP',
                 value: transform.zeroPoint.toStringAsFixed(3),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: NightshadeTokens.spaceXs + 2),
               _CoefficientChip(
                 colors: colors,
                 label: 'k',
                 value: transform.extinctionCoefficient.toStringAsFixed(3),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: NightshadeTokens.spaceXs + 2),
               _CoefficientChip(
                 colors: colors,
                 label: 'T',
                 value: transform.colorTerm.toStringAsFixed(3),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: NightshadeTokens.spaceXs + 2),
               _CoefficientChip(
                 colors: colors,
                 label: 'RMS',
@@ -208,13 +213,14 @@ class _TransformRow extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: NightshadeTokens.spaceXs),
           Text(
             '${transform.matchedStarCount} stars matched  |  '
             'Catalog: ${transform.catalogSource}',
             style: TextStyle(
-                color: colors.textMuted,
-                fontSize: NightshadeTypography.fontSize10),
+              color: colors.textMuted,
+              fontSize: NightshadeTypography.fontSize10,
+            ),
           ),
         ],
       ),
@@ -268,161 +274,6 @@ class _CoefficientChip extends StatelessWidget {
               color: colors.textPrimary,
             ),
             overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// First-run welcome strip that hand-walks new users through the science
-/// differentiators (live photometric calibration, transparency monitoring,
-/// the image grader, the markdown report, and FITS keyword writeback) the
-/// first time they land on the Science tab.
-///
-/// Dismissal is persisted via `dismissedTourPromptsProvider`, so power users
-/// only ever see this card once across all launches of the app. We keep the
-/// surface intentionally compact — four bullet rows plus a "Got it" button —
-/// to avoid masking the live data below.
-class _ScienceWelcomeCard extends ConsumerWidget {
-  static const String _screenId = 'science_welcome_v1';
-
-  const _ScienceWelcomeCard();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final dismissed = ref.watch(dismissedTourPromptsProvider);
-    if (dismissed.contains(_screenId)) {
-      return const SizedBox.shrink();
-    }
-    final colors = NightshadeColors.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
-        decoration: NightshadeDecorations.emphasisSurface(
-          colors.primary,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(LucideIcons.sparkles, size: 16, color: colors.primary),
-                const SizedBox(width: 8),
-                Text(
-                  'Welcome to Nightshade Science',
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontWeight: FontWeight.w700,
-                    fontSize: NightshadeTypography.fontSize13,
-                  ),
-                ),
-                const Spacer(),
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints:
-                      const BoxConstraints(minWidth: 28, minHeight: 28),
-                  icon: Icon(LucideIcons.x,
-                      size: 14, color: colors.textSecondary),
-                  tooltip: 'Dismiss',
-                  onPressed: () => ref
-                      .read(dismissedTourPromptsProvider.notifier)
-                      .dismissPrompt(_screenId),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            _bullet(
-              colors,
-              LucideIcons.gauge,
-              'Live photometric calibration:',
-              'every plate-solved frame is matched to Gaia DR3, so you get '
-                  'a zero point, limiting magnitude, and atmospheric '
-                  'transparency in seconds — no external pipeline needed.',
-            ),
-            _bullet(
-              colors,
-              LucideIcons.sliders,
-              'Image grader:',
-              'set HFR / FWHM / star-count / RMS thresholds and reject sub-par '
-                  'frames in one click. Rejections persist back to the '
-                  'database so stacking tools see them.',
-            ),
-            _bullet(
-              colors,
-              LucideIcons.fileText,
-              'Export report:',
-              'one tap produces a markdown science report — session '
-                  'summary, photometry snapshot, transparency, top issues — '
-                  'ready to drop into a logbook.',
-            ),
-            _bullet(
-              colors,
-              LucideIcons.archive,
-              'FITS keyword writeback:',
-              'MAGZP, TRANSPAR, and friends are stamped straight into your '
-                  'FITS files so PixInsight, AstroPixelProcessor, and Siril '
-                  'can read Nightshade\'s measurements directly.',
-            ),
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: () => ref
-                    .read(dismissedTourPromptsProvider.notifier)
-                    .dismissPrompt(_screenId),
-                icon: const Icon(LucideIcons.check, size: 13),
-                label: const Text('Got it',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        fontWeight: FontWeight.w600)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _bullet(
-    NightshadeColors colors,
-    IconData icon,
-    String lead,
-    String body,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Icon(icon, size: 13, color: colors.textSecondary),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: RichText(
-              text: TextSpan(
-                style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize11_5,
-                  height: 1.35,
-                ),
-                children: [
-                  TextSpan(
-                    text: '$lead ',
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  TextSpan(text: body),
-                ],
-              ),
-            ),
           ),
         ],
       ),

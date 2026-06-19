@@ -79,6 +79,18 @@ class PlateSolveResult {
   final double fieldHeight;
   final double solveTimeSecs;
   final String? error;
+  final double cd11;
+  final double cd12;
+  final double cd21;
+  final double cd22;
+  final int sipAOrder;
+  final int sipBOrder;
+  final Float64List sipACoeffs;
+  final Float64List sipBCoeffs;
+  final int sipApOrder;
+  final int sipBpOrder;
+  final Float64List sipApCoeffs;
+  final Float64List sipBpCoeffs;
 
   const PlateSolveResult({
     required this.success,
@@ -90,6 +102,18 @@ class PlateSolveResult {
     required this.fieldHeight,
     required this.solveTimeSecs,
     this.error,
+    required this.cd11,
+    required this.cd12,
+    required this.cd21,
+    required this.cd22,
+    required this.sipAOrder,
+    required this.sipBOrder,
+    required this.sipACoeffs,
+    required this.sipBCoeffs,
+    required this.sipApOrder,
+    required this.sipBpOrder,
+    required this.sipApCoeffs,
+    required this.sipBpCoeffs,
   });
 
   @override
@@ -102,7 +126,19 @@ class PlateSolveResult {
       fieldWidth.hashCode ^
       fieldHeight.hashCode ^
       solveTimeSecs.hashCode ^
-      error.hashCode;
+      error.hashCode ^
+      cd11.hashCode ^
+      cd12.hashCode ^
+      cd21.hashCode ^
+      cd22.hashCode ^
+      sipAOrder.hashCode ^
+      sipBOrder.hashCode ^
+      sipACoeffs.hashCode ^
+      sipBCoeffs.hashCode ^
+      sipApOrder.hashCode ^
+      sipBpOrder.hashCode ^
+      sipApCoeffs.hashCode ^
+      sipBpCoeffs.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -117,7 +153,19 @@ class PlateSolveResult {
           fieldWidth == other.fieldWidth &&
           fieldHeight == other.fieldHeight &&
           solveTimeSecs == other.solveTimeSecs &&
-          error == other.error;
+          error == other.error &&
+          cd11 == other.cd11 &&
+          cd12 == other.cd12 &&
+          cd21 == other.cd21 &&
+          cd22 == other.cd22 &&
+          sipAOrder == other.sipAOrder &&
+          sipBOrder == other.sipBOrder &&
+          sipACoeffs == other.sipACoeffs &&
+          sipBCoeffs == other.sipBCoeffs &&
+          sipApOrder == other.sipApOrder &&
+          sipBpOrder == other.sipBpOrder &&
+          sipApCoeffs == other.sipApCoeffs &&
+          sipBpCoeffs == other.sipBpCoeffs;
 }
 
 /// Persisted plate-solver UX configuration. Mirrors `storage::PlateSolverPreference`

@@ -151,6 +151,10 @@ const Map<String, String> narratorExplainers = <String, String>{
 /// no button (the detail sheet omits it rather than hack a target).
 const Map<String, NarratorAction> narratorActions = <String, NarratorAction>{
   // Discovery → the photometric / period evidence lives on the science tab.
+  'discovery.moving_object': NarratorAction(
+    route: '/transients',
+    label: 'Observing alerts',
+  ),
   'discovery.lightcurve_event': NarratorAction(
     route: '/analytics?tab=science',
     label: 'Open science analytics',

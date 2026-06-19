@@ -525,6 +525,12 @@ While imaging, overlay framing from Framing Assistant:
 - Helps verify you're on target
 - Update after plate solving
 
+### Science overlays & HUD
+
+A compact Science HUD sits on the Imaging screen and is **ungated** — it appears without enabling any preference. It mirrors the science pipeline status (plate-solve, calibration, transparency) in real time and surfaces one-tap offers (moving-object detection once you have a few light frames, narrowband ratios once Ha/OIII/SII are present). Tapping the HUD opens the full Science destination.
+
+Each captured frame also carries a small **science chip** in the thumbnail strip showing its plate-solve state and photometric zero point; tapping it jumps to the Science destination. The advanced overlay *layers* (PSF map, residual vectors, tile maps) live behind **Show advanced overlay controls** in Settings → Science, but the HUD and per-frame chip do not.
+
 ### Drift Alignment Tool
 
 For polar alignment:

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -82,6 +83,19 @@ class CockpitNarrator extends ConsumerWidget {
               error: (_, __) => _ErrorRow(colors: colors),
             ),
           ),
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              NightshadeButton(
+                label: 'View in Science',
+                icon: LucideIcons.arrowRight,
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.small,
+                onPressed: () => context.go('/science'),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -105,8 +119,7 @@ class _ErrorRow extends StatelessWidget {
         Expanded(
           child: Text(
             "The Narrator's feed is unavailable right now.",
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12_5,
+            style: NightshadeTypography.caption.copyWith(
               color: colors.textSecondary,
             ),
           ),

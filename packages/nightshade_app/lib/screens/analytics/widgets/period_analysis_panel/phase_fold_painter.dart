@@ -56,7 +56,7 @@ class _PhaseFoldCustomPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (points.isEmpty) return;
 
-    const leftMargin = 50.0;
+    const leftMargin = 58.0;
     const bottomMargin = 28.0;
     const topMargin = 8.0;
     const rightMargin = 12.0;
@@ -139,6 +139,16 @@ class _PhaseFoldCustomPainter extends CustomPainter {
       ),
     );
 
+    final yLabelPainter = TextPainter(
+      text: TextSpan(text: 'Magnitude (brighter up)', style: textStyle),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    canvas.save();
+    canvas.translate(10, plotRect.top + plotHeight / 2 + yLabelPainter.width / 2);
+    canvas.rotate(-math.pi / 2);
+    yLabelPainter.paint(canvas, Offset.zero);
+    canvas.restore();
+
     // Draw error bars and data points.
     final dotPaint = Paint()
       ..color = plotColor
@@ -147,6 +157,8 @@ class _PhaseFoldCustomPainter extends CustomPainter {
       ..color = plotColor.withValues(alpha: 0.4)
       ..strokeWidth = 0.8;
 
+    canvas.save();
+    canvas.clipRect(plotRect);
     for (final point in points) {
       final x = plotRect.left + point.phase * plotWidth;
       // Inverted Y: lower magnitude = higher on screen.
@@ -161,6 +173,7 @@ class _PhaseFoldCustomPainter extends CustomPainter {
       // Data point.
       canvas.drawCircle(Offset(x, y), 2.5, dotPaint);
     }
+    canvas.restore();
   }
 
   @override

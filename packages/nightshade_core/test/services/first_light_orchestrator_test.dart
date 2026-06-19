@@ -124,6 +124,18 @@ PlateSolveResult _makeSolve({bool success = true, String? error}) {
     fieldHeight: 0.9,
     solveTimeSecs: 3.2,
     error: error,
+    cd11: 0,
+    cd12: 0,
+    cd21: 0,
+    cd22: 0,
+    sipAOrder: 0,
+    sipBOrder: 0,
+    sipACoeffs: Float64List(0),
+    sipBCoeffs: Float64List(0),
+    sipApOrder: 0,
+    sipBpOrder: 0,
+    sipApCoeffs: Float64List(0),
+    sipBpCoeffs: Float64List(0),
   );
 }
 

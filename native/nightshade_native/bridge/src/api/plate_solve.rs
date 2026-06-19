@@ -40,6 +40,18 @@ pub struct PlateSolveResult {
     pub field_height: f64, // degrees
     pub solve_time_secs: f64,
     pub error: Option<String>,
+    pub cd1_1: f64, // raw CD matrix, deg/pixel
+    pub cd1_2: f64,
+    pub cd2_1: f64,
+    pub cd2_2: f64,
+    pub sip_a_order: u32, // SIP forward distortion, 0 when absent
+    pub sip_b_order: u32,
+    pub sip_a_coeffs: Vec<f64>, // row-major (i, j): index i * (order + 1) + j
+    pub sip_b_coeffs: Vec<f64>,
+    pub sip_ap_order: u32, // SIP inverse distortion, 0 when absent
+    pub sip_bp_order: u32,
+    pub sip_ap_coeffs: Vec<f64>,
+    pub sip_bp_coeffs: Vec<f64>,
 }
 
 /// Check if a plate solver is available
@@ -125,6 +137,18 @@ pub async fn api_plate_solve_blind(file_path: String) -> Result<PlateSolveResult
         field_height: result.field_height,
         solve_time_secs: result.solve_time_secs,
         error: result.error,
+        cd1_1: result.cd1_1,
+        cd1_2: result.cd1_2,
+        cd2_1: result.cd2_1,
+        cd2_2: result.cd2_2,
+        sip_a_order: result.a_order,
+        sip_b_order: result.b_order,
+        sip_a_coeffs: result.a_coeffs,
+        sip_b_coeffs: result.b_coeffs,
+        sip_ap_order: result.ap_order,
+        sip_bp_order: result.bp_order,
+        sip_ap_coeffs: result.ap_coeffs,
+        sip_bp_coeffs: result.bp_coeffs,
     })
 }
 
@@ -169,6 +193,18 @@ pub async fn api_plate_solve_near(
         field_height: result.field_height,
         solve_time_secs: result.solve_time_secs,
         error: result.error,
+        cd1_1: result.cd1_1,
+        cd1_2: result.cd1_2,
+        cd2_1: result.cd2_1,
+        cd2_2: result.cd2_2,
+        sip_a_order: result.a_order,
+        sip_b_order: result.b_order,
+        sip_a_coeffs: result.a_coeffs,
+        sip_b_coeffs: result.b_coeffs,
+        sip_ap_order: result.ap_order,
+        sip_bp_order: result.bp_order,
+        sip_ap_coeffs: result.ap_coeffs,
+        sip_bp_coeffs: result.bp_coeffs,
     })
 }
 

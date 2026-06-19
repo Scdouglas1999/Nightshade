@@ -3,10 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_planetarium/nightshade_planetarium.dart';
+import 'package:nightshade_planetarium/nightshade_planetarium.dart'
+    hide FramingView;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../framing/altitude_chart.dart';
+import '../framing/framing_screen.dart';
+import '../planetarium/planetarium_screen.dart';
 import '../../localization/nightshade_localizations.dart';
 import '../../utils/plan_tonight_sequencer_helper.dart';
 import 'widgets/progress_tab_content.dart';
@@ -28,6 +31,7 @@ part 'planner_screen_parts/_candidate_list.dart';
 part 'planner_screen_parts/_filtered_empty_state.dart';
 part 'planner_screen_parts/_primary_target_card.dart';
 part 'planner_screen_parts/_search_results.dart';
+part 'planner_screen_parts/_sky_tab.dart';
 
 /// Identifies a Plan Tonight sub-tab for deep-linking via `?tab=` query
 /// param. Order here matches the rendered tab order; Recommendation is the
@@ -43,7 +47,9 @@ part 'planner_screen_parts/_search_results.dart';
 ///   * [week] — sits next to the scheduler because both are *execution-timing
 ///     intent*: the seven-night forecast answers "which upcoming nights to run
 ///     the queue on".
-///   * [progress] — the retrospective roll-up, naturally last.
+///   * [progress] — the retrospective roll-up.
+///   * [sky] — the framing/planetarium workspace absorbed from the standalone
+///     `/framing` and `/planetarium` screens; reached via `?tab=sky`.
 ///
 /// The rendered `tabs` list and the `IndexedStack` children in
 /// [_PlannerScreenState.build] are kept in lockstep with this order because the
@@ -55,6 +61,7 @@ enum PlannerTab {
   scheduler,
   week,
   progress,
+  sky,
 }
 
 /// Maps the router `?tab=` query value to a [PlannerTab]. Returns null for
@@ -84,6 +91,10 @@ PlannerTab? plannerTabFromQuery(String? value) {
     case 'progress':
     case 'history':
       return PlannerTab.progress;
+    case 'sky':
+    case 'framing':
+    case 'planetarium':
+      return PlannerTab.sky;
   }
   return null;
 }
@@ -176,6 +187,21 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
   }
 
   @override
+  void didUpdateWidget(PlannerScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // go_router keys pages by path, not query, so navigating to a different
+    // `?tab=` while the planner is already the active host reuses this State
+    // without re-running initState. Re-resolve so deep-links and the in-planner
+    // "Send to framing" / scheduler handoffs select the target tab.
+    if (widget.initialTabQuery != oldWidget.initialTabQuery) {
+      final resolved = plannerTabFromQuery(widget.initialTabQuery);
+      if (resolved != null && resolved.index != _currentSubTab) {
+        setState(() => _currentSubTab = resolved.index);
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
 
@@ -220,6 +246,13 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
         AdaptiveTab(
           label: l10n.text('plannerTabProgress'),
           icon: LucideIcons.trendingUp,
+        ),
+      ),
+      (
+        PlannerTab.sky,
+        AdaptiveTab(
+          label: l10n.text('plannerTabSky'),
+          icon: LucideIcons.globe,
         ),
       ),
     ];
@@ -290,6 +323,7 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
                   SchedulerTabContent(),
                   WeekForecastStrip(),
                   ProgressTabContent(),
+                  _SkyTab(),
                 ],
               ),
             ),

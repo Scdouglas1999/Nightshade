@@ -36,6 +36,32 @@ class SolvedWcs {
   final int imageWidth;
   final int imageHeight;
 
+  /// Full anisotropic CD matrix (deg/pixel) as read from the WCS. When all
+  /// four are non-null the projection drives the (xi, eta) <-> pixel linear
+  /// mapping from the matrix directly instead of the isotropic
+  /// scale-plus-rotation collapse. Sign convention matches the native
+  /// `WcsInfo::from_plate_solve` (`cd1_1 = -scale*cos`, `cd1_2 = scale*sin`,
+  /// `cd2_1 = scale*sin`, `cd2_2 = scale*cos`) so the matrix is consistent
+  /// with the cdelt/crota reconstruction in `_resolveMasterWcs` and
+  /// `_overlayFromSolution`. Null -> behaves exactly as the isotropic path.
+  final double? cd1_1;
+  final double? cd1_2;
+  final double? cd2_1;
+  final double? cd2_2;
+
+  /// SIP forward distortion (`A_ORDER`/`B_ORDER` and their coefficient
+  /// lists, row-major `(i, j)` at index `i * (order + 1) + j`). Empty/zero ->
+  /// no forward distortion. AP/BP are the SIP inverse; when absent the
+  /// projection falls back to an iterative Newton correction.
+  final int aOrder;
+  final int bOrder;
+  final List<double> aCoeffs;
+  final List<double> bCoeffs;
+  final int apOrder;
+  final int bpOrder;
+  final List<double> apCoeffs;
+  final List<double> bpCoeffs;
+
   const SolvedWcs({
     required this.raHours,
     required this.decDegrees,
@@ -43,7 +69,39 @@ class SolvedWcs {
     required this.pixelScaleArcsec,
     required this.imageWidth,
     required this.imageHeight,
+    this.cd1_1,
+    this.cd1_2,
+    this.cd2_1,
+    this.cd2_2,
+    this.aOrder = 0,
+    this.bOrder = 0,
+    this.aCoeffs = const [],
+    this.bCoeffs = const [],
+    this.apOrder = 0,
+    this.bpOrder = 0,
+    this.apCoeffs = const [],
+    this.bpCoeffs = const [],
   });
+
+  /// True iff a full, finite, invertible CD matrix is present.
+  bool get hasCdMatrix =>
+      cd1_1 != null &&
+      cd1_2 != null &&
+      cd2_1 != null &&
+      cd2_2 != null &&
+      cd1_1!.isFinite &&
+      cd1_2!.isFinite &&
+      cd2_1!.isFinite &&
+      cd2_2!.isFinite &&
+      (cd1_1! * cd2_2! - cd1_2! * cd2_1!).abs() > 1e-30;
+
+  /// True iff forward SIP coefficients are present.
+  bool get hasForwardSip =>
+      aOrder > 0 && bOrder > 0 && aCoeffs.isNotEmpty && bCoeffs.isNotEmpty;
+
+  /// True iff inverse SIP coefficients are present.
+  bool get hasInverseSip =>
+      apOrder > 0 && bpOrder > 0 && apCoeffs.isNotEmpty && bpCoeffs.isNotEmpty;
 
   /// True iff every WCS field is finite and the plate scale is positive.
   /// The overlay must refuse to project against a zero pixel scale —
@@ -154,6 +212,13 @@ class GnomonicProjection {
   final double _cosRot;
   final double _pixelScaleDegrees;
 
+  /// Inverse of the CD matrix (deg/pixel -> pixel/deg), cached when [wcs]
+  /// carries a full matrix. Null falls back to the isotropic scale+rotation.
+  final double? _invCd1_1;
+  final double? _invCd1_2;
+  final double? _invCd2_1;
+  final double? _invCd2_2;
+
   GnomonicProjection(this.wcs)
     : assert(wcs.isValid, 'GnomonicProjection requires a valid SolvedWcs'),
       _ra0Rad = wcs.raHours * 15.0 * math.pi / 180.0,
@@ -162,7 +227,14 @@ class GnomonicProjection {
       _cosDec0 = math.cos(wcs.decDegrees * math.pi / 180.0),
       _sinRot = math.sin(wcs.rotationDeg * math.pi / 180.0),
       _cosRot = math.cos(wcs.rotationDeg * math.pi / 180.0),
-      _pixelScaleDegrees = wcs.pixelScaleArcsec / 3600.0;
+      _pixelScaleDegrees = wcs.pixelScaleArcsec / 3600.0,
+      _invCd1_1 = wcs.hasCdMatrix ? wcs.cd2_2! / _cdDet(wcs) : null,
+      _invCd1_2 = wcs.hasCdMatrix ? -wcs.cd1_2! / _cdDet(wcs) : null,
+      _invCd2_1 = wcs.hasCdMatrix ? -wcs.cd2_1! / _cdDet(wcs) : null,
+      _invCd2_2 = wcs.hasCdMatrix ? wcs.cd1_1! / _cdDet(wcs) : null;
+
+  static double _cdDet(SolvedWcs w) =>
+      w.cd1_1! * w.cd2_2! - w.cd1_2! * w.cd2_1!;
 
   /// Project (RA, Dec) to image pixels using the TAN (gnomonic) projection.
   ///
@@ -205,19 +277,35 @@ class GnomonicProjection {
     final xiDeg = xi * 180.0 / math.pi;
     final etaDeg = eta * 180.0 / math.pi;
 
-    // Apply rotation. With rotationDeg = 0 we want +eta (north on the sky)
-    // to come out the top of the image (pixel Y up = pixel -Y on canvas)
-    // and +xi (east) to come out the left (pixel -X). This matches the
-    // existing _skyToPixel helper in live_preview_area.dart (used for
-    // moving-object tracks) so behavior is consistent across overlays.
-    final xRot = xiDeg * _cosRot - etaDeg * _sinRot;
-    final yRot = xiDeg * _sinRot + etaDeg * _cosRot;
+    double x;
+    double y;
+    if (_invCd1_1 != null) {
+      // (intermediate-pixel) = CD^-1 * (xi, eta). Undo SIP forward (AP/BP, or
+      // Newton when the inverse coeffs are absent) before mapping to canvas.
+      var a = _invCd1_1 * xiDeg + _invCd1_2! * etaDeg;
+      var b = _invCd2_1! * xiDeg + _invCd2_2! * etaDeg;
+      if (wcs.hasForwardSip) {
+        final undistorted = _undistortIntermediate(a, b);
+        a = undistorted.$1;
+        b = undistorted.$2;
+      }
+      x = wcs.imageWidth / 2.0 - a;
+      y = wcs.imageHeight / 2.0 - b;
+    } else {
+      // Apply rotation. With rotationDeg = 0 we want +eta (north on the sky)
+      // to come out the top of the image (pixel Y up = pixel -Y on canvas)
+      // and +xi (east) to come out the left (pixel -X). This matches the
+      // existing _skyToPixel helper in live_preview_area.dart (used for
+      // moving-object tracks) so behavior is consistent across overlays.
+      final xRot = xiDeg * _cosRot - etaDeg * _sinRot;
+      final yRot = xiDeg * _sinRot + etaDeg * _cosRot;
 
-    final pxFromCenter = xRot / _pixelScaleDegrees;
-    final pyFromCenter = yRot / _pixelScaleDegrees;
+      final pxFromCenter = xRot / _pixelScaleDegrees;
+      final pyFromCenter = yRot / _pixelScaleDegrees;
 
-    final x = wcs.imageWidth / 2.0 + pxFromCenter;
-    final y = wcs.imageHeight / 2.0 - pyFromCenter;
+      x = wcs.imageWidth / 2.0 + pxFromCenter;
+      y = wcs.imageHeight / 2.0 - pyFromCenter;
+    }
 
     final onImage =
         x >= 0 && x <= wcs.imageWidth && y >= 0 && y <= wcs.imageHeight;
@@ -231,15 +319,32 @@ class GnomonicProjection {
     required double x,
     required double y,
   }) {
-    final pxFromCenter = x - wcs.imageWidth / 2.0;
-    final pyFromCenter = wcs.imageHeight / 2.0 - y;
+    double xiDeg;
+    double etaDeg;
+    if (_invCd1_1 != null) {
+      // Canvas -> intermediate-pixel (the negated CD^-1 frame), apply SIP
+      // forward (A/B) to that frame, then map through the CD matrix.
+      var a = wcs.imageWidth / 2.0 - x;
+      var b = wcs.imageHeight / 2.0 - y;
+      if (wcs.hasForwardSip) {
+        final fa = _sipPoly(wcs.aOrder, wcs.aCoeffs, a, b);
+        final fb = _sipPoly(wcs.bOrder, wcs.bCoeffs, a, b);
+        a += fa;
+        b += fb;
+      }
+      xiDeg = wcs.cd1_1! * a + wcs.cd1_2! * b;
+      etaDeg = wcs.cd2_1! * a + wcs.cd2_2! * b;
+    } else {
+      final pxFromCenter = x - wcs.imageWidth / 2.0;
+      final pyFromCenter = wcs.imageHeight / 2.0 - y;
 
-    final xRot = pxFromCenter * _pixelScaleDegrees;
-    final yRot = pyFromCenter * _pixelScaleDegrees;
+      final xRot = pxFromCenter * _pixelScaleDegrees;
+      final yRot = pyFromCenter * _pixelScaleDegrees;
 
-    // Inverse rotation.
-    final xiDeg = xRot * _cosRot + yRot * _sinRot;
-    final etaDeg = -xRot * _sinRot + yRot * _cosRot;
+      // Inverse rotation.
+      xiDeg = xRot * _cosRot + yRot * _sinRot;
+      etaDeg = -xRot * _sinRot + yRot * _cosRot;
+    }
 
     final xi = xiDeg * math.pi / 180.0;
     final eta = etaDeg * math.pi / 180.0;
@@ -373,5 +478,42 @@ class GnomonicProjection {
     var v = raDeg % 360.0;
     if (v < 0) v += 360.0;
     return v;
+  }
+
+  /// Evaluate a row-major SIP polynomial sum(coeff[i,j] * u^i * v^j) with the
+  /// coefficient at index `i * (order + 1) + j`, matching the native packing.
+  static double _sipPoly(int order, List<double> coeffs, double u, double v) {
+    final stride = order + 1;
+    var acc = 0.0;
+    for (var i = 0; i <= order; i++) {
+      for (var j = 0; j + i <= order; j++) {
+        final c = coeffs[i * stride + j];
+        if (c == 0.0) continue;
+        acc += c * math.pow(u, i) * math.pow(v, j);
+      }
+    }
+    return acc;
+  }
+
+  /// Recover the undistorted intermediate-pixel coordinate from a distorted
+  /// one. Uses the AP/BP inverse SIP when present; otherwise a few Newton
+  /// iterations against the forward A/B polynomials. Both branches operate in
+  /// the CD-companion frame so they invert [_sipPoly] applied in pixelToWorld.
+  (double, double) _undistortIntermediate(double a, double b) {
+    if (wcs.hasInverseSip) {
+      return (
+        a + _sipPoly(wcs.apOrder, wcs.apCoeffs, a, b),
+        b + _sipPoly(wcs.bpOrder, wcs.bpCoeffs, a, b),
+      );
+    }
+    var u = a;
+    var w = b;
+    for (var iter = 0; iter < 8; iter++) {
+      final fu = u + _sipPoly(wcs.aOrder, wcs.aCoeffs, u, w);
+      final fw = w + _sipPoly(wcs.bOrder, wcs.bCoeffs, u, w);
+      u -= fu - a;
+      w -= fw - b;
+    }
+    return (u, w);
   }
 }

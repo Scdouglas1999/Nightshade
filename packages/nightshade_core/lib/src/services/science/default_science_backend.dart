@@ -68,6 +68,18 @@ class DefaultScienceBackend implements ScienceBackend {
         fieldWidthDegrees: result.fieldWidth,
         fieldHeightDegrees: result.fieldHeight,
         solverId: _resolveSolverId(),
+        cd1_1: result.cd11,
+        cd1_2: result.cd12,
+        cd2_1: result.cd21,
+        cd2_2: result.cd22,
+        aOrder: result.sipAOrder,
+        bOrder: result.sipBOrder,
+        aCoeffs: result.sipACoeffs.toList(),
+        bCoeffs: result.sipBCoeffs.toList(),
+        apOrder: result.sipApOrder,
+        bpOrder: result.sipBpOrder,
+        apCoeffs: result.sipApCoeffs.toList(),
+        bpCoeffs: result.sipBpCoeffs.toList(),
       );
     } catch (error, stack) {
       _logger.warning(

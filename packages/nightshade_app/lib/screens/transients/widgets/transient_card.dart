@@ -17,6 +17,7 @@ class TransientCard extends StatefulWidget {
   final TransientAlertState? state;
   final VoidCallback onQueue;
   final VoidCallback onViewInFraming;
+  final VoidCallback onOpenScience;
   final VoidCallback onDismiss;
 
   const TransientCard({
@@ -25,6 +26,7 @@ class TransientCard extends StatefulWidget {
     required this.state,
     required this.onQueue,
     required this.onViewInFraming,
+    required this.onOpenScience,
     required this.onDismiss,
   });
 
@@ -40,55 +42,24 @@ class _TransientCardState extends State<TransientCard> {
     final colors = NightshadeColors.of(context);
     final effectiveState = widget.state ?? TransientAlertState.newAlert;
 
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _isExpanded = !_isExpanded;
-        });
-      },
-      child: AnimatedContainer(
-        duration: NightshadeTokens.durationNormal,
-        curve: NightshadeTokens.curveStandard,
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: NightshadeTokens.borderRadiusLg,
-          border: Border.all(
-            color: _getBorderColor(colors, effectiveState),
-            width: effectiveState == TransientAlertState.newAlert ? 1.5 : 1.0,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Main card content
-            Padding(
-              padding: NightshadeTokens.cardPadding,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header row
-                  _buildHeader(colors, effectiveState),
-
-                  const SizedBox(height: NightshadeTokens.spaceMd),
-
-                  // Coordinates and magnitude
-                  _buildInfoRow(colors),
-
-                  // Expanded details
-                  if (_isExpanded) ...[
-                    const SizedBox(height: NightshadeTokens.spaceMd),
-                    _buildExpandedDetails(colors),
-                  ],
-
-                  const SizedBox(height: NightshadeTokens.spaceMd),
-
-                  // Actions row
-                  _buildActionsRow(colors, effectiveState),
-                ],
-              ),
-            ),
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      borderRadius: NightshadeTokens.radiusLg,
+      padding: NightshadeTokens.cardPadding,
+      onTap: () => setState(() => _isExpanded = !_isExpanded),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildHeader(colors, effectiveState),
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          _buildInfoRow(colors),
+          if (_isExpanded) ...[
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            _buildExpandedDetails(colors),
           ],
-        ),
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          _buildActionsRow(colors, effectiveState),
+        ],
       ),
     );
   }
@@ -128,18 +99,14 @@ class _TransientCardState extends State<TransientCard> {
                 children: [
                   Text(
                     _getTypeLabel(),
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      color: colors.textSecondary,
-                    ),
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textSecondary),
                   ),
                   if (widget.alert.classification != null) ...[
                     Text(
                       ' - ${widget.alert.classification}',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        color: colors.textMuted,
-                      ),
+                      style: NightshadeTypography.caption
+                          .copyWith(color: colors.textMuted),
                     ),
                   ],
                 ],
@@ -171,11 +138,8 @@ class _TransientCardState extends State<TransientCard> {
                 child: Text(
                   '${CoordinateFormat.ra(widget.alert.raHours, seconds: SecondsPrecision.integerFloored)}  '
                   '${CoordinateFormat.dec(widget.alert.decDegrees, seconds: SecondsPrecision.integerFloored)}',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    fontFamily: 'monospace',
-                    color: colors.textSecondary,
-                  ),
+                  style: NightshadeTypography.monoSm
+                      .copyWith(color: colors.textSecondary),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -256,81 +220,10 @@ class _TransientCardState extends State<TransientCard> {
     final isDismissed = effectiveState == TransientAlertState.dismissed;
     final isObserved = effectiveState == TransientAlertState.observed;
 
-    return Row(
+    final primaryButtons = Row(
       children: [
-        // Queue button
-        if (!isQueued && !isObserved)
-          Expanded(
-            child: NightshadeButton(
-              label: 'Queue',
-              icon: NightshadeIcons.add,
-              size: ButtonSize.small,
-              variant: ButtonVariant.primary,
-              onPressed: widget.onQueue,
-            ),
-          )
-        else if (isQueued)
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: NightshadeTokens.spaceMd,
-                vertical: NightshadeTokens.spaceSm,
-              ),
-              decoration: NightshadeDecorations.tintedBadge(
-                colors.warning,
-                borderRadius: NightshadeTokens.borderRadiusSm,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    NightshadeIcons.clock,
-                    size: NightshadeTokens.iconSm,
-                    color: colors.warning,
-                  ),
-                  const SizedBox(width: NightshadeTokens.spaceXs),
-                  Text(
-                    'Queued',
-                    style: NightshadeTypography.labelSm
-                        .copyWith(color: colors.warning),
-                  ),
-                ],
-              ),
-            ),
-          )
-        else if (isObserved)
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: NightshadeTokens.spaceMd,
-                vertical: NightshadeTokens.spaceSm,
-              ),
-              decoration: NightshadeDecorations.tintedBadge(
-                colors.success,
-                borderRadius: NightshadeTokens.borderRadiusSm,
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    NightshadeIcons.check,
-                    size: NightshadeTokens.iconSm,
-                    color: colors.success,
-                  ),
-                  const SizedBox(width: NightshadeTokens.spaceXs),
-                  Text(
-                    'Observed',
-                    style: NightshadeTypography.labelSm
-                        .copyWith(color: colors.success),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
+        Expanded(child: _buildPrimaryAction(colors, isQueued, isObserved)),
         const SizedBox(width: NightshadeTokens.spaceSm),
-
-        // View in Framing button
         Expanded(
           child: NightshadeButton(
             label: 'Framing',
@@ -340,42 +233,125 @@ class _TransientCardState extends State<TransientCard> {
             onPressed: widget.onViewInFraming,
           ),
         ),
-
-        const SizedBox(width: NightshadeTokens.spaceSm),
-
-        // Dismiss button
-        if (!isDismissed && !isObserved)
-          IconButton(
-            icon: Icon(
-              NightshadeIcons.close,
-              size: NightshadeTokens.iconMd,
-              color: colors.textMuted,
-            ),
-            onPressed: widget.onDismiss,
-            tooltip: 'Dismiss',
-            style: IconButton.styleFrom(
-              backgroundColor: colors.surfaceAlt,
-              shape: RoundedRectangleBorder(
-                borderRadius: NightshadeTokens.borderRadiusSm,
-              ),
-            ),
-          ),
       ],
+    );
+
+    final iconActions = [
+      _iconAction(
+        icon: NightshadeIcons.science,
+        color: colors.info,
+        background: colors.surfaceAlt,
+        tooltip: 'Open in Science',
+        onPressed: widget.onOpenScience,
+      ),
+      if (!isDismissed && !isObserved) ...[
+        const SizedBox(width: NightshadeTokens.spaceSm),
+        _iconAction(
+          icon: NightshadeIcons.close,
+          color: colors.textMuted,
+          background: colors.surfaceAlt,
+          tooltip: 'Dismiss',
+          onPressed: widget.onDismiss,
+        ),
+      ],
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < NightshadeTokens.breakpointMobile) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              primaryButtons,
+              const SizedBox(height: NightshadeTokens.spaceSm),
+              Row(mainAxisAlignment: MainAxisAlignment.end, children: iconActions),
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: primaryButtons),
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            ...iconActions,
+          ],
+        );
+      },
     );
   }
 
-  Color _getBorderColor(NightshadeColors colors, TransientAlertState state) {
-    switch (state) {
-      case TransientAlertState.newAlert:
-        return colors.info;
-      case TransientAlertState.queued:
-        return colors.warning;
-      case TransientAlertState.observed:
-        return colors.success;
-      case TransientAlertState.acknowledged:
-      case TransientAlertState.dismissed:
-        return colors.border;
+  Widget _buildPrimaryAction(
+    NightshadeColors colors,
+    bool isQueued,
+    bool isObserved,
+  ) {
+    if (isQueued) {
+      return _statusBadge(
+        colors.warning,
+        NightshadeIcons.clock,
+        'Queued',
+      );
     }
+    if (isObserved) {
+      return _statusBadge(
+        colors.success,
+        NightshadeIcons.check,
+        'Observed',
+      );
+    }
+    return NightshadeButton(
+      label: 'Queue',
+      icon: NightshadeIcons.add,
+      size: ButtonSize.small,
+      variant: ButtonVariant.primary,
+      onPressed: widget.onQueue,
+    );
+  }
+
+  Widget _statusBadge(Color color, IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceMd,
+        vertical: NightshadeTokens.spaceSm,
+      ),
+      decoration: NightshadeDecorations.tintedBadge(
+        color,
+        borderRadius: NightshadeTokens.borderRadiusSm,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: NightshadeTokens.iconSm, color: color),
+          const SizedBox(width: NightshadeTokens.spaceXs),
+          Text(label, style: NightshadeTypography.labelSm.copyWith(color: color)),
+        ],
+      ),
+    );
+  }
+
+  Widget _iconAction({
+    required IconData icon,
+    required Color color,
+    required Color background,
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(
+        minWidth: NightshadeTokens.minTouchTarget,
+        minHeight: NightshadeTokens.minTouchTarget,
+      ),
+      child: IconButton(
+        icon: Icon(icon, size: NightshadeTokens.iconMd, color: color),
+        onPressed: onPressed,
+        tooltip: tooltip,
+        style: IconButton.styleFrom(
+          backgroundColor: background,
+          shape: RoundedRectangleBorder(
+            borderRadius: NightshadeTokens.borderRadiusSm,
+          ),
+        ),
+      ),
+    );
   }
 
   IconData _getTypeIcon() {
@@ -622,10 +598,8 @@ class _DetailRow extends StatelessWidget {
               const SizedBox(width: NightshadeTokens.spaceXs),
               Text(
                 label,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  color: colors.textMuted,
-                ),
+                style: NightshadeTypography.captionSm
+                    .copyWith(color: colors.textMuted),
               ),
             ],
           ),
@@ -634,10 +608,8 @@ class _DetailRow extends StatelessWidget {
             padding: const EdgeInsets.only(left: NightshadeTokens.spaceLg),
             child: Text(
               value,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textSecondary,
-              ),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textSecondary),
             ),
           ),
         ],
@@ -650,18 +622,14 @@ class _DetailRow extends StatelessWidget {
         const SizedBox(width: NightshadeTokens.spaceXs),
         Text(
           '$label: ',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
-            color: colors.textMuted,
-          ),
+          style: NightshadeTypography.captionSm
+              .copyWith(color: colors.textMuted),
         ),
         Expanded(
           child: Text(
             value,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              color: colors.textSecondary,
-            ),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
             overflow: TextOverflow.ellipsis,
           ),
         ),

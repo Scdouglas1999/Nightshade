@@ -40,8 +40,9 @@ class ScienceSettingsPage extends ConsumerWidget {
               children: [
                 SettingRow(
                   icon: LucideIcons.flaskConical,
-                  title: 'Advanced Science Mode',
-                  subtitle: 'Reveal science controls in Imaging and Analytics',
+                  title: 'Show advanced overlay controls',
+                  subtitle:
+                      'Adds PSF, residual, and tile-map layers to the Imaging overlays menu.',
                   trailing: SettingsSwitch(
                     value: science.advancedModeEnabled,
                     onChanged: (value) =>

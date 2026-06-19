@@ -155,141 +155,90 @@ class _ImageGraderDialogState extends ConsumerState<ImageGraderDialog> {
     }
   }
 
+  String _activeRuleSummary() {
+    final parts = <String>[
+      if (_rules.maxHfr != null) 'HFR ≤ ${_rules.maxHfr!.toStringAsFixed(2)}',
+      if (_rules.maxFwhm != null)
+        'FWHM ≤ ${_rules.maxFwhm!.toStringAsFixed(2)}',
+      if (_rules.maxEccentricity != null)
+        'ecc ≤ ${_rules.maxEccentricity!.toStringAsFixed(2)}',
+      if (_rules.minStars != null) 'stars ≥ ${_rules.minStars}',
+      if (_rules.maxGuidingRmsTotalArcsec != null)
+        'RMS ≤ ${_rules.maxGuidingRmsTotalArcsec!.toStringAsFixed(2)}"',
+    ];
+    return parts.isEmpty ? 'No active rules' : parts.join('  ·  ');
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final preview = _preview();
-    return Dialog(
-      backgroundColor: colors.surface,
-      child: ConstrainedBox(
-        constraints: AdaptiveDialogConstraints.hybrid(
-          context,
-          designMaxWidth: 720,
-          designMaxHeight: 640,
+    final frameCount = widget.frames.length;
+    return NightshadeDialog(
+      title: 'Image grader',
+      icon: LucideIcons.sliders,
+      width: 720,
+      height: 640,
+      actions: [
+        NightshadeButton(
+          onPressed: _applying ? null : () => Navigator.of(context).pop(),
+          label: 'Cancel',
+          variant: ButtonVariant.ghost,
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _Header(colors: colors, frameCount: widget.frames.length),
-              const SizedBox(height: 14),
-              _ThresholdSliders(
-                colors: colors,
-                rules: _rules,
-                frames: widget.frames,
-                psfMetricsByImage: _psfMetricsByImage,
-                onChanged: (next) => setState(() => _rules = next),
-              ),
-              const SizedBox(height: 12),
-              _PreviewSummary(
-                colors: colors,
-                rejected: preview.rejected,
-                accepted: preview.accepted,
-              ),
-              const SizedBox(height: 8),
-              Flexible(
-                child: _RejectionList(
-                  colors: colors,
-                  rejections: preview.rejections,
-                ),
-              ),
-              if (_applyError != null) ...[
-                const SizedBox(height: 8),
-                Text(
-                  _applyError!,
-                  style: TextStyle(
-                      color: colors.error,
-                      fontSize: NightshadeTypography.fontSize12),
-                ),
-              ],
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  TextButton(
-                    onPressed:
-                        _applying ? null : () => Navigator.of(context).pop(),
-                    child: const Text('Cancel'),
-                  ),
-                  const Spacer(),
-                  if (_applying)
-                    const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  else
-                    NightshadeButton(
-                      onPressed: preview.rejected == 0 ? null : _apply,
-                      label: preview.rejected == 0
-                          ? 'Nothing to reject'
-                          : 'Reject ${preview.rejected} frame'
-                              '${preview.rejected == 1 ? "" : "s"}',
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  final NightshadeColors colors;
-  final int frameCount;
-
-  const _Header({required this.colors, required this.frameCount});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: NightshadeDecorations.tintedBadge(
-            colors.primary,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-          ),
-          child: Icon(LucideIcons.sliders, color: colors.primary, size: 18),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Image grader',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: NightshadeTypography.fontSize16,
-                  color: colors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'Mark frames as rejected when they exceed any threshold below. '
-                'Nothing is deleted — rejection can be undone per frame.',
-                style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize12,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '$frameCount frame${frameCount == 1 ? "" : "s"} loaded',
-                style: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: NightshadeTypography.fontSize11),
-              ),
-            ],
-          ),
+        NightshadeButton(
+          onPressed: preview.rejected == 0 ? null : _apply,
+          isLoading: _applying,
+          label: preview.rejected == 0
+              ? 'Nothing to reject'
+              : 'Reject ${preview.rejected} frame'
+                  '${preview.rejected == 1 ? "" : "s"}',
         ),
       ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Mark frames as rejected when they exceed any threshold below. '
+            'Nothing is deleted — rejection can be undone per frame.',
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textSecondary),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceXs),
+          Text(
+            '$frameCount frame${frameCount == 1 ? "" : "s"} loaded',
+            style: NightshadeTypography.captionSm
+                .copyWith(color: colors.textMuted),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceMd + 2),
+          _ThresholdSliders(
+            colors: colors,
+            rules: _rules,
+            frames: widget.frames,
+            psfMetricsByImage: _psfMetricsByImage,
+            onChanged: (next) => setState(() => _rules = next),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          _PreviewSummary(
+            colors: colors,
+            rejected: preview.rejected,
+            accepted: preview.accepted,
+            activeRules: _activeRuleSummary(),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          _RejectionList(
+            colors: colors,
+            rejections: preview.rejections,
+          ),
+          if (_applyError != null) ...[
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            Text(
+              _applyError!,
+              style: NightshadeTypography.caption.copyWith(color: colors.error),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -338,6 +287,7 @@ class _ThresholdSliders extends StatelessWidget {
           colors: colors,
           label: 'Max HFR',
           unit: 'px',
+          metric: 'HFR',
           value: rules.maxHfr,
           available: hfrs,
           rangeMin: hfrs.isEmpty ? 0.0 : hfrs.reduce((a, b) => a < b ? a : b),
@@ -352,6 +302,7 @@ class _ThresholdSliders extends StatelessWidget {
           colors: colors,
           label: 'Max FWHM',
           unit: 'px',
+          metric: 'FWHM',
           value: rules.maxFwhm,
           available: fwhms,
           rangeMin: fwhms.isEmpty ? 0.0 : fwhms.reduce((a, b) => a < b ? a : b),
@@ -364,6 +315,7 @@ class _ThresholdSliders extends StatelessWidget {
           colors: colors,
           label: 'Max eccentricity',
           unit: '',
+          metric: 'eccentricity',
           value: rules.maxEccentricity,
           available: eccs,
           rangeMin: 0,
@@ -374,6 +326,7 @@ class _ThresholdSliders extends StatelessWidget {
         _IntRow(
           colors: colors,
           label: 'Min stars',
+          metric: 'star count',
           value: rules.minStars,
           available: stars,
           rangeMin: stars.isEmpty ? 0 : stars.reduce((a, b) => a < b ? a : b),
@@ -385,6 +338,7 @@ class _ThresholdSliders extends StatelessWidget {
           colors: colors,
           label: 'Max guiding RMS',
           unit: '"',
+          metric: 'guiding',
           value: rules.maxGuidingRmsTotalArcsec,
           available: guiding,
           rangeMin: 0,
@@ -403,6 +357,7 @@ class _DoubleRow extends StatelessWidget {
   final NightshadeColors colors;
   final String label;
   final String unit;
+  final String metric;
   final double? value;
   final List<double> available;
   final double rangeMin;
@@ -414,6 +369,7 @@ class _DoubleRow extends StatelessWidget {
     required this.colors,
     required this.label,
     required this.unit,
+    required this.metric,
     required this.value,
     required this.available,
     required this.rangeMin,
@@ -428,45 +384,54 @@ class _DoubleRow extends StatelessWidget {
     final enabled = available.isNotEmpty;
     final effectiveValue = (value ?? rangeMax).clamp(rangeMin, rangeMax);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding:
+          const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceXs + 2),
       child: Row(
         children: [
           SizedBox(
             width: 110,
-            child: Text(
-              label,
-              style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: NightshadeTypography.fontSize12,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textSecondary),
+                ),
+                if (!enabled)
+                  Text(
+                    'no $metric data',
+                    style: NightshadeTypography.captionSm
+                        .copyWith(color: colors.textMuted),
+                  ),
+              ],
             ),
           ),
           Expanded(
-            child: Opacity(
-              opacity: enabled ? 1.0 : 0.4,
-              child: Slider(
-                min: rangeMin,
-                max: rangeMax == rangeMin ? rangeMin + 1 : rangeMax,
-                value: effectiveValue,
-                divisions: span > 0 ? 40 : null,
-                onChanged: enabled ? onChanged : null,
-                activeColor: colors.primary,
-              ),
+            child: NightshadeSlider(
+              min: rangeMin,
+              max: rangeMax == rangeMin ? rangeMin + 1 : rangeMax,
+              value: effectiveValue,
+              divisions: span > 0 ? 40 : null,
+              onChanged: enabled ? onChanged : null,
             ),
           ),
           SizedBox(
             width: 86,
             child: Text(
               value == null ? 'off' : '${value!.toStringAsFixed(2)} $unit',
-              style: TextStyle(
+              style: NightshadeTypography.monoSm.copyWith(
                 color: value == null ? colors.textMuted : colors.textPrimary,
-                fontSize: NightshadeTypography.fontSize12,
-                fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
           ),
           IconButton(
             tooltip: value == null ? 'Enable rule' : 'Disable rule',
+            constraints: const BoxConstraints(
+              minWidth: NightshadeTokens.minTouchTarget,
+              minHeight: NightshadeTokens.minTouchTarget,
+            ),
             onPressed: () {
               if (value == null) {
                 onChanged((rangeMin + rangeMax) / 2);
@@ -476,7 +441,7 @@ class _DoubleRow extends StatelessWidget {
             },
             icon: Icon(
               value == null ? LucideIcons.plus : LucideIcons.minus,
-              size: 14,
+              size: NightshadeTokens.iconXs,
               color: colors.textSecondary,
             ),
           ),
@@ -489,6 +454,7 @@ class _DoubleRow extends StatelessWidget {
 class _IntRow extends StatelessWidget {
   final NightshadeColors colors;
   final String label;
+  final String metric;
   final int? value;
   final List<int> available;
   final int rangeMin;
@@ -499,6 +465,7 @@ class _IntRow extends StatelessWidget {
   const _IntRow({
     required this.colors,
     required this.label,
+    required this.metric,
     required this.value,
     required this.available,
     required this.rangeMin,
@@ -512,47 +479,57 @@ class _IntRow extends StatelessWidget {
     final enabled = available.isNotEmpty;
     final effective = (value ?? rangeMin).clamp(rangeMin, rangeMax);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding:
+          const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceXs + 2),
       child: Row(
         children: [
           SizedBox(
             width: 110,
-            child: Text(
-              label,
-              style: TextStyle(
-                  color: colors.textSecondary,
-                  fontSize: NightshadeTypography.fontSize12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.textSecondary),
+                ),
+                if (!enabled)
+                  Text(
+                    'no $metric data',
+                    style: NightshadeTypography.captionSm
+                        .copyWith(color: colors.textMuted),
+                  ),
+              ],
             ),
           ),
           Expanded(
-            child: Opacity(
-              opacity: enabled ? 1.0 : 0.4,
-              child: Slider(
-                min: rangeMin.toDouble(),
-                max: rangeMax == rangeMin
-                    ? (rangeMin + 1).toDouble()
-                    : rangeMax.toDouble(),
-                value: effective.toDouble(),
-                divisions:
-                    (rangeMax - rangeMin) > 0 ? (rangeMax - rangeMin) : null,
-                onChanged: enabled ? (v) => onChanged(v.round()) : null,
-                activeColor: colors.primary,
-              ),
+            child: NightshadeSlider(
+              min: rangeMin.toDouble(),
+              max: rangeMax == rangeMin
+                  ? (rangeMin + 1).toDouble()
+                  : rangeMax.toDouble(),
+              value: effective.toDouble(),
+              divisions:
+                  (rangeMax - rangeMin) > 0 ? (rangeMax - rangeMin) : null,
+              onChanged: enabled ? (v) => onChanged(v.round()) : null,
             ),
           ),
           SizedBox(
             width: 86,
             child: Text(
               value == null ? 'off' : '$value',
-              style: TextStyle(
+              style: NightshadeTypography.monoSm.copyWith(
                 color: value == null ? colors.textMuted : colors.textPrimary,
-                fontSize: NightshadeTypography.fontSize12,
-                fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
           ),
           IconButton(
             tooltip: value == null ? 'Enable rule' : 'Disable rule',
+            constraints: const BoxConstraints(
+              minWidth: NightshadeTokens.minTouchTarget,
+              minHeight: NightshadeTokens.minTouchTarget,
+            ),
             onPressed: () {
               if (value == null) {
                 onChanged(((rangeMin + rangeMax) / 2).round());
@@ -562,7 +539,7 @@ class _IntRow extends StatelessWidget {
             },
             icon: Icon(
               value == null ? LucideIcons.plus : LucideIcons.minus,
-              size: 14,
+              size: NightshadeTokens.iconXs,
               color: colors.textSecondary,
             ),
           ),
@@ -576,36 +553,51 @@ class _PreviewSummary extends StatelessWidget {
   final NightshadeColors colors;
   final int rejected;
   final int accepted;
+  final String activeRules;
 
   const _PreviewSummary({
     required this.colors,
     required this.rejected,
     required this.accepted,
+    required this.activeRules,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceMd,
+        vertical: NightshadeTokens.spaceSm + 2,
+      ),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+        borderRadius: NightshadeTokens.borderRadiusLg,
         border: Border.all(color: colors.border),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _Chip(
-            colors: colors,
-            label: 'Will reject',
-            value: '$rejected',
-            tone: rejected == 0 ? colors.textMuted : colors.warning,
+          Row(
+            children: [
+              _Chip(
+                colors: colors,
+                label: 'Will reject',
+                value: '$rejected',
+                tone: rejected == 0 ? colors.textMuted : colors.warning,
+              ),
+              const SizedBox(width: NightshadeTokens.spaceMd),
+              _Chip(
+                colors: colors,
+                label: 'Will keep',
+                value: '$accepted',
+                tone: colors.success,
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          _Chip(
-            colors: colors,
-            label: 'Will keep',
-            value: '$accepted',
-            tone: colors.success,
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          Text(
+            activeRules,
+            style: NightshadeTypography.monoXs.copyWith(color: colors.textMuted),
           ),
         ],
       ),
@@ -629,7 +621,10 @@ class _Chip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceSm + 2,
+        vertical: NightshadeTokens.spaceXs + 1,
+      ),
       decoration: NightshadeDecorations.statusChip(
         tone,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
@@ -639,18 +634,17 @@ class _Chip extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(
-              color: colors.textSecondary,
-              fontSize: NightshadeTypography.fontSize11,
-            ),
+            style: NightshadeTypography.captionSm
+                .copyWith(color: colors.textSecondary),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: NightshadeTokens.spaceXs + 2),
           Text(
             value,
-            style: TextStyle(
-              color: tone,
-              fontWeight: FontWeight.w700,
-              fontFeatures: const [FontFeature.tabularFigures()],
+            style: NightshadeTypography.withTabular(
+              NightshadeTypography.labelStrong.copyWith(
+                color: tone,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -669,19 +663,18 @@ class _RejectionList extends StatelessWidget {
   Widget build(BuildContext context) {
     if (rejections.isEmpty) {
       return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(
+            vertical: NightshadeTokens.spaceMd + 2),
         child: Text(
           'No frames currently fail any rule.',
-          style: TextStyle(
-              color: colors.textMuted,
-              fontSize: NightshadeTypography.fontSize12),
+          style: NightshadeTypography.caption.copyWith(color: colors.textMuted),
         ),
       );
     }
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: colors.border),
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+        borderRadius: NightshadeTokens.borderRadiusLg,
       ),
       child: ListView.separated(
         itemCount: rejections.length,
@@ -692,24 +685,23 @@ class _RejectionList extends StatelessWidget {
           final r = rejections[i];
           final filename = r.frame.filePath.split(RegExp(r'[\\/]')).last;
           return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.symmetric(
+              horizontal: NightshadeTokens.spaceMd,
+              vertical: NightshadeTokens.spaceSm,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   filename,
-                  style: NightshadeTypography.h6.copyWith(
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.label
+                      .copyWith(color: colors.textPrimary),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: NightshadeTokens.spaceXs - 2),
                 Text(
                   r.reason,
-                  style: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: NightshadeTypography.fontSize11,
-                    height: 1.4,
-                  ),
+                  style: NightshadeTypography.captionSm
+                      .copyWith(color: colors.textMuted),
                 ),
               ],
             ),

@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:nightshade_bridge/nightshade_bridge.dart' show PlateSolveResult;
@@ -9,6 +10,8 @@ import '../models/plate_solver.dart' as ps_model;
 import '../providers/backend_provider.dart';
 import '../providers/settings_provider.dart';
 import 'logging_service.dart';
+
+final _kEmptyCoeffs = Float64List(0);
 
 /// Thrown by `PlateSolveService.solveWithFallback()` when no plate solver
 /// is reachable on disk. The settings UI catches this to render the
@@ -122,6 +125,18 @@ class PlateSolveService {
         error:
             'Backend solve failed: $e. Local fallback failed: '
             '${fallbackResult.error ?? 'unknown error'}',
+        cd11: 0,
+        cd12: 0,
+        cd21: 0,
+        cd22: 0,
+        sipAOrder: 0,
+        sipBOrder: 0,
+        sipACoeffs: _kEmptyCoeffs,
+        sipBCoeffs: _kEmptyCoeffs,
+        sipApOrder: 0,
+        sipBpOrder: 0,
+        sipApCoeffs: _kEmptyCoeffs,
+        sipBpCoeffs: _kEmptyCoeffs,
       );
     }
   }
@@ -246,6 +261,18 @@ class PlateSolveService {
           fieldHeight: 0,
           solveTimeSecs: 0,
           error: 'ASTAP failed (exit ${result.exitCode}): ${result.stderr}',
+          cd11: 0,
+          cd12: 0,
+          cd21: 0,
+          cd22: 0,
+          sipAOrder: 0,
+          sipBOrder: 0,
+          sipACoeffs: _kEmptyCoeffs,
+          sipBCoeffs: _kEmptyCoeffs,
+          sipApOrder: 0,
+          sipBpOrder: 0,
+          sipApCoeffs: _kEmptyCoeffs,
+          sipBpCoeffs: _kEmptyCoeffs,
         );
       }
 
@@ -267,9 +294,21 @@ class PlateSolveService {
             'ASTAP exited 0 but wrote no WCS file '
             '(no star match within search radius). stdout: '
             '${result.stdout.toString().trim()}',
+        cd11: 0,
+        cd12: 0,
+        cd21: 0,
+        cd22: 0,
+        sipAOrder: 0,
+        sipBOrder: 0,
+        sipACoeffs: _kEmptyCoeffs,
+        sipBCoeffs: _kEmptyCoeffs,
+        sipApOrder: 0,
+        sipBpOrder: 0,
+        sipApCoeffs: _kEmptyCoeffs,
+        sipBpCoeffs: _kEmptyCoeffs,
       );
     } on TimeoutException {
-      return const PlateSolveResult(
+      return PlateSolveResult(
         success: false,
         ra: 0,
         dec: 0,
@@ -279,6 +318,18 @@ class PlateSolveService {
         fieldHeight: 0,
         solveTimeSecs: 0,
         error: 'Plate solve timed out',
+        cd11: 0,
+        cd12: 0,
+        cd21: 0,
+        cd22: 0,
+        sipAOrder: 0,
+        sipBOrder: 0,
+        sipACoeffs: _kEmptyCoeffs,
+        sipBCoeffs: _kEmptyCoeffs,
+        sipApOrder: 0,
+        sipBpOrder: 0,
+        sipApCoeffs: _kEmptyCoeffs,
+        sipBpCoeffs: _kEmptyCoeffs,
       );
     } catch (e) {
       return PlateSolveResult(
@@ -291,6 +342,18 @@ class PlateSolveService {
         fieldHeight: 0,
         solveTimeSecs: 0,
         error: 'Error: $e',
+        cd11: 0,
+        cd12: 0,
+        cd21: 0,
+        cd22: 0,
+        sipAOrder: 0,
+        sipBOrder: 0,
+        sipACoeffs: _kEmptyCoeffs,
+        sipBCoeffs: _kEmptyCoeffs,
+        sipApOrder: 0,
+        sipBpOrder: 0,
+        sipApCoeffs: _kEmptyCoeffs,
+        sipBpCoeffs: _kEmptyCoeffs,
       );
     }
   }
@@ -332,6 +395,18 @@ class PlateSolveService {
           fieldHeight: 0,
           solveTimeSecs: 0,
           error: 'Astrometry.net failed: ${result.stderr}',
+          cd11: 0,
+          cd12: 0,
+          cd21: 0,
+          cd22: 0,
+          sipAOrder: 0,
+          sipBOrder: 0,
+          sipACoeffs: _kEmptyCoeffs,
+          sipBCoeffs: _kEmptyCoeffs,
+          sipApOrder: 0,
+          sipBpOrder: 0,
+          sipApCoeffs: _kEmptyCoeffs,
+          sipBpCoeffs: _kEmptyCoeffs,
         );
       }
 
@@ -339,7 +414,7 @@ class PlateSolveService {
       final output = result.stdout.toString();
       return _parseAstrometryOutput(output);
     } on TimeoutException {
-      return const PlateSolveResult(
+      return PlateSolveResult(
         success: false,
         ra: 0,
         dec: 0,
@@ -349,6 +424,18 @@ class PlateSolveService {
         fieldHeight: 0,
         solveTimeSecs: 0,
         error: 'Plate solve timed out',
+        cd11: 0,
+        cd12: 0,
+        cd21: 0,
+        cd22: 0,
+        sipAOrder: 0,
+        sipBOrder: 0,
+        sipACoeffs: _kEmptyCoeffs,
+        sipBCoeffs: _kEmptyCoeffs,
+        sipApOrder: 0,
+        sipBpOrder: 0,
+        sipApCoeffs: _kEmptyCoeffs,
+        sipBpCoeffs: _kEmptyCoeffs,
       );
     } catch (e) {
       return PlateSolveResult(
@@ -361,6 +448,18 @@ class PlateSolveService {
         fieldHeight: 0,
         solveTimeSecs: 0,
         error: 'Error: $e',
+        cd11: 0,
+        cd12: 0,
+        cd21: 0,
+        cd22: 0,
+        sipAOrder: 0,
+        sipBOrder: 0,
+        sipACoeffs: _kEmptyCoeffs,
+        sipBCoeffs: _kEmptyCoeffs,
+        sipApOrder: 0,
+        sipBpOrder: 0,
+        sipApCoeffs: _kEmptyCoeffs,
+        sipBpCoeffs: _kEmptyCoeffs,
       );
     }
   }
@@ -396,7 +495,7 @@ class PlateSolveService {
         return _parsePlateSolve2Output(outputPath);
       }
 
-      return const PlateSolveResult(
+      return PlateSolveResult(
         success: false,
         ra: 0,
         dec: 0,
@@ -406,9 +505,21 @@ class PlateSolveService {
         fieldHeight: 0,
         solveTimeSecs: 0,
         error: 'No solution found',
+        cd11: 0,
+        cd12: 0,
+        cd21: 0,
+        cd22: 0,
+        sipAOrder: 0,
+        sipBOrder: 0,
+        sipACoeffs: _kEmptyCoeffs,
+        sipBCoeffs: _kEmptyCoeffs,
+        sipApOrder: 0,
+        sipBpOrder: 0,
+        sipApCoeffs: _kEmptyCoeffs,
+        sipBpCoeffs: _kEmptyCoeffs,
       );
     } on TimeoutException {
-      return const PlateSolveResult(
+      return PlateSolveResult(
         success: false,
         ra: 0,
         dec: 0,
@@ -418,6 +529,18 @@ class PlateSolveService {
         fieldHeight: 0,
         solveTimeSecs: 0,
         error: 'Plate solve timed out',
+        cd11: 0,
+        cd12: 0,
+        cd21: 0,
+        cd22: 0,
+        sipAOrder: 0,
+        sipBOrder: 0,
+        sipACoeffs: _kEmptyCoeffs,
+        sipBCoeffs: _kEmptyCoeffs,
+        sipApOrder: 0,
+        sipBpOrder: 0,
+        sipApCoeffs: _kEmptyCoeffs,
+        sipBpCoeffs: _kEmptyCoeffs,
       );
     } catch (e) {
       return PlateSolveResult(
@@ -430,6 +553,18 @@ class PlateSolveService {
         fieldHeight: 0,
         solveTimeSecs: 0,
         error: 'Error: $e',
+        cd11: 0,
+        cd12: 0,
+        cd21: 0,
+        cd22: 0,
+        sipAOrder: 0,
+        sipBOrder: 0,
+        sipACoeffs: _kEmptyCoeffs,
+        sipBCoeffs: _kEmptyCoeffs,
+        sipApOrder: 0,
+        sipBpOrder: 0,
+        sipApCoeffs: _kEmptyCoeffs,
+        sipBpCoeffs: _kEmptyCoeffs,
       );
     }
   }
@@ -470,10 +605,22 @@ class PlateSolveService {
           fieldWidth: 0,
           fieldHeight: 0,
           solveTimeSecs: 0,
+          cd11: 0,
+          cd12: 0,
+          cd21: 0,
+          cd22: 0,
+          sipAOrder: 0,
+          sipBOrder: 0,
+          sipACoeffs: _kEmptyCoeffs,
+          sipBCoeffs: _kEmptyCoeffs,
+          sipApOrder: 0,
+          sipBpOrder: 0,
+          sipApCoeffs: _kEmptyCoeffs,
+          sipBpCoeffs: _kEmptyCoeffs,
         );
       }
 
-      return const PlateSolveResult(
+      return PlateSolveResult(
         success: false,
         ra: 0,
         dec: 0,
@@ -483,6 +630,18 @@ class PlateSolveService {
         fieldHeight: 0,
         solveTimeSecs: 0,
         error: 'Could not parse WCS file',
+        cd11: 0,
+        cd12: 0,
+        cd21: 0,
+        cd22: 0,
+        sipAOrder: 0,
+        sipBOrder: 0,
+        sipACoeffs: _kEmptyCoeffs,
+        sipBCoeffs: _kEmptyCoeffs,
+        sipApOrder: 0,
+        sipBpOrder: 0,
+        sipApCoeffs: _kEmptyCoeffs,
+        sipBpCoeffs: _kEmptyCoeffs,
       );
     } catch (e) {
       return PlateSolveResult(
@@ -495,6 +654,18 @@ class PlateSolveService {
         fieldHeight: 0,
         solveTimeSecs: 0,
         error: 'Error parsing WCS: $e',
+        cd11: 0,
+        cd12: 0,
+        cd21: 0,
+        cd22: 0,
+        sipAOrder: 0,
+        sipBOrder: 0,
+        sipACoeffs: _kEmptyCoeffs,
+        sipBCoeffs: _kEmptyCoeffs,
+        sipApOrder: 0,
+        sipBpOrder: 0,
+        sipApCoeffs: _kEmptyCoeffs,
+        sipBpCoeffs: _kEmptyCoeffs,
       );
     }
   }
@@ -527,11 +698,23 @@ class PlateSolveService {
           fieldWidth: 0,
           fieldHeight: 0,
           solveTimeSecs: 0,
+          cd11: 0,
+          cd12: 0,
+          cd21: 0,
+          cd22: 0,
+          sipAOrder: 0,
+          sipBOrder: 0,
+          sipACoeffs: _kEmptyCoeffs,
+          sipBCoeffs: _kEmptyCoeffs,
+          sipApOrder: 0,
+          sipBpOrder: 0,
+          sipApCoeffs: _kEmptyCoeffs,
+          sipBpCoeffs: _kEmptyCoeffs,
         );
       }
     }
 
-    return const PlateSolveResult(
+    return PlateSolveResult(
       success: false,
       ra: 0,
       dec: 0,
@@ -541,6 +724,18 @@ class PlateSolveService {
       fieldHeight: 0,
       solveTimeSecs: 0,
       error: 'Could not parse solution',
+      cd11: 0,
+      cd12: 0,
+      cd21: 0,
+      cd22: 0,
+      sipAOrder: 0,
+      sipBOrder: 0,
+      sipACoeffs: _kEmptyCoeffs,
+      sipBCoeffs: _kEmptyCoeffs,
+      sipApOrder: 0,
+      sipBpOrder: 0,
+      sipApCoeffs: _kEmptyCoeffs,
+      sipBpCoeffs: _kEmptyCoeffs,
     );
   }
 
@@ -642,7 +837,7 @@ class PlateSolveService {
 
     Future<PlateSolveResult> runAstap() async {
       if (detection.astapPath == null) {
-        return const PlateSolveResult(
+        return PlateSolveResult(
           success: false,
           ra: 0,
           dec: 0,
@@ -652,10 +847,22 @@ class PlateSolveService {
           fieldHeight: 0,
           solveTimeSecs: 0,
           error: 'ASTAP not installed at any known location.',
+          cd11: 0,
+          cd12: 0,
+          cd21: 0,
+          cd22: 0,
+          sipAOrder: 0,
+          sipBOrder: 0,
+          sipACoeffs: _kEmptyCoeffs,
+          sipBCoeffs: _kEmptyCoeffs,
+          sipApOrder: 0,
+          sipBpOrder: 0,
+          sipApCoeffs: _kEmptyCoeffs,
+          sipBpCoeffs: _kEmptyCoeffs,
         );
       }
       if (!detection.astapReady) {
-        return const PlateSolveResult(
+        return PlateSolveResult(
           success: false,
           ra: 0,
           dec: 0,
@@ -665,6 +872,18 @@ class PlateSolveService {
           fieldHeight: 0,
           solveTimeSecs: 0,
           error: 'ASTAP star catalog not configured.',
+          cd11: 0,
+          cd12: 0,
+          cd21: 0,
+          cd22: 0,
+          sipAOrder: 0,
+          sipBOrder: 0,
+          sipACoeffs: _kEmptyCoeffs,
+          sipBCoeffs: _kEmptyCoeffs,
+          sipApOrder: 0,
+          sipBpOrder: 0,
+          sipApCoeffs: _kEmptyCoeffs,
+          sipBpCoeffs: _kEmptyCoeffs,
         );
       }
       final config = PlateSolverConfig(
@@ -681,7 +900,7 @@ class PlateSolveService {
 
     Future<PlateSolveResult> runAstrometry() async {
       if (detection.astrometryPath == null) {
-        return const PlateSolveResult(
+        return PlateSolveResult(
           success: false,
           ra: 0,
           dec: 0,
@@ -691,6 +910,18 @@ class PlateSolveService {
           fieldHeight: 0,
           solveTimeSecs: 0,
           error: 'Astrometry.net (solve-field) not installed.',
+          cd11: 0,
+          cd12: 0,
+          cd21: 0,
+          cd22: 0,
+          sipAOrder: 0,
+          sipBOrder: 0,
+          sipACoeffs: _kEmptyCoeffs,
+          sipBCoeffs: _kEmptyCoeffs,
+          sipApOrder: 0,
+          sipBpOrder: 0,
+          sipApCoeffs: _kEmptyCoeffs,
+          sipBpCoeffs: _kEmptyCoeffs,
         );
       }
       final config = PlateSolverConfig(
@@ -752,7 +983,7 @@ class PlateSolveService {
       final lines = content.split('\n');
 
       if (lines.isEmpty) {
-        return const PlateSolveResult(
+        return PlateSolveResult(
           success: false,
           ra: 0,
           dec: 0,
@@ -762,6 +993,18 @@ class PlateSolveService {
           fieldHeight: 0,
           solveTimeSecs: 0,
           error: 'Plate solver output file is empty',
+          cd11: 0,
+          cd12: 0,
+          cd21: 0,
+          cd22: 0,
+          sipAOrder: 0,
+          sipBOrder: 0,
+          sipACoeffs: _kEmptyCoeffs,
+          sipBCoeffs: _kEmptyCoeffs,
+          sipApOrder: 0,
+          sipBpOrder: 0,
+          sipApCoeffs: _kEmptyCoeffs,
+          sipBpCoeffs: _kEmptyCoeffs,
         );
       }
 
@@ -779,6 +1022,18 @@ class PlateSolveService {
           error:
               'Plate solver output has unexpected format: expected "RA,Dec" '
               'but got "${lines[0].length > 80 ? '${lines[0].substring(0, 80)}...' : lines[0]}"',
+          cd11: 0,
+          cd12: 0,
+          cd21: 0,
+          cd22: 0,
+          sipAOrder: 0,
+          sipBOrder: 0,
+          sipACoeffs: _kEmptyCoeffs,
+          sipBCoeffs: _kEmptyCoeffs,
+          sipApOrder: 0,
+          sipBpOrder: 0,
+          sipApCoeffs: _kEmptyCoeffs,
+          sipBpCoeffs: _kEmptyCoeffs,
         );
       }
 
@@ -798,6 +1053,18 @@ class PlateSolveService {
           error:
               'Plate solver output contains non-numeric coordinates: '
               'RA="${parts[0]}", Dec="${parts[1]}"',
+          cd11: 0,
+          cd12: 0,
+          cd21: 0,
+          cd22: 0,
+          sipAOrder: 0,
+          sipBOrder: 0,
+          sipACoeffs: _kEmptyCoeffs,
+          sipBCoeffs: _kEmptyCoeffs,
+          sipApOrder: 0,
+          sipBpOrder: 0,
+          sipApCoeffs: _kEmptyCoeffs,
+          sipBpCoeffs: _kEmptyCoeffs,
         );
       }
 
@@ -812,6 +1079,18 @@ class PlateSolveService {
         fieldWidth: 0,
         fieldHeight: 0,
         solveTimeSecs: 0,
+        cd11: 0,
+        cd12: 0,
+        cd21: 0,
+        cd22: 0,
+        sipAOrder: 0,
+        sipBOrder: 0,
+        sipACoeffs: _kEmptyCoeffs,
+        sipBCoeffs: _kEmptyCoeffs,
+        sipApOrder: 0,
+        sipBpOrder: 0,
+        sipApCoeffs: _kEmptyCoeffs,
+        sipBpCoeffs: _kEmptyCoeffs,
       );
     } catch (e) {
       return PlateSolveResult(
@@ -824,6 +1103,18 @@ class PlateSolveService {
         fieldHeight: 0,
         solveTimeSecs: 0,
         error: 'Error parsing output: $e',
+        cd11: 0,
+        cd12: 0,
+        cd21: 0,
+        cd22: 0,
+        sipAOrder: 0,
+        sipBOrder: 0,
+        sipACoeffs: _kEmptyCoeffs,
+        sipBCoeffs: _kEmptyCoeffs,
+        sipApOrder: 0,
+        sipBpOrder: 0,
+        sipApCoeffs: _kEmptyCoeffs,
+        sipBpCoeffs: _kEmptyCoeffs,
       );
     }
   }

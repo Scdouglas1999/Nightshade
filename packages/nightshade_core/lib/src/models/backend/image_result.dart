@@ -14,6 +14,7 @@ class ImageStatsResult {
   /// `null` when the native detector could not honestly measure it (too few
   /// reliable stars) or the producing path ran no star detection.
   final double? eccentricity;
+  final double? fwhm;
   final int starCount;
 
   const ImageStatsResult({
@@ -24,6 +25,7 @@ class ImageStatsResult {
     required this.stdDev,
     this.hfr,
     this.eccentricity,
+    this.fwhm,
     required this.starCount,
   });
 
@@ -39,6 +41,7 @@ class ImageStatsResult {
       eccentricity: json['eccentricity'] != null
           ? (json['eccentricity'] as num).toDouble()
           : null,
+      fwhm: json['fwhm'] != null ? (json['fwhm'] as num).toDouble() : null,
       starCount: json['starCount'] as int,
     );
   }
@@ -52,6 +55,7 @@ class ImageStatsResult {
     'stdDev': stdDev,
     'hfr': hfr,
     'eccentricity': eccentricity,
+    'fwhm': fwhm,
     'starCount': starCount,
   };
 }

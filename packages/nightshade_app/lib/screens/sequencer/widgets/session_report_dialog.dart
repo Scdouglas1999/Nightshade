@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -44,56 +45,25 @@ class SessionReportDialog extends ConsumerWidget {
     final colors = NightshadeColors.of(context);
     final reportAsync = ref.watch(sessionReportProvider(sessionId));
 
-    return Dialog(
-      backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        side: BorderSide(color: colors.border),
-      ),
-      child: ConstrainedBox(
-        constraints: AdaptiveDialogConstraints.hybrid(
-          context,
-          designMaxWidth: 720,
-          designMaxHeight: 760,
+    return reportAsync.when(
+      data: (report) => _ReportBody(report: report, colors: colors),
+      loading: () => NightshadeDialog(
+        title: 'Session Report',
+        icon: LucideIcons.fileBarChart,
+        width: 720,
+        child: const SizedBox(
+          height: 200,
+          child: Center(child: CircularProgressIndicator()),
         ),
-        child: reportAsync.when(
-          data: (report) => _ReportBody(report: report, colors: colors),
-          loading: () => SizedBox(
-            height: 200,
-            child: Center(
-              child: CircularProgressIndicator(color: colors.primary),
-            ),
-          ),
-          error: (err, _) => Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(LucideIcons.alertTriangle, size: 32, color: colors.error),
-                const SizedBox(height: 12),
-                Text(
-                  'Could not build session report',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '$err',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      color: colors.textMuted),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Close'),
-                ),
-              ],
-            ),
-          ),
+      ),
+      error: (err, _) => NightshadeDialog(
+        title: 'Session Report',
+        icon: LucideIcons.fileBarChart,
+        width: 720,
+        child: EmptyState(
+          icon: LucideIcons.alertTriangle,
+          title: 'Could not build session report',
+          body: '$err',
         ),
       ),
     );
@@ -109,307 +79,309 @@ class _ReportBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final dateFormat = DateFormat('MMM d, yyyy HH:mm');
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _Header(
-          report: report,
-          colors: colors,
-          dateFormat: dateFormat,
-          onCopyMarkdown: () => _copyMarkdown(context, ref),
-          onExportTxt: () => _exportText(context, ref),
-        ),
-        Flexible(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _OverviewGrid(report: report, colors: colors),
-                const SizedBox(height: 20),
-                _SectionTitle(
-                    title: 'Mount / operations',
-                    icon: LucideIcons.settings2,
-                    colors: colors),
-                _MountStatsRow(report: report, colors: colors),
-                const SizedBox(height: 20),
-                _SectionTitle(
-                    title: 'Guiding',
-                    icon: LucideIcons.activity,
-                    colors: colors),
-                _GuideStatsBlock(report: report, colors: colors),
-                if (report.avgTemperatureC != null ||
-                    report.avgHumidityPercent != null ||
-                    report.avgSeeingArcsec != null) ...[
-                  const SizedBox(height: 20),
-                  _SectionTitle(
-                      title: 'Conditions',
-                      icon: LucideIcons.thermometer,
-                      colors: colors),
-                  _ConditionsRow(report: report, colors: colors),
-                ],
-                const SizedBox(height: 20),
-                _SectionTitle(
-                    title: 'Targets', icon: LucideIcons.target, colors: colors),
-                if (report.targets.isEmpty)
-                  _muted('No accepted light frames recorded.'),
-                for (final target in report.targets) ...[
-                  const SizedBox(height: 8),
-                  _TargetBlock(target: target, colors: colors),
-                ],
-                if (report.errorMessages.isNotEmpty) ...[
-                  const SizedBox(height: 20),
-                  _SectionTitle(
-                      title: 'Errors',
-                      icon: LucideIcons.xCircle,
-                      colors: colors,
-                      titleColor: colors.error),
-                  ..._buildErrorList(),
-                ],
-                // Surface the live warningMessages we accumulated during
-                // the run. Pre-patch these were collected by the
-                // executor but never rendered anywhere post-session —
-                // "filter HÎ± could not be matched 14 times" used to be
-                // invisible the moment the run ended.
-                if (report.warningMessages.isNotEmpty) ...[
-                  const SizedBox(height: 20),
-                  _SectionTitle(
-                      title: 'Warnings',
-                      icon: LucideIcons.alertTriangle,
-                      colors: colors,
-                      titleColor: colors.warning),
-                  ..._buildWarningList(),
-                ],
-                // List every recovery loop that fired during the run
-                // with its cause, attempt count, duration, and outcome.
-                // Scoped to this report's session via
-                // `recoveryHistoryForSessionProvider`, which reloads the
-                // persisted `session_diagnostics` row rather than the live
-                // `recoveryHistoryProvider` — so a report viewed from the
-                // History tab shows that session's recoveries, not the
-                // currently-running one's.
-                Consumer(builder: (context, ref, _) {
-                  final recoveriesAsync = ref.watch(
-                      recoveryHistoryForSessionProvider(report.sessionId));
-                  final recoveries = recoveriesAsync.valueOrNull ?? const [];
-                  if (recoveries.isEmpty) return const SizedBox.shrink();
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 20),
-                      _SectionTitle(
-                          title: 'Recoveries',
-                          icon: LucideIcons.rotateCw,
-                          colors: colors,
-                          titleColor: colors.error),
-                      for (final entry in recoveries) ...[
-                        _RecoveryHistoryTile(entry: entry, colors: colors),
-                        const SizedBox(height: 4),
-                      ],
-                    ],
-                  );
-                }),
-                // Diagnostics section. Rendered last, after warnings +
-                // recoveries. Combines the
-                // optical-train drift comparison (pre/post snapshot)
-                // with the equipment-health summary (USB disconnects,
-                // cooler stability, focuser moves, sky brightness,
-                // noticed concerns).
-                Consumer(builder: (context, ref, _) {
-                  final settingsAsync = ref.watch(appSettingsProvider);
-                  final settings = settingsAsync.valueOrNull;
-                  if (settings == null) return const SizedBox.shrink();
-
-                  // Scoped to this report's session: reload the persisted
-                  // pre/post optical-train snapshots from the
-                  // `session_diagnostics` row instead of the live
-                  // `opticalTrainBaselineProvider` /
-                  // `opticalTrainCurrentSnapshotProvider`, so a historical
-                  // report shows that session's drift, not the live run's.
-                  final snapshot = ref
-                      .watch(opticalTrainSnapshotForSessionProvider(
-                          report.sessionId))
-                      .valueOrNull;
-                  final baseline = snapshot?.baseline;
-                  final current = snapshot?.current;
-                  final healthSummary = ref.watch(
-                      postSessionHealthSummaryProvider(report.sessionId));
-
-                  // Synthesize an OpticalTrainDiagnostics from the
-                  // current snapshot so the helper can compute drift.
-                  // We only have score values in the snapshot; the
-                  // helper treats absent issues as benign.
-                  OpticalTrainDiagnostics? currentDiag;
-                  if (current != null) {
-                    currentDiag = OpticalTrainDiagnostics(
-                      tiltScore: current.tiltScore,
-                      collimationScore: current.collimationScore,
-                      dominantTiltDirection: 'unknown',
-                      issues: const [],
-                    );
-                  }
-
-                  final diagnostics = PostSessionDiagnostics.build(
-                    preSession: baseline,
-                    postSession: currentDiag,
-                    healthSummary: healthSummary,
-                    opticalTrainDriftThreshold:
-                        settings.opticalTrainDriftThreshold,
-                  );
-
-                  if (diagnostics.isEmpty) return const SizedBox.shrink();
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 20),
-                      _SectionTitle(
-                          title: 'Diagnostics',
-                          icon: LucideIcons.stethoscope,
-                          colors: colors,
-                          titleColor: colors.primary),
-                      for (final issue in diagnostics.all) ...[
-                        _DiagnosticIssueTile(
-                          issue: issue,
-                          colors: colors,
-                        ),
-                        const SizedBox(height: 6),
-                      ],
-                    ],
-                  );
-                }),
-                // Post-session retrospective insights. Renders after
-                // Diagnostics so the operator sees raw observations
-                // first, then "what to change next time" last. Each insight
-                // exposes Apply (when actionable) + Dismiss + sticky
-                // "Don't suggest this again".
-                Consumer(builder: (context, ref, _) {
-                  final insightsAsync =
-                      ref.watch(sessionInsightsProvider(report.sessionId));
-                  return insightsAsync.maybeWhen(
-                    data: (insights) {
-                      if (insights.isEmpty) return const SizedBox.shrink();
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 20),
-                          _SectionTitle(
-                            title: 'Suggestions',
-                            icon: LucideIcons.lightbulb,
-                            colors: colors,
-                            titleColor: colors.primary,
-                          ),
-                          for (final insight in insights) ...[
-                            _SessionInsightTile(
-                              insight: insight,
-                              colors: colors,
-                            ),
-                            const SizedBox(height: 6),
-                          ],
-                        ],
-                      );
-                    },
-                    orElse: () => const SizedBox.shrink(),
-                  );
-                }),
-                if (report.notes != null && report.notes!.isNotEmpty) ...[
-                  const SizedBox(height: 20),
-                  _SectionTitle(
-                      title: 'Session Notes',
-                      icon: LucideIcons.fileText,
-                      colors: colors),
-                  Text(
-                    report.notes!,
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize13,
-                        color: colors.textSecondary),
-                  ),
-                ],
-                // Journal notes attached to either this session's run
-                // or its primary target. Renders
-                // the same `_NoteTile` rows the History tab and
-                // target card use, so an edit propagates everywhere.
-                Consumer(builder: (context, ref, _) {
-                  final runId = ref.watch(currentRunIdProvider);
-                  // Prefer run-scoped notes when we have a run id; fall
-                  // back to per-target notes via the first target in the
-                  // report (most common: a sequence images one target
-                  // per session).
-                  if (runId != null) {
-                    final primaryTarget = report.targets.isNotEmpty
-                        ? report.targets.first.targetName
-                        : (report.sessionName);
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _SectionTitle(
-                            title: 'Journal',
-                            icon: LucideIcons.bookOpen,
-                            colors: colors,
-                          ),
-                          RunNotesSection(
-                            sequenceRunId: runId,
-                            targetId: primaryTarget,
-                            colors: colors,
-                            embedded: true,
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-                  if (report.targets.isEmpty) return const SizedBox.shrink();
-                  final primaryTarget = report.targets.first.targetName;
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _SectionTitle(
-                          title: 'Journal',
-                          icon: LucideIcons.bookOpen,
-                          colors: colors,
-                        ),
-                        TargetNotesSection(
-                          targetId: primaryTarget,
-                          colors: colors,
-                          embedded: true,
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-              ],
-            ),
+    return NightshadeDialog(
+      title: 'Session Report',
+      icon: LucideIcons.fileBarChart,
+      width: 720,
+      height: 760,
+      bodyPadding: const EdgeInsets.fromLTRB(
+        NightshadeTokens.space2xl,
+        NightshadeTokens.spaceLg,
+        NightshadeTokens.space2xl,
+        NightshadeTokens.space2xl,
+      ),
+      actions: [
+        if (report.sessionId > 0)
+          NightshadeButton(
+            label: 'Review & Integrate',
+            icon: LucideIcons.sparkles,
+            variant: ButtonVariant.outline,
+            size: ButtonSize.small,
+            onPressed: () {
+              Navigator.of(context).pop();
+              context.go('/session-review?session=${report.sessionId}');
+            },
           ),
-        ),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            border: Border(top: BorderSide(color: colors.border)),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text(
-                  'Close',
-                  style: TextStyle(color: colors.textSecondary),
-                ),
-              ),
-            ],
-          ),
+        NightshadeButton(
+          label: 'Close',
+          variant: ButtonVariant.ghost,
+          size: ButtonSize.small,
+          onPressed: () => Navigator.of(context).pop(),
         ),
       ],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _Header(
+            report: report,
+            colors: colors,
+            dateFormat: dateFormat,
+            onCopyMarkdown: () => _copyMarkdown(context, ref),
+            onExportTxt: () => _exportText(context, ref),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceLg),
+          _OverviewGrid(report: report, colors: colors),
+          const SizedBox(height: 20),
+          _SectionTitle(
+              title: 'Mount / operations',
+              icon: LucideIcons.settings2,
+              colors: colors),
+          _MountStatsRow(report: report, colors: colors),
+          const SizedBox(height: 20),
+          _SectionTitle(
+              title: 'Guiding',
+              icon: LucideIcons.activity,
+              colors: colors),
+          _GuideStatsBlock(report: report, colors: colors),
+          if (report.avgTemperatureC != null ||
+              report.avgHumidityPercent != null ||
+              report.avgSeeingArcsec != null) ...[
+            const SizedBox(height: 20),
+            _SectionTitle(
+                title: 'Conditions',
+                icon: LucideIcons.thermometer,
+                colors: colors),
+            _ConditionsRow(report: report, colors: colors),
+          ],
+          const SizedBox(height: 20),
+          _SectionTitle(
+              title: 'Targets', icon: LucideIcons.target, colors: colors),
+          if (report.targets.isEmpty)
+            _muted('No accepted light frames recorded.'),
+          for (final target in report.targets) ...[
+            const SizedBox(height: 8),
+            _TargetBlock(target: target, colors: colors),
+          ],
+          if (report.errorMessages.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            _SectionTitle(
+                title: 'Errors',
+                icon: LucideIcons.xCircle,
+                colors: colors,
+                titleColor: colors.error),
+            ..._buildErrorList(),
+          ],
+          // Surface the live warningMessages we accumulated during
+          // the run. Pre-patch these were collected by the
+          // executor but never rendered anywhere post-session —
+          // "filter HÎ± could not be matched 14 times" used to be
+          // invisible the moment the run ended.
+          if (report.warningMessages.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            _SectionTitle(
+                title: 'Warnings',
+                icon: LucideIcons.alertTriangle,
+                colors: colors,
+                titleColor: colors.warning),
+            ..._buildWarningList(),
+          ],
+          // List every recovery loop that fired during the run
+          // with its cause, attempt count, duration, and outcome.
+          // Scoped to this report's session via
+          // `recoveryHistoryForSessionProvider`, which reloads the
+          // persisted `session_diagnostics` row rather than the live
+          // `recoveryHistoryProvider` — so a report viewed from the
+          // History tab shows that session's recoveries, not the
+          // currently-running one's.
+          Consumer(builder: (context, ref, _) {
+            final recoveriesAsync = ref.watch(
+                recoveryHistoryForSessionProvider(report.sessionId));
+            final recoveries = recoveriesAsync.valueOrNull ?? const [];
+            if (recoveries.isEmpty) return const SizedBox.shrink();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 20),
+                _SectionTitle(
+                    title: 'Recoveries',
+                    icon: LucideIcons.rotateCw,
+                    colors: colors,
+                    titleColor: colors.error),
+                for (final entry in recoveries) ...[
+                  _RecoveryHistoryTile(entry: entry, colors: colors),
+                  const SizedBox(height: 4),
+                ],
+              ],
+            );
+          }),
+          // Diagnostics section. Rendered last, after warnings +
+          // recoveries. Combines the
+          // optical-train drift comparison (pre/post snapshot)
+          // with the equipment-health summary (USB disconnects,
+          // cooler stability, focuser moves, sky brightness,
+          // noticed concerns).
+          Consumer(builder: (context, ref, _) {
+            final settingsAsync = ref.watch(appSettingsProvider);
+            final settings = settingsAsync.valueOrNull;
+            if (settings == null) return const SizedBox.shrink();
+
+            // Scoped to this report's session: reload the persisted
+            // pre/post optical-train snapshots from the
+            // `session_diagnostics` row instead of the live
+            // `opticalTrainBaselineProvider` /
+            // `opticalTrainCurrentSnapshotProvider`, so a historical
+            // report shows that session's drift, not the live run's.
+            final snapshot = ref
+                .watch(opticalTrainSnapshotForSessionProvider(
+                    report.sessionId))
+                .valueOrNull;
+            final baseline = snapshot?.baseline;
+            final current = snapshot?.current;
+            final healthSummary = ref.watch(
+                postSessionHealthSummaryProvider(report.sessionId));
+
+            // Synthesize an OpticalTrainDiagnostics from the
+            // current snapshot so the helper can compute drift.
+            // We only have score values in the snapshot; the
+            // helper treats absent issues as benign.
+            OpticalTrainDiagnostics? currentDiag;
+            if (current != null) {
+              currentDiag = OpticalTrainDiagnostics(
+                tiltScore: current.tiltScore,
+                collimationScore: current.collimationScore,
+                dominantTiltDirection: 'unknown',
+                issues: const [],
+              );
+            }
+
+            final diagnostics = PostSessionDiagnostics.build(
+              preSession: baseline,
+              postSession: currentDiag,
+              healthSummary: healthSummary,
+              opticalTrainDriftThreshold:
+                  settings.opticalTrainDriftThreshold,
+            );
+
+            if (diagnostics.isEmpty) return const SizedBox.shrink();
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 20),
+                _SectionTitle(
+                    title: 'Diagnostics',
+                    icon: LucideIcons.stethoscope,
+                    colors: colors,
+                    titleColor: colors.primary),
+                for (final issue in diagnostics.all) ...[
+                  _DiagnosticIssueTile(
+                    issue: issue,
+                    colors: colors,
+                  ),
+                  const SizedBox(height: 6),
+                ],
+              ],
+            );
+          }),
+          // Post-session retrospective insights. Renders after
+          // Diagnostics so the operator sees raw observations
+          // first, then "what to change next time" last. Each insight
+          // exposes Apply (when actionable) + Dismiss + sticky
+          // "Don't suggest this again".
+          Consumer(builder: (context, ref, _) {
+            final insightsAsync =
+                ref.watch(sessionInsightsProvider(report.sessionId));
+            return insightsAsync.maybeWhen(
+              data: (insights) {
+                if (insights.isEmpty) return const SizedBox.shrink();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 20),
+                    _SectionTitle(
+                      title: 'Suggestions',
+                      icon: LucideIcons.lightbulb,
+                      colors: colors,
+                      titleColor: colors.primary,
+                    ),
+                    for (final insight in insights) ...[
+                      _SessionInsightTile(
+                        insight: insight,
+                        colors: colors,
+                      ),
+                      const SizedBox(height: 6),
+                    ],
+                  ],
+                );
+              },
+              orElse: () => const SizedBox.shrink(),
+            );
+          }),
+          if (report.notes != null && report.notes!.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            _SectionTitle(
+                title: 'Session Notes',
+                icon: LucideIcons.fileText,
+                colors: colors),
+            Text(
+              report.notes!,
+              style: NightshadeTypography.bodySm
+                  .copyWith(color: colors.textSecondary),
+            ),
+          ],
+          // Journal notes attached to either this session's run
+          // or its primary target. Renders
+          // the same `_NoteTile` rows the History tab and
+          // target card use, so an edit propagates everywhere.
+          Consumer(builder: (context, ref, _) {
+            final runId = ref.watch(currentRunIdProvider);
+            // Prefer run-scoped notes when we have a run id; fall
+            // back to per-target notes via the first target in the
+            // report (most common: a sequence images one target
+            // per session).
+            if (runId != null) {
+              final primaryTarget = report.targets.isNotEmpty
+                  ? report.targets.first.targetName
+                  : (report.sessionName);
+              return Padding(
+                padding: const EdgeInsets.only(top: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _SectionTitle(
+                      title: 'Journal',
+                      icon: LucideIcons.bookOpen,
+                      colors: colors,
+                    ),
+                    RunNotesSection(
+                      sequenceRunId: runId,
+                      targetId: primaryTarget,
+                      colors: colors,
+                      embedded: true,
+                    ),
+                  ],
+                ),
+              );
+            }
+            if (report.targets.isEmpty) return const SizedBox.shrink();
+            final primaryTarget = report.targets.first.targetName;
+            return Padding(
+              padding: const EdgeInsets.only(top: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _SectionTitle(
+                    title: 'Journal',
+                    icon: LucideIcons.bookOpen,
+                    colors: colors,
+                  ),
+                  TargetNotesSection(
+                    targetId: primaryTarget,
+                    colors: colors,
+                    embedded: true,
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 
   Widget _muted(String text) => Text(
         text,
-        style: TextStyle(
-            fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
+        style: NightshadeTypography.bodySm.copyWith(color: colors.textMuted),
       );
 
   List<Widget> _buildErrorList() {
@@ -419,8 +391,7 @@ class _ReportBody extends ConsumerWidget {
           padding: const EdgeInsets.only(bottom: 4),
           child: Text(
             msg,
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12, color: colors.error),
+            style: NightshadeTypography.caption.copyWith(color: colors.error),
           ),
         ),
     ];
@@ -443,9 +414,8 @@ class _ReportBody extends ConsumerWidget {
               Expanded(
                 child: Text(
                   msg,
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      color: colors.warning),
+                  style: NightshadeTypography.caption
+                      .copyWith(color: colors.warning),
                 ),
               ),
             ],

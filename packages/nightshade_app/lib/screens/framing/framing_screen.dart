@@ -16,22 +16,23 @@ import 'widgets/optical_config_panel.dart';
 import 'widgets/framing_canvas.dart';
 import 'widgets/framing_sidebar.dart';
 
-/// The single-purpose framing screen: composing and framing astrophotography
-/// targets on a survey-backed canvas with an equipment FOV reticle.
+/// Scaffold-less framing body: composing and framing astrophotography targets
+/// on a survey-backed canvas with an equipment FOV reticle.
 ///
-/// Browsing and acting on tonight's target suggestions now lives entirely in
-/// the Planner ("Plan Tonight") — this screen no longer carries a redundant
-/// Suggestions tab. Targets are adopted into the canvas via
-/// [FramingNotifier.setTargetSuggestion] + `goNamed('framing')` (e.g. from the
-/// Planner's "Send to Framing" action) or via `?ra=&dec=&name=` query params.
-class FramingScreen extends ConsumerStatefulWidget {
-  const FramingScreen({super.key});
+/// Hosted both inside Plan Tonight's "Sky" tab and by [FramingScreen] (the thin
+/// wrapper kept for the redirected `/framing` standalone route). Browsing and
+/// acting on tonight's target suggestions lives entirely in the Planner — this
+/// view carries no Suggestions tab. Targets are adopted into the canvas via
+/// [FramingNotifier.setTargetSuggestion] + `goNamed('framing')` or via
+/// `?ra=&dec=&name=` query params.
+class FramingView extends ConsumerStatefulWidget {
+  const FramingView({super.key});
 
   @override
-  ConsumerState<FramingScreen> createState() => _FramingScreenState();
+  ConsumerState<FramingView> createState() => _FramingViewState();
 }
 
-class _FramingScreenState extends ConsumerState<FramingScreen> {
+class _FramingViewState extends ConsumerState<FramingView> {
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
   final _raController = TextEditingController();
@@ -532,5 +533,20 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
       if (!mounted) return;
       context.showErrorSnackBar('Failed to cache survey image: $e');
     }
+  }
+}
+
+/// Thin Scaffold wrapper kept for the redirected standalone `/framing` route.
+/// The reusable body lives in [FramingView], also hosted by Plan Tonight's
+/// "Sky" tab.
+class FramingScreen extends StatelessWidget {
+  const FramingScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: NightshadeColors.of(context).background,
+      body: const FramingView(),
+    );
   }
 }

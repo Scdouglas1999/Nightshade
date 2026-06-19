@@ -4564,6 +4564,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.std_dev = cst_encode_f_64(apiObj.stdDev);
     wireObj.hfr = cst_encode_opt_box_autoadd_f_64(apiObj.hfr);
     wireObj.eccentricity = cst_encode_opt_box_autoadd_f_64(apiObj.eccentricity);
+    wireObj.fwhm = cst_encode_opt_box_autoadd_f_64(apiObj.fwhm);
     wireObj.star_count = cst_encode_u_32(apiObj.starCount);
   }
 
@@ -5222,6 +5223,22 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.field_height = cst_encode_f_64(apiObj.fieldHeight);
     wireObj.solve_time_secs = cst_encode_f_64(apiObj.solveTimeSecs);
     wireObj.error = cst_encode_opt_String(apiObj.error);
+    wireObj.cd1_1 = cst_encode_f_64(apiObj.cd11);
+    wireObj.cd1_2 = cst_encode_f_64(apiObj.cd12);
+    wireObj.cd2_1 = cst_encode_f_64(apiObj.cd21);
+    wireObj.cd2_2 = cst_encode_f_64(apiObj.cd22);
+    wireObj.sip_a_order = cst_encode_u_32(apiObj.sipAOrder);
+    wireObj.sip_b_order = cst_encode_u_32(apiObj.sipBOrder);
+    wireObj.sip_a_coeffs = cst_encode_list_prim_f_64_strict(apiObj.sipACoeffs);
+    wireObj.sip_b_coeffs = cst_encode_list_prim_f_64_strict(apiObj.sipBCoeffs);
+    wireObj.sip_ap_order = cst_encode_u_32(apiObj.sipApOrder);
+    wireObj.sip_bp_order = cst_encode_u_32(apiObj.sipBpOrder);
+    wireObj.sip_ap_coeffs = cst_encode_list_prim_f_64_strict(
+      apiObj.sipApCoeffs,
+    );
+    wireObj.sip_bp_coeffs = cst_encode_list_prim_f_64_strict(
+      apiObj.sipBpCoeffs,
+    );
   }
 
   @protected
@@ -22158,6 +22175,8 @@ final class wire_cst_image_stats_result extends ffi.Struct {
 
   external ffi.Pointer<ffi.Double> eccentricity;
 
+  external ffi.Pointer<ffi.Double> fwhm;
+
   @ffi.Uint32()
   external int star_count;
 }
@@ -22966,6 +22985,38 @@ final class wire_cst_plate_solve_result extends ffi.Struct {
   external double solve_time_secs;
 
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> error;
+
+  @ffi.Double()
+  external double cd1_1;
+
+  @ffi.Double()
+  external double cd1_2;
+
+  @ffi.Double()
+  external double cd2_1;
+
+  @ffi.Double()
+  external double cd2_2;
+
+  @ffi.Uint32()
+  external int sip_a_order;
+
+  @ffi.Uint32()
+  external int sip_b_order;
+
+  external ffi.Pointer<wire_cst_list_prim_f_64_strict> sip_a_coeffs;
+
+  external ffi.Pointer<wire_cst_list_prim_f_64_strict> sip_b_coeffs;
+
+  @ffi.Uint32()
+  external int sip_ap_order;
+
+  @ffi.Uint32()
+  external int sip_bp_order;
+
+  external ffi.Pointer<wire_cst_list_prim_f_64_strict> sip_ap_coeffs;
+
+  external ffi.Pointer<wire_cst_list_prim_f_64_strict> sip_bp_coeffs;
 }
 
 final class wire_cst_plate_solver_detection extends ffi.Struct {

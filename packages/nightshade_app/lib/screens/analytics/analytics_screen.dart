@@ -19,11 +19,9 @@ import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/tutorial_keys/analytics_keys.dart';
 import '../diagnostics/diagnostics_screen.dart';
 import '../sequencer/widgets/session_report_dialog.dart';
-import 'widgets/science_export_hub.dart';
 import 'widgets/session_chart.dart';
 import 'widgets/image_thumbnail_strip.dart';
 import 'widgets/project_tracking_panel.dart';
-import 'widgets/science_analytics_tab.dart';
 part 'analytics_screen/session_tab.dart';
 part 'analytics_screen/history_tab.dart';
 part 'analytics_screen/history_cards.dart';
@@ -165,28 +163,6 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                   tabs: tabs,
                   selectedIndex: _currentSubTab,
                   onSelected: (index) => setState(() => _currentSubTab = index),
-                  trailing: [
-                    if (_currentSubTab == AnalyticsTab.science.index)
-                      Tooltip(
-                        message: 'Export science data',
-                        child: IconButton(
-                          icon: Icon(
-                            LucideIcons.database,
-                            size: 18,
-                            color: colors.textSecondary,
-                          ),
-                          onPressed: () => showDialog<void>(
-                            context: context,
-                            builder: (_) => const ScienceExportHub(),
-                          ),
-                          padding: const EdgeInsets.all(12),
-                          constraints: const BoxConstraints(
-                            minWidth: 48,
-                            minHeight: 48,
-                          ),
-                        ),
-                      ),
-                  ],
                 ),
               ),
 
@@ -199,7 +175,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
                     _HistoryTab(),
                     _ProjectsTab(),
                     _EquipmentStatsTab(),
-                    ScienceAnalyticsTab(),
+                    _ScienceMovedTab(),
                     DiagnosticsTabContent(),
                   ],
                 ),
@@ -207,6 +183,24 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ScienceMovedTab extends StatelessWidget {
+  const _ScienceMovedTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return EmptyState(
+      icon: LucideIcons.flaskConical,
+      title: context.l10n.text('analyticsScience'),
+      body: 'The science workspace now lives in its own area.',
+      action: NightshadeButton(
+        onPressed: () => context.go('/science'),
+        label: 'Open Science',
+        icon: LucideIcons.arrowRight,
       ),
     );
   }

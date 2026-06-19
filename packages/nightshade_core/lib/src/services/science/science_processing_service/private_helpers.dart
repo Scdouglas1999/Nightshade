@@ -183,6 +183,18 @@ extension _ScienceProcessingPrivateHelpers on ScienceProcessingService {
           pixelScaleArcsec: wcs.pixelScaleArcsecPerPixel,
           imageWidth: fits.width,
           imageHeight: fits.height,
+          cd1_1: wcs.cd1_1,
+          cd1_2: wcs.cd1_2,
+          cd2_1: wcs.cd2_1,
+          cd2_2: wcs.cd2_2,
+          aOrder: wcs.aOrder,
+          bOrder: wcs.bOrder,
+          aCoeffs: wcs.aCoeffs,
+          bCoeffs: wcs.bCoeffs,
+          apOrder: wcs.apOrder,
+          bpOrder: wcs.bpOrder,
+          apCoeffs: wcs.apCoeffs,
+          bpCoeffs: wcs.bpCoeffs,
         );
         final projection = solved.isValid ? GnomonicProjection(solved) : null;
         final targetPixel = projection
@@ -576,6 +588,10 @@ extension _ScienceProcessingPrivateHelpers on ScienceProcessingService {
           source: 'ScienceProcessingService',
         );
       }
+      final distortion = capturedImageId == null
+          ? null
+          : await _imagesRepo.getStoredWcsDistortion(capturedImageId);
+      final sip = decodeSolvedSip(distortion?.sip);
       return WcsSolution(
         raHours: image.solvedRa!,
         decDegrees: image.solvedDec!,
@@ -584,6 +600,18 @@ extension _ScienceProcessingPrivateHelpers on ScienceProcessingService {
         fieldWidthDegrees: fieldWidth,
         fieldHeightDegrees: fieldHeight,
         solverId: 'stored',
+        cd1_1: distortion?.cd1_1,
+        cd1_2: distortion?.cd1_2,
+        cd2_1: distortion?.cd2_1,
+        cd2_2: distortion?.cd2_2,
+        aOrder: sip?.aOrder ?? 0,
+        bOrder: sip?.bOrder ?? 0,
+        aCoeffs: sip?.aCoeffs ?? const [],
+        bCoeffs: sip?.bCoeffs ?? const [],
+        apOrder: sip?.apOrder ?? 0,
+        bpOrder: sip?.bpOrder ?? 0,
+        apCoeffs: sip?.apCoeffs ?? const [],
+        bpCoeffs: sip?.bpCoeffs ?? const [],
       );
     }
 
@@ -599,6 +627,20 @@ extension _ScienceProcessingPrivateHelpers on ScienceProcessingService {
         solvedDec: solved.decDegrees,
         solvedRotation: solved.rotationDegrees,
         solvedPixelScale: solved.pixelScaleArcsecPerPixel,
+        solvedCd1_1: solved.cd1_1,
+        solvedCd1_2: solved.cd1_2,
+        solvedCd2_1: solved.cd2_1,
+        solvedCd2_2: solved.cd2_2,
+        solvedSip: encodeSolvedSip(
+          aOrder: solved.aOrder,
+          bOrder: solved.bOrder,
+          aCoeffs: solved.aCoeffs,
+          bCoeffs: solved.bCoeffs,
+          apOrder: solved.apOrder,
+          bpOrder: solved.bpOrder,
+          apCoeffs: solved.apCoeffs,
+          bpCoeffs: solved.bpCoeffs,
+        ),
       );
     }
 

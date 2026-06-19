@@ -224,6 +224,45 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
       ],
     ),
     NodePaletteCategory(
+      name: 'Science',
+      icon: 'lineChart',
+      items: [
+        NodePaletteItem(
+          name: 'Science Photometry',
+          icon: 'analytics',
+          description: 'Cadence-enforced photometric capture with live reduction',
+          createNode: () => SciencePhotometryNode(
+            filter: effectiveFilter ?? 'Clear',
+            exposureSecs: effectiveExposureDuration,
+            gain: effectiveGain,
+            offset: effectiveOffset,
+            binning: effectiveBinning,
+          ),
+        ),
+        NodePaletteItem(
+          name: 'Photometry Run (template)',
+          icon: 'lineChart',
+          description: 'Center, start guiding, then run AAVSO-grade photometry',
+          createNode: () => InstructionSetNode(name: 'Photometry Run'),
+          createChildren: () => [
+            CenterNode(),
+            StartGuidingNode(
+              settlePixels: defaults.ditherSettlePixels,
+              settleTime: defaults.ditherSettleTime,
+            ),
+            SciencePhotometryNode(
+              filter: effectiveFilter ?? 'Clear',
+              exposureSecs: effectiveExposureDuration,
+              gain: effectiveGain,
+              offset: effectiveOffset,
+              binning: effectiveBinning,
+              quality: const PhotometryQualityGates(),
+            ),
+          ],
+        ),
+      ],
+    ),
+    NodePaletteCategory(
       name: 'Guiding',
       icon: 'crosshair',
       items: [

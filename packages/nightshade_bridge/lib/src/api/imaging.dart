@@ -1882,6 +1882,7 @@ class ImageStatsResult {
   /// `None` when too few reliable stars to honestly measure — never a
   /// fabricated value.
   final double? eccentricity;
+  final double? fwhm;
   final int starCount;
 
   const ImageStatsResult({
@@ -1892,6 +1893,7 @@ class ImageStatsResult {
     required this.stdDev,
     this.hfr,
     this.eccentricity,
+    this.fwhm,
     required this.starCount,
   });
 
@@ -1904,6 +1906,7 @@ class ImageStatsResult {
       stdDev.hashCode ^
       hfr.hashCode ^
       eccentricity.hashCode ^
+      fwhm.hashCode ^
       starCount.hashCode;
 
   @override
@@ -1918,6 +1921,7 @@ class ImageStatsResult {
           stdDev == other.stdDev &&
           hfr == other.hfr &&
           eccentricity == other.eccentricity &&
+          fwhm == other.fwhm &&
           starCount == other.starCount;
 }
 

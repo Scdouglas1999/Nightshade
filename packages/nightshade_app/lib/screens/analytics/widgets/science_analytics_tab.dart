@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -28,6 +29,9 @@ import 'science_timeline_scrubber.dart';
 import 'science_campaign_strip.dart';
 import 'science_trend_cards.dart';
 import 'adaptive_chart_container.dart';
+import 'science_onboarding/science_ladder_card.dart';
+import 'science_onboarding/science_empty_onramp.dart';
+import 'science_onboarding/science_nav_row_card.dart';
 
 part 'science_analytics_tab/navigation_and_snapshots.dart';
 part 'science_analytics_tab/science_info_and_series_chart.dart';
@@ -39,6 +43,7 @@ part 'science_analytics_tab/transforms_and_welcome.dart';
 // across rebuilds — Scrollable.ensureVisible needs a key whose context is in
 // the live tree at the moment of the jump.
 class _ScienceSectionKeys {
+  final GlobalKey ladder = GlobalKey();
   final GlobalKey photometry = GlobalKey();
   final GlobalKey fieldQuality = GlobalKey();
   final GlobalKey anomalies = GlobalKey();
@@ -70,6 +75,13 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
       duration: const Duration(milliseconds: 280),
       curve: Curves.easeOutCubic,
       alignment: 0.05,
+    );
+  }
+
+  void _openExportHub(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => const ScienceExportHub(),
     );
   }
 
@@ -214,6 +226,16 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
         lightFrames.where((image) => image.isPlateSolved).length;
     final calibratedRowCount = calibrations.where((c) => c.isCalibrated).length;
 
+    final hasTarget =
+        ref.watch(sciencePhotometrySelectionProvider).valueOrNull?.target !=
+            null;
+    final photometryLive =
+        ref.watch(scienceModeStateProvider).differentialPhotometryActive;
+    final hasPeriodResult = ref.watch(periodAnalysisProvider).result != null;
+    final hasExportableData = lightCurve.isNotEmpty ||
+        moving.isNotEmpty ||
+        calibrations.isNotEmpty;
+
     // Audit §4.12: when neither an active session nor any standalone capture
     // has produced science data, render a single shared placeholder instead
     // of stacking nine "no data" cards (one per panel).
@@ -231,30 +253,37 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
       // P0.2 + P0.3: even when no science products exist yet, show the live
       // pipeline status and the solve-rate card so users can see *why*
       // products are missing (queue idle, plate solver not configured, etc.)
-      // and take action. The literal "empty state" message stays as the
-      // anchor explanation.
+      // and take action.
       return SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        controller: _scrollController,
+        padding: const EdgeInsets.all(NightshadeTokens.space2xl),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const ScienceStatusBanner(),
-            const SizedBox(height: 16),
+            const SizedBox(height: NightshadeTokens.spaceLg),
             ScienceSolveRateCard(
               colors: colors,
               lightFrames: lightFrames,
             ),
-            const SizedBox(height: 16),
-            EmptyState(
-              icon: LucideIcons.flaskConical,
-              title: 'No science data yet',
-              body: activeSessionId == null
-                  ? 'Capture some plate-solved frames to populate the science tab. '
-                      'Photometry, PSF maps, and anomaly detections appear here once '
-                      'a session has produced calibrated data.'
-                  : 'This session has not produced calibrated science products yet. '
-                      'PSF tiles, residual maps, and photometry will populate as '
-                      'frames are processed.',
+            const SizedBox(height: NightshadeTokens.spaceLg),
+            KeyedSubtree(
+              key: _sectionKeys.ladder,
+              child: ScienceLadderCard(
+                hasCalibration: calibratedRowCount > 0,
+                hasTarget: hasTarget,
+                photometryLive: photometryLive,
+                lightCurvePoints: lightCurve.length,
+                hasPeriodResult: hasPeriodResult,
+                hasExportableData: hasExportableData,
+                onJumpToPhotometry: () => _jumpTo(_sectionKeys.ladder),
+                onJumpToFieldQuality: () => _jumpTo(_sectionKeys.ladder),
+                onOpenExport: () => _openExportHub(context),
+              ),
+            ),
+            const SizedBox(height: NightshadeTokens.spaceLg),
+            ScienceEmptyOnramp(
+              onShowSteps: () => _jumpTo(_sectionKeys.ladder),
             ),
           ],
         ),
@@ -272,11 +301,26 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
           // from empty cards.
           const ScienceStatusBanner(),
           const SizedBox(height: 12),
-          // First-run welcome: dismissible "what's new" card that teaches the
-          // four flagship science actions (photometry, transparency, grader,
-          // report). Dismissal persists across launches via
-          // `dismissedTourPromptsProvider`, so power users never see it twice.
-          const _ScienceWelcomeCard(),
+          ScienceLadderCard(
+            hasCalibration: calibratedRowCount > 0,
+            hasTarget: hasTarget,
+            photometryLive: photometryLive,
+            lightCurvePoints: lightCurve.length,
+            hasPeriodResult: hasPeriodResult,
+            hasExportableData: hasExportableData,
+            onJumpToPhotometry: () => _jumpTo(_sectionKeys.photometry),
+            onJumpToFieldQuality: () => _jumpTo(_sectionKeys.fieldQuality),
+            onOpenExport: () => _openExportHub(context),
+          ),
+          const SizedBox(height: 12),
+          ScienceNavRowCard(
+            icon: LucideIcons.satellite,
+            iconColor: colors.info,
+            label: 'Observing alerts (Transients)',
+            labelColor: colors.textPrimary,
+            onTap: () => context.go('/transients'),
+          ),
+          const SizedBox(height: 12),
           // Audit §4.13: jump nav for the three logical sections below. Sits
           // at the top of the scroll view; the IndexedStack containing this
           // tab keeps it pinned visually whenever the tab is active.

@@ -362,6 +362,7 @@ export 'src/services/import/ics_calendar_importer.dart';
 export 'src/services/import/generic_csv_importer.dart';
 export 'src/services/wcs_overlay.dart';
 export 'src/services/wcs/gnomonic_projection.dart';
+export 'src/services/wcs/wcs_sip_codec.dart';
 export 'src/services/hips/healpix_nested.dart';
 export 'src/services/catalog_overlay_service.dart';
 export 'src/providers/catalog_overlay_provider.dart';

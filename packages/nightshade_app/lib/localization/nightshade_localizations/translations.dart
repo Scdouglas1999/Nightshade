@@ -118,6 +118,8 @@ final Map<String, Map<String, String>> _localizedValues = {
     'savedServersUnreachableShort': 'Unreachable',
     'navAnalytics': 'Analytics',
     'navAnalyticsDesc': 'Session stats',
+    'navScience': 'Science',
+    'navScienceDesc': 'Photometry & citizen science',
     'navDashboard': 'Dashboard',
     'navDashboardDesc': 'Overview & status',
     'navEquipment': 'Equipment',
@@ -170,6 +172,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'settingsObservationLog': 'Observation Log',
     'settingsObservingLists': 'Observing Lists',
     'settingsTitle': 'Settings',
+    'settingsDesc': 'Preferences & profiles',
     'settingsTourDescription':
         'Learn how to configure your Nightshade preferences.',
     'settingsTourTitle': 'Settings Tour',
@@ -524,6 +527,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'plannerTabTargetQueue': 'Target Queue',
     'plannerTabThisWeek': 'This Week',
     'plannerTabProgress': 'Progress',
+    'plannerTabSky': 'Sky',
     // Settings catalog section labels that were previously hard-coded.
     'settingsFilesStorage': 'Files & Storage',
     'settingsAdaptiveExposure': 'Adaptive Exposure',
@@ -657,6 +661,8 @@ final Map<String, Map<String, String>> _localizedValues = {
     'savedServersUnreachableShort': 'Inaccesible',
     'navAnalytics': 'Anal\u00EDtica',
     'navAnalyticsDesc': 'Estad\u00EDsticas',
+    'navScience': 'Ciencia',
+    'navScienceDesc': 'Fotometr\u00EDa y ciencia ciudadana',
     'navDashboard': 'Panel',
     'navDashboardDesc': 'Resumen y estado',
     'navEquipment': 'Equipo',
@@ -709,6 +715,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'settingsObservationLog': 'Registro de observacion',
     'settingsObservingLists': 'Listas de observacion',
     'settingsTitle': 'Ajustes',
+    'settingsDesc': 'Preferencias y perfiles',
     'settingsTourDescription':
         'Aprende a configurar tus preferencias de Nightshade.',
     'settingsTourTitle': 'Tour de ajustes',
@@ -1073,6 +1080,7 @@ final Map<String, Map<String, String>> _localizedValues = {
     'plannerTabTargetQueue': 'Cola de objetivos',
     'plannerTabThisWeek': 'Esta semana',
     'plannerTabProgress': 'Progreso',
+    'plannerTabSky': 'Cielo',
     // Settings catalog section labels that were previously hard-coded.
     'settingsFilesStorage': 'Archivos y almacenamiento',
     'settingsAdaptiveExposure': 'Exposición adaptativa',

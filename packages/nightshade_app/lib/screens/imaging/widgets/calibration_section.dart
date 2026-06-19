@@ -123,6 +123,17 @@ class CalibrationSection extends ConsumerWidget {
             sensorHeight: sensorHeight,
             temperatureC: temperatureC,
           ),
+          const SizedBox(height: 16),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: NightshadeButton(
+              label: 'Flat Wizard',
+              icon: LucideIcons.sun,
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+              onPressed: () => context.push('/flat-wizard'),
+            ),
+          ),
         ],
       ),
     );

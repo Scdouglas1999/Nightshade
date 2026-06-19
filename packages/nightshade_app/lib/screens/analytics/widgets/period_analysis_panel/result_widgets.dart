@@ -5,12 +5,14 @@ class _ResultColumn extends StatelessWidget {
   final String label;
   final String value;
   final String detail;
+  final _Verdict? verdict;
 
   const _ResultColumn({
     required this.colors,
     required this.label,
     required this.value,
     required this.detail,
+    this.verdict,
   });
 
   @override
@@ -30,6 +32,8 @@ class _ResultColumn extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: colors.textPrimary,
               fontSize: NightshadeTypography.fontSize16,
@@ -40,13 +44,60 @@ class _ResultColumn extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             detail,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: colors.textMuted,
               fontSize: NightshadeTypography.fontSize10,
             ),
             textAlign: TextAlign.center,
           ),
+          if (verdict != null) ...[
+            const SizedBox(height: NightshadeTokens.spaceXs),
+            _VerdictChip(colors: colors, verdict: verdict!),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+enum _Verdict { significant, strong, noteworthy }
+
+class _VerdictChip extends StatelessWidget {
+  final NightshadeColors colors;
+  final _Verdict verdict;
+
+  const _VerdictChip({required this.colors, required this.verdict});
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color, filled) = switch (verdict) {
+      _Verdict.strong => ('Strong', colors.success, true),
+      _Verdict.significant => ('Significant', colors.success, false),
+      _Verdict.noteworthy => ('Noteworthy', colors.warning, false),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceSm,
+        vertical: 2,
+      ),
+      decoration: filled
+          ? BoxDecoration(
+              color: color,
+              borderRadius: NightshadeTokens.borderRadiusLg,
+            )
+          : NightshadeDecorations.statusChip(
+              color,
+              borderRadius: NightshadeTokens.borderRadiusLg,
+            ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: filled ? colors.surface : color,
+          fontSize: NightshadeTypography.fontSize10,
+          fontWeight: FontWeight.w600,
+        ),
       ),
     );
   }

@@ -13,6 +13,7 @@ enum AppScreen {
   planetarium,
   framing,
   analytics,
+  science,
   flatWizard,
   weather,
   suggestions,
@@ -43,6 +44,9 @@ AppScreen locationToAppScreen(String location) {
   if (location.startsWith('/planetarium')) return AppScreen.planetarium;
   if (location.startsWith('/framing')) return AppScreen.framing;
   if (location.startsWith('/analytics')) return AppScreen.analytics;
+  // Transients folds into Science → Observing Alerts (the standalone route
+  // redirects to /science?tab=transients), so it highlights the Science host.
+  if (location.startsWith('/science')) return AppScreen.science;
   if (location.startsWith('/flat-wizard')) return AppScreen.flatWizard;
   if (location.startsWith('/weather')) return AppScreen.weather;
   if (location.startsWith('/suggestions')) return AppScreen.suggestions;

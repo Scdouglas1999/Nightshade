@@ -20,6 +20,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 // The typed `NightshadeEvent` union (and its `EventPayload_*` arms) carries the
@@ -53,7 +54,6 @@ class LightCurvePanel extends ConsumerWidget {
       return _buildShell(
         colors,
         child: _emptyState(
-          colors,
           'No active session yet — waiting for the executor to '
           'announce a Photometry burst.',
         ),
@@ -64,7 +64,9 @@ class LightCurvePanel extends ConsumerWidget {
     if (targetDesignation == null || targetDesignation.isEmpty) {
       return _buildShell(
         colors,
-        child: _emptyState(colors, 'Awaiting first photometry frame…'),
+        child: _emptyState(
+          'Capture a few photometry frames to build a light curve.',
+        ),
       );
     }
 
@@ -86,7 +88,6 @@ class LightCurvePanel extends ConsumerWidget {
           const SizedBox(height: NightshadeTokens.spaceMd),
           if (points.isEmpty)
             _emptyState(
-              colors,
               'Frames captured but the science pipeline has not yet '
               'written photometry rows.',
             )
@@ -109,6 +110,19 @@ class LightCurvePanel extends ConsumerWidget {
                 size: Size.infinite,
               ),
             ),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                NightshadeButton(
+                  label: 'View in Science',
+                  icon: LucideIcons.arrowRight,
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
+                  onPressed: () => context.go('/science'),
+                ),
+              ],
+            ),
           ],
         ],
       ),
@@ -122,23 +136,11 @@ class LightCurvePanel extends ConsumerWidget {
     );
   }
 
-  Widget _emptyState(NightshadeColors colors, String message) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        children: [
-          Icon(LucideIcons.lineChart, size: 14, color: colors.textMuted),
-          const SizedBox(width: NightshadeTokens.spaceSm),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textSecondary),
-            ),
-          ),
-        ],
-      ),
+  Widget _emptyState(String message) {
+    return EmptyState.compact(
+      icon: LucideIcons.lineChart,
+      title: 'No light curve yet',
+      body: message,
     );
   }
 }
@@ -221,11 +223,13 @@ class _SummaryRow extends StatelessWidget {
         const Spacer(),
         if (cadenceBreaks > 0)
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            padding: const EdgeInsets.symmetric(
+              horizontal: NightshadeTokens.spaceSm,
+              vertical: 3,
+            ),
             decoration: NightshadeDecorations.statusChip(
               colors.warning,
-              borderRadius:
-                  BorderRadius.circular(NightshadeTokens.radiusInline4),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
               bordered: false,
             ),
             child: Text(

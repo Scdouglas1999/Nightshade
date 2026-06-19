@@ -4,78 +4,94 @@ extension _PhotometricWizardFrameSelection
     on _PhotometricCalibrationWizardState {
   Widget _buildStep1SelectFrame(NightshadeColors colors) {
     final sessions = ref.watch(allSessionsProvider).valueOrNull ?? const [];
-    final sessionId = sessions.isNotEmpty ? sessions.first.id : null;
+    final sessionId = _selectedSessionId ??
+        (sessions.isNotEmpty ? sessions.first.id : null);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Select plate-solved frames from a standard star field',
-          style: TextStyle(
-            color: colors.textPrimary,
-            fontSize: NightshadeTypography.fontSize14,
-            fontWeight: FontWeight.w500,
-          ),
+          style: NightshadeTypography.bodyMedium
+              .copyWith(color: colors.textPrimary),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: NightshadeTokens.spaceSm),
         Text(
           'Choose one or more plate-solved frames captured in a field with '
           'known standard stars (e.g., Landolt fields, Stetson standards). '
           'One frame fits the zero point and color term; selecting frames of '
           'the same field at different altitudes adds airmass spread, which '
           'lets the fit also recover the atmospheric extinction coefficient.',
-          style: TextStyle(
-              color: colors.textSecondary,
-              fontSize: NightshadeTypography.fontSize12),
+          style: NightshadeTypography.caption
+              .copyWith(color: colors.textSecondary),
         ),
-        const SizedBox(height: 16),
-        Row(
+        const SizedBox(height: NightshadeTokens.spaceLg),
+        Wrap(
+          spacing: NightshadeTokens.spaceLg,
+          runSpacing: NightshadeTokens.spaceMd,
           children: [
-            Text('Filter: ', style: TextStyle(color: colors.textSecondary)),
-            const SizedBox(width: 8),
             SizedBox(
-              width: 120,
-              child: TextField(
-                style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: NightshadeTypography.fontSize13),
-                decoration: InputDecoration(
-                  hintText: 'e.g., V, B, R',
-                  hintStyle: TextStyle(
-                      color: colors.textMuted,
-                      fontSize: NightshadeTypography.fontSize13),
-                  isDense: true,
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  border: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(NightshadeTokens.radiusInline8),
-                    borderSide: BorderSide(color: colors.border),
+              width: 220,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Session',
+                      style: NightshadeTypography.labelSm
+                          .copyWith(color: colors.textSecondary)),
+                  const SizedBox(height: NightshadeTokens.spaceXs),
+                  NightshadeDropdown(
+                    isExpanded: true,
+                    isDense: true,
+                    value: sessionId?.toString(),
+                    hint: 'Select session',
+                    items: sessions.map((s) => s.id.toString()).toList(),
+                    itemLabels: sessions
+                        .map((s) => s.name ?? 'Session ${s.id}')
+                        .toList(),
+                    onChanged: (value) {
+                      final id = value == null ? null : int.tryParse(value);
+                      if (id == null || id == sessionId) {
+                        return;
+                      }
+                      _update(() {
+                        _selectedSessionId = id;
+                        _selectedImageIds.clear();
+                        _starMatches = const [];
+                        _computedCoefficients = null;
+                      });
+                    },
                   ),
-                ),
+                ],
+              ),
+            ),
+            SizedBox(
+              width: 140,
+              child: NightshadeTextField(
+                label: 'Filter',
+                controller: _filterController,
+                hint: 'e.g., V, B, R',
                 onChanged: (value) => _update(() => _filterName = value),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: NightshadeTokens.spaceMd),
         if (sessionId != null)
           _buildFrameSelector(colors, sessionId)
         else
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius:
-                  BorderRadius.circular(NightshadeTokens.radiusInline8),
+              borderRadius: NightshadeTokens.borderRadiusLg,
               border: Border.all(color: colors.border.withValues(alpha: 0.3)),
             ),
             child: Text(
               'No imaging sessions found. Capture frames with a standard '
               'star field first.',
-              style: TextStyle(
-                  color: colors.textMuted,
-                  fontSize: NightshadeTypography.fontSize12),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
           ),
       ],
@@ -96,13 +112,13 @@ extension _PhotometricWizardFrameSelection
             children: List.generate(
               5,
               (i) => Padding(
-                padding: EdgeInsets.only(right: i == 4 ? 0 : 8),
+                padding: EdgeInsets.only(
+                    right: i == 4 ? 0 : NightshadeTokens.spaceSm),
                 child: Container(
                   width: 140,
                   decoration: BoxDecoration(
                     color: colors.surfaceAlt,
-                    borderRadius:
-                        BorderRadius.circular(NightshadeTokens.radiusMd),
+                    borderRadius: NightshadeTokens.borderRadiusMd,
                   ),
                 ),
               ),
@@ -123,9 +139,8 @@ extension _PhotometricWizardFrameSelection
         if (solvedImages.isEmpty) {
           return Text(
             'No plate-solved light frames found in the latest session.',
-            style: TextStyle(
-                color: colors.textMuted,
-                fontSize: NightshadeTypography.fontSize12),
+            style: NightshadeTypography.caption
+                .copyWith(color: colors.textMuted),
           );
         }
 
@@ -146,9 +161,8 @@ extension _PhotometricWizardFrameSelection
                     NightshadeDecorations.tintedBadge(colors.primary).color,
                 title: Text(
                   img.fileName,
-                  style: TextStyle(
+                  style: NightshadeTypography.bodySm.copyWith(
                     color: isSelected ? colors.primary : colors.textPrimary,
-                    fontSize: NightshadeTypography.fontSize13,
                   ),
                 ),
                 subtitle: Text(
@@ -157,18 +171,16 @@ extension _PhotometricWizardFrameSelection
                   'Stars: ${img.starCount ?? "?"} | '
                   'RA: ${img.solvedRa?.toStringAsFixed(4) ?? "?"} '
                   'Dec: ${img.solvedDec?.toStringAsFixed(4) ?? "?"}',
-                  style: TextStyle(
-                      color: colors.textMuted,
-                      fontSize: NightshadeTypography.fontSize11),
+                  style: NightshadeTypography.captionSm
+                      .copyWith(color: colors.textMuted),
                 ),
                 leading: Icon(
                   isSelected ? LucideIcons.checkCircle2 : LucideIcons.image,
                   color: isSelected ? colors.primary : colors.textMuted,
-                  size: 18,
+                  size: NightshadeTokens.iconSm,
                 ),
                 shape: RoundedRectangleBorder(
-                  borderRadius:
-                      BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  borderRadius: NightshadeTokens.borderRadiusLg,
                 ),
                 onTap: () {
                   _update(() {
@@ -177,6 +189,7 @@ extension _PhotometricWizardFrameSelection
                     }
                     if (_filterName.isEmpty && img.filter != null) {
                       _filterName = img.filter!;
+                      _filterController.text = img.filter!;
                     }
                     // New frame selection invalidates downstream products.
                     _starMatches = const [];
