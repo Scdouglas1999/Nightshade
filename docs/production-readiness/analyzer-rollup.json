@@ -1,6 +1,6 @@
 {
-  "generatedAtUtc": "2026-06-16T19:58:28.509559Z",
-  "analyzerExitCode": 2,
+  "generatedAtUtc": "2026-06-19T02:09:38.530650Z",
+  "analyzerExitCode": 0,
   "policyPath": "docs/production-readiness/analyzer-policy.yaml",
   "policy": {
     "include": [
@@ -27,13 +27,13 @@
   "summary": {
     "all": {
       "errors": 0,
-      "warnings": 2,
-      "infos": 72
+      "warnings": 0,
+      "infos": 67
     },
     "production": {
       "errors": 0,
       "warnings": 0,
-      "infos": 37
+      "infos": 32
     },
     "criticalWarnings": 0,
     "failed": false
@@ -117,18 +117,8 @@
       "severity": "INFO",
       "type": "LINT",
       "code": "USE_BUILD_CONTEXT_SYNCHRONOUSLY",
-      "file": "/home/scdouglas/Documents/Nightshade2/packages/nightshade_app/lib/screens/dashboard/widgets/quick_actions_card.dart",
-      "line": 73,
-      "column": 19,
-      "length": 7,
-      "message": "Don't use 'BuildContext's across async gaps."
-    },
-    {
-      "severity": "INFO",
-      "type": "LINT",
-      "code": "USE_BUILD_CONTEXT_SYNCHRONOUSLY",
       "file": "/home/scdouglas/Documents/Nightshade2/packages/nightshade_app/lib/screens/equipment/widgets/connected_device_card/dialogs_and_settings.dart",
-      "line": 606,
+      "line": 601,
       "column": 25,
       "length": 11,
       "message": "Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check."
@@ -138,7 +128,7 @@
       "type": "LINT",
       "code": "USE_BUILD_CONTEXT_SYNCHRONOUSLY",
       "file": "/home/scdouglas/Documents/Nightshade2/packages/nightshade_app/lib/screens/equipment/widgets/connected_device_card/dialogs_and_settings.dart",
-      "line": 612,
+      "line": 607,
       "column": 25,
       "length": 11,
       "message": "Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check."
@@ -268,7 +258,7 @@
       "type": "LINT",
       "code": "USE_BUILD_CONTEXT_SYNCHRONOUSLY",
       "file": "/home/scdouglas/Documents/Nightshade2/packages/nightshade_app/lib/screens/sequencer/import_sequence_dialog.dart",
-      "line": 123,
+      "line": 135,
       "column": 11,
       "length": 7,
       "message": "Don't use 'BuildContext's across async gaps."
@@ -288,50 +278,10 @@
       "type": "HINT",
       "code": "DEPRECATED_MEMBER_USE",
       "file": "/home/scdouglas/Documents/Nightshade2/packages/nightshade_app/lib/screens/sequencer/widgets/smart_exposure_properties.dart",
-      "line": 351,
+      "line": 353,
       "column": 7,
       "length": 9,
       "message": "'onReorder' is deprecated and shouldn't be used. Use the onReorderItem callback instead. The onReorderItem callback adjusts the newIndex parameter for a removed item at the oldIndex. This feature was deprecated after v3.41.0-0.0.pre."
-    },
-    {
-      "severity": "INFO",
-      "type": "HINT",
-      "code": "DEPRECATED_MEMBER_USE",
-      "file": "/home/scdouglas/Documents/Nightshade2/packages/nightshade_app/lib/screens/settings/plate_solving_settings_screen.dart",
-      "line": 683,
-      "column": 9,
-      "length": 10,
-      "message": "'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre."
-    },
-    {
-      "severity": "INFO",
-      "type": "HINT",
-      "code": "DEPRECATED_MEMBER_USE",
-      "file": "/home/scdouglas/Documents/Nightshade2/packages/nightshade_app/lib/screens/settings/plate_solving_settings_screen.dart",
-      "line": 684,
-      "column": 9,
-      "length": 9,
-      "message": "'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre."
-    },
-    {
-      "severity": "INFO",
-      "type": "HINT",
-      "code": "DEPRECATED_MEMBER_USE",
-      "file": "/home/scdouglas/Documents/Nightshade2/packages/nightshade_app/lib/screens/settings/widgets/ai_assistant_settings.dart",
-      "line": 156,
-      "column": 15,
-      "length": 10,
-      "message": "'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre."
-    },
-    {
-      "severity": "INFO",
-      "type": "HINT",
-      "code": "DEPRECATED_MEMBER_USE",
-      "file": "/home/scdouglas/Documents/Nightshade2/packages/nightshade_app/lib/screens/settings/widgets/ai_assistant_settings.dart",
-      "line": 157,
-      "column": 15,
-      "length": 9,
-      "message": "'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre."
     },
     {
       "severity": "INFO",
@@ -408,7 +358,7 @@
       "type": "LINT",
       "code": "LIBRARY_PRIVATE_TYPES_IN_PUBLIC_API",
       "file": "/home/scdouglas/Documents/Nightshade2/packages/nightshade_core/lib/src/providers/sequence_stats_provider.dart",
-      "line": 27,
+      "line": 29,
       "column": 33,
       "length": 12,
       "message": "Invalid use of a private type in a public API."

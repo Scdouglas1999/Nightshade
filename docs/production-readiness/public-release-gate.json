@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-16T19:58:47.859991Z",
+  "generatedAt": "2026-06-19T02:07:35.199444Z",
   "decision": "NOT_READY",
   "ready": false,
   "passedCount": 20,
@@ -59,7 +59,7 @@
       "label": "Headless API contract",
       "passed": true,
       "evidence": "docs/production-readiness/headless-api-contract-audit.json",
-      "detail": "registered=467 advertised=467 advertisedHttp=464 openApiPaths=426 networkBackendRoutes=372 registeredNotAdvertised=0 advertisedNotRegistered=0 networkBackendMissingOnServer=0 advertisedHttpMissingOpenApi=0 openApiMetadataCoverage=9/9 webSocketContractCoverage=4/4 versionNegotiationCoverage=10/10."
+      "detail": "registered=468 advertised=468 advertisedHttp=465 openApiPaths=427 networkBackendRoutes=372 registeredNotAdvertised=0 advertisedNotRegistered=0 networkBackendMissingOnServer=0 advertisedHttpMissingOpenApi=0 openApiMetadataCoverage=9/9 webSocketContractCoverage=4/4 versionNegotiationCoverage=10/10."
     },
     {
       "id": "headless_route_policy",
