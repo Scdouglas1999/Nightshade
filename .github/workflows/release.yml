@@ -19,8 +19,8 @@ permissions:
 env:
   FLUTTER_VERSION: '3.44.1'
   # Artifact version. Bump this in lockstep with the app pubspecs and the tag
-  # (e.g. v4.1.0 -> APP_VERSION 4.1.0) so the published file names match.
-  APP_VERSION: '4.2.0'
+  # (e.g. v4.3.0 -> APP_VERSION 4.3.0) so the published file names match.
+  APP_VERSION: '4.3.0'
 
 jobs:
   # --------------------------------------------------------------------------
