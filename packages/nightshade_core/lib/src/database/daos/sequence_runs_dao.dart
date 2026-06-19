@@ -11,17 +11,53 @@ class SequenceRunsDao extends DatabaseAccessor<NightshadeDatabase>
   SequenceRunsDao(super.db);
 
   /// Start a new run record. Returns the row ID.
+  ///
+  /// [sequenceSnapshotJson] persists the exact sequence JSON used for this
+  /// run so a later "diff vs previous run" compares real snapshots rather
+  /// than the live (possibly since-edited) sequence. Null for resumed runs
+  /// that have no Dart-side sequence to capture.
   Future<int> startRun({
     required int? sequenceId,
     required String sequenceName,
+    String? sequenceSnapshotJson,
   }) {
     return into(sequenceRuns).insert(
       SequenceRunsCompanion.insert(
         sequenceId: Value(sequenceId),
         sequenceName: sequenceName,
         startedAt: DateTime.now(),
+        sequenceSnapshotJson: Value(sequenceSnapshotJson),
       ),
     );
+  }
+
+  /// The sequence snapshot JSON of the most recent COMPLETED run of
+  /// [sequenceId] that started strictly before [before] (when supplied —
+  /// pass the current run's `startedAt` so the run diffs against the run
+  /// before it, not itself).
+  ///
+  /// Returns null when there is no earlier completed run, or when the earlier
+  /// run predates the snapshot column (legacy rows store null). Only
+  /// `status == 'completed'` runs are considered — diffing against an aborted
+  /// or failed run's partial state would mislead the operator.
+  Future<String?> previousCompletedRunSnapshot(
+    int sequenceId, {
+    DateTime? before,
+  }) async {
+    final query = select(sequenceRuns)
+      ..where(
+        (r) =>
+            r.sequenceId.equals(sequenceId) &
+            r.status.equals('completed') &
+            r.sequenceSnapshotJson.isNotNull(),
+      )
+      ..orderBy([(r) => OrderingTerm.desc(r.startedAt)])
+      ..limit(1);
+    if (before != null) {
+      query.where((r) => r.startedAt.isSmallerThanValue(before));
+    }
+    final row = await query.getSingleOrNull();
+    return row?.sequenceSnapshotJson;
   }
 
   /// Finish a run with final status and statistics.

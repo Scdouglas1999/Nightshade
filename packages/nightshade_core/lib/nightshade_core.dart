@@ -256,6 +256,8 @@ export 'src/providers/recovery_provider.dart';
 // Mobile session replay scrubber provider + types.
 export 'src/providers/session_replay_provider.dart';
 export 'src/providers/auto_stretch_provider.dart';
+export 'src/providers/glance_mode_provider.dart';
+export 'src/providers/connection_quality_provider.dart';
 export 'src/providers/science_provider.dart';
 export 'src/providers/science_status_provider.dart';
 export 'src/providers/autofocus_progress_provider.dart';

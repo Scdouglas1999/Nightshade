@@ -169,6 +169,12 @@ class RecoveryCause extends Equatable {
     throw FormatException('Unknown RecoveryCause wire value: $raw');
   }
 
+  /// Inverse of [RecoveryCause.fromJson] — emits the same serde wire shape:
+  /// a bare string for unit variants, `{"Custom": "..."}` for the custom
+  /// variant.
+  dynamic toJson() =>
+      kind == 'Custom' ? <String, dynamic>{'Custom': customLabel} : kind;
+
   @override
   List<Object?> get props => [kind, customLabel];
 }
@@ -268,9 +274,7 @@ class RecoveryStatus extends Equatable {
 
   Map<String, dynamic> toJson() => {
     'started_at': startedAt.toUtc().toIso8601String(),
-    'cause': cause.kind == 'Custom'
-        ? {'Custom': cause.customLabel}
-        : cause.kind,
+    'cause': cause.toJson(),
     'last_attempt_at': lastAttemptAt?.toUtc().toIso8601String(),
     'attempt_count': attemptCount,
     'max_attempts': maxAttempts,
@@ -330,6 +334,19 @@ class RecoveryHistoryEntry extends Equatable {
       lastError: json['last_error'] as String?,
     );
   }
+
+  /// Round-trips with [RecoveryHistoryEntry.fromJson]. Used to persist the
+  /// per-session recovery history into `session_diagnostics` so a historical
+  /// run report can rebuild this list without the live provider.
+  Map<String, dynamic> toJson() => {
+    'started_at': startedAt.toIso8601String(),
+    'ended_at': endedAt.toIso8601String(),
+    'cause': cause.toJson(),
+    'attempts': attempts,
+    'recovered': recovered,
+    'aborted_by_user': abortedByUser,
+    'last_error': lastError,
+  };
 
   @override
   List<Object?> get props => [

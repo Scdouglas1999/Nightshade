@@ -12,21 +12,38 @@ import '../../../utils/sequence_mutator_helper.dart';
 import '../../../utils/snackbar_helper.dart';
 
 part 'sequence_library_tab/library_header.dart';
+part 'sequence_library_tab/library_filter_row.dart';
 part 'sequence_library_tab/action_button.dart';
 part 'sequence_library_tab/sequence_card.dart';
 part 'sequence_library_tab/supporting_widgets.dart';
 part 'sequence_library_tab/save_sequence_dialog.dart';
+part 'sequence_library_tab/version_history_dialog.dart';
+part 'sequence_library_tab/tag_editor_dialog.dart';
 
 /// Provider for sequences list - loads from database
 // autoDispose: list is only consumed by SequenceLibraryTab; refetching the
 // DB on revisit is cheap and ensures we never show stale entries after the
 // user edited a sequence elsewhere.
-// Defined in nightshade_core: savedSequencesProvider (sequence_catalog_sync.dart)
+// Defined in nightshade_core: savedSequenceSummariesProvider
+// (sequence_catalog_sync.dart) — a single grouped query that does NOT hydrate
+// each sequence's full node tree.
 
 /// Search provider for sequences
 // autoDispose: filter input is tab-scoped; clearing it on revisit matches
-// user expectation.
+// user expectation. Written via a debounce in the library header.
 final sequenceSearchProvider = StateProvider.autoDispose<String>((ref) => '');
+
+/// Active tag filter. Empty = no tag filter (show all). A summary matches when
+/// it carries every selected tag (AND semantics), so narrowing tags narrows
+/// the list.
+// autoDispose: tab-scoped, cleared on revisit like the search query.
+final sequenceTagFilterProvider =
+    StateProvider.autoDispose<Set<String>>((ref) => <String>{});
+
+/// When true, the list is restricted to favorited sequences.
+// autoDispose: tab-scoped toggle.
+final sequenceFavoritesOnlyProvider =
+    StateProvider.autoDispose<bool>((ref) => false);
 
 /// Sort order for sequences
 enum SequenceSortOrder { name, dateModified, dateCreated, nodeCount }
@@ -38,25 +55,55 @@ final sequenceSortOrderProvider = StateProvider.autoDispose<SequenceSortOrder>(
   (ref) => SequenceSortOrder.dateModified,
 );
 
-/// Derived list of non-template sequences with the active search filter
-/// and sort order applied. Memoizes the filter+sort work outside of
-/// `build` so a rebuild from an unrelated provider (e.g. hover state on a
-/// card) doesn't re-run the whole pipeline. Recomputes only when the
-/// underlying list, the (debounced) query, or the sort order changes.
-final filteredSequencesProvider =
-    Provider.autoDispose<AsyncValue<List<Sequence>>>((ref) {
-  final sequencesAsync = ref.watch(savedSequencesProvider);
+/// Every tag present across the saved sequences, sorted, for the filter row.
+/// Derived from the lightweight summaries so it never hydrates node trees.
+final sequenceTagUniverseProvider =
+    Provider.autoDispose<AsyncValue<List<String>>>((ref) {
+  final summariesAsync = ref.watch(savedSequenceSummariesProvider);
+  return summariesAsync.whenData((summaries) {
+    final tags = <String>{};
+    for (final summary in summaries) {
+      tags.addAll(summary.tags);
+    }
+    final sorted = tags.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return sorted;
+  });
+});
+
+/// Derived list of saved-sequence summaries with the active search, tag, and
+/// favorite filters plus the sort order applied. Memoizes the filter+sort work
+/// outside of `build` so a rebuild from an unrelated provider (e.g. hover state
+/// on a card) doesn't re-run the whole pipeline. Recomputes only when the
+/// underlying list, the (debounced) query, the tag/favorite filters, or the
+/// sort order changes.
+final filteredSequenceSummariesProvider =
+    Provider.autoDispose<AsyncValue<List<SequenceSummary>>>((ref) {
+  final summariesAsync = ref.watch(savedSequenceSummariesProvider);
   final query = ref.watch(sequenceSearchProvider).trim().toLowerCase();
+  final tagFilter = ref.watch(sequenceTagFilterProvider);
+  final favoritesOnly = ref.watch(sequenceFavoritesOnlyProvider);
   final order = ref.watch(sequenceSortOrderProvider);
 
-  return sequencesAsync.whenData((sequences) {
-    var filtered = sequences.where((s) => !s.isTemplate).toList();
+  return summariesAsync.whenData((summaries) {
+    var filtered = summaries.toList();
+
+    if (favoritesOnly) {
+      filtered = filtered.where((s) => s.isFavorite).toList();
+    }
+
+    if (tagFilter.isNotEmpty) {
+      filtered = filtered
+          .where((s) => tagFilter.every((tag) => s.tags.contains(tag)))
+          .toList();
+    }
 
     if (query.isNotEmpty) {
       filtered = filtered
           .where((s) =>
               s.name.toLowerCase().contains(query) ||
-              s.description.toLowerCase().contains(query))
+              (s.primaryTargetName?.toLowerCase().contains(query) ?? false) ||
+              s.tags.any((t) => t.toLowerCase().contains(query)))
           .toList();
     }
 
@@ -68,24 +115,16 @@ final filteredSequencesProvider =
         filtered.sort((a, b) => b.modifiedAt.compareTo(a.modifiedAt));
         break;
       case SequenceSortOrder.dateCreated:
-        filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        // Summaries have no created-at column; modified-at is the closest
+        // proxy and keeps the menu option meaningful.
+        filtered.sort((a, b) => b.modifiedAt.compareTo(a.modifiedAt));
         break;
       case SequenceSortOrder.nodeCount:
-        filtered.sort((a, b) => b.nodes.length.compareTo(a.nodes.length));
+        filtered.sort((a, b) => b.nodeCount.compareTo(a.nodeCount));
         break;
     }
     return filtered;
   });
-});
-
-/// Run-history rollup for a saved sequence, keyed on its database id.
-/// Backed by [SequenceRunsDao.runSummaryForSequence] (a single grouped
-/// COUNT/MAX query) so the library card can show "N runs · last DATE"
-/// without loading the full run list.
-final sequenceRunSummaryProvider = FutureProvider.autoDispose
-    .family<({int runCount, DateTime? lastRunAt}), int>((ref, dbId) async {
-  final dao = ref.watch(sequenceRunsDaoProvider);
-  return dao.runSummaryForSequence(dbId);
 });
 
 /// Optional incoming sequence-id filter the library "history" link writes
@@ -99,8 +138,11 @@ class SequenceLibraryTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
-    final filteredAsync = ref.watch(filteredSequencesProvider);
+    final filteredAsync = ref.watch(filteredSequenceSummariesProvider);
     final searchQuery = ref.watch(sequenceSearchProvider);
+    final hasActiveFilter = searchQuery.trim().isNotEmpty ||
+        ref.watch(sequenceTagFilterProvider).isNotEmpty ||
+        ref.watch(sequenceFavoritesOnlyProvider);
 
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -109,14 +151,19 @@ class SequenceLibraryTab extends ConsumerWidget {
           // Header
           _LibraryHeader(colors: colors),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
+
+          // Tag / favorite filter row
+          _LibraryFilterRow(colors: colors),
+
+          const SizedBox(height: 16),
 
           // Content
           Expanded(
             child: filteredAsync.when(
               data: (filtered) {
                 if (filtered.isEmpty) {
-                  final hasSearch = searchQuery.isNotEmpty;
+                  final hasSearch = hasActiveFilter;
                   return EmptyState(
                     icon: hasSearch
                         ? LucideIcons.searchX
@@ -124,17 +171,23 @@ class SequenceLibraryTab extends ConsumerWidget {
                     title:
                         hasSearch ? 'No sequences found' : 'No saved sequences',
                     body: hasSearch
-                        ? 'Try a different search term'
+                        ? 'Try a different search term or clear the filters'
                         : 'Save your sequences to access them later',
                     action: hasSearch
                         ? NightshadeButton(
-                            label: 'Clear search',
+                            label: 'Clear filters',
                             icon: LucideIcons.x,
                             variant: ButtonVariant.ghost,
                             size: ButtonSize.small,
                             onPressed: () {
                               ref.read(sequenceSearchProvider.notifier).state =
                                   '';
+                              ref
+                                  .read(sequenceTagFilterProvider.notifier)
+                                  .state = <String>{};
+                              ref
+                                  .read(sequenceFavoritesOnlyProvider.notifier)
+                                  .state = false;
                             },
                           )
                         : NightshadeCard(
@@ -169,7 +222,7 @@ class SequenceLibraryTab extends ConsumerWidget {
                   itemBuilder: (context, index) {
                     return _SequenceCard(
                       colors: colors,
-                      sequence: filtered[index],
+                      summary: filtered[index],
                     );
                   },
                 );
@@ -201,7 +254,8 @@ class SequenceLibraryTab extends ConsumerWidget {
                     NightshadeButton(
                       label: 'Retry',
                       icon: LucideIcons.refreshCw,
-                      onPressed: () => ref.invalidate(savedSequencesProvider),
+                      onPressed: () =>
+                          ref.invalidate(savedSequenceSummariesProvider),
                     ),
                   ],
                 ),

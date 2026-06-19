@@ -84,6 +84,8 @@ class SessionInsight {
   /// Optional machine-readable hint the UI uses to pre-fill an action.
   /// Currently supported keys:
   ///   * `altitudeAboveDeg` (double) — for `altitudeWindow` kind.
+  ///   * `targetName` (String) — for `altitudeWindow` kind; lets the UI
+  ///     resolve the correct target on a multi-target sequence.
   ///   * `autofocusInterval` (int) — for `autofocusFrequency` kind.
   final Map<String, Object?>? applyHint;
 
@@ -631,7 +633,10 @@ class SessionOptimizerService {
               'sequencer waits until the target clears the haze.',
           confidence: confidence,
           targetId: trace.targetId,
-          applyHint: {'altitudeAboveDeg': suggestedAlt},
+          applyHint: {
+            'altitudeAboveDeg': suggestedAlt,
+            'targetName': trace.targetName,
+          },
         ),
       );
     }

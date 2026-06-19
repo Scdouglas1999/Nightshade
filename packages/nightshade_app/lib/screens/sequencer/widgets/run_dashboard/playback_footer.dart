@@ -39,6 +39,26 @@ class RunDashboardPlaybackFooter extends ConsumerWidget {
       context.showCommandActionResult(result);
     }
 
+    // "Skip target" abandons the rest of the current target and jumps to the
+    // next one. The action service only exposes node-level `skip`, so we call
+    // the executor's target-level primitive directly here and surface the
+    // outcome with the same snackbar helpers the rest of the footer uses.
+    Future<void> skipCurrentTarget() async {
+      try {
+        final jumpedTo =
+            await ref.read(sequenceExecutorProvider).skipToTarget();
+        if (!context.mounted) return;
+        if (jumpedTo == null) {
+          context.showInfoSnackBar('No next target — sequence finished');
+        } else {
+          context.showInfoSnackBar('Skipped to next target');
+        }
+      } catch (e) {
+        if (!context.mounted) return;
+        context.showErrorSnackBar('Failed to skip target: $e');
+      }
+    }
+
     final remainingSecs = progress.estimatedRemainingSecs;
     final String etaText;
     if (remainingSecs != null) {
@@ -109,6 +129,28 @@ class RunDashboardPlaybackFooter extends ConsumerWidget {
             onPressed: (isRunning || isPaused)
                 ? () => runSequenceAction(actionService.skip)
                 : null,
+          ),
+          const SizedBox(width: NightshadeTokens.spaceLg),
+          // Skip-target abandons the remainder of the current target and jumps
+          // to the next one — far more consequential than the node-level Skip,
+          // so it is hold-to-confirm like Stop. Valid while running or paused
+          // (matches Skip/Stop and the executor's own state gate).
+          HoldToConfirmButton(
+            enabled: isRunning || isPaused,
+            holdColor: colors.warning,
+            confirmText: 'Hold to skip target',
+            semanticsLabel:
+                'Press and hold to skip the rest of the current target',
+            onConfirmed: skipCurrentTarget,
+            child: IgnorePointer(
+              child: _BigButton(
+                colors: colors,
+                icon: LucideIcons.fastForward,
+                label: 'Skip Target',
+                variant: _BigButtonVariant.outline,
+                onPressed: (isRunning || isPaused) ? skipCurrentTarget : null,
+              ),
+            ),
           ),
           const SizedBox(width: NightshadeTokens.spaceLg),
           // Stop is hold-to-confirm so a thumb-slip during an overnight

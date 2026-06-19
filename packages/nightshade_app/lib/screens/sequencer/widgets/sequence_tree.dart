@@ -182,12 +182,15 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
     _scrollController.removeListener(_onManualScroll);
     _scrollController.dispose();
     _treeFocusNode.dispose();
-    // Clear the published handle before tearing down the registry so a
-    // late minimap rebuild can't deref a stale map. Uses the captured
-    // controller rather than `ref`, which is unusable post-dispose.
-    if (_registryController.state == _nodeKeyRegistry) {
-      _registryController.state = null;
-    }
+    // Clear the published handle after the current teardown pass. Riverpod
+    // forbids provider writes while the widget tree is building/disposing, and
+    // this mirrors the post-frame publish in initState.
+    final registry = _nodeKeyRegistry;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_registryController.state == registry) {
+        _registryController.state = null;
+      }
+    });
     _nodeKeyRegistry.clear();
     super.dispose();
   }

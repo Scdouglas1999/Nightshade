@@ -26,6 +26,18 @@ class Sequences extends Table {
 
   // Template flag - templates are reusable sequence patterns
   BoolColumn get isTemplate => boolean().withDefault(const Constant(false))();
+
+  /// Library tags as a JSON-encoded `List<String>` (e.g. `["narrowband",
+  /// "winter"]`). Defaults to an empty-list literal so existing rows and new
+  /// inserts that omit it read back as "no tags" rather than null. Stored as
+  /// JSON in a single column rather than a join table because tags are a
+  /// lightweight, display-only library filter — there is no relational query
+  /// against individual tags.
+  TextColumn get tagsJson => text().withDefault(const Constant('[]'))();
+
+  /// Library favorite flag. Drives the "starred" filter/sort in the sequence
+  /// library. Defaults to false.
+  BoolColumn get isFavorite => boolean().withDefault(const Constant(false))();
 }
 
 /// Sequence nodes table

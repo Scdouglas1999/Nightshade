@@ -137,6 +137,20 @@ class EquipmentProfilesDao extends DatabaseAccessor<NightshadeDatabase>
     });
   }
 
+  /// Persist [temperatureC] as the active profile's default cooling
+  /// temperature (the value the Quick-Start wizard lets the user pick).
+  ///
+  /// Pass `null` to clear the stored temperature (the column is nullable —
+  /// a null value means "no default, ask each session"). Returns the number
+  /// of rows updated: `0` when there is no active profile, otherwise `1`.
+  Future<int> setActiveProfileDefaultCoolingTemp(double? temperatureC) async {
+    return (update(
+      equipmentProfiles,
+    )..where((p) => p.isActive.equals(true))).write(
+      EquipmentProfilesCompanion(defaultCoolingTemp: Value(temperatureC)),
+    );
+  }
+
   /// Set a profile as the default startup profile.
   ///
   /// When [makeActive] is true, the default profile also becomes the current

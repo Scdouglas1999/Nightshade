@@ -57,7 +57,50 @@ class MosaicConfig {
   }
 }
 
-/// Exposure settings for each panel
+/// A single filter's contribution to a multi-filter mosaic panel.
+///
+/// Each panel of a multi-filter mosaic images every entry in
+/// [MosaicExposureSettings.filters] in order, accumulating [exposuresPerPanel]
+/// subs of [exposureSeconds] through [filterName]. This is the per-filter
+/// analogue of the legacy single-filter [MosaicExposureSettings] fields and
+/// reuses the same [binning]/[gain]/[offset] semantics so a filter can carry
+/// narrowband-specific capture parameters (e.g. higher gain + longer subs for
+/// Ha) independent of the broadband channels.
+class MosaicFilterExposure {
+  final String? filterName;
+  final double exposureSeconds;
+  final int exposuresPerPanel;
+  final int? binning;
+  final double? gain;
+  final double? offset;
+
+  const MosaicFilterExposure({
+    required this.exposureSeconds,
+    required this.exposuresPerPanel,
+    this.filterName,
+    this.binning,
+    this.gain,
+    this.offset,
+  });
+}
+
+/// Exposure settings for each panel.
+///
+/// Supports two interchangeable shapes:
+///
+/// * **Single-filter (legacy):** populate [exposureSeconds] /
+///   [exposuresPerPanel] / [filterName] / [binning] / [gain] / [offset]
+///   directly and leave [filters] null. Every existing caller and the Smart
+///   Night recommender produce this shape, so the default constructor and all
+///   field semantics are unchanged.
+/// * **Multi-filter:** pass a non-empty [filters] list via
+///   [MosaicExposureSettings.multiFilter]; each panel images every filter in
+///   order. The top-level scalar fields then mirror the first filter so that
+///   code reading [exposureSeconds]/[filterName] (e.g. time estimation,
+///   summaries) still sees a sensible single value without branching.
+///
+/// Use [isMultiFilter] to detect which path is active and [resolvedFilters]
+/// to iterate the per-filter plan uniformly regardless of shape.
 class MosaicExposureSettings {
   final double exposureSeconds;
   final int exposuresPerPanel;
@@ -66,6 +109,10 @@ class MosaicExposureSettings {
   final double? gain;
   final double? offset;
 
+  /// Per-filter exposure plan for a multi-filter mosaic, or null for the
+  /// legacy single-filter path. When non-null this is guaranteed non-empty.
+  final List<MosaicFilterExposure>? filters;
+
   const MosaicExposureSettings({
     required this.exposureSeconds,
     required this.exposuresPerPanel,
@@ -73,7 +120,44 @@ class MosaicExposureSettings {
     this.binning,
     this.gain,
     this.offset,
+    this.filters,
   });
+
+  /// Build a multi-filter mosaic exposure plan from a non-empty list of
+  /// per-filter settings. The scalar fields are seeded from [filters.first]
+  /// so single-value readers stay correct without inspecting [filters].
+  MosaicExposureSettings.multiFilter({
+    required List<MosaicFilterExposure> filters,
+  }) : assert(filters.isNotEmpty, 'multiFilter requires at least one filter'),
+       exposureSeconds = filters.first.exposureSeconds,
+       exposuresPerPanel = filters.first.exposuresPerPanel,
+       filterName = filters.first.filterName,
+       binning = filters.first.binning,
+       gain = filters.first.gain,
+       offset = filters.first.offset,
+       filters = List.unmodifiable(filters);
+
+  /// True when this carries an explicit per-filter plan ([filters] non-null
+  /// and non-empty); false for the legacy single-filter path.
+  bool get isMultiFilter => filters != null && filters!.isNotEmpty;
+
+  /// The per-filter plan to image each panel with, regardless of shape.
+  ///
+  /// For the multi-filter path this is [filters]; for the legacy single-filter
+  /// path it is a one-element list synthesized from the scalar fields so
+  /// callers can iterate uniformly.
+  List<MosaicFilterExposure> get resolvedFilters => isMultiFilter
+      ? filters!
+      : [
+          MosaicFilterExposure(
+            exposureSeconds: exposureSeconds,
+            exposuresPerPanel: exposuresPerPanel,
+            filterName: filterName,
+            binning: binning,
+            gain: gain,
+            offset: offset,
+          ),
+        ];
 }
 
 /// Options for mosaic sequence generation
@@ -264,9 +348,15 @@ class MosaicService {
     MosaicExposureSettings exposure, {
     double overheadPerPanelSecs = 60.0,
   }) {
-    // Total time = panels * (exposures per panel * exposure time + overhead)
-    final exposureTimePerPanel =
-        exposure.exposuresPerPanel * exposure.exposureSeconds;
+    // Total time = panels * (sum over filters of exposures*time + overhead).
+    // The single-filter path resolves to one entry, so the sum reduces to the
+    // legacy `exposuresPerPanel * exposureSeconds`; a multi-filter plan sums
+    // every channel's contribution since each panel images all of them.
+    var exposureTimePerPanel = 0.0;
+    for (final filterExposure in exposure.resolvedFilters) {
+      exposureTimePerPanel +=
+          filterExposure.exposuresPerPanel * filterExposure.exposureSeconds;
+    }
     final totalTimePerPanel = exposureTimePerPanel + overheadPerPanelSecs;
     return config.totalPanels * totalTimePerPanel;
   }
@@ -446,52 +536,64 @@ class MosaicService {
         );
       }
 
-      // Create exposure loop
-      final loopId = uuid.v4();
-      childIds.add(loopId);
+      // Image the panel through every filter in the resolved plan. The
+      // single-filter path resolves to a one-element list, so it produces
+      // exactly one exposure loop with one exposure node (identical to the
+      // legacy shape); a multi-filter plan produces one sibling loop per
+      // filter, each repeating that filter's own per-panel sub count, so the
+      // panel is fully imaged in every channel before the next panel.
+      for (final filterExposure in exposure.resolvedFilters) {
+        final loopId = uuid.v4();
+        childIds.add(loopId);
+        final loopOrderIndex = childIds.length - 1;
 
-      // Create exposure node
-      final exposureId = uuid.v4();
-      final exposureChildIds = <String>[exposureId];
+        // Create exposure node
+        final exposureId = uuid.v4();
+        final exposureChildIds = <String>[exposureId];
 
-      // Add dither if enabled
-      if (options.ditherBetweenExposures) {
-        final ditherId = uuid.v4();
-        exposureChildIds.add(ditherId);
-        nodes[ditherId] = DitherNode(
-          id: ditherId,
-          name: 'Dither',
+        // Add dither if enabled
+        if (options.ditherBetweenExposures) {
+          final ditherId = uuid.v4();
+          exposureChildIds.add(ditherId);
+          nodes[ditherId] = DitherNode(
+            id: ditherId,
+            name: 'Dither',
+            parentId: loopId,
+            orderIndex: 1,
+            pixels: options.ditherPixels ?? 3.0,
+          );
+        }
+
+        nodes[exposureId] = ExposureNode(
+          id: exposureId,
+          name: filterExposure.filterName != null
+              ? 'Expose ${filterExposure.filterName}'
+              : 'Expose',
+          durationSecs: filterExposure.exposureSeconds,
+          count: 1, // Loop handles the repetition
+          frameType: FrameType.light,
+          filter: filterExposure.filterName,
+          binning: filterExposure.binning != null
+              ? _intToBinningMode(filterExposure.binning!)
+              : BinningMode.one,
+          gain: filterExposure.gain?.toInt(),
+          offset: filterExposure.offset?.toInt(),
           parentId: loopId,
-          orderIndex: 1,
-          pixels: options.ditherPixels ?? 3.0,
+          orderIndex: 0,
+        );
+
+        nodes[loopId] = LoopNode(
+          id: loopId,
+          name: filterExposure.filterName != null
+              ? '${filterExposure.filterName} Exposure Loop'
+              : 'Exposure Loop',
+          conditionType: LoopConditionType.count,
+          repeatCount: filterExposure.exposuresPerPanel,
+          childIds: exposureChildIds,
+          parentId: targetGroupId,
+          orderIndex: loopOrderIndex,
         );
       }
-
-      nodes[exposureId] = ExposureNode(
-        id: exposureId,
-        name: 'Expose',
-        durationSecs: exposure.exposureSeconds,
-        count: 1, // Loop handles the repetition
-        frameType: FrameType.light,
-        filter: exposure.filterName,
-        binning: exposure.binning != null
-            ? _intToBinningMode(exposure.binning!)
-            : BinningMode.one,
-        gain: exposure.gain?.toInt(),
-        offset: exposure.offset?.toInt(),
-        parentId: loopId,
-        orderIndex: 0,
-      );
-
-      nodes[loopId] = LoopNode(
-        id: loopId,
-        name: 'Exposure Loop',
-        conditionType: LoopConditionType.count,
-        repeatCount: exposure.exposuresPerPanel,
-        childIds: exposureChildIds,
-        parentId: targetGroupId,
-        orderIndex: childIds.length - 1,
-      );
 
       // Create target header
       nodes[targetGroupId] = TargetHeaderNode(

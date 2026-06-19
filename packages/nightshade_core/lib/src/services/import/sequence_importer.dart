@@ -322,7 +322,14 @@ class SequenceImporter {
     // class at a time (force-import-unsupported, then validation). If
     // forceImport is set, we still run validation so the issues can be
     // surfaced in the summary dialog — just don't throw.
-    final issues = _validate(mapped.sequence);
+    // Mapper-sourced issues (e.g. indeterminate exposure counts under an
+    // unbounded loop) precede the structural-validator output: they describe
+    // information lost during the source→canonical→Sequence translation that
+    // the assembled-Sequence validators can no longer see.
+    final issues = <ValidationIssue>[
+      ...mapped.validationIssues,
+      ..._validate(mapped.sequence),
+    ];
     final hasErrors = issues.any((i) => i.severity == ValidationSeverity.error);
 
     final result = ImportResult(

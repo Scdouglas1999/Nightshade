@@ -474,6 +474,9 @@ void main() {
       expect(i.applyHint!['altitudeAboveDeg'], isA<double>());
       // Suggested value should be observed-min + margin (30 + 5 = 35).
       expect(i.applyHint!['altitudeAboveDeg'], equals(35.0));
+      // The hint carries the target name so the UI resolves the right target
+      // when applying the suggestion on a multi-target sequence.
+      expect(i.applyHint!['targetName'], equals('M31'));
       expect(i.title, contains('M31'));
       expect(i.title, contains('40°'));
     });

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'run_dashboard_format.dart';
@@ -20,6 +21,7 @@ class RunDashboardFilterIntegration extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
     final totals = ref.watch(runDashboardFilterTotalsProvider);
+    final glance = ref.watch(glanceModeProvider);
 
     // Pick a stable filter ordering: a common L/R/G/B/Ha/OIII/SII first,
     // then any additional filters in alphabetic order.
@@ -86,6 +88,7 @@ class RunDashboardFilterIntegration extends ConsumerWidget {
                 inFlight: totals.inFlightFilter == f
                     ? totals.inFlightElapsedSecs
                     : 0.0,
+                glance: glance,
               ),
               if (f != filterNames.last)
                 const SizedBox(height: NightshadeTokens.spaceSm),
@@ -111,6 +114,10 @@ class _FilterRow extends StatelessWidget {
   /// In-flight exposure elapsed seconds for this filter (0 if not current).
   final double inFlight;
 
+  /// Glance mode: enlarge the integration tally readout for across-the-room
+  /// reading (this is a secondary-status surface opted into the larger type).
+  final bool glance;
+
   const _FilterRow({
     required this.colors,
     required this.name,
@@ -118,6 +125,7 @@ class _FilterRow extends StatelessWidget {
     required this.goal,
     this.rejected = 0.0,
     this.inFlight = 0.0,
+    required this.glance,
   });
 
   Color _bandColor(String f, NightshadeColors c) {
@@ -167,11 +175,14 @@ class _FilterRow extends StatelessWidget {
       final amountText = Text(
         goal > 0 ? '$acquiredStr / $goalStr' : acquiredStr,
         textAlign: stacked ? TextAlign.left : TextAlign.right,
-        style: NightshadeTypography.withTabular(
-          NightshadeTypography.labelQuiet.copyWith(
-            fontWeight: FontWeight.w600,
-            color: colors.textSecondary,
+        style: NightshadeTypography.glanceStyle(
+          NightshadeTypography.withTabular(
+            NightshadeTypography.labelQuiet.copyWith(
+              fontWeight: FontWeight.w600,
+              color: colors.textSecondary,
+            ),
           ),
+          enabled: glance,
         ),
         overflow: TextOverflow.ellipsis,
       );

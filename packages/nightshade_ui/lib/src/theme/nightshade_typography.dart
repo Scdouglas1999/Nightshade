@@ -477,6 +477,31 @@ abstract final class NightshadeTypography {
     return style.copyWith(fontFeatures: const [FontFeature.tabularFigures()]);
   }
 
+  /// Minimum on-screen size, in logical pixels, for secondary-status text when
+  /// "glance mode" is active. Below this the readout is too small to parse from
+  /// across the room (the couch-grade remote use case). Secondary-status type in
+  /// the resting layout sits at 9–13px; glance mode lifts the smallest of those
+  /// to a comfortably legible floor while leaving anything already larger alone.
+  static const double glanceMinFontSize = 14.0;
+
+  /// Conditionally enlarge a secondary-status [style] for glance mode.
+  ///
+  /// When [enabled] is false this returns [style] unchanged (zero visual change
+  /// — the dense default layout). When true, the style's font size is raised to
+  /// at least [glanceMinFontSize] so small telemetry/warning readouts stay
+  /// legible at a distance; styles already at or above the floor are returned
+  /// untouched so headings don't balloon.
+  ///
+  /// A null `style.fontSize` (inherit-from-theme) is treated as already large
+  /// enough — there's no concrete size to floor against, and the inherited body
+  /// size is comfortably above the threshold — so it passes through unchanged.
+  static TextStyle glanceStyle(TextStyle style, {required bool enabled}) {
+    if (!enabled) return style;
+    final size = style.fontSize;
+    if (size == null || size >= glanceMinFontSize) return style;
+    return style.copyWith(fontSize: glanceMinFontSize);
+  }
+
   /// Add underline to any style
   static TextStyle underline(TextStyle style) {
     return style.copyWith(decoration: TextDecoration.underline);

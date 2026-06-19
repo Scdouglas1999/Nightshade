@@ -249,8 +249,14 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       if (!mounted) return;
       _evaluateAllSources();
     });
-    // Also run initial evaluation
-    _evaluateAllSources();
+    // Also run initial evaluation, but not synchronously from the provider
+    // constructor: evaluation can post UI notifications when conditions are
+    // unsafe, and Riverpod forbids modifying another provider while this one is
+    // still initializing.
+    Timer.run(() {
+      if (!mounted) return;
+      _evaluateAllSources();
+    });
   }
 
   /// Evaluate all safety sources (API weather, hardware weather, safety monitor)

@@ -127,6 +127,7 @@ Future<HarnessHandle> pumpAppScreen(
   AppVersionInfo? appVersion,
   bool settle = true,
   ThemeData? theme,
+  bool registerTearDown = true,
 }) async {
   // Why force devicePixelRatio = 1.0: physicalSize is in physical pixels.
   // Leaving the host system's ratio (Retina = 2.0+) makes the surface half
@@ -144,7 +145,7 @@ Future<HarnessHandle> pumpAppScreen(
   // Why close the DB ourselves only if we built it: tests that pass in
   // their own [database] own its lifecycle and may need to keep reading it
   // after the widget tree tears down (e.g. to assert mutations).
-  if (database == null) {
+  if (database == null && registerTearDown) {
     addTearDown(resolvedDatabase.close);
   }
 
@@ -164,7 +165,9 @@ Future<HarnessHandle> pumpAppScreen(
       ...extraOverrides,
     ],
   );
-  addTearDown(container.dispose);
+  if (registerTearDown) {
+    addTearDown(container.dispose);
+  }
 
   await tester.pumpWidget(
     UncontrolledProviderScope(

@@ -357,6 +357,8 @@ db.Sequence _sequenceRowFromRemoteJson(Map<String, dynamic> json) {
     createdAt: _dateTimeFromJsonValue(json['createdAt']),
     updatedAt: _dateTimeFromJsonValue(json['updatedAt']),
     isTemplate: json['isTemplate'] as bool? ?? false,
+    tagsJson: json['tagsJson'] as String? ?? '[]',
+    isFavorite: json['isFavorite'] as bool? ?? false,
   );
 }
 

@@ -45,4 +45,13 @@ class SequenceRuns extends Table {
   ///   "errorMessages": [ "..." ]
   /// }
   TextColumn get statsJson => text().withDefault(const Constant('{}'))();
+
+  /// The exact sequence JSON used for this run, captured at run start.
+  ///
+  /// Persisting the real snapshot — rather than re-reading the live, possibly
+  /// since-edited sequence — lets the run-history "diff vs previous run" view
+  /// compare what actually executed on each night. Nullable because legacy
+  /// rows (and runs started before this column existed) have no snapshot, and
+  /// resumed-from-checkpoint runs may not have a Dart-side sequence to capture.
+  TextColumn get sequenceSnapshotJson => text().nullable()();
 }

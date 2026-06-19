@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../database/database.dart';
 import '../database/daos/sequence_runs_dao.dart';
+import '../database/daos/sequence_versions_dao.dart';
+import '../database/daos/session_diagnostics_dao.dart';
 import 'database_provider.dart';
 
 // =============================================================================
@@ -256,6 +258,18 @@ class ParsedRunStats {
 final sequenceRunsDaoProvider = Provider<SequenceRunsDao>((ref) {
   final db = ref.watch(databaseProvider);
   return db.sequenceRunsDao;
+});
+
+/// Provider for accessing the sequence version-history DAO.
+final sequenceVersionsDaoProvider = Provider<SequenceVersionsDao>((ref) {
+  final db = ref.watch(databaseProvider);
+  return db.sequenceVersionsDao;
+});
+
+/// Provider for accessing the per-session diagnostics DAO.
+final sessionDiagnosticsDaoProvider = Provider<SessionDiagnosticsDao>((ref) {
+  final db = ref.watch(databaseProvider);
+  return db.sessionDiagnosticsDao;
 });
 
 /// Live stats tracker for the currently running sequence.

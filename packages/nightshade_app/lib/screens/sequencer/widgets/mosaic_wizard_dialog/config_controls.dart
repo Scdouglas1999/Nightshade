@@ -250,7 +250,14 @@ class _StatsCard extends StatelessWidget {
   final String gridLabel;
   final String panelArcminLabel;
   final String overlapLabel;
-  final double exposureSeconds;
+
+  /// Number of filters imaged per panel (1 on the simple single-filter path).
+  final int filterCount;
+
+  /// Total light-exposure seconds per panel, summed across every filter.
+  final double exposureSecsPerPanel;
+
+  /// Total subs per panel, summed across every filter.
   final int exposuresPerPanel;
   final double estTimeHours;
   final int totalExposures;
@@ -261,7 +268,8 @@ class _StatsCard extends StatelessWidget {
     required this.gridLabel,
     required this.panelArcminLabel,
     required this.overlapLabel,
-    required this.exposureSeconds,
+    required this.filterCount,
+    required this.exposureSecsPerPanel,
     required this.exposuresPerPanel,
     required this.estTimeHours,
     required this.totalExposures,
@@ -270,6 +278,7 @@ class _StatsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
+    final perPanelMins = (exposureSecsPerPanel / 60).toStringAsFixed(0);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -286,9 +295,9 @@ class _StatsCard extends StatelessWidget {
           _row('Grid:', gridLabel),
           _row('Panel size:', panelArcminLabel),
           _row('Overlap:', overlapLabel),
+          if (filterCount > 1) _row('Filters per panel:', '$filterCount'),
           const Divider(height: 16),
-          _row(
-              'Est. time (${exposureSeconds.toStringAsFixed(0)}s x $exposuresPerPanel):',
+          _row('Est. time (${perPanelMins}m/panel x $exposuresPerPanel subs):',
               '${estTimeHours.toStringAsFixed(1)} h',
               highlight: true),
           _row('Total exposures:', '$totalExposures'),
@@ -302,13 +311,20 @@ class _StatsCard extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textSecondary,
-                fontWeight: highlight ? FontWeight.bold : FontWeight.normal,
-              )),
+          // The est-time label can be long ("Est. time (5m/panel x 30
+          // subs):"); flex it so it wraps within the narrow config column
+          // instead of overflowing the fixed-width row.
+          Expanded(
+            child: Text(label,
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textSecondary,
+                  fontWeight: highlight ? FontWeight.bold : FontWeight.normal,
+                )),
+          ),
+          const SizedBox(width: 8),
           Text(
             value,
             style: TextStyle(
@@ -504,6 +520,306 @@ class _NumberFieldState extends State<_NumberField> {
           widget.onChanged(parsed);
         }
       },
+    );
+  }
+}
+
+/// One filter's exposure plan in the multi-filter mosaic editor: which filter,
+/// how long each sub is, how many subs per panel, and whether it's included.
+/// Mutable so the [_FilterPlanCard]'s inline fields can edit it in place; the
+/// dialog snapshots it into immutable [MosaicFilterExposure]s when it builds
+/// the sequence.
+class _MosaicFilterRow {
+  String filterName;
+  double exposureSeconds;
+  int count;
+  bool enabled = true;
+
+  _MosaicFilterRow({
+    required this.filterName,
+    required this.exposureSeconds,
+    required this.count,
+  });
+}
+
+/// Collapsible card that drives the multi-filter mosaic plan. Collapsed (the
+/// default) the wizard images each panel with the single Smart-Night filter
+/// recommendation. Toggled on, the user edits one row per filter — name,
+/// exposure (s) and sub count — and every panel is imaged through each enabled
+/// row in order.
+class _FilterPlanCard extends StatelessWidget {
+  final NightshadeColors colors;
+  final bool enabled;
+  final List<_MosaicFilterRow> rows;
+  final ValueChanged<bool> onToggle;
+
+  /// Called after an in-place edit to a row's fields so the dialog can rebuild
+  /// its previews; the row instance is already mutated.
+  final VoidCallback onChanged;
+  final VoidCallback onAddRow;
+  final ValueChanged<_MosaicFilterRow> onRemoveRow;
+
+  const _FilterPlanCard({
+    required this.colors,
+    required this.enabled,
+    required this.rows,
+    required this.onToggle,
+    required this.onChanged,
+    required this.onAddRow,
+    required this.onRemoveRow,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            child: Row(
+              children: [
+                Icon(LucideIcons.layers, size: 14, color: colors.textMuted),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Multi-filter plan',
+                      style: NightshadeTypography.labelStrong
+                          .copyWith(color: colors.textPrimary)),
+                ),
+                NightshadeSwitch(
+                  value: enabled,
+                  onChanged: onToggle,
+                ),
+              ],
+            ),
+          ),
+          if (enabled)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Each panel is imaged through every enabled filter below.',
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: colors.textMuted),
+                  ),
+                  const SizedBox(height: 8),
+                  for (final row in rows)
+                    _FilterPlanRow(
+                      key: ObjectKey(row),
+                      colors: colors,
+                      row: row,
+                      canRemove: rows.length > 1,
+                      onChanged: onChanged,
+                      onRemove: () => onRemoveRow(row),
+                    ),
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: NightshadeButton(
+                      onPressed: onAddRow,
+                      icon: LucideIcons.plus,
+                      label: 'Add filter',
+                      variant: ButtonVariant.ghost,
+                      size: ButtonSize.small,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FilterPlanRow extends StatefulWidget {
+  final NightshadeColors colors;
+  final _MosaicFilterRow row;
+  final bool canRemove;
+  final VoidCallback onChanged;
+  final VoidCallback onRemove;
+
+  const _FilterPlanRow({
+    required this.colors,
+    required this.row,
+    required this.canRemove,
+    required this.onChanged,
+    required this.onRemove,
+    super.key,
+  });
+
+  @override
+  State<_FilterPlanRow> createState() => _FilterPlanRowState();
+}
+
+class _FilterPlanRowState extends State<_FilterPlanRow> {
+  late final TextEditingController _nameCtl;
+  late final TextEditingController _expCtl;
+  late final TextEditingController _countCtl;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameCtl = TextEditingController(text: widget.row.filterName);
+    _expCtl = TextEditingController(
+        text: widget.row.exposureSeconds.round().toString());
+    _countCtl = TextEditingController(text: widget.row.count.toString());
+  }
+
+  @override
+  void dispose() {
+    _nameCtl.dispose();
+    _expCtl.dispose();
+    _countCtl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 28,
+            child: NightshadeCheckbox(
+              value: widget.row.enabled,
+              onChanged: (v) {
+                widget.row.enabled = v ?? false;
+                widget.onChanged();
+              },
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: _SmallField(
+              colors: colors,
+              controller: _nameCtl,
+              hint: 'Filter',
+              keyboardType: TextInputType.text,
+              onChanged: (v) {
+                widget.row.filterName = v.trim().isEmpty ? 'Filter' : v.trim();
+                widget.onChanged();
+              },
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            flex: 2,
+            child: _SmallField(
+              colors: colors,
+              controller: _expCtl,
+              hint: 'Exp',
+              suffix: 's',
+              keyboardType: TextInputType.number,
+              onChanged: (v) {
+                final parsed = double.tryParse(v);
+                if (parsed != null && parsed > 0) {
+                  widget.row.exposureSeconds = parsed;
+                  widget.onChanged();
+                }
+              },
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            flex: 2,
+            child: _SmallField(
+              colors: colors,
+              controller: _countCtl,
+              hint: 'Count',
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              onChanged: (v) {
+                final parsed = int.tryParse(v);
+                if (parsed != null && parsed > 0) {
+                  widget.row.count = parsed;
+                  widget.onChanged();
+                }
+              },
+            ),
+          ),
+          SizedBox(
+            width: 32,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              iconSize: 16,
+              icon: Icon(LucideIcons.trash2,
+                  color: widget.canRemove ? colors.textMuted : colors.border),
+              onPressed: widget.canRemove ? widget.onRemove : null,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SmallField extends StatelessWidget {
+  final NightshadeColors colors;
+  final TextEditingController controller;
+  final String hint;
+  final String? suffix;
+  final TextInputType keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
+  final ValueChanged<String> onChanged;
+
+  const _SmallField({
+    required this.colors,
+    required this.controller,
+    required this.hint,
+    required this.keyboardType,
+    required this.onChanged,
+    this.suffix,
+    this.inputFormatters,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 32,
+      child: TextField(
+        controller: controller,
+        keyboardType: keyboardType,
+        inputFormatters: inputFormatters,
+        style: TextStyle(
+            color: colors.textPrimary,
+            fontSize: NightshadeTypography.fontSize12),
+        decoration: InputDecoration(
+          hintText: hint,
+          hintStyle: TextStyle(
+              color: colors.textMuted,
+              fontSize: NightshadeTypography.fontSize11),
+          suffixText: suffix,
+          suffixStyle: TextStyle(
+              color: colors.textMuted,
+              fontSize: NightshadeTypography.fontSize11),
+          isDense: true,
+          filled: true,
+          fillColor: colors.surfaceAlt,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+            borderSide: BorderSide(color: colors.border),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+            borderSide: BorderSide(color: colors.border),
+          ),
+        ),
+        onChanged: onChanged,
+      ),
     );
   }
 }

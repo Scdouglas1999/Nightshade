@@ -1,12 +1,21 @@
 part of '../sequence_library_tab.dart';
 
+/// One row in the sequence library, rendered from a lightweight
+/// [SequenceSummary] (no node-tree hydration).
+///
+/// The summary carries everything the collapsed card shows — name, primary
+/// target, node/target/exposure counts, estimated duration, run roll-up, tags
+/// and the favorite flag. Actions that genuinely need the full node graph
+/// (Load, Duplicate, Export, Preview) lazily load the [Sequence] from the
+/// repository on demand, so opening the library never pays the N+1 full-load
+/// cost.
 class _SequenceCard extends ConsumerStatefulWidget {
   final NightshadeColors colors;
-  final Sequence sequence;
+  final SequenceSummary summary;
 
   const _SequenceCard({
     required this.colors,
-    required this.sequence,
+    required this.summary,
   });
 
   @override
@@ -17,26 +26,16 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
   bool _isHovered = false;
   bool _expanded = false;
 
-  int _countTargetGroups() {
-    return widget.sequence.nodes.values.whereType<TargetHeaderNode>().length;
-  }
+  /// Lazily-loaded full sequence for the expandable preview. Loaded the first
+  /// time the user expands the card and reused afterwards.
+  Sequence? _previewSequence;
+  bool _previewLoading = false;
+  Object? _previewError;
 
-  int _countExposures() {
-    return widget.sequence.nodes.values.whereType<ExposureNode>().length;
-  }
-
-  /// First target header's name, used as the card's primary-target label.
-  String? _primaryTargetName() {
-    for (final node in widget.sequence.nodes.values) {
-      if (node is TargetHeaderNode && node.targetName.isNotEmpty) {
-        return node.targetName;
-      }
-    }
-    return null;
-  }
+  SequenceSummary get _summary => widget.summary;
 
   String _formatDuration() {
-    final totalSecs = widget.sequence.totalIntegrationSecs;
+    final totalSecs = _summary.totalIntegrationSecs;
     if (totalSecs <= 0) return 'N/A';
 
     final hours = (totalSecs / 3600).floor();
@@ -50,9 +49,6 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
 
   @override
   Widget build(BuildContext context) {
-    final targetCount = _countTargetGroups();
-    final exposureCount = _countExposures();
-
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -73,7 +69,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildMainRow(targetCount, exposureCount),
+            _buildMainRow(),
             if (_expanded) _buildPreview(),
           ],
         ),
@@ -81,10 +77,19 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
     );
   }
 
-  Widget _buildMainRow(int targetCount, int exposureCount) {
-    final primaryTarget = _primaryTargetName();
+  Widget _buildMainRow() {
+    final primaryTarget = _summary.primaryTargetName;
     return Row(
       children: [
+        // Favorite star (also acts as the favorite toggle).
+        _FavoriteToggle(
+          colors: widget.colors,
+          isFavorite: _summary.isFavorite,
+          onPressed: _toggleFavorite,
+        ),
+
+        const SizedBox(width: 8),
+
         // Icon
         Container(
           width: 48,
@@ -111,7 +116,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
                 children: [
                   Expanded(
                     child: Text(
-                      widget.sequence.name,
+                      _summary.name,
                       style: TextStyle(
                         fontSize: NightshadeTypography.fontSize15,
                         fontWeight: FontWeight.w600,
@@ -123,7 +128,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    _formatDate(widget.sequence.modifiedAt),
+                    _formatDate(_summary.modifiedAt),
                     style: TextStyle(
                       fontSize: NightshadeTypography.fontSize11,
                       color: widget.colors.textMuted,
@@ -131,25 +136,13 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
                   ),
                 ],
               ),
-              if (widget.sequence.description.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  widget.sequence.description,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    color: widget.colors.textSecondary,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
               const SizedBox(height: 8),
               // Stats
               Wrap(
                 spacing: 12,
                 runSpacing: 6,
                 children: [
-                  if (primaryTarget != null)
+                  if (primaryTarget != null && primaryTarget.isNotEmpty)
                     _StatChip(
                       colors: widget.colors,
                       icon: LucideIcons.star,
@@ -158,17 +151,17 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
                   _StatChip(
                     colors: widget.colors,
                     icon: LucideIcons.layers,
-                    label: '${widget.sequence.nodes.length} nodes',
+                    label: '${_summary.nodeCount} nodes',
                   ),
                   _StatChip(
                     colors: widget.colors,
                     icon: LucideIcons.target,
-                    label: '$targetCount targets',
+                    label: '${_summary.targetCount} targets',
                   ),
                   _StatChip(
                     colors: widget.colors,
                     icon: LucideIcons.camera,
-                    label: '$exposureCount exposures',
+                    label: '${_summary.exposureCount} exposures',
                   ),
                   _StatChip(
                     colors: widget.colors,
@@ -178,6 +171,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
                 ],
               ),
               _buildRunRollup(),
+              _buildTagRow(),
             ],
           ),
         ),
@@ -194,18 +188,30 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
                 icon:
                     _expanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
                 tooltip: _expanded ? 'Hide preview' : 'Preview',
-                onPressed: () => setState(() => _expanded = !_expanded),
+                onPressed: _togglePreview,
               ),
               const SizedBox(width: 4),
-              if (widget.sequence.databaseId != null) ...[
-                _IconButton(
-                  colors: widget.colors,
-                  icon: LucideIcons.history,
-                  tooltip: 'View run history',
-                  onPressed: () => _openHistory(context),
-                ),
-                const SizedBox(width: 4),
-              ],
+              _IconButton(
+                colors: widget.colors,
+                icon: LucideIcons.history,
+                tooltip: 'View run history',
+                onPressed: () => _openHistory(context),
+              ),
+              const SizedBox(width: 4),
+              _IconButton(
+                colors: widget.colors,
+                icon: LucideIcons.gitBranch,
+                tooltip: 'Version history',
+                onPressed: () => _openVersionHistory(context),
+              ),
+              const SizedBox(width: 4),
+              _IconButton(
+                colors: widget.colors,
+                icon: LucideIcons.tags,
+                tooltip: 'Edit tags',
+                onPressed: () => _editTags(context),
+              ),
+              const SizedBox(width: 4),
               _IconButton(
                 colors: widget.colors,
                 icon: LucideIcons.folderOpen,
@@ -241,49 +247,71 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
     );
   }
 
-  /// Run-history rollup row ("N runs · last DATE"). Hidden for unsaved
-  /// sequences and for sequences that have never run.
+  /// Run-history rollup row ("N runs · last DATE"), straight from the summary.
+  /// Hidden for sequences that have never run.
   Widget _buildRunRollup() {
-    final dbId = widget.sequence.databaseId;
-    if (dbId == null) return const SizedBox.shrink();
-    final summaryAsync = ref.watch(sequenceRunSummaryProvider(dbId));
-    return summaryAsync.maybeWhen(
-      data: (summary) {
-        if (summary.runCount == 0) return const SizedBox.shrink();
-        return Padding(
-          padding: const EdgeInsets.only(top: 6),
-          child: Wrap(
-            spacing: 12,
-            runSpacing: 6,
-            children: [
-              _StatChip(
-                colors: widget.colors,
-                icon: LucideIcons.play,
-                label: '${summary.runCount} '
-                    'run${summary.runCount == 1 ? '' : 's'}',
-              ),
-              if (summary.lastRunAt != null)
-                _StatChip(
-                  colors: widget.colors,
-                  icon: LucideIcons.history,
-                  label: 'Last run ${_formatDate(summary.lastRunAt!)}',
-                ),
-            ],
+    if (_summary.runCount == 0) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 6,
+        children: [
+          _StatChip(
+            colors: widget.colors,
+            icon: LucideIcons.play,
+            label: '${_summary.runCount} '
+                'run${_summary.runCount == 1 ? '' : 's'}',
           ),
-        );
-      },
-      orElse: () => const SizedBox.shrink(),
+          if (_summary.lastRunAt != null)
+            _StatChip(
+              colors: widget.colors,
+              icon: LucideIcons.history,
+              label: 'Last run ${_formatDate(_summary.lastRunAt!)}',
+            ),
+        ],
+      ),
     );
   }
 
-  /// Read-only preview: target list with per-target exposure breakdown,
-  /// derived from the node tree. Distinct from the Load action.
-  Widget _buildPreview() {
-    final headers =
-        widget.sequence.nodes.values.whereType<TargetHeaderNode>().toList();
-    final exposures =
-        widget.sequence.nodes.values.whereType<ExposureNode>().toList();
+  /// Tag chips for the sequence. Hidden when the sequence carries no tags.
+  Widget _buildTagRow() {
+    if (_summary.tags.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          for (final tag in _summary.tags)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: NightshadeDecorations.tintedBadge(
+                widget.colors.primary,
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline4),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(LucideIcons.tag, size: 10, color: widget.colors.primary),
+                  const SizedBox(width: 4),
+                  Text(
+                    tag,
+                    style: NightshadeTypography.labelStrongSm
+                        .copyWith(color: widget.colors.primary),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 
+  /// Read-only preview: lazily loads the full sequence, then shows the target
+  /// list with per-target exposure breakdown derived from the node tree.
+  Widget _buildPreview() {
     return Container(
       margin: const EdgeInsets.only(top: 12),
       padding: const EdgeInsets.all(12),
@@ -301,33 +329,91 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
                 .copyWith(color: widget.colors.textSecondary),
           ),
           const SizedBox(height: 8),
-          if (headers.isEmpty)
-            Text(
-              'No targets — ${exposures.length} exposure '
-              'node${exposures.length == 1 ? '' : 's'}.',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: widget.colors.textMuted,
-              ),
-            )
-          else
-            for (final header in headers) ...[
-              _buildTargetPreviewRow(header),
-              const SizedBox(height: 4),
-            ],
+          _buildPreviewBody(),
         ],
       ),
     );
   }
 
-  Widget _buildTargetPreviewRow(TargetHeaderNode header) {
+  Widget _buildPreviewBody() {
+    if (_previewLoading) {
+      return Row(
+        children: [
+          SizedBox(
+            width: 14,
+            height: 14,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: widget.colors.primary,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Loading preview…',
+            style: TextStyle(
+              fontSize: NightshadeTypography.fontSize12,
+              color: widget.colors.textMuted,
+            ),
+          ),
+        ],
+      );
+    }
+
+    if (_previewError != null) {
+      return Text(
+        'Could not load preview: $_previewError',
+        style: TextStyle(
+          fontSize: NightshadeTypography.fontSize12,
+          color: widget.colors.error,
+        ),
+      );
+    }
+
+    final sequence = _previewSequence;
+    if (sequence == null) {
+      return Text(
+        'Preview unavailable.',
+        style: TextStyle(
+          fontSize: NightshadeTypography.fontSize12,
+          color: widget.colors.textMuted,
+        ),
+      );
+    }
+
+    final headers =
+        sequence.nodes.values.whereType<TargetHeaderNode>().toList();
+    final exposures = sequence.nodes.values.whereType<ExposureNode>().toList();
+
+    if (headers.isEmpty) {
+      return Text(
+        'No targets — ${exposures.length} exposure '
+        'node${exposures.length == 1 ? '' : 's'}.',
+        style: TextStyle(
+          fontSize: NightshadeTypography.fontSize12,
+          color: widget.colors.textMuted,
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final header in headers) ...[
+          _buildTargetPreviewRow(sequence, header),
+          const SizedBox(height: 4),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildTargetPreviewRow(Sequence sequence, TargetHeaderNode header) {
     // Sum exposure seconds per filter for the exposures descended from
     // this target header (direct + nested children).
     final byFilter = <String, double>{};
     final visited = <String>{};
     void walk(String nodeId) {
       if (!visited.add(nodeId)) return;
-      final node = widget.sequence.nodes[nodeId];
+      final node = sequence.nodes[nodeId];
       if (node == null) return;
       if (node is ExposureNode) {
         final filter = (node.filter == null || node.filter!.isEmpty)
@@ -401,12 +487,96 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
     return '${mins}m';
   }
 
+  /// Load the full sequence from the repository, used by every tree-requiring
+  /// action. Returns null and surfaces an error snackbar on failure.
+  Future<Sequence?> _loadFullSequence(BuildContext context) async {
+    try {
+      final repository = ref.read(sequenceRepositoryProvider);
+      final sequence = await repository.loadSequence(_summary.id);
+      if (sequence == null && context.mounted) {
+        context.showErrorSnackBar('Sequence is no longer available');
+      }
+      return sequence;
+    } catch (e) {
+      if (context.mounted) {
+        context.showErrorSnackBar('Failed to load sequence: $e');
+      }
+      return null;
+    }
+  }
+
+  void _togglePreview() {
+    final willExpand = !_expanded;
+    setState(() => _expanded = willExpand);
+    if (willExpand && _previewSequence == null && !_previewLoading) {
+      _loadPreview();
+    }
+  }
+
+  Future<void> _loadPreview() async {
+    setState(() {
+      _previewLoading = true;
+      _previewError = null;
+    });
+    try {
+      final repository = ref.read(sequenceRepositoryProvider);
+      final sequence = await repository.loadSequence(_summary.id);
+      if (!mounted) return;
+      setState(() {
+        _previewSequence = sequence;
+        _previewLoading = false;
+        if (sequence == null) {
+          _previewError = 'Sequence is no longer available';
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _previewLoading = false;
+        _previewError = e;
+      });
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    try {
+      final repository = ref.read(sequenceRepositoryProvider);
+      await repository.toggleFavorite(_summary.id);
+      ref.invalidate(savedSequenceSummariesProvider);
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Failed to update favorite: $e');
+      }
+    }
+  }
+
   /// Switch to the History tab pre-filtered to this sequence's runs.
   void _openHistory(BuildContext context) {
-    final dbId = widget.sequence.databaseId;
-    if (dbId == null) return;
-    ref.read(historyFilterSequenceIdProvider.notifier).state = dbId;
+    ref.read(historyFilterSequenceIdProvider.notifier).state = _summary.id;
     ref.read(sequencerTabProvider.notifier).state = SequencerTab.history.index;
+  }
+
+  void _openVersionHistory(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => _VersionHistoryDialog(
+        colors: widget.colors,
+        sequenceId: _summary.id,
+        sequenceName: _summary.name,
+      ),
+    );
+  }
+
+  void _editTags(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => _TagEditorDialog(
+        colors: widget.colors,
+        sequenceId: _summary.id,
+        sequenceName: _summary.name,
+        initialTags: _summary.tags,
+      ),
+    );
   }
 
   String _formatDate(DateTime date) {
@@ -425,16 +595,18 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
   }
 
   Future<void> _loadSequence(BuildContext context) async {
+    final source = await _loadFullSequence(context);
+    if (source == null || !context.mounted) return;
+
     // Create a copy with new IDs so we don't modify the saved one
     final newNodes = <String, SequenceNode>{};
     final idMapping = <String, String>{};
 
-    for (final entry in widget.sequence.nodes.entries) {
-      final newId = const Uuid().v4();
-      idMapping[entry.key] = newId;
+    for (final entry in source.nodes.entries) {
+      idMapping[entry.key] = const Uuid().v4();
     }
 
-    for (final entry in widget.sequence.nodes.entries) {
+    for (final entry in source.nodes.entries) {
       final oldNode = entry.value;
       final newId = idMapping[entry.key]!;
       final newParentId =
@@ -449,17 +621,16 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
       );
     }
 
-    final newRootId = widget.sequence.rootNodeId != null
-        ? idMapping[widget.sequence.rootNodeId]
-        : null;
+    final newRootId =
+        source.rootNodeId != null ? idMapping[source.rootNodeId] : null;
 
     final loadedSequence = Sequence.create(
-      name: widget.sequence.name,
-      description: widget.sequence.description,
+      name: source.name,
+      description: source.description,
       nodes: newNodes,
       rootNodeId: newRootId,
       isTemplate: false,
-      databaseId: widget.sequence.databaseId, // Keep reference to original
+      databaseId: source.databaseId, // Keep reference to original
     );
 
     final editor = ref.read(currentSequenceProvider.notifier);
@@ -480,7 +651,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
               designMaxWidth: 440,
             ),
             child: Text('"${e.currentSequenceName}" has unsaved changes. '
-                'Loading "${widget.sequence.name}" will discard them.'),
+                'Loading "${_summary.name}" will discard them.'),
           ),
           actions: [
             TextButton(
@@ -501,36 +672,33 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
     ref.read(sequencerTabProvider.notifier).state = 0;
 
     if (context.mounted) {
-      context.showSuccessSnackBar('Loaded "${widget.sequence.name}"');
+      context.showSuccessSnackBar('Loaded "${_summary.name}"');
     }
   }
 
   Future<void> _duplicateSequence(BuildContext context) async {
-    final dbId = widget.sequence.databaseId;
-    if (dbId != null) {
-      try {
-        final repository = ref.read(sequenceRepositoryProvider);
-        final duplicated = await repository.duplicateSequence(
-            dbId, '${widget.sequence.name} (Copy)');
+    try {
+      final repository = ref.read(sequenceRepositoryProvider);
+      final duplicated = await repository.duplicateSequence(
+          _summary.id, '${_summary.name} (Copy)');
 
-        if (duplicated?.databaseId != null) {
-          notifySequenceCatalogChanged(
-            ref,
-            sequenceId: duplicated!.databaseId!,
-            action: 'duplicated',
-            name: duplicated.name,
-          );
-        } else {
-          ref.invalidate(savedSequencesProvider);
-        }
+      if (duplicated?.databaseId != null) {
+        notifySequenceCatalogChanged(
+          ref,
+          sequenceId: duplicated!.databaseId!,
+          action: 'duplicated',
+          name: duplicated.name,
+        );
+      } else {
+        ref.invalidate(savedSequenceSummariesProvider);
+      }
 
-        if (context.mounted) {
-          context.showSuccessSnackBar('Duplicated "${widget.sequence.name}"');
-        }
-      } catch (e) {
-        if (context.mounted) {
-          context.showErrorSnackBar('Failed to duplicate: $e');
-        }
+      if (context.mounted) {
+        context.showSuccessSnackBar('Duplicated "${_summary.name}"');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        context.showErrorSnackBar('Failed to duplicate: $e');
       }
     }
   }
@@ -539,8 +707,9 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
   /// export path: on a blocking validation failure, surface the structured
   /// issue dialog with a "force export anyway" escape hatch.
   Future<void> _exportSequence(BuildContext context) async {
+    final sequence = await _loadFullSequence(context);
+    if (sequence == null || !context.mounted) return;
     final fileService = ref.read(sequenceFileServiceProvider);
-    final sequence = widget.sequence;
     try {
       await fileService.exportSequence(sequence);
       if (context.mounted) {
@@ -573,8 +742,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
   }
 
   void _deleteSequence(BuildContext context) {
-    final dbId = widget.sequence.databaseId;
-    if (dbId == null) return;
+    final dbId = _summary.id;
 
     showDialog(
       context: context,
@@ -593,7 +761,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
             designMaxWidth: 400,
           ),
           child: Text(
-            'Are you sure you want to delete "${widget.sequence.name}"? This action cannot be undone.',
+            'Are you sure you want to delete "${_summary.name}"? This action cannot be undone.',
             style: TextStyle(color: widget.colors.textSecondary),
           ),
         ),
@@ -616,12 +784,11 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
                   ref,
                   sequenceId: dbId,
                   action: 'deleted',
-                  name: widget.sequence.name,
+                  name: _summary.name,
                 );
 
                 if (context.mounted) {
-                  context
-                      .showSuccessSnackBar('Deleted "${widget.sequence.name}"');
+                  context.showSuccessSnackBar('Deleted "${_summary.name}"');
                 }
               } catch (e) {
                 if (context.mounted) {
@@ -634,6 +801,38 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
             size: ButtonSize.small,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Star toggle that flips the favorite flag for a sequence. Filled (warning
+/// color) when favorited, outline-muted otherwise.
+class _FavoriteToggle extends StatelessWidget {
+  final NightshadeColors colors;
+  final bool isFavorite;
+  final VoidCallback onPressed;
+
+  const _FavoriteToggle({
+    required this.colors,
+    required this.isFavorite,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: isFavorite ? 'Remove from favorites' : 'Add to favorites',
+      child: IconButton(
+        onPressed: onPressed,
+        icon: Icon(
+          LucideIcons.star,
+          size: 18,
+          color: isFavorite ? colors.warning : colors.textMuted,
+        ),
+        visualDensity: VisualDensity.compact,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
       ),
     );
   }

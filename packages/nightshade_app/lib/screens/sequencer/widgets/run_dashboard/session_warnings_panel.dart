@@ -34,6 +34,7 @@ class _RunDashboardSessionWarningsPanelState
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final stats = ref.watch(liveSequenceStatsProvider);
+    final glance = ref.watch(glanceModeProvider);
     final warnings = stats?.warningMessages ?? const <String>[];
     if (warnings.isEmpty) return const SizedBox.shrink();
 
@@ -96,7 +97,7 @@ class _RunDashboardSessionWarningsPanelState
           if (_expanded) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
             for (var i = 0; i < warnings.length; i++) ...[
-              _WarningRow(colors: colors, message: warnings[i]),
+              _WarningRow(colors: colors, message: warnings[i], glance: glance),
               if (i < warnings.length - 1)
                 Divider(
                   height: NightshadeTokens.spaceSm * 2,
@@ -114,7 +115,15 @@ class _WarningRow extends StatelessWidget {
   final NightshadeColors colors;
   final String message;
 
-  const _WarningRow({required this.colors, required this.message});
+  /// Glance mode: enlarge the warning message text so it's legible across the
+  /// room (this is a secondary-status surface opted into the larger type).
+  final bool glance;
+
+  const _WarningRow({
+    required this.colors,
+    required this.message,
+    required this.glance,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -130,10 +139,13 @@ class _WarningRow extends StatelessWidget {
         Expanded(
           child: Text(
             message,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              color: colors.textSecondary,
-              height: 1.35,
+            style: NightshadeTypography.glanceStyle(
+              TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textSecondary,
+                height: 1.35,
+              ),
+              enabled: glance,
             ),
           ),
         ),

@@ -3663,6 +3663,33 @@ class $SequencesTable extends Sequences
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _tagsJsonMeta = const VerificationMeta(
+    'tagsJson',
+  );
+  @override
+  late final GeneratedColumn<String> tagsJson = GeneratedColumn<String>(
+    'tags_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('[]'),
+  );
+  static const VerificationMeta _isFavoriteMeta = const VerificationMeta(
+    'isFavorite',
+  );
+  @override
+  late final GeneratedColumn<bool> isFavorite = GeneratedColumn<bool>(
+    'is_favorite',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_favorite" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3673,6 +3700,8 @@ class $SequencesTable extends Sequences
     createdAt,
     updatedAt,
     isTemplate,
+    tagsJson,
+    isFavorite,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3742,6 +3771,18 @@ class $SequencesTable extends Sequences
         isTemplate.isAcceptableOrUnknown(data['is_template']!, _isTemplateMeta),
       );
     }
+    if (data.containsKey('tags_json')) {
+      context.handle(
+        _tagsJsonMeta,
+        tagsJson.isAcceptableOrUnknown(data['tags_json']!, _tagsJsonMeta),
+      );
+    }
+    if (data.containsKey('is_favorite')) {
+      context.handle(
+        _isFavoriteMeta,
+        isFavorite.isAcceptableOrUnknown(data['is_favorite']!, _isFavoriteMeta),
+      );
+    }
     return context;
   }
 
@@ -3783,6 +3824,14 @@ class $SequencesTable extends Sequences
         DriftSqlType.bool,
         data['${effectivePrefix}is_template'],
       )!,
+      tagsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}tags_json'],
+      )!,
+      isFavorite: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_favorite'],
+      )!,
     );
   }
 
@@ -3801,6 +3850,18 @@ class Sequence extends DataClass implements Insertable<Sequence> {
   final DateTime createdAt;
   final DateTime updatedAt;
   final bool isTemplate;
+
+  /// Library tags as a JSON-encoded `List<String>` (e.g. `["narrowband",
+  /// "winter"]`). Defaults to an empty-list literal so existing rows and new
+  /// inserts that omit it read back as "no tags" rather than null. Stored as
+  /// JSON in a single column rather than a join table because tags are a
+  /// lightweight, display-only library filter — there is no relational query
+  /// against individual tags.
+  final String tagsJson;
+
+  /// Library favorite flag. Drives the "starred" filter/sort in the sequence
+  /// library. Defaults to false.
+  final bool isFavorite;
   const Sequence({
     required this.id,
     required this.name,
@@ -3810,6 +3871,8 @@ class Sequence extends DataClass implements Insertable<Sequence> {
     required this.createdAt,
     required this.updatedAt,
     required this.isTemplate,
+    required this.tagsJson,
+    required this.isFavorite,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3826,6 +3889,8 @@ class Sequence extends DataClass implements Insertable<Sequence> {
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
     map['is_template'] = Variable<bool>(isTemplate);
+    map['tags_json'] = Variable<String>(tagsJson);
+    map['is_favorite'] = Variable<bool>(isFavorite);
     return map;
   }
 
@@ -3843,6 +3908,8 @@ class Sequence extends DataClass implements Insertable<Sequence> {
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
       isTemplate: Value(isTemplate),
+      tagsJson: Value(tagsJson),
+      isFavorite: Value(isFavorite),
     );
   }
 
@@ -3862,6 +3929,8 @@ class Sequence extends DataClass implements Insertable<Sequence> {
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
       isTemplate: serializer.fromJson<bool>(json['isTemplate']),
+      tagsJson: serializer.fromJson<String>(json['tagsJson']),
+      isFavorite: serializer.fromJson<bool>(json['isFavorite']),
     );
   }
   @override
@@ -3876,6 +3945,8 @@ class Sequence extends DataClass implements Insertable<Sequence> {
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
       'isTemplate': serializer.toJson<bool>(isTemplate),
+      'tagsJson': serializer.toJson<String>(tagsJson),
+      'isFavorite': serializer.toJson<bool>(isFavorite),
     };
   }
 
@@ -3888,6 +3959,8 @@ class Sequence extends DataClass implements Insertable<Sequence> {
     DateTime? createdAt,
     DateTime? updatedAt,
     bool? isTemplate,
+    String? tagsJson,
+    bool? isFavorite,
   }) => Sequence(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -3897,6 +3970,8 @@ class Sequence extends DataClass implements Insertable<Sequence> {
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
     isTemplate: isTemplate ?? this.isTemplate,
+    tagsJson: tagsJson ?? this.tagsJson,
+    isFavorite: isFavorite ?? this.isFavorite,
   );
   Sequence copyWithCompanion(SequencesCompanion data) {
     return Sequence(
@@ -3916,6 +3991,10 @@ class Sequence extends DataClass implements Insertable<Sequence> {
       isTemplate: data.isTemplate.present
           ? data.isTemplate.value
           : this.isTemplate,
+      tagsJson: data.tagsJson.present ? data.tagsJson.value : this.tagsJson,
+      isFavorite: data.isFavorite.present
+          ? data.isFavorite.value
+          : this.isFavorite,
     );
   }
 
@@ -3929,7 +4008,9 @@ class Sequence extends DataClass implements Insertable<Sequence> {
           ..write('estimatedDurationMins: $estimatedDurationMins, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
-          ..write('isTemplate: $isTemplate')
+          ..write('isTemplate: $isTemplate, ')
+          ..write('tagsJson: $tagsJson, ')
+          ..write('isFavorite: $isFavorite')
           ..write(')'))
         .toString();
   }
@@ -3944,6 +4025,8 @@ class Sequence extends DataClass implements Insertable<Sequence> {
     createdAt,
     updatedAt,
     isTemplate,
+    tagsJson,
+    isFavorite,
   );
   @override
   bool operator ==(Object other) =>
@@ -3956,7 +4039,9 @@ class Sequence extends DataClass implements Insertable<Sequence> {
           other.estimatedDurationMins == this.estimatedDurationMins &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
-          other.isTemplate == this.isTemplate);
+          other.isTemplate == this.isTemplate &&
+          other.tagsJson == this.tagsJson &&
+          other.isFavorite == this.isFavorite);
 }
 
 class SequencesCompanion extends UpdateCompanion<Sequence> {
@@ -3968,6 +4053,8 @@ class SequencesCompanion extends UpdateCompanion<Sequence> {
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
   final Value<bool> isTemplate;
+  final Value<String> tagsJson;
+  final Value<bool> isFavorite;
   const SequencesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
@@ -3977,6 +4064,8 @@ class SequencesCompanion extends UpdateCompanion<Sequence> {
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.isTemplate = const Value.absent(),
+    this.tagsJson = const Value.absent(),
+    this.isFavorite = const Value.absent(),
   });
   SequencesCompanion.insert({
     this.id = const Value.absent(),
@@ -3987,6 +4076,8 @@ class SequencesCompanion extends UpdateCompanion<Sequence> {
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.isTemplate = const Value.absent(),
+    this.tagsJson = const Value.absent(),
+    this.isFavorite = const Value.absent(),
   }) : name = Value(name);
   static Insertable<Sequence> custom({
     Expression<int>? id,
@@ -3997,6 +4088,8 @@ class SequencesCompanion extends UpdateCompanion<Sequence> {
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
     Expression<bool>? isTemplate,
+    Expression<String>? tagsJson,
+    Expression<bool>? isFavorite,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -4008,6 +4101,8 @@ class SequencesCompanion extends UpdateCompanion<Sequence> {
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (isTemplate != null) 'is_template': isTemplate,
+      if (tagsJson != null) 'tags_json': tagsJson,
+      if (isFavorite != null) 'is_favorite': isFavorite,
     });
   }
 
@@ -4020,6 +4115,8 @@ class SequencesCompanion extends UpdateCompanion<Sequence> {
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
     Value<bool>? isTemplate,
+    Value<String>? tagsJson,
+    Value<bool>? isFavorite,
   }) {
     return SequencesCompanion(
       id: id ?? this.id,
@@ -4031,6 +4128,8 @@ class SequencesCompanion extends UpdateCompanion<Sequence> {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       isTemplate: isTemplate ?? this.isTemplate,
+      tagsJson: tagsJson ?? this.tagsJson,
+      isFavorite: isFavorite ?? this.isFavorite,
     );
   }
 
@@ -4063,6 +4162,12 @@ class SequencesCompanion extends UpdateCompanion<Sequence> {
     if (isTemplate.present) {
       map['is_template'] = Variable<bool>(isTemplate.value);
     }
+    if (tagsJson.present) {
+      map['tags_json'] = Variable<String>(tagsJson.value);
+    }
+    if (isFavorite.present) {
+      map['is_favorite'] = Variable<bool>(isFavorite.value);
+    }
     return map;
   }
 
@@ -4076,7 +4181,9 @@ class SequencesCompanion extends UpdateCompanion<Sequence> {
           ..write('estimatedDurationMins: $estimatedDurationMins, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
-          ..write('isTemplate: $isTemplate')
+          ..write('isTemplate: $isTemplate, ')
+          ..write('tagsJson: $tagsJson, ')
+          ..write('isFavorite: $isFavorite')
           ..write(')'))
         .toString();
   }
@@ -23559,6 +23666,17 @@ class $SequenceRunsTable extends SequenceRuns
     requiredDuringInsert: false,
     defaultValue: const Constant('{}'),
   );
+  static const VerificationMeta _sequenceSnapshotJsonMeta =
+      const VerificationMeta('sequenceSnapshotJson');
+  @override
+  late final GeneratedColumn<String> sequenceSnapshotJson =
+      GeneratedColumn<String>(
+        'sequence_snapshot_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -23568,6 +23686,7 @@ class $SequenceRunsTable extends SequenceRuns
     endedAt,
     status,
     statsJson,
+    sequenceSnapshotJson,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -23627,6 +23746,15 @@ class $SequenceRunsTable extends SequenceRuns
         statsJson.isAcceptableOrUnknown(data['stats_json']!, _statsJsonMeta),
       );
     }
+    if (data.containsKey('sequence_snapshot_json')) {
+      context.handle(
+        _sequenceSnapshotJsonMeta,
+        sequenceSnapshotJson.isAcceptableOrUnknown(
+          data['sequence_snapshot_json']!,
+          _sequenceSnapshotJsonMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -23664,6 +23792,10 @@ class $SequenceRunsTable extends SequenceRuns
         DriftSqlType.string,
         data['${effectivePrefix}stats_json'],
       )!,
+      sequenceSnapshotJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sequence_snapshot_json'],
+      ),
     );
   }
 
@@ -23706,6 +23838,15 @@ class SequenceRun extends DataClass implements Insertable<SequenceRun> {
   ///   "errorMessages": [ "..." ]
   /// }
   final String statsJson;
+
+  /// The exact sequence JSON used for this run, captured at run start.
+  ///
+  /// Persisting the real snapshot — rather than re-reading the live, possibly
+  /// since-edited sequence — lets the run-history "diff vs previous run" view
+  /// compare what actually executed on each night. Nullable because legacy
+  /// rows (and runs started before this column existed) have no snapshot, and
+  /// resumed-from-checkpoint runs may not have a Dart-side sequence to capture.
+  final String? sequenceSnapshotJson;
   const SequenceRun({
     required this.id,
     this.sequenceId,
@@ -23714,6 +23855,7 @@ class SequenceRun extends DataClass implements Insertable<SequenceRun> {
     this.endedAt,
     required this.status,
     required this.statsJson,
+    this.sequenceSnapshotJson,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -23729,6 +23871,9 @@ class SequenceRun extends DataClass implements Insertable<SequenceRun> {
     }
     map['status'] = Variable<String>(status);
     map['stats_json'] = Variable<String>(statsJson);
+    if (!nullToAbsent || sequenceSnapshotJson != null) {
+      map['sequence_snapshot_json'] = Variable<String>(sequenceSnapshotJson);
+    }
     return map;
   }
 
@@ -23745,6 +23890,9 @@ class SequenceRun extends DataClass implements Insertable<SequenceRun> {
           : Value(endedAt),
       status: Value(status),
       statsJson: Value(statsJson),
+      sequenceSnapshotJson: sequenceSnapshotJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sequenceSnapshotJson),
     );
   }
 
@@ -23761,6 +23909,9 @@ class SequenceRun extends DataClass implements Insertable<SequenceRun> {
       endedAt: serializer.fromJson<DateTime?>(json['endedAt']),
       status: serializer.fromJson<String>(json['status']),
       statsJson: serializer.fromJson<String>(json['statsJson']),
+      sequenceSnapshotJson: serializer.fromJson<String?>(
+        json['sequenceSnapshotJson'],
+      ),
     );
   }
   @override
@@ -23774,6 +23925,7 @@ class SequenceRun extends DataClass implements Insertable<SequenceRun> {
       'endedAt': serializer.toJson<DateTime?>(endedAt),
       'status': serializer.toJson<String>(status),
       'statsJson': serializer.toJson<String>(statsJson),
+      'sequenceSnapshotJson': serializer.toJson<String?>(sequenceSnapshotJson),
     };
   }
 
@@ -23785,6 +23937,7 @@ class SequenceRun extends DataClass implements Insertable<SequenceRun> {
     Value<DateTime?> endedAt = const Value.absent(),
     String? status,
     String? statsJson,
+    Value<String?> sequenceSnapshotJson = const Value.absent(),
   }) => SequenceRun(
     id: id ?? this.id,
     sequenceId: sequenceId.present ? sequenceId.value : this.sequenceId,
@@ -23793,6 +23946,9 @@ class SequenceRun extends DataClass implements Insertable<SequenceRun> {
     endedAt: endedAt.present ? endedAt.value : this.endedAt,
     status: status ?? this.status,
     statsJson: statsJson ?? this.statsJson,
+    sequenceSnapshotJson: sequenceSnapshotJson.present
+        ? sequenceSnapshotJson.value
+        : this.sequenceSnapshotJson,
   );
   SequenceRun copyWithCompanion(SequenceRunsCompanion data) {
     return SequenceRun(
@@ -23807,6 +23963,9 @@ class SequenceRun extends DataClass implements Insertable<SequenceRun> {
       endedAt: data.endedAt.present ? data.endedAt.value : this.endedAt,
       status: data.status.present ? data.status.value : this.status,
       statsJson: data.statsJson.present ? data.statsJson.value : this.statsJson,
+      sequenceSnapshotJson: data.sequenceSnapshotJson.present
+          ? data.sequenceSnapshotJson.value
+          : this.sequenceSnapshotJson,
     );
   }
 
@@ -23819,7 +23978,8 @@ class SequenceRun extends DataClass implements Insertable<SequenceRun> {
           ..write('startedAt: $startedAt, ')
           ..write('endedAt: $endedAt, ')
           ..write('status: $status, ')
-          ..write('statsJson: $statsJson')
+          ..write('statsJson: $statsJson, ')
+          ..write('sequenceSnapshotJson: $sequenceSnapshotJson')
           ..write(')'))
         .toString();
   }
@@ -23833,6 +23993,7 @@ class SequenceRun extends DataClass implements Insertable<SequenceRun> {
     endedAt,
     status,
     statsJson,
+    sequenceSnapshotJson,
   );
   @override
   bool operator ==(Object other) =>
@@ -23844,7 +24005,8 @@ class SequenceRun extends DataClass implements Insertable<SequenceRun> {
           other.startedAt == this.startedAt &&
           other.endedAt == this.endedAt &&
           other.status == this.status &&
-          other.statsJson == this.statsJson);
+          other.statsJson == this.statsJson &&
+          other.sequenceSnapshotJson == this.sequenceSnapshotJson);
 }
 
 class SequenceRunsCompanion extends UpdateCompanion<SequenceRun> {
@@ -23855,6 +24017,7 @@ class SequenceRunsCompanion extends UpdateCompanion<SequenceRun> {
   final Value<DateTime?> endedAt;
   final Value<String> status;
   final Value<String> statsJson;
+  final Value<String?> sequenceSnapshotJson;
   const SequenceRunsCompanion({
     this.id = const Value.absent(),
     this.sequenceId = const Value.absent(),
@@ -23863,6 +24026,7 @@ class SequenceRunsCompanion extends UpdateCompanion<SequenceRun> {
     this.endedAt = const Value.absent(),
     this.status = const Value.absent(),
     this.statsJson = const Value.absent(),
+    this.sequenceSnapshotJson = const Value.absent(),
   });
   SequenceRunsCompanion.insert({
     this.id = const Value.absent(),
@@ -23872,6 +24036,7 @@ class SequenceRunsCompanion extends UpdateCompanion<SequenceRun> {
     this.endedAt = const Value.absent(),
     this.status = const Value.absent(),
     this.statsJson = const Value.absent(),
+    this.sequenceSnapshotJson = const Value.absent(),
   }) : sequenceName = Value(sequenceName),
        startedAt = Value(startedAt);
   static Insertable<SequenceRun> custom({
@@ -23882,6 +24047,7 @@ class SequenceRunsCompanion extends UpdateCompanion<SequenceRun> {
     Expression<DateTime>? endedAt,
     Expression<String>? status,
     Expression<String>? statsJson,
+    Expression<String>? sequenceSnapshotJson,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -23891,6 +24057,8 @@ class SequenceRunsCompanion extends UpdateCompanion<SequenceRun> {
       if (endedAt != null) 'ended_at': endedAt,
       if (status != null) 'status': status,
       if (statsJson != null) 'stats_json': statsJson,
+      if (sequenceSnapshotJson != null)
+        'sequence_snapshot_json': sequenceSnapshotJson,
     });
   }
 
@@ -23902,6 +24070,7 @@ class SequenceRunsCompanion extends UpdateCompanion<SequenceRun> {
     Value<DateTime?>? endedAt,
     Value<String>? status,
     Value<String>? statsJson,
+    Value<String?>? sequenceSnapshotJson,
   }) {
     return SequenceRunsCompanion(
       id: id ?? this.id,
@@ -23911,6 +24080,7 @@ class SequenceRunsCompanion extends UpdateCompanion<SequenceRun> {
       endedAt: endedAt ?? this.endedAt,
       status: status ?? this.status,
       statsJson: statsJson ?? this.statsJson,
+      sequenceSnapshotJson: sequenceSnapshotJson ?? this.sequenceSnapshotJson,
     );
   }
 
@@ -23938,6 +24108,11 @@ class SequenceRunsCompanion extends UpdateCompanion<SequenceRun> {
     if (statsJson.present) {
       map['stats_json'] = Variable<String>(statsJson.value);
     }
+    if (sequenceSnapshotJson.present) {
+      map['sequence_snapshot_json'] = Variable<String>(
+        sequenceSnapshotJson.value,
+      );
+    }
     return map;
   }
 
@@ -23950,7 +24125,799 @@ class SequenceRunsCompanion extends UpdateCompanion<SequenceRun> {
           ..write('startedAt: $startedAt, ')
           ..write('endedAt: $endedAt, ')
           ..write('status: $status, ')
-          ..write('statsJson: $statsJson')
+          ..write('statsJson: $statsJson, ')
+          ..write('sequenceSnapshotJson: $sequenceSnapshotJson')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SequenceVersionsTable extends SequenceVersions
+    with TableInfo<$SequenceVersionsTable, SequenceVersion> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SequenceVersionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _sequenceIdMeta = const VerificationMeta(
+    'sequenceId',
+  );
+  @override
+  late final GeneratedColumn<int> sequenceId = GeneratedColumn<int>(
+    'sequence_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES sequences (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _snapshotJsonMeta = const VerificationMeta(
+    'snapshotJson',
+  );
+  @override
+  late final GeneratedColumn<String> snapshotJson = GeneratedColumn<String>(
+    'snapshot_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _labelMeta = const VerificationMeta('label');
+  @override
+  late final GeneratedColumn<String> label = GeneratedColumn<String>(
+    'label',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    sequenceId,
+    snapshotJson,
+    label,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'sequence_versions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SequenceVersion> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('sequence_id')) {
+      context.handle(
+        _sequenceIdMeta,
+        sequenceId.isAcceptableOrUnknown(data['sequence_id']!, _sequenceIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_sequenceIdMeta);
+    }
+    if (data.containsKey('snapshot_json')) {
+      context.handle(
+        _snapshotJsonMeta,
+        snapshotJson.isAcceptableOrUnknown(
+          data['snapshot_json']!,
+          _snapshotJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_snapshotJsonMeta);
+    }
+    if (data.containsKey('label')) {
+      context.handle(
+        _labelMeta,
+        label.isAcceptableOrUnknown(data['label']!, _labelMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SequenceVersion map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SequenceVersion(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      sequenceId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sequence_id'],
+      )!,
+      snapshotJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}snapshot_json'],
+      )!,
+      label: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}label'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $SequenceVersionsTable createAlias(String alias) {
+    return $SequenceVersionsTable(attachedDatabase, alias);
+  }
+}
+
+class SequenceVersion extends DataClass implements Insertable<SequenceVersion> {
+  final int id;
+
+  /// FK to the owning sequence. Cascade-deletes with the sequence so the
+  /// history never outlives the thing it describes.
+  final int sequenceId;
+
+  /// The full sequence JSON captured at this version.
+  final String snapshotJson;
+
+  /// Optional human label (e.g. "before adding Hα", "auto-save"). Null when
+  /// the snapshot was captured automatically without a caller-supplied label.
+  final String? label;
+
+  /// When this version was captured.
+  final DateTime createdAt;
+  const SequenceVersion({
+    required this.id,
+    required this.sequenceId,
+    required this.snapshotJson,
+    this.label,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['sequence_id'] = Variable<int>(sequenceId);
+    map['snapshot_json'] = Variable<String>(snapshotJson);
+    if (!nullToAbsent || label != null) {
+      map['label'] = Variable<String>(label);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  SequenceVersionsCompanion toCompanion(bool nullToAbsent) {
+    return SequenceVersionsCompanion(
+      id: Value(id),
+      sequenceId: Value(sequenceId),
+      snapshotJson: Value(snapshotJson),
+      label: label == null && nullToAbsent
+          ? const Value.absent()
+          : Value(label),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory SequenceVersion.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SequenceVersion(
+      id: serializer.fromJson<int>(json['id']),
+      sequenceId: serializer.fromJson<int>(json['sequenceId']),
+      snapshotJson: serializer.fromJson<String>(json['snapshotJson']),
+      label: serializer.fromJson<String?>(json['label']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'sequenceId': serializer.toJson<int>(sequenceId),
+      'snapshotJson': serializer.toJson<String>(snapshotJson),
+      'label': serializer.toJson<String?>(label),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  SequenceVersion copyWith({
+    int? id,
+    int? sequenceId,
+    String? snapshotJson,
+    Value<String?> label = const Value.absent(),
+    DateTime? createdAt,
+  }) => SequenceVersion(
+    id: id ?? this.id,
+    sequenceId: sequenceId ?? this.sequenceId,
+    snapshotJson: snapshotJson ?? this.snapshotJson,
+    label: label.present ? label.value : this.label,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  SequenceVersion copyWithCompanion(SequenceVersionsCompanion data) {
+    return SequenceVersion(
+      id: data.id.present ? data.id.value : this.id,
+      sequenceId: data.sequenceId.present
+          ? data.sequenceId.value
+          : this.sequenceId,
+      snapshotJson: data.snapshotJson.present
+          ? data.snapshotJson.value
+          : this.snapshotJson,
+      label: data.label.present ? data.label.value : this.label,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SequenceVersion(')
+          ..write('id: $id, ')
+          ..write('sequenceId: $sequenceId, ')
+          ..write('snapshotJson: $snapshotJson, ')
+          ..write('label: $label, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, sequenceId, snapshotJson, label, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SequenceVersion &&
+          other.id == this.id &&
+          other.sequenceId == this.sequenceId &&
+          other.snapshotJson == this.snapshotJson &&
+          other.label == this.label &&
+          other.createdAt == this.createdAt);
+}
+
+class SequenceVersionsCompanion extends UpdateCompanion<SequenceVersion> {
+  final Value<int> id;
+  final Value<int> sequenceId;
+  final Value<String> snapshotJson;
+  final Value<String?> label;
+  final Value<DateTime> createdAt;
+  const SequenceVersionsCompanion({
+    this.id = const Value.absent(),
+    this.sequenceId = const Value.absent(),
+    this.snapshotJson = const Value.absent(),
+    this.label = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  SequenceVersionsCompanion.insert({
+    this.id = const Value.absent(),
+    required int sequenceId,
+    required String snapshotJson,
+    this.label = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  }) : sequenceId = Value(sequenceId),
+       snapshotJson = Value(snapshotJson);
+  static Insertable<SequenceVersion> custom({
+    Expression<int>? id,
+    Expression<int>? sequenceId,
+    Expression<String>? snapshotJson,
+    Expression<String>? label,
+    Expression<DateTime>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (sequenceId != null) 'sequence_id': sequenceId,
+      if (snapshotJson != null) 'snapshot_json': snapshotJson,
+      if (label != null) 'label': label,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  SequenceVersionsCompanion copyWith({
+    Value<int>? id,
+    Value<int>? sequenceId,
+    Value<String>? snapshotJson,
+    Value<String?>? label,
+    Value<DateTime>? createdAt,
+  }) {
+    return SequenceVersionsCompanion(
+      id: id ?? this.id,
+      sequenceId: sequenceId ?? this.sequenceId,
+      snapshotJson: snapshotJson ?? this.snapshotJson,
+      label: label ?? this.label,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (sequenceId.present) {
+      map['sequence_id'] = Variable<int>(sequenceId.value);
+    }
+    if (snapshotJson.present) {
+      map['snapshot_json'] = Variable<String>(snapshotJson.value);
+    }
+    if (label.present) {
+      map['label'] = Variable<String>(label.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SequenceVersionsCompanion(')
+          ..write('id: $id, ')
+          ..write('sequenceId: $sequenceId, ')
+          ..write('snapshotJson: $snapshotJson, ')
+          ..write('label: $label, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SessionDiagnosticsTable extends SessionDiagnostics
+    with TableInfo<$SessionDiagnosticsTable, SessionDiagnostic> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SessionDiagnosticsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _sessionIdMeta = const VerificationMeta(
+    'sessionId',
+  );
+  @override
+  late final GeneratedColumn<int> sessionId = GeneratedColumn<int>(
+    'session_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES imaging_sessions (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _recoveryHistoryJsonMeta =
+      const VerificationMeta('recoveryHistoryJson');
+  @override
+  late final GeneratedColumn<String> recoveryHistoryJson =
+      GeneratedColumn<String>(
+        'recovery_history_json',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('[]'),
+      );
+  static const VerificationMeta _opticalTrainBaselineJsonMeta =
+      const VerificationMeta('opticalTrainBaselineJson');
+  @override
+  late final GeneratedColumn<String> opticalTrainBaselineJson =
+      GeneratedColumn<String>(
+        'optical_train_baseline_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _opticalTrainCurrentJsonMeta =
+      const VerificationMeta('opticalTrainCurrentJson');
+  @override
+  late final GeneratedColumn<String> opticalTrainCurrentJson =
+      GeneratedColumn<String>(
+        'optical_train_current_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _recordedAtMeta = const VerificationMeta(
+    'recordedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> recordedAt = GeneratedColumn<DateTime>(
+    'recorded_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    sessionId,
+    recoveryHistoryJson,
+    opticalTrainBaselineJson,
+    opticalTrainCurrentJson,
+    recordedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'session_diagnostics';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SessionDiagnostic> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('session_id')) {
+      context.handle(
+        _sessionIdMeta,
+        sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta),
+      );
+    }
+    if (data.containsKey('recovery_history_json')) {
+      context.handle(
+        _recoveryHistoryJsonMeta,
+        recoveryHistoryJson.isAcceptableOrUnknown(
+          data['recovery_history_json']!,
+          _recoveryHistoryJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('optical_train_baseline_json')) {
+      context.handle(
+        _opticalTrainBaselineJsonMeta,
+        opticalTrainBaselineJson.isAcceptableOrUnknown(
+          data['optical_train_baseline_json']!,
+          _opticalTrainBaselineJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('optical_train_current_json')) {
+      context.handle(
+        _opticalTrainCurrentJsonMeta,
+        opticalTrainCurrentJson.isAcceptableOrUnknown(
+          data['optical_train_current_json']!,
+          _opticalTrainCurrentJsonMeta,
+        ),
+      );
+    }
+    if (data.containsKey('recorded_at')) {
+      context.handle(
+        _recordedAtMeta,
+        recordedAt.isAcceptableOrUnknown(data['recorded_at']!, _recordedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {sessionId};
+  @override
+  SessionDiagnostic map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SessionDiagnostic(
+      sessionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}session_id'],
+      )!,
+      recoveryHistoryJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}recovery_history_json'],
+      )!,
+      opticalTrainBaselineJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}optical_train_baseline_json'],
+      ),
+      opticalTrainCurrentJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}optical_train_current_json'],
+      ),
+      recordedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}recorded_at'],
+      )!,
+    );
+  }
+
+  @override
+  $SessionDiagnosticsTable createAlias(String alias) {
+    return $SessionDiagnosticsTable(attachedDatabase, alias);
+  }
+}
+
+class SessionDiagnostic extends DataClass
+    implements Insertable<SessionDiagnostic> {
+  /// FK to the owning session. Cascade-deletes with the session. Primary key
+  /// because there is exactly one diagnostics blob per session.
+  final int sessionId;
+
+  /// JSON-encoded `List<RecoveryHistoryEntry>` for the run. `'[]'` when the
+  /// run had no recovery loops.
+  final String recoveryHistoryJson;
+
+  /// JSON-encoded optical-train baseline snapshot captured at run start, or
+  /// null when no baseline existed (first-ever run).
+  final String? opticalTrainBaselineJson;
+
+  /// JSON-encoded optical-train snapshot captured at session end ("current"),
+  /// or null when the post-session pipeline produced no reading.
+  final String? opticalTrainCurrentJson;
+
+  /// When this diagnostics row was last written.
+  final DateTime recordedAt;
+  const SessionDiagnostic({
+    required this.sessionId,
+    required this.recoveryHistoryJson,
+    this.opticalTrainBaselineJson,
+    this.opticalTrainCurrentJson,
+    required this.recordedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['session_id'] = Variable<int>(sessionId);
+    map['recovery_history_json'] = Variable<String>(recoveryHistoryJson);
+    if (!nullToAbsent || opticalTrainBaselineJson != null) {
+      map['optical_train_baseline_json'] = Variable<String>(
+        opticalTrainBaselineJson,
+      );
+    }
+    if (!nullToAbsent || opticalTrainCurrentJson != null) {
+      map['optical_train_current_json'] = Variable<String>(
+        opticalTrainCurrentJson,
+      );
+    }
+    map['recorded_at'] = Variable<DateTime>(recordedAt);
+    return map;
+  }
+
+  SessionDiagnosticsCompanion toCompanion(bool nullToAbsent) {
+    return SessionDiagnosticsCompanion(
+      sessionId: Value(sessionId),
+      recoveryHistoryJson: Value(recoveryHistoryJson),
+      opticalTrainBaselineJson: opticalTrainBaselineJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(opticalTrainBaselineJson),
+      opticalTrainCurrentJson: opticalTrainCurrentJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(opticalTrainCurrentJson),
+      recordedAt: Value(recordedAt),
+    );
+  }
+
+  factory SessionDiagnostic.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SessionDiagnostic(
+      sessionId: serializer.fromJson<int>(json['sessionId']),
+      recoveryHistoryJson: serializer.fromJson<String>(
+        json['recoveryHistoryJson'],
+      ),
+      opticalTrainBaselineJson: serializer.fromJson<String?>(
+        json['opticalTrainBaselineJson'],
+      ),
+      opticalTrainCurrentJson: serializer.fromJson<String?>(
+        json['opticalTrainCurrentJson'],
+      ),
+      recordedAt: serializer.fromJson<DateTime>(json['recordedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'sessionId': serializer.toJson<int>(sessionId),
+      'recoveryHistoryJson': serializer.toJson<String>(recoveryHistoryJson),
+      'opticalTrainBaselineJson': serializer.toJson<String?>(
+        opticalTrainBaselineJson,
+      ),
+      'opticalTrainCurrentJson': serializer.toJson<String?>(
+        opticalTrainCurrentJson,
+      ),
+      'recordedAt': serializer.toJson<DateTime>(recordedAt),
+    };
+  }
+
+  SessionDiagnostic copyWith({
+    int? sessionId,
+    String? recoveryHistoryJson,
+    Value<String?> opticalTrainBaselineJson = const Value.absent(),
+    Value<String?> opticalTrainCurrentJson = const Value.absent(),
+    DateTime? recordedAt,
+  }) => SessionDiagnostic(
+    sessionId: sessionId ?? this.sessionId,
+    recoveryHistoryJson: recoveryHistoryJson ?? this.recoveryHistoryJson,
+    opticalTrainBaselineJson: opticalTrainBaselineJson.present
+        ? opticalTrainBaselineJson.value
+        : this.opticalTrainBaselineJson,
+    opticalTrainCurrentJson: opticalTrainCurrentJson.present
+        ? opticalTrainCurrentJson.value
+        : this.opticalTrainCurrentJson,
+    recordedAt: recordedAt ?? this.recordedAt,
+  );
+  SessionDiagnostic copyWithCompanion(SessionDiagnosticsCompanion data) {
+    return SessionDiagnostic(
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
+      recoveryHistoryJson: data.recoveryHistoryJson.present
+          ? data.recoveryHistoryJson.value
+          : this.recoveryHistoryJson,
+      opticalTrainBaselineJson: data.opticalTrainBaselineJson.present
+          ? data.opticalTrainBaselineJson.value
+          : this.opticalTrainBaselineJson,
+      opticalTrainCurrentJson: data.opticalTrainCurrentJson.present
+          ? data.opticalTrainCurrentJson.value
+          : this.opticalTrainCurrentJson,
+      recordedAt: data.recordedAt.present
+          ? data.recordedAt.value
+          : this.recordedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SessionDiagnostic(')
+          ..write('sessionId: $sessionId, ')
+          ..write('recoveryHistoryJson: $recoveryHistoryJson, ')
+          ..write('opticalTrainBaselineJson: $opticalTrainBaselineJson, ')
+          ..write('opticalTrainCurrentJson: $opticalTrainCurrentJson, ')
+          ..write('recordedAt: $recordedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    sessionId,
+    recoveryHistoryJson,
+    opticalTrainBaselineJson,
+    opticalTrainCurrentJson,
+    recordedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SessionDiagnostic &&
+          other.sessionId == this.sessionId &&
+          other.recoveryHistoryJson == this.recoveryHistoryJson &&
+          other.opticalTrainBaselineJson == this.opticalTrainBaselineJson &&
+          other.opticalTrainCurrentJson == this.opticalTrainCurrentJson &&
+          other.recordedAt == this.recordedAt);
+}
+
+class SessionDiagnosticsCompanion extends UpdateCompanion<SessionDiagnostic> {
+  final Value<int> sessionId;
+  final Value<String> recoveryHistoryJson;
+  final Value<String?> opticalTrainBaselineJson;
+  final Value<String?> opticalTrainCurrentJson;
+  final Value<DateTime> recordedAt;
+  const SessionDiagnosticsCompanion({
+    this.sessionId = const Value.absent(),
+    this.recoveryHistoryJson = const Value.absent(),
+    this.opticalTrainBaselineJson = const Value.absent(),
+    this.opticalTrainCurrentJson = const Value.absent(),
+    this.recordedAt = const Value.absent(),
+  });
+  SessionDiagnosticsCompanion.insert({
+    this.sessionId = const Value.absent(),
+    this.recoveryHistoryJson = const Value.absent(),
+    this.opticalTrainBaselineJson = const Value.absent(),
+    this.opticalTrainCurrentJson = const Value.absent(),
+    this.recordedAt = const Value.absent(),
+  });
+  static Insertable<SessionDiagnostic> custom({
+    Expression<int>? sessionId,
+    Expression<String>? recoveryHistoryJson,
+    Expression<String>? opticalTrainBaselineJson,
+    Expression<String>? opticalTrainCurrentJson,
+    Expression<DateTime>? recordedAt,
+  }) {
+    return RawValuesInsertable({
+      if (sessionId != null) 'session_id': sessionId,
+      if (recoveryHistoryJson != null)
+        'recovery_history_json': recoveryHistoryJson,
+      if (opticalTrainBaselineJson != null)
+        'optical_train_baseline_json': opticalTrainBaselineJson,
+      if (opticalTrainCurrentJson != null)
+        'optical_train_current_json': opticalTrainCurrentJson,
+      if (recordedAt != null) 'recorded_at': recordedAt,
+    });
+  }
+
+  SessionDiagnosticsCompanion copyWith({
+    Value<int>? sessionId,
+    Value<String>? recoveryHistoryJson,
+    Value<String?>? opticalTrainBaselineJson,
+    Value<String?>? opticalTrainCurrentJson,
+    Value<DateTime>? recordedAt,
+  }) {
+    return SessionDiagnosticsCompanion(
+      sessionId: sessionId ?? this.sessionId,
+      recoveryHistoryJson: recoveryHistoryJson ?? this.recoveryHistoryJson,
+      opticalTrainBaselineJson:
+          opticalTrainBaselineJson ?? this.opticalTrainBaselineJson,
+      opticalTrainCurrentJson:
+          opticalTrainCurrentJson ?? this.opticalTrainCurrentJson,
+      recordedAt: recordedAt ?? this.recordedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (sessionId.present) {
+      map['session_id'] = Variable<int>(sessionId.value);
+    }
+    if (recoveryHistoryJson.present) {
+      map['recovery_history_json'] = Variable<String>(
+        recoveryHistoryJson.value,
+      );
+    }
+    if (opticalTrainBaselineJson.present) {
+      map['optical_train_baseline_json'] = Variable<String>(
+        opticalTrainBaselineJson.value,
+      );
+    }
+    if (opticalTrainCurrentJson.present) {
+      map['optical_train_current_json'] = Variable<String>(
+        opticalTrainCurrentJson.value,
+      );
+    }
+    if (recordedAt.present) {
+      map['recorded_at'] = Variable<DateTime>(recordedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SessionDiagnosticsCompanion(')
+          ..write('sessionId: $sessionId, ')
+          ..write('recoveryHistoryJson: $recoveryHistoryJson, ')
+          ..write('opticalTrainBaselineJson: $opticalTrainBaselineJson, ')
+          ..write('opticalTrainCurrentJson: $opticalTrainCurrentJson, ')
+          ..write('recordedAt: $recordedAt')
           ..write(')'))
         .toString();
   }
@@ -27117,6 +28084,11 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
   late final $ObservingListItemsTable observingListItems =
       $ObservingListItemsTable(this);
   late final $SequenceRunsTable sequenceRuns = $SequenceRunsTable(this);
+  late final $SequenceVersionsTable sequenceVersions = $SequenceVersionsTable(
+    this,
+  );
+  late final $SessionDiagnosticsTable sessionDiagnostics =
+      $SessionDiagnosticsTable(this);
   late final $DefectMapsTable defectMaps = $DefectMapsTable(this);
   late final $FocusModelsTable focusModels = $FocusModelsTable(this);
   late final $GuideRmsHistoryTable guideRmsHistory = $GuideRmsHistoryTable(
@@ -27471,6 +28443,14 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
     'idx_sequence_runs_status',
     'CREATE INDEX idx_sequence_runs_status ON sequence_runs (status)',
   );
+  late final Index idxSequenceVersionsSequence = Index(
+    'idx_sequence_versions_sequence',
+    'CREATE INDEX idx_sequence_versions_sequence ON sequence_versions (sequence_id)',
+  );
+  late final Index idxSequenceVersionsCreated = Index(
+    'idx_sequence_versions_created',
+    'CREATE INDEX idx_sequence_versions_created ON sequence_versions (created_at)',
+  );
   late final Index idxDefectMapsLookup = Index(
     'idx_defect_maps_lookup',
     'CREATE UNIQUE INDEX idx_defect_maps_lookup ON defect_maps (camera_id, width, height, temperature_bucket_decicelsius)',
@@ -27539,6 +28519,11 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
   late final SequenceRunsDao sequenceRunsDao = SequenceRunsDao(
     this as NightshadeDatabase,
   );
+  late final SequenceVersionsDao sequenceVersionsDao = SequenceVersionsDao(
+    this as NightshadeDatabase,
+  );
+  late final SessionDiagnosticsDao sessionDiagnosticsDao =
+      SessionDiagnosticsDao(this as NightshadeDatabase);
   late final GuideRmsHistoryDao guideRmsHistoryDao = GuideRmsHistoryDao(
     this as NightshadeDatabase,
   );
@@ -27579,6 +28564,8 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
     observingLists,
     observingListItems,
     sequenceRuns,
+    sequenceVersions,
+    sessionDiagnostics,
     defectMaps,
     focusModels,
     guideRmsHistory,
@@ -27670,6 +28657,8 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
     idxSequenceRunsSequence,
     idxSequenceRunsStarted,
     idxSequenceRunsStatus,
+    idxSequenceVersionsSequence,
+    idxSequenceVersionsCreated,
     idxDefectMapsLookup,
     idxFocusModelsProfile,
     idxFocusModelsProfileFilter,
@@ -27948,6 +28937,20 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
         limitUpdateKind: UpdateKind.delete,
       ),
       result: [TableUpdate('sequence_runs', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'sequences',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('sequence_versions', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'imaging_sessions',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('session_diagnostics', kind: UpdateKind.delete)],
     ),
     WritePropagation(
       on: TableUpdateQuery.onTableName(
@@ -30424,6 +31427,8 @@ typedef $$SequencesTableCreateCompanionBuilder =
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<bool> isTemplate,
+      Value<String> tagsJson,
+      Value<bool> isFavorite,
     });
 typedef $$SequencesTableUpdateCompanionBuilder =
     SequencesCompanion Function({
@@ -30435,6 +31440,8 @@ typedef $$SequencesTableUpdateCompanionBuilder =
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
       Value<bool> isTemplate,
+      Value<String> tagsJson,
+      Value<bool> isFavorite,
     });
 
 final class $$SequencesTableReferences
@@ -30535,6 +31542,30 @@ final class $$SequencesTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$SequenceVersionsTable, List<SequenceVersion>>
+  _sequenceVersionsRefsTable(_$NightshadeDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.sequenceVersions,
+        aliasName: $_aliasNameGenerator(
+          db.sequences.id,
+          db.sequenceVersions.sequenceId,
+        ),
+      );
+
+  $$SequenceVersionsTableProcessedTableManager get sequenceVersionsRefs {
+    final manager = $$SequenceVersionsTableTableManager(
+      $_db,
+      $_db.sequenceVersions,
+    ).filter((f) => f.sequenceId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _sequenceVersionsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$SequencesTableFilterComposer
@@ -30583,6 +31614,16 @@ class $$SequencesTableFilterComposer
 
   ColumnFilters<bool> get isTemplate => $composableBuilder(
     column: $table.isTemplate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get tagsJson => $composableBuilder(
+    column: $table.tagsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isFavorite => $composableBuilder(
+    column: $table.isFavorite,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -30685,6 +31726,31 @@ class $$SequencesTableFilterComposer
     );
     return f(composer);
   }
+
+  Expression<bool> sequenceVersionsRefs(
+    Expression<bool> Function($$SequenceVersionsTableFilterComposer f) f,
+  ) {
+    final $$SequenceVersionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.sequenceVersions,
+      getReferencedColumn: (t) => t.sequenceId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SequenceVersionsTableFilterComposer(
+            $db: $db,
+            $table: $db.sequenceVersions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$SequencesTableOrderingComposer
@@ -30735,6 +31801,16 @@ class $$SequencesTableOrderingComposer
     column: $table.isTemplate,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get tagsJson => $composableBuilder(
+    column: $table.tagsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isFavorite => $composableBuilder(
+    column: $table.isFavorite,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SequencesTableAnnotationComposer
@@ -30775,6 +31851,14 @@ class $$SequencesTableAnnotationComposer
 
   GeneratedColumn<bool> get isTemplate => $composableBuilder(
     column: $table.isTemplate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get tagsJson =>
+      $composableBuilder(column: $table.tagsJson, builder: (column) => column);
+
+  GeneratedColumn<bool> get isFavorite => $composableBuilder(
+    column: $table.isFavorite,
     builder: (column) => column,
   );
 
@@ -30878,6 +31962,31 @@ class $$SequencesTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> sequenceVersionsRefs<T extends Object>(
+    Expression<T> Function($$SequenceVersionsTableAnnotationComposer a) f,
+  ) {
+    final $$SequenceVersionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.sequenceVersions,
+      getReferencedColumn: (t) => t.sequenceId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SequenceVersionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.sequenceVersions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$SequencesTableTableManager
@@ -30898,6 +32007,7 @@ class $$SequencesTableTableManager
             bool sequenceNodesRefs,
             bool sequenceCheckpointsRefs,
             bool sequenceRunsRefs,
+            bool sequenceVersionsRefs,
           })
         > {
   $$SequencesTableTableManager(_$NightshadeDatabase db, $SequencesTable table)
@@ -30921,6 +32031,8 @@ class $$SequencesTableTableManager
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<bool> isTemplate = const Value.absent(),
+                Value<String> tagsJson = const Value.absent(),
+                Value<bool> isFavorite = const Value.absent(),
               }) => SequencesCompanion(
                 id: id,
                 name: name,
@@ -30930,6 +32042,8 @@ class $$SequencesTableTableManager
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 isTemplate: isTemplate,
+                tagsJson: tagsJson,
+                isFavorite: isFavorite,
               ),
           createCompanionCallback:
               ({
@@ -30941,6 +32055,8 @@ class $$SequencesTableTableManager
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<bool> isTemplate = const Value.absent(),
+                Value<String> tagsJson = const Value.absent(),
+                Value<bool> isFavorite = const Value.absent(),
               }) => SequencesCompanion.insert(
                 id: id,
                 name: name,
@@ -30950,6 +32066,8 @@ class $$SequencesTableTableManager
                 createdAt: createdAt,
                 updatedAt: updatedAt,
                 isTemplate: isTemplate,
+                tagsJson: tagsJson,
+                isFavorite: isFavorite,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -30965,6 +32083,7 @@ class $$SequencesTableTableManager
                 sequenceNodesRefs = false,
                 sequenceCheckpointsRefs = false,
                 sequenceRunsRefs = false,
+                sequenceVersionsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -30973,6 +32092,7 @@ class $$SequencesTableTableManager
                     if (sequenceNodesRefs) db.sequenceNodes,
                     if (sequenceCheckpointsRefs) db.sequenceCheckpoints,
                     if (sequenceRunsRefs) db.sequenceRuns,
+                    if (sequenceVersionsRefs) db.sequenceVersions,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -31061,6 +32181,27 @@ class $$SequencesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (sequenceVersionsRefs)
+                        await $_getPrefetchedData<
+                          Sequence,
+                          $SequencesTable,
+                          SequenceVersion
+                        >(
+                          currentTable: table,
+                          referencedTable: $$SequencesTableReferences
+                              ._sequenceVersionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$SequencesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).sequenceVersionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.sequenceId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -31086,6 +32227,7 @@ typedef $$SequencesTableProcessedTableManager =
         bool sequenceNodesRefs,
         bool sequenceCheckpointsRefs,
         bool sequenceRunsRefs,
+        bool sequenceVersionsRefs,
       })
     >;
 typedef $$ImagingSessionsTableCreateCompanionBuilder =
@@ -31492,6 +32634,30 @@ final class $$ImagingSessionsTableReferences
 
     final cache = $_typedResult.readTableOrNull(
       _lineRatioProductsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$SessionDiagnosticsTable, List<SessionDiagnostic>>
+  _sessionDiagnosticsRefsTable(_$NightshadeDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.sessionDiagnostics,
+        aliasName: $_aliasNameGenerator(
+          db.imagingSessions.id,
+          db.sessionDiagnostics.sessionId,
+        ),
+      );
+
+  $$SessionDiagnosticsTableProcessedTableManager get sessionDiagnosticsRefs {
+    final manager = $$SessionDiagnosticsTableTableManager(
+      $_db,
+      $_db.sessionDiagnostics,
+    ).filter((f) => f.sessionId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _sessionDiagnosticsRefsTable($_db),
     );
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
@@ -31960,6 +33126,31 @@ class $$ImagingSessionsTableFilterComposer
           }) => $$LineRatioProductsTableFilterComposer(
             $db: $db,
             $table: $db.lineRatioProducts,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> sessionDiagnosticsRefs(
+    Expression<bool> Function($$SessionDiagnosticsTableFilterComposer f) f,
+  ) {
+    final $$SessionDiagnosticsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.sessionDiagnostics,
+      getReferencedColumn: (t) => t.sessionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SessionDiagnosticsTableFilterComposer(
+            $db: $db,
+            $table: $db.sessionDiagnostics,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -32598,6 +33789,32 @@ class $$ImagingSessionsTableAnnotationComposer
     return f(composer);
   }
 
+  Expression<T> sessionDiagnosticsRefs<T extends Object>(
+    Expression<T> Function($$SessionDiagnosticsTableAnnotationComposer a) f,
+  ) {
+    final $$SessionDiagnosticsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.sessionDiagnostics,
+          getReferencedColumn: (t) => t.sessionId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$SessionDiagnosticsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.sessionDiagnostics,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
+
   Expression<T> narratorEventsRefs<T extends Object>(
     Expression<T> Function($$NarratorEventsTableAnnotationComposer a) f,
   ) {
@@ -32652,6 +33869,7 @@ class $$ImagingSessionsTableTableManager
             bool astrometryResidualVectorsRefs,
             bool movingObjectCandidatesRefs,
             bool lineRatioProductsRefs,
+            bool sessionDiagnosticsRefs,
             bool narratorEventsRefs,
           })
         > {
@@ -32780,6 +33998,7 @@ class $$ImagingSessionsTableTableManager
                 astrometryResidualVectorsRefs = false,
                 movingObjectCandidatesRefs = false,
                 lineRatioProductsRefs = false,
+                sessionDiagnosticsRefs = false,
                 narratorEventsRefs = false,
               }) {
                 return PrefetchHooks(
@@ -32799,6 +34018,7 @@ class $$ImagingSessionsTableTableManager
                       db.astrometryResidualVectors,
                     if (movingObjectCandidatesRefs) db.movingObjectCandidates,
                     if (lineRatioProductsRefs) db.lineRatioProducts,
+                    if (sessionDiagnosticsRefs) db.sessionDiagnostics,
                     if (narratorEventsRefs) db.narratorEvents,
                   ],
                   addJoins:
@@ -33098,6 +34318,27 @@ class $$ImagingSessionsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (sessionDiagnosticsRefs)
+                        await $_getPrefetchedData<
+                          ImagingSession,
+                          $ImagingSessionsTable,
+                          SessionDiagnostic
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ImagingSessionsTableReferences
+                              ._sessionDiagnosticsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ImagingSessionsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).sessionDiagnosticsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.sessionId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                       if (narratorEventsRefs)
                         await $_getPrefetchedData<
                           ImagingSession,
@@ -33154,6 +34395,7 @@ typedef $$ImagingSessionsTableProcessedTableManager =
         bool astrometryResidualVectorsRefs,
         bool movingObjectCandidatesRefs,
         bool lineRatioProductsRefs,
+        bool sessionDiagnosticsRefs,
         bool narratorEventsRefs,
       })
     >;
@@ -46594,6 +47836,7 @@ typedef $$SequenceRunsTableCreateCompanionBuilder =
       Value<DateTime?> endedAt,
       Value<String> status,
       Value<String> statsJson,
+      Value<String?> sequenceSnapshotJson,
     });
 typedef $$SequenceRunsTableUpdateCompanionBuilder =
     SequenceRunsCompanion Function({
@@ -46604,6 +47847,7 @@ typedef $$SequenceRunsTableUpdateCompanionBuilder =
       Value<DateTime?> endedAt,
       Value<String> status,
       Value<String> statsJson,
+      Value<String?> sequenceSnapshotJson,
     });
 
 final class $$SequenceRunsTableReferences
@@ -46670,6 +47914,11 @@ class $$SequenceRunsTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<String> get sequenceSnapshotJson => $composableBuilder(
+    column: $table.sequenceSnapshotJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
   $$SequencesTableFilterComposer get sequenceId {
     final $$SequencesTableFilterComposer composer = $composerBuilder(
       composer: this,
@@ -46733,6 +47982,11 @@ class $$SequenceRunsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get sequenceSnapshotJson => $composableBuilder(
+    column: $table.sequenceSnapshotJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$SequencesTableOrderingComposer get sequenceId {
     final $$SequencesTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -46785,6 +48039,11 @@ class $$SequenceRunsTableAnnotationComposer
 
   GeneratedColumn<String> get statsJson =>
       $composableBuilder(column: $table.statsJson, builder: (column) => column);
+
+  GeneratedColumn<String> get sequenceSnapshotJson => $composableBuilder(
+    column: $table.sequenceSnapshotJson,
+    builder: (column) => column,
+  );
 
   $$SequencesTableAnnotationComposer get sequenceId {
     final $$SequencesTableAnnotationComposer composer = $composerBuilder(
@@ -46847,6 +48106,7 @@ class $$SequenceRunsTableTableManager
                 Value<DateTime?> endedAt = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<String> statsJson = const Value.absent(),
+                Value<String?> sequenceSnapshotJson = const Value.absent(),
               }) => SequenceRunsCompanion(
                 id: id,
                 sequenceId: sequenceId,
@@ -46855,6 +48115,7 @@ class $$SequenceRunsTableTableManager
                 endedAt: endedAt,
                 status: status,
                 statsJson: statsJson,
+                sequenceSnapshotJson: sequenceSnapshotJson,
               ),
           createCompanionCallback:
               ({
@@ -46865,6 +48126,7 @@ class $$SequenceRunsTableTableManager
                 Value<DateTime?> endedAt = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<String> statsJson = const Value.absent(),
+                Value<String?> sequenceSnapshotJson = const Value.absent(),
               }) => SequenceRunsCompanion.insert(
                 id: id,
                 sequenceId: sequenceId,
@@ -46873,6 +48135,7 @@ class $$SequenceRunsTableTableManager
                 endedAt: endedAt,
                 status: status,
                 statsJson: statsJson,
+                sequenceSnapshotJson: sequenceSnapshotJson,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -46940,6 +48203,674 @@ typedef $$SequenceRunsTableProcessedTableManager =
       (SequenceRun, $$SequenceRunsTableReferences),
       SequenceRun,
       PrefetchHooks Function({bool sequenceId})
+    >;
+typedef $$SequenceVersionsTableCreateCompanionBuilder =
+    SequenceVersionsCompanion Function({
+      Value<int> id,
+      required int sequenceId,
+      required String snapshotJson,
+      Value<String?> label,
+      Value<DateTime> createdAt,
+    });
+typedef $$SequenceVersionsTableUpdateCompanionBuilder =
+    SequenceVersionsCompanion Function({
+      Value<int> id,
+      Value<int> sequenceId,
+      Value<String> snapshotJson,
+      Value<String?> label,
+      Value<DateTime> createdAt,
+    });
+
+final class $$SequenceVersionsTableReferences
+    extends
+        BaseReferences<
+          _$NightshadeDatabase,
+          $SequenceVersionsTable,
+          SequenceVersion
+        > {
+  $$SequenceVersionsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $SequencesTable _sequenceIdTable(_$NightshadeDatabase db) =>
+      db.sequences.createAlias(
+        $_aliasNameGenerator(db.sequenceVersions.sequenceId, db.sequences.id),
+      );
+
+  $$SequencesTableProcessedTableManager get sequenceId {
+    final $_column = $_itemColumn<int>('sequence_id')!;
+
+    final manager = $$SequencesTableTableManager(
+      $_db,
+      $_db.sequences,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_sequenceIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$SequenceVersionsTableFilterComposer
+    extends Composer<_$NightshadeDatabase, $SequenceVersionsTable> {
+  $$SequenceVersionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get snapshotJson => $composableBuilder(
+    column: $table.snapshotJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$SequencesTableFilterComposer get sequenceId {
+    final $$SequencesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sequenceId,
+      referencedTable: $db.sequences,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SequencesTableFilterComposer(
+            $db: $db,
+            $table: $db.sequences,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SequenceVersionsTableOrderingComposer
+    extends Composer<_$NightshadeDatabase, $SequenceVersionsTable> {
+  $$SequenceVersionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get snapshotJson => $composableBuilder(
+    column: $table.snapshotJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$SequencesTableOrderingComposer get sequenceId {
+    final $$SequencesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sequenceId,
+      referencedTable: $db.sequences,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SequencesTableOrderingComposer(
+            $db: $db,
+            $table: $db.sequences,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SequenceVersionsTableAnnotationComposer
+    extends Composer<_$NightshadeDatabase, $SequenceVersionsTable> {
+  $$SequenceVersionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get snapshotJson => $composableBuilder(
+    column: $table.snapshotJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get label =>
+      $composableBuilder(column: $table.label, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$SequencesTableAnnotationComposer get sequenceId {
+    final $$SequencesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sequenceId,
+      referencedTable: $db.sequences,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SequencesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.sequences,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SequenceVersionsTableTableManager
+    extends
+        RootTableManager<
+          _$NightshadeDatabase,
+          $SequenceVersionsTable,
+          SequenceVersion,
+          $$SequenceVersionsTableFilterComposer,
+          $$SequenceVersionsTableOrderingComposer,
+          $$SequenceVersionsTableAnnotationComposer,
+          $$SequenceVersionsTableCreateCompanionBuilder,
+          $$SequenceVersionsTableUpdateCompanionBuilder,
+          (SequenceVersion, $$SequenceVersionsTableReferences),
+          SequenceVersion,
+          PrefetchHooks Function({bool sequenceId})
+        > {
+  $$SequenceVersionsTableTableManager(
+    _$NightshadeDatabase db,
+    $SequenceVersionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SequenceVersionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SequenceVersionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SequenceVersionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> sequenceId = const Value.absent(),
+                Value<String> snapshotJson = const Value.absent(),
+                Value<String?> label = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => SequenceVersionsCompanion(
+                id: id,
+                sequenceId: sequenceId,
+                snapshotJson: snapshotJson,
+                label: label,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int sequenceId,
+                required String snapshotJson,
+                Value<String?> label = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => SequenceVersionsCompanion.insert(
+                id: id,
+                sequenceId: sequenceId,
+                snapshotJson: snapshotJson,
+                label: label,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$SequenceVersionsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({sequenceId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (sequenceId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.sequenceId,
+                                referencedTable:
+                                    $$SequenceVersionsTableReferences
+                                        ._sequenceIdTable(db),
+                                referencedColumn:
+                                    $$SequenceVersionsTableReferences
+                                        ._sequenceIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$SequenceVersionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NightshadeDatabase,
+      $SequenceVersionsTable,
+      SequenceVersion,
+      $$SequenceVersionsTableFilterComposer,
+      $$SequenceVersionsTableOrderingComposer,
+      $$SequenceVersionsTableAnnotationComposer,
+      $$SequenceVersionsTableCreateCompanionBuilder,
+      $$SequenceVersionsTableUpdateCompanionBuilder,
+      (SequenceVersion, $$SequenceVersionsTableReferences),
+      SequenceVersion,
+      PrefetchHooks Function({bool sequenceId})
+    >;
+typedef $$SessionDiagnosticsTableCreateCompanionBuilder =
+    SessionDiagnosticsCompanion Function({
+      Value<int> sessionId,
+      Value<String> recoveryHistoryJson,
+      Value<String?> opticalTrainBaselineJson,
+      Value<String?> opticalTrainCurrentJson,
+      Value<DateTime> recordedAt,
+    });
+typedef $$SessionDiagnosticsTableUpdateCompanionBuilder =
+    SessionDiagnosticsCompanion Function({
+      Value<int> sessionId,
+      Value<String> recoveryHistoryJson,
+      Value<String?> opticalTrainBaselineJson,
+      Value<String?> opticalTrainCurrentJson,
+      Value<DateTime> recordedAt,
+    });
+
+final class $$SessionDiagnosticsTableReferences
+    extends
+        BaseReferences<
+          _$NightshadeDatabase,
+          $SessionDiagnosticsTable,
+          SessionDiagnostic
+        > {
+  $$SessionDiagnosticsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ImagingSessionsTable _sessionIdTable(_$NightshadeDatabase db) =>
+      db.imagingSessions.createAlias(
+        $_aliasNameGenerator(
+          db.sessionDiagnostics.sessionId,
+          db.imagingSessions.id,
+        ),
+      );
+
+  $$ImagingSessionsTableProcessedTableManager get sessionId {
+    final $_column = $_itemColumn<int>('session_id')!;
+
+    final manager = $$ImagingSessionsTableTableManager(
+      $_db,
+      $_db.imagingSessions,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_sessionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$SessionDiagnosticsTableFilterComposer
+    extends Composer<_$NightshadeDatabase, $SessionDiagnosticsTable> {
+  $$SessionDiagnosticsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get recoveryHistoryJson => $composableBuilder(
+    column: $table.recoveryHistoryJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get opticalTrainBaselineJson => $composableBuilder(
+    column: $table.opticalTrainBaselineJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get opticalTrainCurrentJson => $composableBuilder(
+    column: $table.opticalTrainCurrentJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ImagingSessionsTableFilterComposer get sessionId {
+    final $$ImagingSessionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sessionId,
+      referencedTable: $db.imagingSessions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImagingSessionsTableFilterComposer(
+            $db: $db,
+            $table: $db.imagingSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SessionDiagnosticsTableOrderingComposer
+    extends Composer<_$NightshadeDatabase, $SessionDiagnosticsTable> {
+  $$SessionDiagnosticsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get recoveryHistoryJson => $composableBuilder(
+    column: $table.recoveryHistoryJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get opticalTrainBaselineJson => $composableBuilder(
+    column: $table.opticalTrainBaselineJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get opticalTrainCurrentJson => $composableBuilder(
+    column: $table.opticalTrainCurrentJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ImagingSessionsTableOrderingComposer get sessionId {
+    final $$ImagingSessionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sessionId,
+      referencedTable: $db.imagingSessions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImagingSessionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.imagingSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SessionDiagnosticsTableAnnotationComposer
+    extends Composer<_$NightshadeDatabase, $SessionDiagnosticsTable> {
+  $$SessionDiagnosticsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get recoveryHistoryJson => $composableBuilder(
+    column: $table.recoveryHistoryJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get opticalTrainBaselineJson => $composableBuilder(
+    column: $table.opticalTrainBaselineJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get opticalTrainCurrentJson => $composableBuilder(
+    column: $table.opticalTrainCurrentJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get recordedAt => $composableBuilder(
+    column: $table.recordedAt,
+    builder: (column) => column,
+  );
+
+  $$ImagingSessionsTableAnnotationComposer get sessionId {
+    final $$ImagingSessionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sessionId,
+      referencedTable: $db.imagingSessions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImagingSessionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.imagingSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SessionDiagnosticsTableTableManager
+    extends
+        RootTableManager<
+          _$NightshadeDatabase,
+          $SessionDiagnosticsTable,
+          SessionDiagnostic,
+          $$SessionDiagnosticsTableFilterComposer,
+          $$SessionDiagnosticsTableOrderingComposer,
+          $$SessionDiagnosticsTableAnnotationComposer,
+          $$SessionDiagnosticsTableCreateCompanionBuilder,
+          $$SessionDiagnosticsTableUpdateCompanionBuilder,
+          (SessionDiagnostic, $$SessionDiagnosticsTableReferences),
+          SessionDiagnostic,
+          PrefetchHooks Function({bool sessionId})
+        > {
+  $$SessionDiagnosticsTableTableManager(
+    _$NightshadeDatabase db,
+    $SessionDiagnosticsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SessionDiagnosticsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SessionDiagnosticsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SessionDiagnosticsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> sessionId = const Value.absent(),
+                Value<String> recoveryHistoryJson = const Value.absent(),
+                Value<String?> opticalTrainBaselineJson = const Value.absent(),
+                Value<String?> opticalTrainCurrentJson = const Value.absent(),
+                Value<DateTime> recordedAt = const Value.absent(),
+              }) => SessionDiagnosticsCompanion(
+                sessionId: sessionId,
+                recoveryHistoryJson: recoveryHistoryJson,
+                opticalTrainBaselineJson: opticalTrainBaselineJson,
+                opticalTrainCurrentJson: opticalTrainCurrentJson,
+                recordedAt: recordedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> sessionId = const Value.absent(),
+                Value<String> recoveryHistoryJson = const Value.absent(),
+                Value<String?> opticalTrainBaselineJson = const Value.absent(),
+                Value<String?> opticalTrainCurrentJson = const Value.absent(),
+                Value<DateTime> recordedAt = const Value.absent(),
+              }) => SessionDiagnosticsCompanion.insert(
+                sessionId: sessionId,
+                recoveryHistoryJson: recoveryHistoryJson,
+                opticalTrainBaselineJson: opticalTrainBaselineJson,
+                opticalTrainCurrentJson: opticalTrainCurrentJson,
+                recordedAt: recordedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$SessionDiagnosticsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({sessionId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (sessionId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.sessionId,
+                                referencedTable:
+                                    $$SessionDiagnosticsTableReferences
+                                        ._sessionIdTable(db),
+                                referencedColumn:
+                                    $$SessionDiagnosticsTableReferences
+                                        ._sessionIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$SessionDiagnosticsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NightshadeDatabase,
+      $SessionDiagnosticsTable,
+      SessionDiagnostic,
+      $$SessionDiagnosticsTableFilterComposer,
+      $$SessionDiagnosticsTableOrderingComposer,
+      $$SessionDiagnosticsTableAnnotationComposer,
+      $$SessionDiagnosticsTableCreateCompanionBuilder,
+      $$SessionDiagnosticsTableUpdateCompanionBuilder,
+      (SessionDiagnostic, $$SessionDiagnosticsTableReferences),
+      SessionDiagnostic,
+      PrefetchHooks Function({bool sessionId})
     >;
 typedef $$DefectMapsTableCreateCompanionBuilder =
     DefectMapsCompanion Function({
@@ -48749,6 +50680,10 @@ class $NightshadeDatabaseManager {
       $$ObservingListItemsTableTableManager(_db, _db.observingListItems);
   $$SequenceRunsTableTableManager get sequenceRuns =>
       $$SequenceRunsTableTableManager(_db, _db.sequenceRuns);
+  $$SequenceVersionsTableTableManager get sequenceVersions =>
+      $$SequenceVersionsTableTableManager(_db, _db.sequenceVersions);
+  $$SessionDiagnosticsTableTableManager get sessionDiagnostics =>
+      $$SessionDiagnosticsTableTableManager(_db, _db.sessionDiagnostics);
   $$DefectMapsTableTableManager get defectMaps =>
       $$DefectMapsTableTableManager(_db, _db.defectMaps);
   $$FocusModelsTableTableManager get focusModels =>

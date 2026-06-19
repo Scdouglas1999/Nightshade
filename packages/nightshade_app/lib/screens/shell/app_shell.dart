@@ -13,6 +13,7 @@ import '../../widgets/catalog_setup_dialog.dart';
 import '../../widgets/onboarding_tour_replay_launcher.dart';
 import '../../widgets/tutorial_overlay.dart';
 import '../../widgets/mobile_sequence_overlay.dart';
+import '../../widgets/running_sequence_mini_bar.dart';
 import '../sequencer/sequencer_screen.dart' show kSequencerRoutePath;
 import '../../widgets/notification_toast_overlay.dart';
 import '../../widgets/autofocus_progress_overlay.dart';
@@ -546,9 +547,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                                 // Mobile sequence overlay (only on mobile and
                                 // sequencer screen). §14: gated on the shared
                                 // route constant instead of a literal string so
-                                // the router and this check stay in sync. An
-                                // app-wide running-sequence mini-player is a
-                                // tracked follow-up (see crossAreaDep).
+                                // the router and this check stay in sync. The
+                                // app-wide running-sequence mini-player (run
+                                // controls reachable off the sequencer route)
+                                // lives in the bottom chrome below as
+                                // [RunningSequenceMiniBar].
                                 if (useBottomNav &&
                                     currentLocation.split('?').first ==
                                         kSequencerRoutePath)
@@ -564,6 +567,15 @@ class _AppShellState extends ConsumerState<AppShell> {
                       ],
                     ),
                   ),
+
+                  // App-wide running-sequence mini-player. Persistent across
+                  // every route so pause/stop/skip stay reachable after the
+                  // operator navigates away from the sequencer mid-run; it
+                  // self-hides on the sequencer route (full controls live there)
+                  // and whenever no sequence is active. Sits just above the
+                  // bottom chrome so it reads as part of the persistent
+                  // run-control surface.
+                  RunningSequenceMiniBar(currentLocation: currentLocation),
 
                   // Bottom chrome. On phone the status bar + bottom nav live in
                   // one auto-hiding block (immersive) so they reclaim the short

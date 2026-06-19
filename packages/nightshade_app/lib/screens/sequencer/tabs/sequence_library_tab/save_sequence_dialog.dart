@@ -140,6 +140,19 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
       final savedId =
           await repository.saveSequence(sequenceToSave, isTemplate: false);
 
+      // Capture a point-in-time version snapshot so the library's version
+      // history has a restore point for this save. Re-anchor the saved
+      // sequence to its row id first (a brand-new save assigns it here).
+      // Snapshotting is local-only; on a remote host it throws, so it is
+      // skipped silently rather than failing the save.
+      try {
+        await repository.snapshotVersionOnSave(
+          sequenceToSave.copyWith(databaseId: savedId),
+        );
+      } on UnsupportedError {
+        // Remote host owns its own version history — nothing to do here.
+      }
+
       notifySequenceCatalogChanged(
         ref,
         sequenceId: savedId,

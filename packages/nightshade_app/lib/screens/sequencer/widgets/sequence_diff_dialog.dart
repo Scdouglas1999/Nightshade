@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -31,73 +33,111 @@ class SequenceDiffDialog extends StatelessWidget {
     );
   }
 
-  /// Resolve "diff vs previous run for the sequence behind [runId]"
-  /// and show the dialog. The previous run is the most recent
-  /// completed run of the same `sequence_id`. Returns silently when
-  /// no previous run exists (the History tab disables the button in
-  /// that case but a guard here is still useful for keyboard nav).
+  /// Resolve "diff vs previous run for the sequence behind [run]" and show
+  /// the dialog.
+  ///
+  /// The comparison is between two real run snapshots:
+  ///   * `current`  = this run's own captured `sequenceSnapshotJson`.
+  ///   * `previous` = the snapshot of the most recent *completed* run of the
+  ///     same sequence that started before this one
+  ///     ([SequenceRepository.loadPreviousRunSnapshot]).
+  ///
+  /// When this run has no captured snapshot (legacy / resumed run) we fall
+  /// back to the sequence as it stands now in the database so the operator
+  /// still gets a meaningful "what changed since the previous run" view.
+  /// When there is no earlier completed snapshot at all we show an honest
+  /// empty state rather than diffing the sequence against itself.
   static Future<void> showForRun(
     BuildContext context,
     WidgetRef ref, {
     required SequenceRun run,
   }) async {
     final colors = NightshadeColors.of(context);
-    final dao = ref.read(sequenceRunsDaoProvider);
     final repo = ref.read(sequenceRepositoryProvider);
+    final fileService = ref.read(sequenceFileServiceProvider);
     final diffService = ref.read(sequenceDiffServiceProvider);
 
-    // Find the most recent run for the same sequence that started
-    // strictly before this one. Use `getRunsForSequence` (descending
-    // by startedAt) and find the first row older than `run.startedAt`.
     final sequenceId = run.sequenceId;
     if (sequenceId == null) {
       await _showNoComparison(
           context, colors, 'This run has no linked sequence; cannot diff.');
       return;
     }
-    final siblings = await dao.getRunsForSequence(sequenceId);
-    SequenceRun? previous;
-    for (final r in siblings) {
-      if (r.id == run.id) continue;
-      if (!r.startedAt.isBefore(run.startedAt)) continue;
-      previous = r;
-      break;
-    }
-    if (previous == null) {
-      if (!context.mounted) return;
-      await _showNoComparison(
-          context, colors, 'No previous run of this sequence to diff against.');
-      return;
-    }
 
-    // Load the current sequence definition. Note this is the
-    // sequence as it stands *now* in the database. The diff service
-    // is structural by node id, so this still gives the operator
-    // accurate "what changed between these two runs" info as long as
-    // they haven't deleted+reinserted nodes (which would re-key the
-    // UUIDs and show up as removed+added pairs).
-    final currentSequence = await repo.loadSequence(sequenceId);
-    if (currentSequence == null) {
-      if (!context.mounted) return;
-      await _showNoComparison(
-          context, colors, 'Sequence definition is no longer in the database.');
-      return;
-    }
-
-    // We treat the current persisted sequence as both "previous" and
-    // "current" snapshots because the sequencer doesn't snapshot a
-    // copy of the sequence inside each run row yet. The diff dialog
-    // shows the structural differences relative to itself as a
-    // baseline, plus an info-banner explaining the limitation. (When
-    // run-time snapshotting lands, swap `previousSequence` for the
-    // loaded snapshot — the SequenceDiffService API stays the same.)
-    final previousSequence = currentSequence;
-    final result = diffService.diff(
-      previous: previousSequence,
-      current: currentSequence,
+    // The snapshot of the run immediately before this one. Null when there is
+    // no earlier completed run, or when the earlier run predates the snapshot
+    // column (legacy rows store null).
+    final previousJson = await repo.loadPreviousRunSnapshot(
+      sequenceId,
+      beforeRunId: run.id,
     );
+    if (previousJson == null) {
+      if (!context.mounted) return;
+      await _showNoComparison(
+        context,
+        colors,
+        'No earlier completed run of this sequence has a saved snapshot to '
+        'diff against. Runs recorded before snapshotting was added, or runs '
+        'that never completed, are not comparable.',
+      );
+      return;
+    }
+
+    // The "current" side of the diff: prefer this run's own captured snapshot
+    // (the exact sequence that executed), falling back to the live sequence
+    // definition for runs that predate snapshot capture.
+    Sequence current;
+    try {
+      final currentSnapshot = run.sequenceSnapshotJson;
+      if (currentSnapshot != null && currentSnapshot.isNotEmpty) {
+        current = _parseSnapshot(fileService, currentSnapshot);
+      } else {
+        final loaded = await repo.loadSequence(sequenceId);
+        if (loaded == null) {
+          if (!context.mounted) return;
+          await _showNoComparison(context, colors,
+              'Sequence definition is no longer in the database.');
+          return;
+        }
+        current = loaded;
+      }
+    } on FormatException catch (e) {
+      if (!context.mounted) return;
+      await _showNoComparison(
+          context, colors, 'This run\'s snapshot could not be read: $e');
+      return;
+    }
+
+    final Sequence previous;
+    try {
+      previous = _parseSnapshot(fileService, previousJson);
+    } on FormatException catch (e) {
+      if (!context.mounted) return;
+      await _showNoComparison(context, colors,
+          'The previous run\'s snapshot could not be read: $e');
+      return;
+    }
+
+    final result = diffService.diff(previous: previous, current: current);
     if (!context.mounted) return;
     await show(context, result);
+  }
+
+  /// Decode a persisted run snapshot (JSON string) into an editable
+  /// [Sequence] through the same parser the importer uses. Throws
+  /// [FormatException] for a malformed payload so callers can surface an
+  /// honest error rather than a stack trace.
+  static Sequence _parseSnapshot(
+    SequenceFileService fileService,
+    String snapshotJson,
+  ) {
+    final decoded = jsonDecode(snapshotJson);
+    if (decoded is! Map<String, dynamic>) {
+      throw FormatException(
+        'Expected a JSON object, got ${decoded.runtimeType}.',
+      );
+    }
+    return fileService.parseFromMap(decoded);
   }
 
   static Future<void> _showNoComparison(

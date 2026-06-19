@@ -934,13 +934,17 @@ class _QuickStartWizardDialogState
   /// failed preference write is a UX degradation, not a sequence-correctness
   /// issue, and the sequence has already been built either way.
   ///
-  /// The equipment-profile cooling temperature is intentionally NOT persisted
-  /// here — that lives on the freezed EquipmentProfileModel and is owned by
-  /// the equipment area's profile DAO; persisting it would require touching
-  /// that subsystem. The user can set it on the profile editor.
+  /// The chosen cooling temperature is written back to the active equipment
+  /// profile's `defaultCoolingTemp` (the canonical home for it, owned by the
+  /// equipment area). We only touch the profile when the user enabled cooling
+  /// AND the value actually changed, and we use the equipment profiles
+  /// notifier's [EquipmentProfilesNotifier.updateProfile] setter so the write
+  /// goes through the same DAO/validation path the equipment editor uses.
   void _persistChoicesAsDefaults(List<_FilterExposureConfig> enabledFilters) {
     final sequencerDefaults = ref.read(sequencerDefaultsProvider.notifier);
     final appSettings = ref.read(appSettingsProvider.notifier);
+    final equipmentProfiles = ref.read(equipmentProfilesProvider.notifier);
+    final activeProfile = ref.read(activeEquipmentProfileProvider);
     // Derive a representative exposure count: the loop count is the wizard's
     // single iteration knob and is what the user most directly tuned.
     final exposureCount = _loopCount > 0 ? _loopCount : null;
@@ -956,6 +960,20 @@ class _QuickStartWizardDialogState
         await appSettings.setEnableMeridianFlip(_enableMeridianFlip);
         await appSettings.setParkOnUnsafeWeather(_weatherAbort);
         await appSettings.setParkBeforeDawn(_dawnShutdown);
+        // Persist the cooling setpoint onto the active equipment profile. Only
+        // when cooling is enabled (otherwise the field is meaningless this
+        // run), the profile has a DB id, and the value diverges from what the
+        // profile already carries — this keeps the write a no-op when nothing
+        // changed and never clobbers a profile-less / remote-only session.
+        if (_coolCamera &&
+            activeProfile != null &&
+            activeProfile.id != null &&
+            _coolingTemp.isFinite &&
+            activeProfile.defaultCoolingTemp != _coolingTemp) {
+          await equipmentProfiles.updateProfile(
+            activeProfile.copyWith(defaultCoolingTemp: _coolingTemp),
+          );
+        }
       } catch (_) {
         // Persistence is best-effort; surfacing this would be noise.
       }

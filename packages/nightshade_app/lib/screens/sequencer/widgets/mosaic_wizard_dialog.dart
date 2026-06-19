@@ -21,6 +21,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -66,6 +67,18 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
   int _panelsHorizontal = 3;
   int _panelsVertical = 3;
   bool _advancedExpanded = false;
+
+  /// Multi-filter plan. When [_multiFilterEnabled] is false (the default,
+  /// simple path) the wizard images each panel with the Smart-Night
+  /// single-filter recommendation exactly as before. When the user enables it,
+  /// every panel is imaged through each entry of [_filterRows] in order, and
+  /// the built sequence + time/exposure estimates use that per-filter plan.
+  bool _multiFilterEnabled = false;
+
+  /// The per-filter exposure plan, edited in the Filters card. Seeded lazily on
+  /// first enable from the active profile's filters (or a single "Light" row)
+  /// so the user starts from something sensible rather than an empty list.
+  final List<_MosaicFilterRow> _filterRows = <_MosaicFilterRow>[];
 
   /// Grid cells the user has disabled by tapping, keyed by (row, col) rather
   /// than flat index. Keying by position means a grid resize drops only the
@@ -222,6 +235,75 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
   int get _activePanelCount =>
       _panelsHorizontal * _panelsVertical - _disabledPanels.length;
 
+  /// Lazily seed [_filterRows] the first time the user switches to the
+  /// multi-filter path, so they start from the rig's actual filters (or a
+  /// single "Light" row when no filter wheel is configured) instead of an
+  /// empty list. The seed exposure/count come from the same Smart-Night
+  /// recommendation the simple path already uses, so flipping the switch never
+  /// silently changes the plan until the user edits a row.
+  void _seedFilterRowsIfNeeded() {
+    if (_filterRows.isNotEmpty) return;
+    final exposure = mosaicWizardExposureSettingsForContext(
+      ref.read(smartNightExposureContextProvider).valueOrNull,
+    );
+    final filters = ref.read(profileFiltersProvider);
+    if (filters.isEmpty) {
+      _filterRows.add(_MosaicFilterRow(
+        filterName: exposure.filterName ?? 'Light',
+        exposureSeconds: exposure.exposureSeconds,
+        count: exposure.exposuresPerPanel,
+      ));
+    } else {
+      for (final name in filters) {
+        _filterRows.add(_MosaicFilterRow(
+          filterName: name,
+          exposureSeconds: exposure.exposureSeconds,
+          count: exposure.exposuresPerPanel,
+        ));
+      }
+    }
+  }
+
+  /// The exposure plan the built sequence and previews use.
+  ///
+  /// Returns the legacy single-filter Smart-Night settings on the simple path,
+  /// or a [MosaicExposureSettings.multiFilter] plan built from [_filterRows]
+  /// (filtered to enabled rows) when the multi-filter path is active. Falls
+  /// back to the single-filter settings if multi-filter is on but no row is
+  /// enabled, so callers always get a usable plan.
+  MosaicExposureSettings _effectiveExposure(MosaicExposureSettings single) {
+    if (!_multiFilterEnabled) return single;
+    final enabled = _filterRows.where((r) => r.enabled).toList();
+    if (enabled.isEmpty) return single;
+    return MosaicExposureSettings.multiFilter(
+      filters: enabled
+          .map((r) => MosaicFilterExposure(
+                exposureSeconds: r.exposureSeconds,
+                exposuresPerPanel: r.count,
+                filterName: r.filterName,
+              ))
+          .toList(),
+    );
+  }
+
+  /// Total exposure seconds imaged per panel across every resolved filter.
+  double _exposureSecsPerPanel(MosaicExposureSettings exposure) {
+    var total = 0.0;
+    for (final f in exposure.resolvedFilters) {
+      total += f.exposureSeconds * f.exposuresPerPanel;
+    }
+    return total;
+  }
+
+  /// Total subs captured per panel across every resolved filter.
+  int _exposuresPerPanel(MosaicExposureSettings exposure) {
+    var total = 0;
+    for (final f in exposure.resolvedFilters) {
+      total += f.exposuresPerPanel;
+    }
+    return total;
+  }
+
   // Per-panel overhead model. These reflect the [MosaicSequenceOptions] the
   // generator actually emits in [_createSequence] (centerAfterSlew: true,
   // autofocusPerPanel: false) so the preview's estimate agrees with the built
@@ -240,14 +322,13 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
     return overhead;
   }
 
-  double _calculateTotalTime(double exposureSecs, int exposuresPerPanel) {
-    final timePerPanel = exposureSecs * exposuresPerPanel;
+  double _calculateTotalTime(double exposureSecsPerPanel) {
     // Mirror the options used by _createSequence so preview == built sequence.
     final overheadPerPanel = _perPanelOverheadSecs(
       centerAfterSlew: true,
       autofocusPerPanel: false,
     );
-    return _activePanelCount * (timePerPanel + overheadPerPanel);
+    return _activePanelCount * (exposureSecsPerPanel + overheadPerPanel);
   }
 
   void _generateMosaic() {
@@ -281,8 +362,10 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
   }
 
   void _createSequence(MosaicService mosaicService, MosaicConfig config) {
-    final exposure = mosaicWizardExposureSettingsForContext(
-      ref.read(smartNightExposureContextProvider).valueOrNull,
+    final exposure = _effectiveExposure(
+      mosaicWizardExposureSettingsForContext(
+        ref.read(smartNightExposureContextProvider).valueOrNull,
+      ),
     );
 
     final options = MosaicSequenceOptions(
@@ -561,9 +644,12 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final panels = _calculatePanels();
-    final exposure = mosaicWizardExposureSettingsForContext(
+    final smartExposure = mosaicWizardExposureSettingsForContext(
       ref.watch(smartNightExposureContextProvider).valueOrNull,
     );
+    final exposure = _effectiveExposure(smartExposure);
+    final exposureSecsPerPanel = _exposureSecsPerPanel(exposure);
+    final exposuresPerPanel = _exposuresPerPanel(exposure);
 
     return NightshadeDialog(
       title: 'Mosaic Wizard',
@@ -658,15 +744,38 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
                     panelArcminLabel:
                         '${(_panelWidthArcmin / 60).toStringAsFixed(2)}° × ${(_panelHeightArcmin / 60).toStringAsFixed(2)}°',
                     overlapLabel: '${_overlapPercent.toStringAsFixed(0)}%',
-                    exposureSeconds: exposure.exposureSeconds,
-                    exposuresPerPanel: exposure.exposuresPerPanel,
-                    estTimeHours: _calculateTotalTime(
-                          exposure.exposureSeconds,
-                          exposure.exposuresPerPanel,
-                        ) /
-                        3600,
-                    totalExposures:
-                        _activePanelCount * exposure.exposuresPerPanel,
+                    filterCount:
+                        exposure.isMultiFilter ? exposure.filters!.length : 1,
+                    exposureSecsPerPanel: exposureSecsPerPanel,
+                    exposuresPerPanel: exposuresPerPanel,
+                    estTimeHours:
+                        _calculateTotalTime(exposureSecsPerPanel) / 3600,
+                    totalExposures: _activePanelCount * exposuresPerPanel,
+                  ),
+                  const SizedBox(height: 16),
+                  _FilterPlanCard(
+                    colors: colors,
+                    enabled: _multiFilterEnabled,
+                    rows: _filterRows,
+                    onToggle: (on) {
+                      setState(() {
+                        _multiFilterEnabled = on;
+                        if (on) _seedFilterRowsIfNeeded();
+                      });
+                    },
+                    onChanged: () => setState(() {}),
+                    onAddRow: () {
+                      setState(() {
+                        _filterRows.add(_MosaicFilterRow(
+                          filterName: 'Filter ${_filterRows.length + 1}',
+                          exposureSeconds: smartExposure.exposureSeconds,
+                          count: smartExposure.exposuresPerPanel,
+                        ));
+                      });
+                    },
+                    onRemoveRow: (row) {
+                      setState(() => _filterRows.remove(row));
+                    },
                   ),
                   const SizedBox(height: 16),
                   _AdvancedPanel(

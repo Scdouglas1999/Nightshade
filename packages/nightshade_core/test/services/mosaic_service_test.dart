@@ -852,4 +852,162 @@ void main() {
       expect(headers.every((h) => h.hasAltitudeConstraints), isTrue);
     });
   });
+
+  group('MosaicService - Multi-filter per panel', () {
+    const config = MosaicConfig(
+      centerRa: 12.0,
+      centerDec: 30.0,
+      panelWidthArcmin: 60.0,
+      panelHeightArcmin: 40.0,
+      panelsHorizontal: 2,
+      panelsVertical: 1,
+    );
+
+    final exposure = MosaicExposureSettings.multiFilter(
+      filters: const [
+        MosaicFilterExposure(
+          exposureSeconds: 300.0,
+          exposuresPerPanel: 12,
+          filterName: 'Ha',
+          binning: 1,
+          gain: 200.0,
+          offset: 50.0,
+        ),
+        MosaicFilterExposure(
+          exposureSeconds: 300.0,
+          exposuresPerPanel: 8,
+          filterName: 'OIII',
+          binning: 1,
+          gain: 200.0,
+          offset: 50.0,
+        ),
+        MosaicFilterExposure(
+          exposureSeconds: 120.0,
+          exposuresPerPanel: 4,
+          filterName: 'SII',
+          binning: 2,
+          gain: 120.0,
+          offset: 20.0,
+        ),
+      ],
+    );
+
+    test('multiFilter constructor mirrors the first filter into scalars', () {
+      expect(exposure.isMultiFilter, isTrue);
+      expect(exposure.filters, hasLength(3));
+      // Scalar fields seed from filters.first so single-value readers stay
+      // correct without inspecting the per-filter plan.
+      expect(exposure.exposureSeconds, equals(300.0));
+      expect(exposure.exposuresPerPanel, equals(12));
+      expect(exposure.filterName, equals('Ha'));
+      expect(exposure.binning, equals(1));
+      expect(exposure.gain, equals(200.0));
+      expect(exposure.offset, equals(50.0));
+    });
+
+    test('multiFilter rejects an empty filter list', () {
+      expect(
+        () => MosaicExposureSettings.multiFilter(filters: const []),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+
+    test('single-filter settings resolve to a one-element plan', () {
+      const single = MosaicExposureSettings(
+        exposureSeconds: 60.0,
+        exposuresPerPanel: 10,
+        filterName: 'L',
+      );
+      expect(single.isMultiFilter, isFalse);
+      expect(single.resolvedFilters, hasLength(1));
+      expect(single.resolvedFilters.single.filterName, equals('L'));
+      expect(single.resolvedFilters.single.exposuresPerPanel, equals(10));
+    });
+
+    test('every panel images the full filter set in order', () {
+      final nodes = service.createMosaicSequence(
+        mosaicName: 'SHO Mosaic',
+        config: config,
+        exposure: exposure,
+        options: const MosaicSequenceOptions(serpentineOrdering: false),
+      );
+
+      final headers = nodes.values.whereType<TargetHeaderNode>().toList()
+        ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+      expect(headers, hasLength(2), reason: '2x1 grid => two panels');
+
+      // 3 filters per panel => 3 exposure loops per panel.
+      for (final header in headers) {
+        final loops = header.childIds
+            .map((id) => nodes[id])
+            .whereType<LoopNode>()
+            .toList();
+        expect(loops, hasLength(3));
+
+        // Loops appear in filter order with each filter's own sub count.
+        final exposureNodes = loops
+            .map(
+              (loop) => loop.childIds
+                  .map((id) => nodes[id])
+                  .whereType<ExposureNode>()
+                  .single,
+            )
+            .toList();
+        expect(
+          exposureNodes.map((e) => e.filter).toList(),
+          equals(['Ha', 'OIII', 'SII']),
+        );
+        expect(loops.map((l) => l.repeatCount).toList(), equals([12, 8, 4]));
+      }
+    });
+
+    test('per-filter capture parameters ride onto each exposure node', () {
+      final nodes = service.createMosaicSequence(
+        mosaicName: 'SHO Mosaic',
+        config: config,
+        exposure: exposure,
+        options: const MosaicSequenceOptions(serpentineOrdering: false),
+      );
+
+      final byFilter = <String?, ExposureNode>{};
+      for (final node in nodes.values.whereType<ExposureNode>()) {
+        byFilter[node.filter] = node;
+      }
+
+      expect(byFilter['SII']!.durationSecs, equals(120.0));
+      expect(byFilter['SII']!.binning, equals(BinningMode.two));
+      expect(byFilter['SII']!.gain, equals(120));
+      expect(byFilter['SII']!.offset, equals(20));
+      expect(byFilter['Ha']!.binning, equals(BinningMode.one));
+      expect(byFilter['Ha']!.gain, equals(200));
+    });
+
+    test('time estimate sums every channel per panel', () {
+      // 2 panels * ((12*300 + 8*300 + 4*120) exposure + 60 overhead)
+      // = 2 * (3600 + 2400 + 480 + 60) = 2 * 6540 = 13080
+      final time = service.estimateMosaicTime(config, exposure);
+      expect(time, equals(13080.0));
+    });
+
+    test('single-filter sequence is unchanged (one loop per panel)', () {
+      const single = MosaicExposureSettings(
+        exposureSeconds: 60.0,
+        exposuresPerPanel: 10,
+        filterName: 'L',
+      );
+      final nodes = service.createMosaicSequence(
+        mosaicName: 'Lum Mosaic',
+        config: config,
+        exposure: single,
+        options: const MosaicSequenceOptions(serpentineOrdering: false),
+      );
+      final loops = nodes.values.whereType<LoopNode>().toList();
+      // Two panels, one loop each.
+      expect(loops, hasLength(2));
+      expect(loops.every((l) => l.repeatCount == 10), isTrue);
+      final exposures = nodes.values.whereType<ExposureNode>().toList();
+      expect(exposures, hasLength(2));
+      expect(exposures.every((e) => e.filter == 'L'), isTrue);
+    });
+  });
 }

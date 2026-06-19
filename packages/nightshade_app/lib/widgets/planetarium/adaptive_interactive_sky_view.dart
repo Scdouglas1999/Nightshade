@@ -52,7 +52,6 @@ class AdaptiveInteractiveSkyView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return planetarium_v1.InteractiveSkyView(
-      key: key,
       onObjectSelected: onObjectSelected,
       onCoordinateTapped: onCoordinateTapped,
       onObjectTapped: onObjectTapped,

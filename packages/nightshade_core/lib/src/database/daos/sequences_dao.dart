@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:uuid/uuid.dart';
 
@@ -7,10 +9,56 @@ import '../tables/targets.dart';
 
 part 'sequences_dao.g.dart';
 
+/// Lightweight per-sequence roll-up produced by
+/// [SequencesDao.getSequenceSummaryRows] without hydrating any node tree.
+///
+/// `nodeType` / `specificType` mirror the persisted `sequence_nodes` columns:
+/// `nodeType == 'target'` counts a target-category node, and the exposure
+/// count sums nodes whose `specificType` is one of the capture node types.
+class SequenceSummaryRow {
+  final int id;
+  final String name;
+  final int estimatedDurationMins;
+  final DateTime updatedAt;
+  final String tagsJson;
+  final bool isFavorite;
+  final int nodeCount;
+  final int targetCount;
+  final int exposureCount;
+  final String? primaryTargetName;
+
+  const SequenceSummaryRow({
+    required this.id,
+    required this.name,
+    required this.estimatedDurationMins,
+    required this.updatedAt,
+    required this.tagsJson,
+    required this.isFavorite,
+    required this.nodeCount,
+    required this.targetCount,
+    required this.exposureCount,
+    required this.primaryTargetName,
+  });
+}
+
 @DriftAccessor(tables: [Sequences, SequenceNodes, Targets])
 class SequencesDao extends DatabaseAccessor<NightshadeDatabase>
     with _$SequencesDaoMixin {
   SequencesDao(super.db);
+
+  /// Wire string written into `sequence_nodes.node_type` for target-category
+  /// nodes (see `SequenceRepository._categoryWireString`). Matched here to
+  /// count targets without loading node properties.
+  static const String _targetCategoryWire = 'target';
+
+  /// `sequence_nodes.specific_type` values that represent a capture/exposure
+  /// node. Kept in sync with the model node types `TakeExposure` /
+  /// `SmartExposure` so the library summary's exposure count never hydrates
+  /// node trees.
+  static const Set<String> _exposureSpecificTypes = {
+    'TakeExposure',
+    'SmartExposure',
+  };
 
   /// Get all sequences
   Future<List<Sequence>> getAllSequences() {
@@ -57,6 +105,130 @@ class SequencesDao extends DatabaseAccessor<NightshadeDatabase>
   /// Update a sequence
   Future<bool> updateSequence(Sequence sequence) {
     return update(sequences).replace(sequence);
+  }
+
+  /// Set the JSON-encoded tag list for [sequenceId] and bump `updatedAt`.
+  ///
+  /// [tagsJson] must be a JSON-encoded `List<String>` (the repository encodes
+  /// it). Touching `updatedAt` keeps the library's "recently modified" sort
+  /// honest — re-tagging a sequence is a meaningful library edit.
+  Future<void> setTagsJson(int sequenceId, String tagsJson) {
+    return (update(sequences)..where((s) => s.id.equals(sequenceId))).write(
+      SequencesCompanion(
+        tagsJson: Value(tagsJson),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
+  }
+
+  /// Set the favorite flag for [sequenceId].
+  ///
+  /// Favoriting is a library-organisation flag, not a content edit, so it
+  /// deliberately does NOT touch `updatedAt` — starring a sequence should not
+  /// reorder a "recently modified" list.
+  Future<void> setFavorite(int sequenceId, bool isFavorite) {
+    return (update(sequences)..where((s) => s.id.equals(sequenceId))).write(
+      SequencesCompanion(isFavorite: Value(isFavorite)),
+    );
+  }
+
+  /// One grouped query that returns a lightweight roll-up for every
+  /// non-template sequence — the counts the library list needs WITHOUT
+  /// hydrating each sequence's full node tree (the N+1 that
+  /// `loadAllSequences` incurs).
+  ///
+  /// A single left join + group-by yields `nodeCount`, `targetCount`, and
+  /// `exposureCount` per sequence; the primary target name is resolved in one
+  /// extra batched query rather than per sequence. Newest-modified first, to
+  /// match [getAllSequences].
+  Future<List<SequenceSummaryRow>> getSequenceSummaryRows() async {
+    final nodeCountExpr = sequenceNodes.id.count();
+    final targetCountExpr = sequenceNodes.id.count(
+      filter: sequenceNodes.nodeType.equals(_targetCategoryWire),
+    );
+    final exposureCountExpr = sequenceNodes.id.count(
+      filter: sequenceNodes.specificType.isIn(_exposureSpecificTypes.toList()),
+    );
+
+    final query =
+        select(sequences).join([
+            leftOuterJoin(
+              sequenceNodes,
+              sequenceNodes.sequenceId.equalsExp(sequences.id),
+            ),
+          ])
+          ..addColumns([nodeCountExpr, targetCountExpr, exposureCountExpr])
+          ..where(sequences.isTemplate.equals(false))
+          ..groupBy([sequences.id])
+          ..orderBy([OrderingTerm.desc(sequences.updatedAt)]);
+
+    final rows = await query.get();
+
+    final primaryNames = await _primaryTargetNames(
+      rows.map((r) => r.readTable(sequences).id).toList(),
+    );
+
+    return [
+      for (final row in rows)
+        () {
+          final seq = row.readTable(sequences);
+          return SequenceSummaryRow(
+            id: seq.id,
+            name: seq.name,
+            estimatedDurationMins: seq.estimatedDurationMins,
+            updatedAt: seq.updatedAt,
+            tagsJson: seq.tagsJson,
+            isFavorite: seq.isFavorite,
+            nodeCount: row.read(nodeCountExpr) ?? 0,
+            targetCount: row.read(targetCountExpr) ?? 0,
+            exposureCount: row.read(exposureCountExpr) ?? 0,
+            primaryTargetName: primaryNames[seq.id],
+          );
+        }(),
+    ];
+  }
+
+  /// The display name of the first (lowest `order_index`, ties broken by row
+  /// id) target-category node for each sequence in [sequenceIds]. One query
+  /// over the whole set rather than one per sequence. Sequences with no target
+  /// node are simply absent from the returned map.
+  Future<Map<int, String>> _primaryTargetNames(List<int> sequenceIds) async {
+    if (sequenceIds.isEmpty) return const {};
+    final rows =
+        await (select(sequenceNodes)
+              ..where(
+                (n) =>
+                    n.sequenceId.isIn(sequenceIds) &
+                    n.nodeType.equals(_targetCategoryWire),
+              )
+              ..orderBy([
+                (n) => OrderingTerm.asc(n.orderIndex),
+                (n) => OrderingTerm.asc(n.id),
+              ]))
+            .get();
+    final out = <int, String>{};
+    for (final node in rows) {
+      // First row wins per sequence thanks to the ordering above.
+      out.putIfAbsent(node.sequenceId, () => _targetNameOf(node));
+    }
+    return out;
+  }
+
+  /// The human target name for a target-category node row. Prefers the
+  /// `targetName` stored in the node's properties JSON (what the catalog/target
+  /// actually is) and falls back to the node's display `name` when the
+  /// properties are absent or unparseable.
+  String _targetNameOf(SequenceNode node) {
+    try {
+      final decoded = jsonDecode(node.properties);
+      if (decoded is Map) {
+        final raw = decoded['targetName'];
+        if (raw is String && raw.trim().isNotEmpty) return raw;
+      }
+    } on FormatException {
+      // Fall through to the display name below.
+    }
+    return node.name;
   }
 
   /// Delete a sequence and its nodes

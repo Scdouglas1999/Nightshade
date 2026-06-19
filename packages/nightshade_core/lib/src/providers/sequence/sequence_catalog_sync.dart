@@ -79,6 +79,18 @@ final savedSequencesProvider = FutureProvider.autoDispose<List<Sequence>>((
   return repository.loadAllSequences();
 });
 
+/// Lightweight summaries for the sequence library list.
+///
+/// Prefer this over [savedSequencesProvider] when rendering the library: it is
+/// backed by a single grouped query and does NOT hydrate each sequence's full
+/// node tree (the N+1 [savedSequencesProvider] incurs). Invalidated alongside
+/// [savedSequencesProvider] whenever the catalog changes.
+final savedSequenceSummariesProvider =
+    FutureProvider.autoDispose<List<SequenceSummary>>((ref) async {
+      final repository = ref.watch(sequenceRepositoryProvider);
+      return repository.loadSequenceSummaries();
+    });
+
 /// Keeps the sequencer library fresh when remote clients mutate sequences.
 ///
 /// * Desktop GUI (local [FfiBackend]): listens to [SequenceCatalogUpdateBus]
@@ -91,6 +103,7 @@ final sequenceLibrarySyncProvider = Provider<void>((ref) {
 
   void invalidateLibrary() {
     ref.invalidate(savedSequencesProvider);
+    ref.invalidate(savedSequenceSummariesProvider);
   }
 
   void onCatalogUpdate(SequenceCatalogUpdate update) {

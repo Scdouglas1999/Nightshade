@@ -102,6 +102,7 @@ Future<void> _persistRemoteSequence(Ref ref, {required String reason}) async {
     final savedId = await repository.saveSequence(sequence);
     editor.applyRemoteSave(savedId);
     ref.invalidate(savedSequencesProvider);
+    ref.invalidate(savedSequenceSummariesProvider);
     logger.info(
       'Remote sequence auto-save complete ($reason): '
       '"${sequence.name}" id=$savedId',

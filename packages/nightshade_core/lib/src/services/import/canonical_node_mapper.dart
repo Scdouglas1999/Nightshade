@@ -4,6 +4,7 @@ import '../../models/imaging/imaging_models.dart' show FrameType;
 import '../../models/import/canonical_sequence_node.dart';
 import '../../models/import/import_result.dart';
 import '../../models/sequence/sequence_models.dart';
+import '../../providers/sequence/sequence_validation.dart';
 
 /// Outcome of mapping one canonical tree to Nightshade nodes.
 ///
@@ -16,12 +17,24 @@ class MapResult {
   final List<UnsupportedNodeRecord> unsupported;
   final int totalNodes;
 
+  /// Issues discovered while mapping that the unified structural validator
+  /// can't see because the signal lives in the *source* tree rather than the
+  /// assembled [Sequence]. Currently this carries the indeterminate-frame-
+  /// count warning (see [CanonicalNodeMapper._mapNode]): a `TakeExposure`
+  /// with no count of its own nested under a container that iterates an
+  /// unknowable number of times (loop-forever / loop-until-time /
+  /// loop-until-altitude). Such an exposure silently maps to a single frame,
+  /// so we surface a warning the importer folds into
+  /// [ImportResult.validationIssues].
+  final List<ValidationIssue> validationIssues;
+
   MapResult({
     required this.sequence,
     required this.mappingTable,
     required this.dropped,
     required this.unsupported,
     required this.totalNodes,
+    this.validationIssues = const [],
   });
 }
 
@@ -49,6 +62,7 @@ class CanonicalNodeMapper {
     final dropped = <DroppedNodeRecord>[];
     final unsupported = <UnsupportedNodeRecord>[];
     final mappingCounts = <String, _MappingCount>{};
+    final validationIssues = <ValidationIssue>[];
 
     int totalNodes = 0;
     for (final _ in root.walk()) {
@@ -63,7 +77,9 @@ class CanonicalNodeMapper {
       dropped: dropped,
       unsupported: unsupported,
       mapping: mappingCounts,
+      issues: validationIssues,
       forceUnsupported: forceUnsupported,
+      insideIndeterminateLoop: false,
     );
 
     final sequence = Sequence.create(
@@ -92,12 +108,21 @@ class CanonicalNodeMapper {
       dropped: dropped,
       unsupported: unsupported,
       totalNodes: totalNodes,
+      validationIssues: validationIssues,
     );
   }
 
   /// Returns the id of the newly-created node, or `null` if the node was
   /// dropped. Children of dropped nodes are still walked (so we account for
   /// them in the totals) but are attached to the dropped node's parent.
+  ///
+  /// [insideIndeterminateLoop] is `true` when any ancestor of [node] is a
+  /// container that iterates an unknowable number of times (loop-forever /
+  /// loop-until-time / loop-until-altitude). When such a container wraps a
+  /// `TakeExposure` that carries no count of its own, the parser couldn't
+  /// propagate a frame count down and the exposure maps to a single frame —
+  /// almost never what the source author meant. We emit a warning into
+  /// [issues] for that case.
   String? _mapNode(
     CanonicalSequenceNode node, {
     required String? parentId,
@@ -106,7 +131,9 @@ class CanonicalNodeMapper {
     required List<DroppedNodeRecord> dropped,
     required List<UnsupportedNodeRecord> unsupported,
     required Map<String, _MappingCount> mapping,
+    required List<ValidationIssue> issues,
     required bool forceUnsupported,
+    required bool insideIndeterminateLoop,
   }) {
     final isDisabled = node.attributes['_disabled'] == true;
     if (isDisabled) {
@@ -126,7 +153,9 @@ class CanonicalNodeMapper {
         dropped,
         unsupported,
         mapping,
+        issues,
         forceUnsupported,
+        insideIndeterminateLoop,
       );
       return null;
     }
@@ -170,6 +199,35 @@ class CanonicalNodeMapper {
       parentId: parentId,
       orderIndex: orderIndex,
     );
+
+    // Indeterminate-frame-count warning. A `TakeExposure` with no count of its
+    // own, nested anywhere under a container that iterates an unknowable number
+    // of times, maps to a single frame. The parser only propagates a count when
+    // the loop's iteration total is resolvable; an unbounded loop leaves the
+    // exposure untouched, so flag it here while we still know the source shape.
+    if (insideIndeterminateLoop &&
+        node.kind == CanonicalKind.exposure &&
+        node.attributes['count'] == null &&
+        mapped != null) {
+      issues.add(
+        ValidationIssue(
+          severity: ValidationSeverity.warning,
+          category: ValidationCategory.exposures,
+          title: 'Frame count could not be determined',
+          description:
+              'The exposure "${node.name}" sits inside a loop that repeats an '
+              'unknowable number of times (loop forever / until a time or '
+              'altitude) and carries no count of its own, so it was imported '
+              'as a single frame.',
+          resolutionHint:
+              'Set an explicit frame count on this exposure, or give the '
+              'enclosing loop a fixed iteration count, so the planned number '
+              'of frames is unambiguous.',
+          affectedNodeId: id,
+          code: 'import_indeterminate_exposure_count',
+        ),
+      );
+    }
     if (mapped == null) {
       // _construct only returns null for unsupported instruction kinds we
       // discover late (rare; logic kinds are guarded above).
@@ -192,6 +250,8 @@ class CanonicalNodeMapper {
       return null;
     }
 
+    final childInsideIndeterminateLoop =
+        insideIndeterminateLoop || _isIndeterminateLoop(node);
     final childIds = <String>[];
     var nextOrder = 0;
     for (final child in node.children) {
@@ -203,7 +263,9 @@ class CanonicalNodeMapper {
         dropped: dropped,
         unsupported: unsupported,
         mapping: mapping,
+        issues: issues,
         forceUnsupported: forceUnsupported,
+        insideIndeterminateLoop: childInsideIndeterminateLoop,
       );
       if (childId != null) {
         childIds.add(childId);
@@ -224,7 +286,9 @@ class CanonicalNodeMapper {
     List<DroppedNodeRecord> dropped,
     List<UnsupportedNodeRecord> unsupported,
     Map<String, _MappingCount> mapping,
+    List<ValidationIssue> issues,
     bool forceUnsupported,
+    bool insideIndeterminateLoop,
   ) {
     var nextOrder = 0;
     for (final child in children) {
@@ -236,10 +300,36 @@ class CanonicalNodeMapper {
         dropped: dropped,
         unsupported: unsupported,
         mapping: mapping,
+        issues: issues,
         forceUnsupported: forceUnsupported,
+        insideIndeterminateLoop: insideIndeterminateLoop,
       );
       if (id != null) nextOrder++;
     }
+  }
+
+  /// True when [node] is a container that iterates an unknowable number of
+  /// times — loop-forever, loop-until-time, or loop-until-altitude — so a
+  /// frame count cannot be derived from the iteration total. A loop with a
+  /// fixed `iterations` (or count condition) is determinate and returns false;
+  /// in that case the parser has already stamped the resolved count onto the
+  /// direct-child exposures.
+  bool _isIndeterminateLoop(CanonicalSequenceNode node) {
+    final a = node.attributes;
+    final isIterating =
+        node.kind == CanonicalKind.loop ||
+        a['iterations'] != null ||
+        a['_loopCountFromCondition'] != null ||
+        a['_loopForever'] == true ||
+        a['_loopUntilTime'] != null ||
+        a['_loopUntilAltitude'] != null;
+    if (!isIterating) return false;
+    final resolvedCount =
+        _readInt(a['iterations']) ?? _readInt(a['_loopCountFromCondition']);
+    // A fixed iteration total (including a single iteration) is determinate.
+    // Only loops with no resolvable count — forever / until-time /
+    // until-altitude — leave the child exposure's frame count unknowable.
+    return resolvedCount == null;
   }
 
   SequenceNode? _construct(

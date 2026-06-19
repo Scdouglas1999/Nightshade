@@ -110,17 +110,32 @@ class NodeTimingSection extends ConsumerWidget {
     final sequence = ref.watch(currentSequenceProvider);
     if (sequence == null) return const SizedBox.shrink();
 
-    // Calculate timing for this node
-    const estimator = SequenceTimeEstimator();
-    final timings = estimator.estimateSequenceTiming(sequence, DateTime.now());
+    // Calculate timing for this node using the SHARED overhead model so the
+    // node chip, the timeline, and the run-dashboard total all agree
+    // (findings 5/9/16). The autofocus settings feed the runtime-injected AF
+    // term in the total, which has no node in the tree.
+    final overhead = ref.watch(sequencerOverheadConfigProvider);
+    final appSettings = ref.watch(appSettingsProvider).valueOrNull;
+    final estimator = SequenceTimeEstimator(overhead: overhead);
+    final now = DateTime.now();
+    final timings = estimator.estimateSequenceTiming(sequence, now);
     final nodeTiming = timings.where((t) => t.nodeId == node.id).firstOrNull;
 
-    // Calculate total sequence duration for percentage
-    final totalDuration =
-        estimator.estimateTotalDuration(sequence, DateTime.now());
+    // Calculate total sequence duration for percentage, including the
+    // runtime-injected autofocus runs the executor splices in (filter-change
+    // AF + AF-interval cadence) so "Contributes X%" is measured against the
+    // same total the run dashboard shows.
+    final totalDuration = estimator.estimateTotalDuration(
+      sequence,
+      now,
+      autoFocusOnFilterChange: appSettings?.autoFocusOnFilterChange ?? false,
+      autoFocusEveryMinutes: appSettings?.autoFocusEveryMinutes ?? 0,
+    );
 
-    // Get node-specific duration details
-    final durationDetails = _getDurationDetails(ref);
+    // Get node-specific duration details. The per-frame download overhead is
+    // drawn from the shared config so the "Total" line here matches the chip
+    // and the timeline rather than a divergent hard-coded 2 s literal.
+    final durationDetails = _getDurationDetails(ref, overhead);
 
     // If we have no timing info and no details, don't show the section
     if (nodeTiming == null && durationDetails == null) {
@@ -293,12 +308,19 @@ class NodeTimingSection extends ConsumerWidget {
   }
 
   /// Returns node-specific duration breakdown details, or null if not applicable.
-  List<_DurationDetail>? _getDurationDetails(WidgetRef ref) {
+  ///
+  /// [overhead] is the shared [SequenceOverheadConfig] (from
+  /// [sequencerOverheadConfigProvider]) so the per-frame download cost shown in
+  /// the breakdown matches the estimator, the chip, and the run dashboard.
+  List<_DurationDetail>? _getDurationDetails(
+    WidgetRef ref,
+    SequenceOverheadConfig overhead,
+  ) {
     if (node is ExposureNode) {
       final exposure = node as ExposureNode;
       final exposureTotal = exposure.durationSecs * exposure.count;
-      // Estimate download overhead at ~2 seconds per frame
-      final downloadOverhead = exposure.count * 2.0;
+      final downloadOverhead =
+          exposure.count * overhead.downloadOverheadPerExposureSecs;
       final total = exposureTotal + downloadOverhead;
 
       return [
@@ -576,7 +598,8 @@ class NodeTimingSection extends ConsumerWidget {
     if (node is SciencePhotometryNode) {
       final phot = node as SciencePhotometryNode;
       final exposureTotal = phot.exposureSecs * phot.count;
-      final downloadOverhead = phot.count * 2.0;
+      final downloadOverhead =
+          phot.count * overhead.downloadOverheadPerExposureSecs;
       final total = exposureTotal + downloadOverhead;
       return [
         _DurationDetail(

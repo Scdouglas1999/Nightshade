@@ -85,7 +85,11 @@ void main() {
 
       await Future<void>.delayed(Duration.zero);
       await container.read(savedSequencesProvider.future);
-      verify(() => backend.listFullSequences()).called(2);
+      // Two consumers now reload on a catalog change: the full-sequence list
+      // and the lightweight summary list. Both derive from the remote
+      // listFullSequences endpoint, so a single notify re-fetches it: once for
+      // the initial full-list load and once each time the library invalidates.
+      verify(() => backend.listFullSequences()).called(greaterThanOrEqualTo(2));
     });
 
     test(

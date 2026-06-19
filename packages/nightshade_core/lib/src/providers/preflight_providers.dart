@@ -1,9 +1,13 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../database/database.dart' show PolarAlignmentHistoryEntry;
+import '../models/sequencer/recovery_status.dart';
 import '../services/optical_train_diagnostics_service.dart';
 import '../services/time_sync_service.dart';
 import 'database_provider.dart';
+import 'sequence_stats_provider.dart' show sessionDiagnosticsDaoProvider;
 
 // =============================================================================
 // Pre-flight wiring providers
@@ -69,6 +73,25 @@ class OpticalTrainBaseline {
     );
   }
 
+  /// Round-trips with [OpticalTrainBaseline.fromJson]. Used to persist the
+  /// per-session optical-train baseline/current snapshots into
+  /// `session_diagnostics` so a historical run report can show that session's
+  /// drift comparison instead of the live provider.
+  Map<String, dynamic> toJson() => {
+    'tiltScore': tiltScore,
+    'collimationScore': collimationScore,
+    'capturedAt': capturedAt.toIso8601String(),
+  };
+
+  /// Inverse of [toJson].
+  factory OpticalTrainBaseline.fromJson(Map<String, dynamic> json) {
+    return OpticalTrainBaseline(
+      tiltScore: (json['tiltScore'] as num).toDouble(),
+      collimationScore: (json['collimationScore'] as num).toDouble(),
+      capturedAt: DateTime.parse(json['capturedAt'] as String),
+    );
+  }
+
   /// Total magnitude of drift from this baseline to the supplied
   /// current diagnostics. Equal-weight blend of tilt + collimation
   /// score deltas matches the `OpticalHealthScore` weighting so the
@@ -97,6 +120,77 @@ final opticalTrainBaselineProvider = StateProvider<OpticalTrainBaseline?>(
 /// info note rather than silently passing.
 final opticalTrainCurrentSnapshotProvider =
     StateProvider<OpticalTrainBaseline?>((ref) => null);
+
+// =============================================================================
+// Per-session (historical) report providers
+// =============================================================================
+//
+// The live providers above always hold the MOST RECENT run's diagnostics (or
+// nothing after a restart). A historical run report opened from the History
+// list must show THAT run's recoveries and drift comparison, not whatever the
+// live providers happen to hold. These family providers read the persisted
+// `session_diagnostics` row keyed by session id, so the report dialog can
+// reload exactly the session it was opened for. The active session keeps using
+// the live providers.
+
+/// Pre/post optical-train snapshot pair for a single persisted session.
+///
+/// [baseline] is the snapshot captured at run start; [current] is the
+/// snapshot captured at session end. Either may be `null` when that snapshot
+/// was unavailable for the run (e.g. no solved frames yet at the time it would
+/// have been taken).
+class SessionOpticalTrainSnapshot {
+  final OpticalTrainBaseline? baseline;
+  final OpticalTrainBaseline? current;
+
+  const SessionOpticalTrainSnapshot({
+    required this.baseline,
+    required this.current,
+  });
+}
+
+/// Recovery history for a *historical* run, reloaded from the persisted
+/// `session_diagnostics` row for [sessionId].
+///
+/// Returns an empty list when the session has no diagnostics row (e.g. a run
+/// that predates the table, or one that recorded no recovery loops). Use this
+/// instead of the live [recoveryHistoryProvider] when rendering a report for a
+/// session other than the active one.
+final recoveryHistoryForSessionProvider = FutureProvider.autoDispose
+    .family<List<RecoveryHistoryEntry>, int>((ref, sessionId) async {
+      final dao = ref.watch(sessionDiagnosticsDaoProvider);
+      final row = await dao.getForSession(sessionId);
+      final raw = row?.recoveryHistoryJson;
+      if (raw == null || raw.isEmpty) return const [];
+      final decoded = jsonDecode(raw) as List<dynamic>;
+      return decoded
+          .map((e) => RecoveryHistoryEntry.fromJson(e as Map<String, dynamic>))
+          .toList(growable: false);
+    });
+
+/// Pre/post optical-train snapshots for a *historical* run, reloaded from the
+/// persisted `session_diagnostics` row for [sessionId].
+///
+/// Returns a pair with both fields `null` when the session has no diagnostics
+/// row. Use this instead of the live [opticalTrainBaselineProvider] /
+/// [opticalTrainCurrentSnapshotProvider] when rendering a report for a session
+/// other than the active one.
+final opticalTrainSnapshotForSessionProvider = FutureProvider.autoDispose
+    .family<SessionOpticalTrainSnapshot, int>((ref, sessionId) async {
+      final dao = ref.watch(sessionDiagnosticsDaoProvider);
+      final row = await dao.getForSession(sessionId);
+      OpticalTrainBaseline? decode(String? raw) {
+        if (raw == null || raw.isEmpty) return null;
+        return OpticalTrainBaseline.fromJson(
+          jsonDecode(raw) as Map<String, dynamic>,
+        );
+      }
+
+      return SessionOpticalTrainSnapshot(
+        baseline: decode(row?.opticalTrainBaselineJson),
+        current: decode(row?.opticalTrainCurrentJson),
+      );
+    });
 
 /// Latest equipment-health snapshot for the post-session diagnostics
 /// summary. Holds simple counters that don't fit cleanly into the

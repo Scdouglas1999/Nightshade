@@ -4,6 +4,8 @@ import 'package:nightshade_core/src/models/imaging/imaging_models.dart'
 import 'package:nightshade_core/src/models/import/canonical_sequence_node.dart';
 import 'package:nightshade_core/src/models/import/import_result.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
+import 'package:nightshade_core/src/providers/sequence/sequence_validation.dart'
+    show ValidationCategory, ValidationSeverity;
 import 'package:nightshade_core/src/services/import/canonical_node_mapper.dart';
 
 // Test imports use direct file paths rather than the package barrel so the
@@ -274,6 +276,96 @@ void main() {
       final loop = res.sequence.nodes.values.whereType<LoopNode>().single;
       expect(loop.conditionType, LoopConditionType.forever);
     });
+
+    test(
+      'exposure with no count under a forever-loop emits an indeterminate-count warning',
+      () {
+        final root = _container(
+          'LoopContainer',
+          kind: CanonicalKind.loop,
+          attrs: {'_loopForever': true},
+          children: [
+            _container(
+              'TakeExposure',
+              name: 'Light',
+              kind: CanonicalKind.exposure,
+              // No 'count' — the parser couldn't propagate one from an
+              // unbounded loop.
+              attrs: {'exposureTime': 30.0, 'imageType': 'LIGHT'},
+            ),
+          ],
+        );
+        final mapper = CanonicalNodeMapper();
+        final res = mapper.map(
+          root,
+          sequenceName: 'x',
+          forceUnsupported: false,
+        );
+
+        expect(res.validationIssues, hasLength(1));
+        final issue = res.validationIssues.single;
+        expect(issue.severity, ValidationSeverity.warning);
+        expect(issue.category, ValidationCategory.exposures);
+        expect(issue.code, 'import_indeterminate_exposure_count');
+        // The warning targets the realised exposure node.
+        final exposure = res.sequence.nodes.values
+            .whereType<ExposureNode>()
+            .single;
+        expect(issue.affectedNodeId, exposure.id);
+      },
+    );
+
+    test(
+      'exposure with an explicit count under a forever-loop emits no warning',
+      () {
+        final root = _container(
+          'LoopContainer',
+          kind: CanonicalKind.loop,
+          attrs: {'_loopForever': true},
+          children: [
+            _container(
+              'TakeExposure',
+              kind: CanonicalKind.exposure,
+              attrs: {'exposureTime': 30.0, 'count': 5, 'imageType': 'LIGHT'},
+            ),
+          ],
+        );
+        final mapper = CanonicalNodeMapper();
+        final res = mapper.map(
+          root,
+          sequenceName: 'x',
+          forceUnsupported: false,
+        );
+        expect(res.validationIssues, isEmpty);
+      },
+    );
+
+    test(
+      'exposure with no count under a fixed-iteration loop emits no warning',
+      () {
+        final root = _container(
+          'LoopContainer',
+          kind: CanonicalKind.loop,
+          attrs: {'iterations': 10},
+          children: [
+            _container(
+              'TakeExposure',
+              kind: CanonicalKind.exposure,
+              // A determinate loop count is resolvable, so no warning even
+              // though this exposure carries no count of its own.
+              attrs: {'exposureTime': 30.0, 'imageType': 'LIGHT'},
+            ),
+          ],
+        );
+        final mapper = CanonicalNodeMapper();
+        final res = mapper.map(
+          root,
+          sequenceName: 'x',
+          forceUnsupported: false,
+        );
+        expect(res.validationIssues, isEmpty);
+      },
+    );
 
     test('filter-change without filterName surfaces as unsupported', () {
       final root = _container(

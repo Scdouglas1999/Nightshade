@@ -90,6 +90,12 @@ void main() {
       // Initially collapsed.
       expect(find.text('Center RA (hours)'), findsNothing);
 
+      // The multi-filter plan card now sits above the Advanced panel, so on
+      // the test surface the panel header starts below the config column's
+      // scroll fold. Scroll it into view before tapping so the gesture lands
+      // on the InkWell rather than the clamped viewport edge.
+      await tester.ensureVisible(find.text('Advanced (numerical)'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Advanced (numerical)'));
       await tester.pumpAndSettle();
 

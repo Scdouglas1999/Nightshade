@@ -9,7 +9,9 @@ import 'package:nightshade_core/nightshade_core.dart' hide TwilightTimes;
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 import '../../../localization/nightshade_localizations.dart';
+import 'connection_quality_chip.dart';
 import 'dashboard_header_actions.dart';
+import 'glance_mode_toggle.dart';
 
 /// Command Bar: Fixed header with session status, quick stats, clock, and controls.
 ///
@@ -107,6 +109,15 @@ class DashboardCommandBar extends ConsumerWidget {
                 const SizedBox(width: 16),
                 DashboardClockWidget(colors: colors),
                 const SizedBox(width: 16),
+                // Remote-vs-local + latency chip. Reads the graded
+                // connectionQualityProvider; quiet "Local" pill in FFI mode,
+                // live link state + latency in a network session.
+                ConnectionQualityChip(colors: colors),
+                const SizedBox(width: 12),
+                // Glance-mode toggle (large secondary-status type for
+                // across-the-room reading).
+                GlanceModeToggle(colors: colors),
+                const SizedBox(width: 12),
               ] else
                 const Spacer(),
 
@@ -678,6 +689,12 @@ class CompactDashboardCommandBar extends ConsumerWidget {
                   ],
                 ),
               ),
+              // Compact connection chip (icon + latency only).
+              ConnectionQualityChip(colors: colors, compact: true),
+              const SizedBox(width: 8),
+              // Glance-mode toggle.
+              GlanceModeToggle(colors: colors, compact: true),
+              const SizedBox(width: 8),
               // Edit button
               NightshadeButton(
                 label: isEditing ? 'Done' : 'Edit',

@@ -414,6 +414,7 @@ int? _parseSequenceId(Map<String, dynamic> data) {
 
 void _invalidateSequenceLibrary(Object reader, {int? sequenceId}) {
   _invalidate(reader, savedSequencesProvider);
+  _invalidate(reader, savedSequenceSummariesProvider);
   if (sequenceId != null && reader is Ref) {
     unawaited(reloadOpenSequenceIfIdle(reader, sequenceId));
   }
@@ -905,4 +906,5 @@ Future<void> hydrateRemoteSessionState(
   _invalidateEquipmentSyncProviders(reader);
   backend.invalidateDeviceCache();
   _invalidate(reader, savedSequencesProvider);
+  _invalidate(reader, savedSequenceSummariesProvider);
 }

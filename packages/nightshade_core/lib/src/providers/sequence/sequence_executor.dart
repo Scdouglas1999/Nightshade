@@ -13,6 +13,7 @@ import '../../models/sequence/sequence_models.dart';
 import '../../models/settings/app_settings.dart'
     show ObserverLocation, SafetyFailMode;
 import '../../services/disk_space_guard.dart';
+import '../../services/sequence_file_service.dart';
 import '../../services/live_stacking_broadcast_service.dart';
 import '../../services/live_stacking_service.dart' show LiveStackingConfig;
 import '../../services/safe_rig_service.dart';
@@ -57,6 +58,7 @@ import '../../services/optical_train_diagnostics_service.dart'
 import '../notification_router_provider.dart';
 import '../optical_train_diagnostics_provider.dart';
 import '../preflight_providers.dart';
+import '../recovery_provider.dart' show recoveryHistoryProvider;
 import '../science_provider.dart'
     show sessionPsfTilesProvider, sessionResidualVectorsProvider;
 import '../usb_disconnect_log_provider.dart';
@@ -386,9 +388,19 @@ class SequenceExecutor {
           : null,
     );
     sessionNotifier.setTotalExposures(sequence.totalExposures);
+    // Persist the exact sequence JSON used for this run so the run-history
+    // "diff vs previous run" view compares real snapshots rather than the
+    // live (possibly since-edited) sequence.
+    final snapshotJson = jsonEncode(
+      _ref.read(sequenceFileServiceProvider).sequenceToMap(sequence),
+    );
     final runId = await _ref
         .read(sequenceRunsDaoProvider)
-        .startRun(sequenceId: sequence.databaseId, sequenceName: sequence.name);
+        .startRun(
+          sequenceId: sequence.databaseId,
+          sequenceName: sequence.name,
+          sequenceSnapshotJson: snapshotJson,
+        );
     _ref.read(currentRunIdProvider.notifier).state = runId;
     _ref.read(liveSequenceStatsProvider.notifier).state = SequenceRunStats();
     _runFinalized = false;
@@ -689,6 +701,112 @@ class SequenceExecutor {
   Future<void> skipToNode(String nodeId) async {
     final backend = _ref.read(backendProvider);
     await backend.sequencerSkipToNode(nodeId);
+  }
+
+  /// Abandon the rest of the current target and advance to the next one.
+  ///
+  /// "Skip target" on the run dashboard: stop spending the night on the
+  /// target currently imaging (it clouded over, drifted behind a tree, the
+  /// user changed their mind) and jump straight to the next
+  /// [TargetHeaderNode] in the sequence. Any remaining nodes inside the
+  /// current target's subtree — further exposures, dithers, autofocus, the
+  /// post-target waits — are skipped; execution resumes at the top of the
+  /// next target.
+  ///
+  /// Only meaningful while [SequenceExecutionState.running] or
+  /// [SequenceExecutionState.paused]; the UI must gate the action on those
+  /// states. Throws [StateError] otherwise so the caller can surface a
+  /// snackbar, matching the contract the native skip-to-node primitive
+  /// already enforces.
+  ///
+  /// Implementation: the native executor has no dedicated skip-to-target
+  /// primitive, so this is built on top of [sequencerSkipToNode]. We resolve
+  /// the next target header in canonical (`orderIndex`) order from the
+  /// in-memory sequence, then issue a single jump to that header's node id.
+  /// The Rust side's `next_jump_target` walk fast-forwards through every
+  /// instruction between here and the target header — i.e. the whole
+  /// remainder of the current target's subtree — exactly as a manual
+  /// "skip to here" on the next target would, so no per-node skip storm is
+  /// needed. When there is no next target the run is finished cleanly via
+  /// [stop] (graceful, checkpoint discarded), which drives the dashboard to
+  /// idle the same way a natural end-of-sequence does.
+  ///
+  /// Returns the [TargetHeaderNode.id] we jumped to, or `null` when there was
+  /// no next target and the run was finished instead.
+  Future<String?> skipToTarget() async {
+    final state = _ref.read(sequenceExecutionStateProvider);
+    if (state != SequenceExecutionState.running &&
+        state != SequenceExecutionState.paused) {
+      throw StateError(
+        'skipToTarget requires the sequence to be running or paused '
+        '(current state: ${state.name})',
+      );
+    }
+
+    final sequence = _ref.read(currentSequenceProvider);
+    if (sequence == null) {
+      throw StateError('skipToTarget called with no sequence loaded');
+    }
+
+    // Canonical target order — the same `orderIndex`-sorted view the run
+    // dashboard renders, so "next" means what the operator sees.
+    final targets = sequence.targetHeaders;
+    if (targets.isEmpty) {
+      throw StateError('skipToTarget called on a sequence with no targets');
+    }
+
+    // Identify which target is executing. The progress feed reports the
+    // active leaf node; walk up to its owning header. If we can't pin the
+    // current node to a header (e.g. the run hasn't reached any target's
+    // subtree yet, or it's sitting on a pre-target setup node), treat the
+    // first target as current so "skip" advances to the second.
+    final currentNodeId = _ref.read(sequenceProgressProvider).currentNodeId;
+    final currentTargetId = currentNodeId == null
+        ? targets.first.id
+        : (_owningTargetHeaderId(sequence, currentNodeId) ?? targets.first.id);
+
+    final currentIndex = targets.indexWhere((t) => t.id == currentTargetId);
+    final nextIndex = currentIndex < 0 ? 0 : currentIndex + 1;
+
+    if (nextIndex >= targets.length) {
+      // Last target — nothing left to advance to. Finish the run cleanly so
+      // the dashboard returns to idle exactly as it would at a natural end.
+      _logger.info(
+        'skipToTarget: no target after "$currentTargetId"; finishing run',
+        source: 'SequenceExecutor',
+      );
+      await stop();
+      return null;
+    }
+
+    final nextTarget = targets[nextIndex];
+    _logger.info(
+      'skipToTarget: advancing from "$currentTargetId" to '
+      '"${nextTarget.id}" (${nextTarget.targetName})',
+      source: 'SequenceExecutor',
+    );
+    final backend = _ref.read(backendProvider);
+    await backend.sequencerSkipToNode(nextTarget.id);
+    return nextTarget.id;
+  }
+
+  /// Walk up the tree from [nodeId] to the [TargetHeaderNode] that owns it,
+  /// returning that header's id (or [nodeId] itself when it *is* a header).
+  /// Returns `null` when [nodeId] has no target-header ancestor — e.g. a
+  /// pre-target setup node living at the sequence root.
+  ///
+  /// Bounded by `nodes.length` so a corrupted (cyclic) import can't loop
+  /// forever; the [Sequence] invariants guarantee acyclicity in practice.
+  String? _owningTargetHeaderId(Sequence sequence, String nodeId) {
+    var cursor = sequence.getNode(nodeId);
+    var hops = 0;
+    while (cursor != null) {
+      if (cursor is TargetHeaderNode) return cursor.id;
+      if (++hops > sequence.nodes.length) break;
+      final parentId = sequence.parentOf(cursor.id);
+      cursor = parentId == null ? null : sequence.getNode(parentId);
+    }
+    return null;
   }
 
   /// Reset the sequence execution state without modifying the sequence

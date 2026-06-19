@@ -185,6 +185,54 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
       );
     }
 
+    // --- Per-session diagnostics persistence --------------------------
+    // Recovery history + optical-train baseline/current live only in
+    // volatile in-memory providers, which the NEXT run overwrites. Persist
+    // them keyed to this session so a historical run report can reload THAT
+    // session's recoveries and drift comparison instead of the live values.
+    try {
+      final dbSessionId = _ref.read(sessionStateProvider).dbSessionId;
+      if (dbSessionId != null) {
+        final recoveries = _ref.read(recoveryHistoryProvider);
+        final recoveryHistoryJson = jsonEncode(
+          recoveries.map((e) => e.toJson()).toList(),
+        );
+        final baselineJson = _sessionStartBaseline == null
+            ? null
+            : jsonEncode(_sessionStartBaseline!.toJson());
+        final currentJson = postSnapshot == null
+            ? null
+            : jsonEncode(postSnapshot.toJson());
+        // Resolve the logger synchronously, while the container is still
+        // alive. The deferred catchError below runs after this method has
+        // returned, by which point `_ref` may already be disposed (e.g. on
+        // app shutdown right after a session ends) — re-reading a provider
+        // from a disposed container would throw inside the async zone.
+        final logger = _logger;
+        unawaited(
+          _ref
+              .read(sessionDiagnosticsDaoProvider)
+              .upsert(
+                sessionId: dbSessionId,
+                recoveryHistoryJson: recoveryHistoryJson,
+                opticalTrainBaselineJson: baselineJson,
+                opticalTrainCurrentJson: currentJson,
+              )
+              .catchError((Object e, StackTrace st) {
+                logger.warning(
+                  'Failed to persist per-session diagnostics: $e\n$st',
+                  source: 'SequenceExecutor',
+                );
+              }),
+        );
+      }
+    } catch (e, st) {
+      _logger.warning(
+        'Failed to schedule per-session diagnostics persistence: $e\n$st',
+        source: 'SequenceExecutor',
+      );
+    }
+
     // --- Smart Night guide-RMS history --------------------------------
     try {
       final dbSessionId = _ref.read(sessionStateProvider).dbSessionId;
@@ -201,6 +249,9 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
           imagesDao: _ref.read(imagesDaoProvider),
           guideRmsHistoryDao: _ref.read(guideRmsHistoryDaoProvider),
         );
+        // Resolve the logger synchronously (see note above): the deferred
+        // catchError must not re-read from a possibly-disposed `_ref`.
+        final logger = _logger;
         unawaited(
           collector
               .collectSession(
@@ -209,7 +260,7 @@ extension _SequenceExecutorSessionDiagnosticsOperations on SequenceExecutor {
                 recordedAt: DateTime.now(),
               )
               .catchError((Object e, StackTrace st) {
-                _logger.warning(
+                logger.warning(
                   'Failed to collect Smart Night guide-RMS history: $e\n$st',
                   source: 'SequenceExecutor',
                 );

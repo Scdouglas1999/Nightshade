@@ -93,8 +93,6 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
             itemBuilder: (context) => [
               _buildSortMenuItem(SequenceSortOrder.dateModified,
                   'Last Modified', LucideIcons.clock, sortOrder),
-              _buildSortMenuItem(SequenceSortOrder.dateCreated, 'Date Created',
-                  LucideIcons.calendar, sortOrder),
               _buildSortMenuItem(SequenceSortOrder.name, 'Name',
                   LucideIcons.arrowUpAZ, sortOrder),
               _buildSortMenuItem(SequenceSortOrder.nodeCount, 'Node Count',

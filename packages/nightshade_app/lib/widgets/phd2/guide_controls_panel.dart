@@ -387,16 +387,18 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                 ),
               ),
             ),
-            const Spacer(),
-            _buildControlButton(
-              icon: LucideIcons.shuffle,
-              label: 'Dither Now',
-              color: colors.accent,
-              colors: colors,
-              small: true,
-              onPressed: widget.state == Phd2GuidingState.guiding
-                  ? widget.onDither
-                  : null,
+            const SizedBox(width: 8),
+            Flexible(
+              child: _buildControlButton(
+                icon: LucideIcons.shuffle,
+                label: 'Dither Now',
+                color: colors.accent,
+                colors: colors,
+                small: true,
+                onPressed: widget.state == Phd2GuidingState.guiding
+                    ? widget.onDither
+                    : null,
+              ),
             ),
           ],
         ),
@@ -598,14 +600,17 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                   color: isDisabled ? colors.textMuted : color,
                 ),
                 SizedBox(width: small ? 6 : 8),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: small ? 11 : 12,
-                    fontWeight: FontWeight.w500,
-                    color: isDisabled ? colors.textMuted : color,
+                Flexible(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: small ? 11 : 12,
+                      fontWeight: FontWeight.w500,
+                      color: isDisabled ? colors.textMuted : color,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),

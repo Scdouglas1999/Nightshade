@@ -181,12 +181,17 @@ class _ReportBody extends ConsumerWidget {
                   ..._buildWarningList(),
                 ],
                 // List every recovery loop that fired during the run
-                // with its cause, attempt count,
-                // duration, and outcome. Pulled from the
-                // `recoveryHistoryProvider` populated in real time by
-                // `recoveryEventBridgeProvider`.
+                // with its cause, attempt count, duration, and outcome.
+                // Scoped to this report's session via
+                // `recoveryHistoryForSessionProvider`, which reloads the
+                // persisted `session_diagnostics` row rather than the live
+                // `recoveryHistoryProvider` — so a report viewed from the
+                // History tab shows that session's recoveries, not the
+                // currently-running one's.
                 Consumer(builder: (context, ref, _) {
-                  final recoveries = ref.watch(recoveryHistoryProvider);
+                  final recoveriesAsync = ref.watch(
+                      recoveryHistoryForSessionProvider(report.sessionId));
+                  final recoveries = recoveriesAsync.valueOrNull ?? const [];
                   if (recoveries.isEmpty) return const SizedBox.shrink();
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -215,9 +220,18 @@ class _ReportBody extends ConsumerWidget {
                   final settings = settingsAsync.valueOrNull;
                   if (settings == null) return const SizedBox.shrink();
 
-                  final baseline = ref.watch(opticalTrainBaselineProvider);
-                  final current =
-                      ref.watch(opticalTrainCurrentSnapshotProvider);
+                  // Scoped to this report's session: reload the persisted
+                  // pre/post optical-train snapshots from the
+                  // `session_diagnostics` row instead of the live
+                  // `opticalTrainBaselineProvider` /
+                  // `opticalTrainCurrentSnapshotProvider`, so a historical
+                  // report shows that session's drift, not the live run's.
+                  final snapshot = ref
+                      .watch(opticalTrainSnapshotForSessionProvider(
+                          report.sessionId))
+                      .valueOrNull;
+                  final baseline = snapshot?.baseline;
+                  final current = snapshot?.current;
                   final healthSummary = ref.watch(
                       postSessionHealthSummaryProvider(report.sessionId));
 
