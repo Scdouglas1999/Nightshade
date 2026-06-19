@@ -433,11 +433,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                     SafeArea(
                       bottom: false,
                       child: _MobileSettingsBar(
-                        onOpenSettings: () {
-                          try {
-                            context.go('/settings');
-                          } catch (_) {}
-                        },
+                        onOpenSettings: () => context.go('/settings'),
                       ),
                     ),
 
@@ -643,8 +639,7 @@ class _MobileSettingsBar extends StatelessWidget {
     return Container(
       height: ShellChromeMetrics.titleBarHeight,
       color: colors.surface,
-      padding:
-          const EdgeInsets.symmetric(horizontal: NightshadeTokens.spaceLg),
+      padding: const EdgeInsets.symmetric(horizontal: NightshadeTokens.spaceLg),
       child: Row(
         children: [
           Container(

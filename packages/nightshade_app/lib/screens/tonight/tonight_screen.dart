@@ -60,6 +60,8 @@ class _TonightScreenState extends ConsumerState<TonightScreen> {
     final colors = NightshadeColors.of(context);
     final controller = _liveController();
     final targetAsync = ref.watch(oneTapTargetProvider);
+    final morningSessionId = ref.watch(sessionStateProvider).dbSessionId ??
+        ref.watch(allSessionsProvider).valueOrNull?.firstOrNull?.id;
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -74,6 +76,7 @@ class _TonightScreenState extends ConsumerState<TonightScreen> {
               onGo: controller.go,
               onReset: controller.reset,
               onRefreshPick: () => ref.invalidate(oneTapTargetProvider),
+              morningSessionId: morningSessionId,
             );
           },
         ),
@@ -92,6 +95,7 @@ class TonightBodyView extends StatelessWidget {
   final Future<void> Function() onGo;
   final VoidCallback onReset;
   final VoidCallback onRefreshPick;
+  final int? morningSessionId;
 
   const TonightBodyView({
     super.key,
@@ -101,6 +105,7 @@ class TonightBodyView extends StatelessWidget {
     required this.onGo,
     required this.onReset,
     required this.onRefreshPick,
+    required this.morningSessionId,
   });
 
   @override
@@ -130,7 +135,10 @@ class TonightBodyView extends StatelessWidget {
         ],
         const SizedBox(height: NightshadeTokens.spaceXl),
         _MorningPayoff(
-            colors: colors, running: state.phase == OneTapPhase.running),
+          colors: colors,
+          running: state.phase == OneTapPhase.running,
+          sessionId: morningSessionId,
+        ),
         const SizedBox(height: NightshadeTokens.spaceLg),
         _AdvancedFooter(colors: colors),
       ],
@@ -384,16 +392,19 @@ class _PrimaryAction extends StatelessWidget {
 }
 
 /// The morning payoff: a path to the morning report / session review.
-class _MorningPayoff extends ConsumerWidget {
+class _MorningPayoff extends StatelessWidget {
   final NightshadeColors colors;
   final bool running;
+  final int? sessionId;
 
-  const _MorningPayoff({required this.colors, required this.running});
+  const _MorningPayoff({
+    required this.colors,
+    required this.running,
+    required this.sessionId,
+  });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final sessionId = ref.watch(sessionStateProvider).dbSessionId ??
-        ref.watch(allSessionsProvider).valueOrNull?.firstOrNull?.id;
+  Widget build(BuildContext context) {
     if (sessionId == null) return const SizedBox.shrink();
 
     return NightshadeCard(
@@ -555,9 +566,9 @@ class _SkeletonCard extends StatelessWidget {
     return NightshadeCard(
       variant: CardVariant.elevated,
       padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
-      child: Column(
+      child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: const [
+        children: [
           SkeletonBox(
               width: 110, height: 10, borderRadius: NightshadeTokens.radiusSm),
           SizedBox(height: NightshadeTokens.spaceMd),

@@ -163,6 +163,8 @@ class _NodeEditor extends ConsumerWidget {
       StartGuidingNode n => _StartGuidingProperties(colors: colors, node: n),
       StopGuidingNode n => _StopGuidingProperties(colors: colors, node: n),
       LiveStackingNode n => LiveStackingProperties(colors: colors, node: n),
+      SciencePhotometryNode n =>
+        SciencePhotometryProperties(colors: colors, node: n),
       PluginInstructionNode n =>
         _PluginInstructionProperties(colors: colors, node: n),
       WarmCameraNode n => _WarmCameraProperties(colors: colors, node: n),
@@ -189,7 +191,6 @@ class _NodeEditor extends ConsumerWidget {
       PolarAlignmentNode n =>
         _PolarAlignmentProperties(colors: colors, node: n),
       InstructionSetNode n => _InstructionSetInfo(colors: colors, node: n),
-      _ => _UnknownNodeProperties(colors: colors, node: node),
     };
 
     // Add timing section for nodes with meaningful duration. Uses the public

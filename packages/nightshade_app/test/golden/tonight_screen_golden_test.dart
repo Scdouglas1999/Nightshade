@@ -77,6 +77,7 @@ void main() {
                         onGo: () async {},
                         onReset: () {},
                         onRefreshPick: () {},
+                        morningSessionId: null,
                       ),
                     ),
                   ),
