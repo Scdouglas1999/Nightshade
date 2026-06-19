@@ -1,10 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-// EventCategory exists in both core (via the nightshade_backend re-export
-// chain in the barrel) and the bridge. The unprefixed barrel above gives
-// us the core enum; bridge_event below is prefixed so the two stay
-// disambiguated at call sites in this file.
-import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_event;
+// The typed bridge event union (`NightshadeEvent` / `EventCategory` /
+// `EventSeverity`) collides by name with the wire/JSON event model that the
+// unprefixed barrel above keeps canonical, so the typed surface is imported
+// from the core's dedicated typed-event seam under the `ns_events` prefix.
+// (The non-colliding members — `EventPayload_*` variants, the display helpers,
+// `isCriticalEvent` — are reachable unprefixed off the barrel, but we keep them
+// behind the prefix here so every typed-event reference in this file reads from
+// one place.)
+import 'package:nightshade_core/nightshade_core_events.dart' as ns_events;
 
 /// The active target during execution.
 ///
@@ -428,34 +432,34 @@ class RunDashboardEvent {
   });
 }
 
-RunDashboardEventSeverity _mapSeverity(bridge_event.EventSeverity sev) {
+RunDashboardEventSeverity _mapSeverity(ns_events.EventSeverity sev) {
   switch (sev) {
-    case bridge_event.EventSeverity.info:
+    case ns_events.EventSeverity.info:
       return RunDashboardEventSeverity.info;
-    case bridge_event.EventSeverity.warning:
+    case ns_events.EventSeverity.warning:
       return RunDashboardEventSeverity.warning;
-    case bridge_event.EventSeverity.error:
+    case ns_events.EventSeverity.error:
       return RunDashboardEventSeverity.error;
-    case bridge_event.EventSeverity.critical:
+    case ns_events.EventSeverity.critical:
       return RunDashboardEventSeverity.critical;
   }
 }
 
-String _categoryLabel(bridge_event.EventCategory cat) {
+String _categoryLabel(ns_events.EventCategory cat) {
   switch (cat) {
-    case bridge_event.EventCategory.equipment:
+    case ns_events.EventCategory.equipment:
       return 'Equipment';
-    case bridge_event.EventCategory.imaging:
+    case ns_events.EventCategory.imaging:
       return 'Imaging';
-    case bridge_event.EventCategory.guiding:
+    case ns_events.EventCategory.guiding:
       return 'Guiding';
-    case bridge_event.EventCategory.sequencer:
+    case ns_events.EventCategory.sequencer:
       return 'Sequencer';
-    case bridge_event.EventCategory.safety:
+    case ns_events.EventCategory.safety:
       return 'Safety';
-    case bridge_event.EventCategory.system:
+    case ns_events.EventCategory.system:
       return 'System';
-    case bridge_event.EventCategory.polarAlignment:
+    case ns_events.EventCategory.polarAlignment:
       return 'Polar align';
   }
 }
@@ -465,17 +469,17 @@ String _categoryLabel(bridge_event.EventCategory cat) {
 /// Uses the exhaustive switch helpers in `event_display.dart` so a new
 /// payload variant becomes a compile error here instead of a silent
 /// "Unknown event" row on the live rig.
-RunDashboardEvent _toDashboardEvent(bridge_event.NightshadeEvent event) {
+RunDashboardEvent _toDashboardEvent(ns_events.NightshadeEvent event) {
   final ms = event.timestamp.toInt();
   final severity = _mapSeverity(event.severity);
-  final isCritical = bridge_event.isCriticalEvent(event);
+  final isCritical = ns_events.isCriticalEvent(event);
   return RunDashboardEvent(
     eventId: event.eventId,
     time: DateTime.fromMillisecondsSinceEpoch(ms),
     severity: isCritical ? RunDashboardEventSeverity.critical : severity,
     category: _categoryLabel(event.category),
-    title: bridge_event.nightshadeEventDisplayTitle(event),
-    message: bridge_event.nightshadeEventDisplayDetail(event),
+    title: ns_events.nightshadeEventDisplayTitle(event),
+    message: ns_events.nightshadeEventDisplayDetail(event),
     isCritical: isCritical,
   );
 }
@@ -569,26 +573,28 @@ final runDashboardDroppedCriticalCountProvider = StateProvider<int>((ref) => 0);
 /// disconnects in the same second) doesn't machine-gun-beep at the user.
 const Duration _audibleAlertCooldown = Duration(seconds: 5);
 
-/// Map bridge event categories to the `EventCategory` enum that
-/// [PushNotificationService] expects on its synthetic-injection API.
-/// Why two enums: the bridge layer's enum is generated from FRB and lives
-/// in `nightshade_bridge`; `nightshade_core` has its own copy used by
-/// services (`PushNotification.category` is the core enum).
-EventCategory _bridgeCategoryToCore(bridge_event.EventCategory cat) {
+/// Map the typed event category (`ns_events.EventCategory`) to the
+/// `EventCategory` enum that [PushNotificationService] expects on its
+/// synthetic-injection API.
+/// Why two enums: the typed event category is generated from FRB (surfaced
+/// through the `nightshade_core_events` seam); `nightshade_core` also has its
+/// own wire/JSON copy used by services (`PushNotification.category` is the
+/// unprefixed core enum).
+EventCategory _bridgeCategoryToCore(ns_events.EventCategory cat) {
   switch (cat) {
-    case bridge_event.EventCategory.equipment:
+    case ns_events.EventCategory.equipment:
       return EventCategory.equipment;
-    case bridge_event.EventCategory.imaging:
+    case ns_events.EventCategory.imaging:
       return EventCategory.imaging;
-    case bridge_event.EventCategory.guiding:
+    case ns_events.EventCategory.guiding:
       return EventCategory.guiding;
-    case bridge_event.EventCategory.sequencer:
+    case ns_events.EventCategory.sequencer:
       return EventCategory.sequencer;
-    case bridge_event.EventCategory.safety:
+    case ns_events.EventCategory.safety:
       return EventCategory.safety;
-    case bridge_event.EventCategory.system:
+    case ns_events.EventCategory.system:
       return EventCategory.system;
-    case bridge_event.EventCategory.polarAlignment:
+    case ns_events.EventCategory.polarAlignment:
       return EventCategory.polarAlignment;
   }
 }
@@ -607,30 +613,30 @@ EventCategory _bridgeCategoryToCore(bridge_event.EventCategory cat) {
 /// the bridge still forwards those — that is the gap this bridge exists to
 /// fill. The router's content-signature dedup is a backstop; this predicate is
 /// the primary, intent-level guard so the two paths never both page.
-bool _routerClassifierAlreadyPushes(bridge_event.NightshadeEvent event) {
+bool _routerClassifierAlreadyPushes(ns_events.NightshadeEvent event) {
   final payload = event.payload;
   return switch (payload) {
-    bridge_event.EventPayload_Imaging(field0: final v) => switch (v) {
-        bridge_event.ImagingEvent_ExposureFailed() => true,
-        bridge_event.ImagingEvent_ExposureFailedOld() => true,
+    ns_events.EventPayload_Imaging(field0: final v) => switch (v) {
+        ns_events.ImagingEvent_ExposureFailed() => true,
+        ns_events.ImagingEvent_ExposureFailedOld() => true,
         _ => false,
       },
-    bridge_event.EventPayload_Safety(field0: final v) => switch (v) {
-        bridge_event.SafetyEvent_WeatherUnsafe() => true,
-        bridge_event.SafetyEvent_EmergencyStop() => true,
+    ns_events.EventPayload_Safety(field0: final v) => switch (v) {
+        ns_events.SafetyEvent_WeatherUnsafe() => true,
+        ns_events.SafetyEvent_EmergencyStop() => true,
         _ => false,
       },
-    bridge_event.EventPayload_System(field0: final v) => switch (v) {
+    ns_events.EventPayload_System(field0: final v) => switch (v) {
         // The classifier maps only "disk*" system events to a category; a
         // generic SystemEvent.error classifies to null, so the bridge must
         // still push it (that is the gap below).
-        bridge_event.SystemEvent_DiskSpaceLow() => true,
+        ns_events.SystemEvent_DiskSpaceLow() => true,
         _ => false,
       },
-    bridge_event.EventPayload_Sequencer(field0: final v) => switch (v) {
-        bridge_event.SequencerEvent_Error() => true,
-        bridge_event.SequencerEvent_Stopped() => true,
-        bridge_event.SequencerEvent_RecoveryGaveUp() => true,
+    ns_events.EventPayload_Sequencer(field0: final v) => switch (v) {
+        ns_events.SequencerEvent_Error() => true,
+        ns_events.SequencerEvent_Stopped() => true,
+        ns_events.SequencerEvent_RecoveryGaveUp() => true,
         _ => false,
       },
     // Guiding / equipment events only reach this bridge as critical when they
@@ -663,13 +669,13 @@ final runDashboardCriticalEventsBridgeProvider = Provider<void>((ref) {
   // closure scope so the cooldown survives provider rebuilds.
   DateTime? lastAlertAt;
 
-  ref.listen<List<bridge_event.NightshadeEvent>>(
+  ref.listen<List<ns_events.NightshadeEvent>>(
     eventHistoryProvider,
     (previous, next) {
       if (next.isEmpty) return;
       // Iterate from oldest-to-newest among entries the bridge hasn't
       // seen before. The history list is newest-first.
-      final fresh = <bridge_event.NightshadeEvent>[];
+      final fresh = <ns_events.NightshadeEvent>[];
       for (final event in next) {
         if (lastSeenId != null && event.eventId <= lastSeenId!) break;
         fresh.add(event);
@@ -687,7 +693,7 @@ final runDashboardCriticalEventsBridgeProvider = Provider<void>((ref) {
       // Process oldest-first so the most recent ends up at the head of
       // the notifier's state list.
       for (final event in fresh.reversed) {
-        if (!bridge_event.isCriticalEvent(event)) continue;
+        if (!ns_events.isCriticalEvent(event)) continue;
         final dashboardEvent = _toDashboardEvent(event);
         ref
             .read(runDashboardCriticalEventsProvider.notifier)
@@ -741,7 +747,7 @@ final runDashboardCriticalEventsBridgeProvider = Provider<void>((ref) {
           router.routeBridgeCriticalPush(
             title: 'Critical · ${dashboardEvent.category}',
             body: detail,
-            eventType: bridge_event.nightshadeEventDisplayTitle(event),
+            eventType: ns_events.nightshadeEventDisplayTitle(event),
             eventCategory: _bridgeCategoryToCore(event.category),
           );
         }

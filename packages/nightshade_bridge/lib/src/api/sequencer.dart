@@ -41,7 +41,7 @@ Future<void> apiSequencerStop() =>
 Future<void> apiSequencerSkip() =>
     RustLib.instance.api.crateApiSequencerApiSequencerSkip();
 
-/// Jump execution to a specific node id,
+/// trust-patch §7: jump execution to a specific node id,
 /// marking preceding siblings as Skipped. Honoured on the next container's
 /// tree-walk step; the currently-running instruction (e.g. an exposure burst)
 /// completes before the jump takes effect. Returns an error if the executor
@@ -234,7 +234,7 @@ Future<void> apiSequencerUpdateLocation({
   longitude: longitude,
 );
 
-/// Stage per-target / per-filter carry-over integration so the
+/// stage per-target / per-filter carry-over integration so the
 /// next `sequencerStart()` seeds the IntegrationBudget tracker with frames
 /// already captured in prior sessions. The Dart `SequenceExecutor.start()`
 /// calls this once per target after reading `sessionHandoffDecisionProvider`:
@@ -262,18 +262,18 @@ Future<void> apiSequencerUpdateFilterOffsets({
   offsets: offsets,
 );
 
-/// Update the autofocus-interval trigger cadence at runtime.
+/// update the autofocus-interval trigger cadence at runtime.
 /// The default in `default_autofocus_interval_frames()` is 25 frames; this
 /// is wrong for both very-short (5 s) and very-long (5 min) subs, so the UI
 /// must let the user override it. `every_n_frames == 0` is rejected because
 /// the trigger evaluator disables the periodic AF when the cadence is zero,
-/// which would silently turn AF off; errors are a feature here.
+/// which would silently turn AF off ("errors are a feature").
 Future<void> apiSequencerUpdateAutofocusInterval({required int everyNFrames}) =>
     RustLib.instance.api.crateApiSequencerApiSequencerUpdateAutofocusInterval(
       everyNFrames: everyNFrames,
     );
 
-/// Update the global default image-grading thresholds at runtime.
+/// update the global default image-grading thresholds at runtime.
 ///
 /// All fields are optional; when `enabled` is `false` an `ImageQualityCheck`
 /// is NOT constructed (grading disabled globally — per-node `quality_check`
@@ -296,14 +296,14 @@ Future<void> apiSequencerUpdateDefaultQualityCheck({
       enabled: enabled,
     );
 
-/// Update the reject-folder override at runtime. Empty string =>
+/// update the reject-folder override at runtime. Empty string =>
 /// None (i.e. fall back to `<save_path>/Reject/`).
 Future<void> apiSequencerUpdateRejectFolderPath({String? path}) => RustLib
     .instance
     .api
     .crateApiSequencerApiSequencerUpdateRejectFolderPath(path: path);
 
-/// Push observer / equipment identification to the executor so
+/// push observer / equipment identification to the executor so
 /// the next FITS save stamps real keywords (OBSERVER, TELESCOP, FOCALLEN,
 /// APTDIA, INSTRUME, SITEELEV). Every field is optional because in
 /// headless / no-profile runs we'd rather omit the keyword than emit a
@@ -422,7 +422,7 @@ Future<void> apiSequencerUpdateDefaultAdaptiveExposure({
       perFilterMaxValues: perFilterMaxValues,
     );
 
-/// Disable the global default adaptive-exposure config
+/// disable the global default adaptive-exposure config
 /// (push `None`). Convenience entry-point so the Dart side doesn't have
 /// to pass a sentinel struct just to disable.
 Future<void> apiSequencerClearDefaultAdaptiveExposure() => RustLib.instance.api
@@ -868,7 +868,7 @@ double apiCalculateAltitude({
 /// `None` when no LiveStacking node has been executed in the current
 /// sequence run.
 ///
-/// Consumed by the Dart `BroadcastService` to decide
+/// consumed by the Dart `BroadcastService` to decide
 /// whether `/api/broadcast/*` endpoints should answer 200 or 404.
 LiveStackingBroadcastSnapshot? apiBroadcastGetActive() =>
     RustLib.instance.api.crateApiSequencerApiBroadcastGetActive();

@@ -1,108 +1,57 @@
 {
-  "_comment": "Reviewed, pragmatic exceptions to the architecture rule that nightshade_core is the only Dart package allowed to import package:nightshade_bridge (docs/architecture.md §1). Each entry needs a one-line reason AND a 'todo' marker ('TODO: relocate behind core seam') so the later cleanup pass can shrink this whitelist file-by-file. Two kinds qualify today: (1) the desktop headless appliance layer, which IS the local hardware owner on the appliance (the FfiBackend-equivalent at the network seam, architecture §4-5) and legitimately drives Rust directly rather than going back through a network backend; (2) thin UI files that only need a bridge *data type* (an enum/struct) for display, where re-modeling the type in core would be churn for no behavioral benefit. UI files that call bridge *functions* (image processing, stretch, PHD2 control) are NOT whitelisted - those are real boundary leaks and must move behind a nightshade_core role. The audit loader reads only the 'file' and 'reason' keys; 'todo' is an in-data marker for human reviewers. See docs/production-readiness/bridge-boundary-plan.md.",
+  "_comment": "Reviewed, pragmatic exceptions to the architecture rule that nightshade_core is the only Dart package allowed to import package:nightshade_bridge (docs/architecture.md §1). Only two kinds of file qualify: (1) the desktop headless appliance layer, which IS the local hardware owner on the appliance (the FfiBackend-equivalent at the network seam, architecture §4-5) and legitimately drives Rust directly rather than going back through a network backend; (2) thin UI files that only need a bridge *data type* (an enum/struct) for display, where re-modeling the type in core would be churn for no behavioral benefit. UI files that call bridge *functions* (image processing, stretch, PHD2 control) are NOT whitelisted - those are real boundary leaks and must move behind a nightshade_core role. The audit loader reads only the 'file' and 'reason' keys. See docs/production-readiness/bridge-boundary-plan.md.",
   "allow": [
     {
       "file": "apps/desktop/lib/desktop_logging_init.dart",
-      "reason": "Native library bootstrap (bridge.NativeBridge) at process start; pre-backend init, legitimately app-local.",
-      "todo": "TODO: relocate behind core seam - expose native-library init via a nightshade_core bootstrap entry so the app never names the bridge."
+      "reason": "Native library bootstrap (bridge.NativeBridge) at process start; pre-backend init, legitimately app-local."
     },
     {
       "file": "apps/desktop/lib/headless_api/handlers/auxiliary_handlers.dart",
-      "reason": "Headless appliance layer: the desktop binary is the local hardware owner (FfiBackend-equivalent at the network seam, architecture §4-5). Cover/calibrator/switch API + state enums.",
-      "todo": "TODO: relocate behind core seam - route cover/calibrator/switch calls and state enums through a nightshade_core auxiliary role."
+      "reason": "Headless appliance layer: the desktop binary is the local hardware owner (FfiBackend-equivalent at the network seam, architecture §4-5). Cover/calibrator/switch API + state enums."
     },
     {
       "file": "apps/desktop/lib/headless_api/handlers/device_handlers.dart",
-      "reason": "Headless appliance layer; import currently appears unused (bridge_error prefix has no references) - flag for removal in plan, not a behavioral leak.",
-      "todo": "TODO: relocate behind core seam - delete the unused bridge import (no references) so this handler no longer names the bridge."
+      "reason": "Headless appliance layer: its camera_handlers part catches bridge_error.NightshadeError to shape HTTP error responses on the local hardware owner; error type is the bridge's contract."
     },
     {
       "file": "apps/desktop/lib/headless_api/handlers/dome_handlers.dart",
-      "reason": "Headless appliance layer: dome API + ShutterState/ShutterStatus enums on the local hardware owner.",
-      "todo": "TODO: relocate behind core seam - route dome API + shutter enums through a nightshade_core dome role."
+      "reason": "Headless appliance layer: dome API + ShutterState/ShutterStatus enums on the local hardware owner."
     },
     {
       "file": "apps/desktop/lib/headless_api/handlers/imaging_handlers.dart",
-      "reason": "Headless appliance layer: image calibration/FITS read on the local hardware owner.",
-      "todo": "TODO: relocate behind core seam - move image calibration/FITS read behind a nightshade_core imaging role."
+      "reason": "Headless appliance layer: image calibration/FITS read on the local hardware owner."
     },
     {
       "file": "apps/desktop/lib/headless_api/handlers/post_session_handlers.dart",
-      "reason": "Headless appliance layer: stacking/integration/photometry pipeline on the local hardware owner.",
-      "todo": "TODO: relocate behind core seam - move stacking/integration/photometry pipeline behind a nightshade_core post-session role."
+      "reason": "Headless appliance layer: stacking/integration/photometry pipeline on the local hardware owner."
     },
     {
       "file": "apps/desktop/lib/headless_api/handlers/science_handlers.dart",
-      "reason": "Headless appliance layer: apiReadFitsFile on the local hardware owner.",
-      "todo": "TODO: relocate behind core seam - move apiReadFitsFile behind a nightshade_core science/FITS role."
+      "reason": "Headless appliance layer: apiReadFitsFile on the local hardware owner."
     },
     {
       "file": "apps/desktop/lib/headless_api/handlers/sequencer_handlers.dart",
-      "reason": "Headless appliance layer: secondary-rig API + SecondaryRigConfigApi on the local hardware owner.",
-      "todo": "TODO: relocate behind core seam - move secondary-rig API + config struct behind a nightshade_core sequencer/secondary-rig role."
+      "reason": "Headless appliance layer: secondary-rig API + SecondaryRigConfigApi on the local hardware owner."
     },
     {
       "file": "apps/desktop/lib/headless_api/validation.dart",
-      "reason": "Headless appliance layer: catches bridge_error.NightshadeError to shape HTTP error responses; error type is the bridge's contract.",
-      "todo": "TODO: relocate behind core seam - re-export NightshadeError (or a core error type) from nightshade_core so validation never imports the bridge."
+      "reason": "Headless appliance layer: catches bridge_error.NightshadeError to shape HTTP error responses; error type is the bridge's contract."
     },
     {
       "file": "packages/nightshade_app/lib/screens/guiding/guiding_screen.dart",
-      "reason": "Thin UI: imports Phd2State enum only (import currently unused - flag for removal in plan).",
-      "todo": "TODO: relocate behind core seam - delete the unused Phd2State import (no references)."
+      "reason": "Thin UI: its desktop/mobile section parts display the Phd2State enum (data type only, no bridge function calls)."
     },
     {
       "file": "packages/nightshade_app/lib/screens/imaging/widgets/guiding_active_chip.dart",
-      "reason": "Thin UI: displays Phd2State enum (data type only, no bridge function calls).",
-      "todo": "TODO: relocate behind core seam - consume a nightshade_core-owned guide-state enum instead of the bridge Phd2State."
+      "reason": "Thin UI: displays Phd2State enum (data type only, no bridge function calls)."
     },
     {
       "file": "packages/nightshade_app/lib/widgets/guide_health_card.dart",
-      "reason": "Thin UI: displays Phd2State enum (data type only, no bridge function calls).",
-      "todo": "TODO: relocate behind core seam - consume a nightshade_core-owned guide-state enum instead of the bridge Phd2State."
+      "reason": "Thin UI: displays Phd2State enum (data type only, no bridge function calls)."
     },
     {
       "file": "packages/nightshade_app/lib/screens/sequencer/widgets/secondary_rig_card.dart",
-      "reason": "Thin UI: displays SecondaryRigStatusApi struct (data type only, no bridge function calls).",
-      "todo": "TODO: relocate behind core seam - consume a nightshade_core-owned secondary-rig status model instead of the bridge struct."
-    },
-    {
-      "file": "packages/nightshade_app/lib/screens/equipment/widgets/connected_device_card.dart",
-      "reason": "Thin UI: bridge_api import currently unused (no references) - flag for removal in plan.",
-      "todo": "TODO: relocate behind core seam - delete the unused bridge_api import (no references)."
-    },
-
-    "REAL-LEAKS-BELOW: the following entries are NOT architecturally legitimate - they are real boundary leaks (UI calling bridge functions / decoding the raw FRB event union) that we are not fixing in this workflow because a concurrent workflow owns the working tree. They are temporarily whitelisted ONLY so the audit stays green in CI today; each carries a 'TODO: relocate behind core seam' marker and a row in docs/production-readiness/bridge-boundary-plan.md (Real boundary leaks). The later cleanup pass must remove these entries one-by-one as each leak is moved behind a nightshade_core role. The audit loader skips bare-string elements like this one. Do not add new entries here.",
-
-    {
-      "file": "packages/nightshade_app/lib/screens/stack_result/stack_result_screen.dart",
-      "reason": "REAL LEAK (temporary): UI calls bridge function apiAutoStretchImage directly. Whitelisted only to keep CI green; fix scheduled, not legitimate.",
-      "todo": "TODO: relocate behind core seam - add autoStretchImage(...) to ImagingBackend (or a core StretchService) and call the role; then remove this entry."
-    },
-    {
-      "file": "packages/nightshade_app/lib/screens/session_review/session_review_controller.dart",
-      "reason": "REAL LEAK (temporary): UI controller runs the FITS->stretch->PNG pipeline against bridge functions (apiApplyStretch, apiCalculateAutoStretch, apiReadFitsLinearData, apiSaveRgbaPngFile). Whitelisted only to keep CI green.",
-      "todo": "TODO: relocate behind core seam - move the pipeline into a nightshade_core service exposed via ImagingBackend; then remove this entry. Highest-value fix (4 functions)."
-    },
-    {
-      "file": "packages/nightshade_app/lib/screens/analytics/widgets/photometric_calibration_wizard.dart",
-      "reason": "REAL LEAK (temporary): UI reads FITS directly via apiReadFitsFile. Whitelisted only to keep CI green.",
-      "todo": "TODO: relocate behind core seam - surface FITS read via ImagingBackend (shared with headless science_handlers); then remove this entry."
-    },
-    {
-      "file": "packages/nightshade_app/lib/screens/onboarding/steps/guider_step.dart",
-      "reason": "REAL LEAK (temporary): onboarding probes PHD2 via bridge function checkPhd2Running. Whitelisted only to keep CI green.",
-      "todo": "TODO: relocate behind core seam - add isPhd2Running() to GuidingBackend and call the role; then remove this entry."
-    },
-    {
-      "file": "packages/nightshade_app/lib/screens/sequencer/widgets/run_dashboard/run_dashboard_providers.dart",
-      "reason": "REAL LEAK (temporary): run-dashboard providers decode the raw FRB event union + use bridge display helpers (NightshadeEvent, EventPayload_*, *Event_*, isCriticalEvent, nightshadeEventDisplay*). Concurrent sequencer workflow owns this file. Whitelisted only to keep CI green.",
-      "todo": "TODO: relocate behind core seam - re-export event types + display helpers from nightshade_core (bridge_event_mapper owns the mapping) or expose pre-mapped view models; then remove this entry. Coordinate with the sequencer workflow first."
-    },
-    {
-      "file": "packages/nightshade_app/lib/screens/sequencer/widgets/run_dashboard/scheduler_panel.dart",
-      "reason": "REAL LEAK (temporary): decodes the FRB event union + the SchedulerScoreEntry struct in UI (NightshadeEvent, EventPayload_Sequencer, SchedulerScoreEntry). Concurrent sequencer workflow owns this file. Whitelisted only to keep CI green.",
-      "todo": "TODO: relocate behind core seam - surface SchedulerScoreEntry + event types from nightshade_core; then remove this entry. Coordinate with the sequencer workflow first."
+      "reason": "Thin UI: displays SecondaryRigStatusApi struct (data type only, no bridge function calls)."
     }
   ]
 }

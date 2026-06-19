@@ -13,12 +13,13 @@ const _serverPath = 'apps/desktop/lib/headless_api_server.dart';
 const _routesDirectory = 'apps/desktop/lib/headless_api/routes';
 
 /// File the canonical `availableHeadlessEndpoints()` catalog now lives
-/// in. Moved out of `headless_api_server.dart` when the system
-/// handlers were extracted into their own class; the audit reads this
-/// file's source to compare the advertised list against the registered
-/// routes.
+/// in. Moved out of `headless_api_server.dart` when the system handlers
+/// were extracted into their own class, then split into a dedicated
+/// `system_endpoint_catalog.dart` (re-exported from `system_handlers.dart`);
+/// the audit reads this file's source to compare the advertised list
+/// against the registered routes.
 const _systemHandlersPath =
-    'apps/desktop/lib/headless_api/handlers/system_handlers.dart';
+    'apps/desktop/lib/headless_api/handlers/system_endpoint_catalog.dart';
 
 const _networkBackendPath =
     'packages/nightshade_core/lib/src/backend/network_backend.dart';
@@ -98,7 +99,7 @@ void main(List<String> args) {
   final systemHandlersSource = _readSource(_systemHandlersPath);
   if (systemHandlersSource == null) {
     stderr.writeln(
-      'SystemHandlers source not found at $_systemHandlersPath — '
+      'Endpoint-catalog source not found at $_systemHandlersPath — '
       'the canonical endpoint catalog `availableHeadlessEndpoints()` '
       'is expected to live there.',
     );

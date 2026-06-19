@@ -25,6 +25,15 @@ abstract class GuidingBackend {
   // PHD2 Guiding (direct control)
   // =========================================================================
 
+  /// Probe whether a PHD2 instance is reachable on the given host/port.
+  ///
+  /// Used by the onboarding "Test connection" step before any device is paired.
+  /// Host-local: the probe opens a socket to the PHD2 event server (default
+  /// `localhost:4400`) on the machine running the rig, so the network backend
+  /// — which has no way to reach the host's loopback PHD2 socket — does not
+  /// support it.
+  Future<bool> isPhd2Running({String host = 'localhost', int port = 4400});
+
   /// Connect to PHD2
   Future<void> phd2Connect({String host = 'localhost', int port = 4400});
 

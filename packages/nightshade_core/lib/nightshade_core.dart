@@ -295,6 +295,20 @@ export 'src/backend/nightshade_backend.dart';
 export 'src/backend/ffi_backend.dart';
 export 'src/backend/network_backend.dart';
 export 'src/backend/disconnected_backend.dart';
+// Single seam for the typed sequencer/run event surface — app/headless UI
+// consume the bridge event union + display helpers through here instead of
+// importing package:nightshade_bridge directly.
+//
+// NightshadeEvent / EventCategory / EventSeverity are hidden here because the
+// names also belong to the wire/JSON event model surfaced via the
+// nightshade_backend.dart re-export above (the headless API server + network
+// backend serialize it), and that wire model stays canonical on this aggregate
+// barrel. The TYPED bridge trio is reached through the dedicated, prefixed
+// `package:nightshade_core/nightshade_core_events.dart` library. Everything
+// else (every EventPayload_* / per-family variant, SchedulerScoreEntry,
+// isCriticalEvent, nightshadeEventDisplayTitle/Detail) flows through unprefixed.
+export 'src/backend/bridge_events.dart'
+    hide NightshadeEvent, EventCategory, EventSeverity;
 export 'src/models/backend/fits_header.dart';
 export 'src/models/backend/image_result.dart';
 export 'src/models/backend/platform_capabilities.dart';
@@ -323,6 +337,7 @@ export 'src/utils/device_id.dart'
 export 'src/services/phd2_status_poll.dart';
 export 'src/services/device_matching_service.dart';
 export 'src/services/imaging_service.dart';
+export 'src/services/stretch_pipeline_service.dart';
 export 'src/services/thumbnail_sidecar_service.dart';
 export 'src/providers/thumbnail_sidecar_provider.dart';
 export 'src/services/plate_solve_service.dart';

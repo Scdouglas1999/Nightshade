@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:nightshade_bridge/nightshade_bridge.dart' show PlateSolveResult;
+import 'package:nightshade_bridge/nightshade_bridge.dart'
+    show FitsReadResult, PlateSolveResult;
 
 import '../../models/autofocus_progress.dart' show StarCrop;
 import '../../models/backend/backend_types.dart';
@@ -98,6 +99,51 @@ abstract class ImagingBackend {
     String? flatPath,
     String? biasPath,
     required String outputPath,
+  });
+
+  /// Read a FITS file from the host filesystem and return its decoded
+  /// dimensions, display data, histogram, stats, and header metadata.
+  ///
+  /// Host-local: the file lives on the machine wired to the rig. A remote
+  /// (phone) client cannot read the host's filesystem directly — it asks the
+  /// host for the specific fields it needs (e.g. dimensions via the network
+  /// backend's `getFitsDimensions`) instead. The full decode is therefore only
+  /// available on the local FFI backend.
+  Future<FitsReadResult> readFitsFile({required String filePath});
+
+  /// Auto-stretch a raw mono `u16` image buffer to an 8-bit RGBA display
+  /// buffer using the native MAD-based PixInsight screen-transfer-function.
+  ///
+  /// `data` is `width * height` u16 samples (one luminance plane); the result
+  /// is `width * height * 4` RGBA8 bytes.
+  ///
+  /// Synchronous because the underlying native stretch is a pure CPU transform
+  /// over an already-in-memory buffer (matching the sibling
+  /// `StackingEngineSeam.autoStretch`), so callers can compute it inline during
+  /// a widget build without an await.
+  ///
+  /// Host-local: the raw pixel buffer never crosses the network boundary —
+  /// remote clients receive already-stretched RGBA from the host — so the
+  /// network backend rejects this call.
+  Uint8List autoStretchImage({
+    required int width,
+    required int height,
+    required List<int> data,
+  });
+
+  /// Render the linear FITS at [inputFits] into a viewable, auto-stretched PNG
+  /// at [outputPng].
+  ///
+  /// Runs the FITS -> auto-stretch -> RGBA -> PNG pipeline (see
+  /// [StretchPipelineService]) the Session Review workbench uses to preview a
+  /// finishing-artifact FITS (background-extraction / deconvolution /
+  /// star-reduction passes write a linear FITS with no preview).
+  ///
+  /// Host-local: both files live on the machine that owns the FITS, so the
+  /// network backend cannot run this pipeline against a remote host's disk.
+  Future<void> renderFinishingPreview({
+    required String inputFits,
+    required String outputPng,
   });
 
   // =========================================================================

@@ -274,6 +274,14 @@ class DisconnectedBackend
   }
 
   @override
+  Future<bool> isPhd2Running({
+    String host = 'localhost',
+    int port = 4400,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
   Future<void> phd2Connect({String host = 'localhost', int port = 4400}) async {
     _throwNotConnected();
   }
@@ -885,6 +893,69 @@ class DisconnectedBackend
 
   @override
   Future<void> rotatorSyncToPa(String deviceId, double pa) async {
+    _throwNotConnected();
+  }
+
+  // =========================================================================
+  // Dome Control
+  // =========================================================================
+
+  @override
+  Future<void> domeOpenShutter(String deviceId) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> domeCloseShutter(String deviceId) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> domeSlewToAzimuth(String deviceId, double azimuth) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> domeSetSlaved(String deviceId, bool slaved) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> domePark(String deviceId) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> domeFindHome(String deviceId) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> domeAbortSlew(String deviceId) async {
+    _throwNotConnected();
+  }
+
+  // =========================================================================
+  // Cover Calibrator Control
+  // =========================================================================
+
+  @override
+  Future<void> coverOpen(String deviceId) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> coverClose(String deviceId) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> calibratorOn(String deviceId, int brightness) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> calibratorOff(String deviceId) async {
     _throwNotConnected();
   }
 }

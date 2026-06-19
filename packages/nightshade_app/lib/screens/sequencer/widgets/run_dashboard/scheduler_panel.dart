@@ -11,8 +11,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_event;
 import 'package:nightshade_core/nightshade_core.dart';
+// The typed `NightshadeEvent` union collides by name with the wire/JSON event
+// model the barrel above keeps canonical, so it comes from the core's dedicated
+// typed-event seam under the `ns_events` prefix. The non-colliding members this
+// panel needs (`EventPayload_Sequencer`, `SchedulerScoreEntry`) are reachable
+// unprefixed straight off the barrel.
+import 'package:nightshade_core/nightshade_core_events.dart' as ns_events;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// One scheduler decision row as surfaced to the panel. Every
@@ -32,7 +37,7 @@ class SchedulerDecisionView {
   final double? pickedScore;
 
   /// Flat score table (runnable first, then by descending total).
-  final List<bridge_event.SchedulerScoreEntry> scores;
+  final List<SchedulerScoreEntry> scores;
 
   const SchedulerDecisionView({
     required this.time,
@@ -84,32 +89,25 @@ final recentSchedulerDecisionsProvider =
 });
 
 SchedulerDecisionView? _maybeSchedulerDecision(
-    bridge_event.NightshadeEvent event) {
+    ns_events.NightshadeEvent event) {
   // The typed SchedulerDecision variant is the canonical
   // source. Pattern-match through EventPayload → SequencerEvent →
   // SchedulerDecision; ignore everything else.
   final payload = event.payload;
-  if (payload is! bridge_event.EventPayload_Sequencer) return null;
+  if (payload is! EventPayload_Sequencer) return null;
   final sequencer = payload.field0;
-  return sequencer.whenOrNull(
-    schedulerDecision: (
-      _,
-      decisionCounter,
-      pickedTargetId,
-      pickedTargetName,
-      pickedScore,
-      scores,
-    ) {
-      final ts = DateTime.fromMillisecondsSinceEpoch(event.timestamp.toInt());
-      return SchedulerDecisionView(
-        time: ts,
-        decisionCounter: decisionCounter,
-        pickedTargetId: pickedTargetId,
-        pickedTargetName: pickedTargetName,
-        pickedScore: pickedScore,
-        scores: scores,
-      );
-    },
+  // Match on the concrete variant class re-exported through the core seam.
+  // (The freezed `whenOrNull` pattern helpers live in an extension that the
+  // seam does not re-export, so we destructure the variant directly.)
+  if (sequencer is! SequencerEvent_SchedulerDecision) return null;
+  final ts = DateTime.fromMillisecondsSinceEpoch(event.timestamp.toInt());
+  return SchedulerDecisionView(
+    time: ts,
+    decisionCounter: sequencer.decisionCounter,
+    pickedTargetId: sequencer.pickedTargetId,
+    pickedTargetName: sequencer.pickedTargetName,
+    pickedScore: sequencer.pickedScore,
+    scores: sequencer.scores,
   );
 }
 

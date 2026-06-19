@@ -137,10 +137,11 @@ Set<String> _scanRegisteredRoutes(String source) {
 
 Set<String> _advertisedApiRoutes() {
   // A-5b moved this catalog from `_getAvailableEndpoints()` in
-  // `headless_api_server.dart` to `availableHeadlessEndpoints()` in
-  // `handlers/system_handlers.dart`.
+  // `headless_api_server.dart` to `availableHeadlessEndpoints()`; it now lives
+  // in its own `handlers/system_endpoint_catalog.dart` (re-exported from
+  // `handlers/system_handlers.dart`).
   final source = File(
-    'lib/headless_api/handlers/system_handlers.dart',
+    'lib/headless_api/handlers/system_endpoint_catalog.dart',
   ).readAsStringSync();
   final match = RegExp(
     r'List<String> availableHeadlessEndpoints\(\) \{\s*return (?:const )?\[(.*?)\];\s*\}',
@@ -150,7 +151,8 @@ Set<String> _advertisedApiRoutes() {
   expect(
     match,
     isNotNull,
-    reason: 'availableHeadlessEndpoints() not found in system_handlers.dart.',
+    reason:
+        'availableHeadlessEndpoints() not found in system_endpoint_catalog.dart.',
   );
 
   return RegExp(r"'([^']+)'").allMatches(match!.group(1)!).map((match) {

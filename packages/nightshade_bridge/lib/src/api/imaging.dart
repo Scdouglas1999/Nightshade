@@ -371,8 +371,8 @@ Future<void> apiSaveFitsFile({
   headerData: headerData,
 );
 
-/// Image grading: save FITS with the rich (~40-keyword) header bundle.
-/// Used by the sequencer's per-frame save path. Not FRB-exposed —
+/// Image Grading: save FITS with the rich (~40-keyword) header
+/// bundle. Used by the sequencer's per-frame save path. Not FRB-exposed —
 /// Dart callers continue to use [`api_save_fits_file`] / [`FitsWriteHeader`].
 ///
 /// Writes every keyword the standard astrophotography workflow expects
@@ -649,8 +649,8 @@ Future<void> apiDefectMapClear({
   sensorTemperatureCelsius: sensorTemperatureCelsius,
 );
 
-/// Push the active defect-map application state to the running
-/// sequencer.
+/// push the active defect-map application state to the
+/// running sequencer.
 ///
 /// When `enabled == true`, the bridge loads the `.ndm` file for
 /// `(camera_id, width, height, sensor_temperature_celsius)` from disk
@@ -1423,7 +1423,7 @@ class FitsReadResult {
 /// Dart consumers (Dart-driven snapshot saves, network-backend FITS writes)
 /// don't need a coordinated FRB regen.
 ///
-/// For image grading, the sequencer's per-frame save path uses
+/// Image Grading: the sequencer's per-frame save path uses
 /// [`FitsWriteHeaderRich`] instead, which carries every extended keyword
 /// (focuser position, rotator angle, guide RMS, plate-solve, mosaic
 /// panel, etc.). The rich path is internal — not exposed via FRB — so
@@ -1536,8 +1536,8 @@ class FitsWriteHeader {
           siteElevation == other.siteElevation;
 }
 
-/// Image grading: internal FITS-header bundle used by the sequencer's
-/// per-frame save path. Carries every field the standard
+/// Image Grading: internal FITS-header bundle used by the
+/// sequencer's per-frame save path. Carries every field the standard
 /// astrophotography FITS header expects PLUS the Nightshade-specific
 /// session / mosaic / plate-solve keywords.
 ///

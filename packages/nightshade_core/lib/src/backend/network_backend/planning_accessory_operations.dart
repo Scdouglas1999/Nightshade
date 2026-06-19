@@ -78,38 +78,50 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
   // Dome Control
   // ===========================================================================
 
+  // The dome control verbs below satisfy the [DeviceBackend] role. The
+  // appliance owns its single connected dome, so the role's [deviceId] is not
+  // sent on the wire — the server resolves the device — but the parameter is
+  // kept for interface conformance with the FFI backend.
+
   /// Open dome shutter
-  Future<void> domeOpen() async {
+  @override
+  Future<void> domeOpenShutter(String deviceId) async {
     await _post('dome/open');
   }
 
   /// Close dome shutter
-  Future<void> domeClose() async {
+  @override
+  Future<void> domeCloseShutter(String deviceId) async {
     await _post('dome/close');
   }
 
   /// Slew dome to azimuth
-  Future<void> domeSlew(double azimuth) async {
+  @override
+  Future<void> domeSlewToAzimuth(String deviceId, double azimuth) async {
     await _post('dome/slew', {'azimuth': azimuth});
   }
 
-  /// Enable/disable dome-mount sync
-  Future<void> domeSync(bool enable) async {
-    await _post('dome/sync', {'enable': enable});
+  /// Enable/disable dome-mount sync (slaving)
+  @override
+  Future<void> domeSetSlaved(String deviceId, bool slaved) async {
+    await _post('dome/sync', {'enable': slaved});
   }
 
   /// Park dome
-  Future<void> domePark() async {
+  @override
+  Future<void> domePark(String deviceId) async {
     await _post('dome/park');
   }
 
   /// Move dome to home position
-  Future<void> domeHome() async {
+  @override
+  Future<void> domeFindHome(String deviceId) async {
     await _post('dome/home');
   }
 
   /// Halt dome movement
-  Future<void> domeHalt() async {
+  @override
+  Future<void> domeAbortSlew(String deviceId) async {
     await _post('dome/halt');
   }
 
@@ -196,13 +208,20 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
     return await _get('cover/status');
   }
 
+  // The cover/calibrator verbs below satisfy the [DeviceBackend] role; as with
+  // the dome control above the appliance owns its device, so [deviceId] is not
+  // sent on the wire but is kept for interface conformance with the FFI
+  // backend.
+
   /// Open cover
-  Future<void> coverOpen() async {
+  @override
+  Future<void> coverOpen(String deviceId) async {
     await _post('cover/open');
   }
 
   /// Close cover
-  Future<void> coverClose() async {
+  @override
+  Future<void> coverClose(String deviceId) async {
     await _post('cover/close');
   }
 
@@ -212,14 +231,14 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
   }
 
   /// Turn calibrator on
-  Future<void> calibratorOn({int? brightness}) async {
-    await _post('cover/calibrator-on', {
-      if (brightness != null) 'brightness': brightness,
-    });
+  @override
+  Future<void> calibratorOn(String deviceId, int brightness) async {
+    await _post('cover/calibrator-on', {'brightness': brightness});
   }
 
   /// Turn calibrator off
-  Future<void> calibratorOff() async {
+  @override
+  Future<void> calibratorOff(String deviceId) async {
     await _post('cover/calibrator-off');
   }
 

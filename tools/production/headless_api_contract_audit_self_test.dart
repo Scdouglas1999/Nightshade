@@ -107,7 +107,7 @@ List<String> _getAvailableEndpoints() {
 ''');
   await _writeFile(
     root,
-    'apps/desktop/lib/headless_api/handlers/system_handlers.dart',
+    'apps/desktop/lib/headless_api/handlers/system_endpoint_catalog.dart',
     r'''
 List<String> availableHeadlessEndpoints() {
   return const [
@@ -160,7 +160,7 @@ List<String> _getAvailableEndpoints() {
 ''');
   await _writeFile(
     root,
-    'apps/desktop/lib/headless_api/handlers/system_handlers.dart',
+    'apps/desktop/lib/headless_api/handlers/system_endpoint_catalog.dart',
     r'''
 List<String> availableHeadlessEndpoints() {
   return const [

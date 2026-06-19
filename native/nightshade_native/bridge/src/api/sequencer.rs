@@ -1025,6 +1025,73 @@ fn typed_sequencer_event_from_progress_detail(
                 detail_json,
             })
         }
+        // Science / photometry payloads. Mirror the corresponding
+        // `ProgressDetail` field shapes verbatim so the Dart light-curve panel
+        // binds to explicit fields instead of re-parsing the legacy string
+        // `detail`. Emitted alongside `InstructionProgress` (additional, not a
+        // replacement) following the Wave-3 precedent above.
+        PD::PhotometryFrame {
+            target_designation,
+            reference_stars,
+            frame,
+            total,
+            filter,
+            exposure_secs,
+            airmass,
+            fwhm_arcsec,
+            snr,
+            mjd_obs,
+            frame_start_unix,
+            accepted,
+            reject_reason,
+            reduce_live,
+            apply_differential,
+        } => Some(SequencerEvent::PhotometryFrame {
+            node_id: node_id.to_string(),
+            target_designation: target_designation.clone(),
+            reference_stars: reference_stars.clone(),
+            frame: *frame,
+            total: *total,
+            filter: filter.clone(),
+            exposure_secs: *exposure_secs,
+            airmass: *airmass,
+            fwhm_arcsec: *fwhm_arcsec,
+            snr: *snr,
+            mjd_obs: *mjd_obs,
+            frame_start_unix: *frame_start_unix,
+            accepted: *accepted,
+            reject_reason: reject_reason.clone(),
+            reduce_live: *reduce_live,
+            apply_differential: *apply_differential,
+        }),
+        PD::PhotometryCadenceBroken {
+            frame,
+            total,
+            gap_secs,
+            max_gap_secs,
+            cadence_breaks,
+        } => Some(SequencerEvent::PhotometryCadenceBroken {
+            node_id: node_id.to_string(),
+            frame: *frame,
+            total: *total,
+            gap_secs: *gap_secs,
+            max_gap_secs: *max_gap_secs,
+            cadence_breaks: *cadence_breaks,
+        }),
+        PD::PhotometrySummary {
+            target_designation,
+            filter,
+            frames_captured,
+            cadence_breaks,
+            last_reject_reason,
+        } => Some(SequencerEvent::PhotometrySummary {
+            node_id: node_id.to_string(),
+            target_designation: target_designation.clone(),
+            filter: filter.clone(),
+            frames_captured: *frames_captured,
+            cadence_breaks: *cadence_breaks,
+            last_reject_reason: last_reject_reason.clone(),
+        }),
         // Every other variant (Exposure, Filter, Slew, Center, Autofocus,
         // …) is well-served by the legacy `InstructionProgress` string
         // channel — adding typed variants for them is future work, not

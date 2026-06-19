@@ -219,8 +219,82 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
   }
 
   // =========================================================================
+  // Dome Control
+  // =========================================================================
+
+  @override
+  Future<void> domeOpenShutter(String deviceId) async {
+    await bridge_api.apiDomeOpenShutter(deviceId: deviceId);
+  }
+
+  @override
+  Future<void> domeCloseShutter(String deviceId) async {
+    await bridge_api.apiDomeCloseShutter(deviceId: deviceId);
+  }
+
+  @override
+  Future<void> domeSlewToAzimuth(String deviceId, double azimuth) async {
+    await bridge_api.apiDomeSlewToAzimuth(deviceId: deviceId, azimuth: azimuth);
+  }
+
+  @override
+  Future<void> domeSetSlaved(String deviceId, bool slaved) async {
+    await bridge_api.apiDomeSetSlaved(deviceId: deviceId, slaved: slaved);
+  }
+
+  @override
+  Future<void> domePark(String deviceId) async {
+    await bridge_api.apiDomePark(deviceId: deviceId);
+  }
+
+  @override
+  Future<void> domeFindHome(String deviceId) async {
+    await bridge_api.apiDomeFindHome(deviceId: deviceId);
+  }
+
+  @override
+  Future<void> domeAbortSlew(String deviceId) async {
+    await bridge_api.apiDomeAbortSlew(deviceId: deviceId);
+  }
+
+  // =========================================================================
+  // Cover Calibrator Control
+  // =========================================================================
+
+  @override
+  Future<void> coverOpen(String deviceId) async {
+    await bridge_api.apiCoverCalibratorOpenCover(deviceId: deviceId);
+  }
+
+  @override
+  Future<void> coverClose(String deviceId) async {
+    await bridge_api.apiCoverCalibratorCloseCover(deviceId: deviceId);
+  }
+
+  @override
+  Future<void> calibratorOn(String deviceId, int brightness) async {
+    await bridge_api.apiCoverCalibratorCalibratorOn(
+      deviceId: deviceId,
+      brightness: brightness,
+    );
+  }
+
+  @override
+  Future<void> calibratorOff(String deviceId) async {
+    await bridge_api.apiCoverCalibratorCalibratorOff(deviceId: deviceId);
+  }
+
+  // =========================================================================
   // PHD2 Guiding
   // =========================================================================
+
+  @override
+  Future<bool> isPhd2Running({
+    String host = 'localhost',
+    int port = 4400,
+  }) async {
+    return bridge.NativeBridge.isPhd2Running(host: host, port: port);
+  }
 
   @override
   Future<void> phd2Connect({String host = 'localhost', int port = 4400}) async {

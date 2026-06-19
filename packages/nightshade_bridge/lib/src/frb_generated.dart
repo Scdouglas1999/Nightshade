@@ -17260,6 +17260,43 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           reason: dco_decode_String(raw[6]),
         );
       case 21:
+        return SequencerEvent_PhotometryFrame(
+          nodeId: dco_decode_String(raw[1]),
+          targetDesignation: dco_decode_String(raw[2]),
+          referenceStars: dco_decode_list_String(raw[3]),
+          frame: dco_decode_u_32(raw[4]),
+          total: dco_decode_u_32(raw[5]),
+          filter: dco_decode_String(raw[6]),
+          exposureSecs: dco_decode_f_64(raw[7]),
+          airmass: dco_decode_opt_box_autoadd_f_64(raw[8]),
+          fwhmArcsec: dco_decode_opt_box_autoadd_f_64(raw[9]),
+          snr: dco_decode_opt_box_autoadd_f_64(raw[10]),
+          mjdObs: dco_decode_f_64(raw[11]),
+          frameStartUnix: dco_decode_f_64(raw[12]),
+          accepted: dco_decode_bool(raw[13]),
+          rejectReason: dco_decode_opt_String(raw[14]),
+          reduceLive: dco_decode_bool(raw[15]),
+          applyDifferential: dco_decode_bool(raw[16]),
+        );
+      case 22:
+        return SequencerEvent_PhotometryCadenceBroken(
+          nodeId: dco_decode_String(raw[1]),
+          frame: dco_decode_u_32(raw[2]),
+          total: dco_decode_u_32(raw[3]),
+          gapSecs: dco_decode_f_64(raw[4]),
+          maxGapSecs: dco_decode_f_64(raw[5]),
+          cadenceBreaks: dco_decode_u_32(raw[6]),
+        );
+      case 23:
+        return SequencerEvent_PhotometrySummary(
+          nodeId: dco_decode_String(raw[1]),
+          targetDesignation: dco_decode_String(raw[2]),
+          filter: dco_decode_String(raw[3]),
+          framesCaptured: dco_decode_u_32(raw[4]),
+          cadenceBreaks: dco_decode_u_32(raw[5]),
+          lastRejectReason: dco_decode_opt_String(raw[6]),
+        );
+      case 24:
         return SequencerEvent_RecoveryStarted(
           startedAtIso: dco_decode_String(raw[1]),
           causeKind: dco_decode_String(raw[2]),
@@ -17272,7 +17309,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           phase: dco_decode_String(raw[9]),
           lastError: dco_decode_opt_String(raw[10]),
         );
-      case 22:
+      case 25:
         return SequencerEvent_RecoveryProgress(
           startedAtIso: dco_decode_String(raw[1]),
           causeKind: dco_decode_String(raw[2]),
@@ -17285,7 +17322,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           phase: dco_decode_String(raw[9]),
           lastError: dco_decode_opt_String(raw[10]),
         );
-      case 23:
+      case 26:
         return SequencerEvent_RecoveryCompleted(
           startedAtIso: dco_decode_String(raw[1]),
           causeKind: dco_decode_String(raw[2]),
@@ -17298,7 +17335,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           phase: dco_decode_String(raw[9]),
           lastError: dco_decode_opt_String(raw[10]),
         );
-      case 24:
+      case 27:
         return SequencerEvent_RecoveryGaveUp(
           startedAtIso: dco_decode_String(raw[1]),
           causeKind: dco_decode_String(raw[2]),
@@ -17312,7 +17349,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           lastError: dco_decode_opt_String(raw[10]),
           abortedByUser: dco_decode_bool(raw[11]),
         );
-      case 25:
+      case 28:
         return SequencerEvent_PluginNodeRequested(
           nodeId: dco_decode_String(raw[1]),
           pluginId: dco_decode_String(raw[2]),
@@ -17321,14 +17358,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           displayName: dco_decode_opt_String(raw[5]),
           timeoutSecs: dco_decode_u_32(raw[6]),
         );
-      case 26:
+      case 29:
         return SequencerEvent_PluginNodeProgress(
           nodeId: dco_decode_String(raw[1]),
           pluginId: dco_decode_String(raw[2]),
           nodeTypeId: dco_decode_String(raw[3]),
           detailJson: dco_decode_String(raw[4]),
         );
-      case 27:
+      case 30:
         return SequencerEvent_DecisionLogged(
           timestampIso: dco_decode_String(raw[1]),
           category: dco_decode_String(raw[2]),
@@ -21825,6 +21862,71 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           reason: var_reason,
         );
       case 21:
+        var var_nodeId = sse_decode_String(deserializer);
+        var var_targetDesignation = sse_decode_String(deserializer);
+        var var_referenceStars = sse_decode_list_String(deserializer);
+        var var_frame = sse_decode_u_32(deserializer);
+        var var_total = sse_decode_u_32(deserializer);
+        var var_filter = sse_decode_String(deserializer);
+        var var_exposureSecs = sse_decode_f_64(deserializer);
+        var var_airmass = sse_decode_opt_box_autoadd_f_64(deserializer);
+        var var_fwhmArcsec = sse_decode_opt_box_autoadd_f_64(deserializer);
+        var var_snr = sse_decode_opt_box_autoadd_f_64(deserializer);
+        var var_mjdObs = sse_decode_f_64(deserializer);
+        var var_frameStartUnix = sse_decode_f_64(deserializer);
+        var var_accepted = sse_decode_bool(deserializer);
+        var var_rejectReason = sse_decode_opt_String(deserializer);
+        var var_reduceLive = sse_decode_bool(deserializer);
+        var var_applyDifferential = sse_decode_bool(deserializer);
+        return SequencerEvent_PhotometryFrame(
+          nodeId: var_nodeId,
+          targetDesignation: var_targetDesignation,
+          referenceStars: var_referenceStars,
+          frame: var_frame,
+          total: var_total,
+          filter: var_filter,
+          exposureSecs: var_exposureSecs,
+          airmass: var_airmass,
+          fwhmArcsec: var_fwhmArcsec,
+          snr: var_snr,
+          mjdObs: var_mjdObs,
+          frameStartUnix: var_frameStartUnix,
+          accepted: var_accepted,
+          rejectReason: var_rejectReason,
+          reduceLive: var_reduceLive,
+          applyDifferential: var_applyDifferential,
+        );
+      case 22:
+        var var_nodeId = sse_decode_String(deserializer);
+        var var_frame = sse_decode_u_32(deserializer);
+        var var_total = sse_decode_u_32(deserializer);
+        var var_gapSecs = sse_decode_f_64(deserializer);
+        var var_maxGapSecs = sse_decode_f_64(deserializer);
+        var var_cadenceBreaks = sse_decode_u_32(deserializer);
+        return SequencerEvent_PhotometryCadenceBroken(
+          nodeId: var_nodeId,
+          frame: var_frame,
+          total: var_total,
+          gapSecs: var_gapSecs,
+          maxGapSecs: var_maxGapSecs,
+          cadenceBreaks: var_cadenceBreaks,
+        );
+      case 23:
+        var var_nodeId = sse_decode_String(deserializer);
+        var var_targetDesignation = sse_decode_String(deserializer);
+        var var_filter = sse_decode_String(deserializer);
+        var var_framesCaptured = sse_decode_u_32(deserializer);
+        var var_cadenceBreaks = sse_decode_u_32(deserializer);
+        var var_lastRejectReason = sse_decode_opt_String(deserializer);
+        return SequencerEvent_PhotometrySummary(
+          nodeId: var_nodeId,
+          targetDesignation: var_targetDesignation,
+          filter: var_filter,
+          framesCaptured: var_framesCaptured,
+          cadenceBreaks: var_cadenceBreaks,
+          lastRejectReason: var_lastRejectReason,
+        );
+      case 24:
         var var_startedAtIso = sse_decode_String(deserializer);
         var var_causeKind = sse_decode_String(deserializer);
         var var_causeCustomLabel = sse_decode_opt_String(deserializer);
@@ -21847,7 +21949,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           phase: var_phase,
           lastError: var_lastError,
         );
-      case 22:
+      case 25:
         var var_startedAtIso = sse_decode_String(deserializer);
         var var_causeKind = sse_decode_String(deserializer);
         var var_causeCustomLabel = sse_decode_opt_String(deserializer);
@@ -21870,7 +21972,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           phase: var_phase,
           lastError: var_lastError,
         );
-      case 23:
+      case 26:
         var var_startedAtIso = sse_decode_String(deserializer);
         var var_causeKind = sse_decode_String(deserializer);
         var var_causeCustomLabel = sse_decode_opt_String(deserializer);
@@ -21893,7 +21995,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           phase: var_phase,
           lastError: var_lastError,
         );
-      case 24:
+      case 27:
         var var_startedAtIso = sse_decode_String(deserializer);
         var var_causeKind = sse_decode_String(deserializer);
         var var_causeCustomLabel = sse_decode_opt_String(deserializer);
@@ -21918,7 +22020,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           lastError: var_lastError,
           abortedByUser: var_abortedByUser,
         );
-      case 25:
+      case 28:
         var var_nodeId = sse_decode_String(deserializer);
         var var_pluginId = sse_decode_String(deserializer);
         var var_nodeTypeId = sse_decode_String(deserializer);
@@ -21933,7 +22035,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           displayName: var_displayName,
           timeoutSecs: var_timeoutSecs,
         );
-      case 26:
+      case 29:
         var var_nodeId = sse_decode_String(deserializer);
         var var_pluginId = sse_decode_String(deserializer);
         var var_nodeTypeId = sse_decode_String(deserializer);
@@ -21944,7 +22046,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           nodeTypeId: var_nodeTypeId,
           detailJson: var_detailJson,
         );
-      case 27:
+      case 30:
         var var_timestampIso = sse_decode_String(deserializer);
         var var_category = sse_decode_String(deserializer);
         var var_summary = sse_decode_String(deserializer);
@@ -26022,6 +26124,71 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_opt_box_autoadd_f_64(skyBrightnessMag, serializer);
         sse_encode_opt_String(filter, serializer);
         sse_encode_String(reason, serializer);
+      case SequencerEvent_PhotometryFrame(
+        nodeId: final nodeId,
+        targetDesignation: final targetDesignation,
+        referenceStars: final referenceStars,
+        frame: final frame,
+        total: final total,
+        filter: final filter,
+        exposureSecs: final exposureSecs,
+        airmass: final airmass,
+        fwhmArcsec: final fwhmArcsec,
+        snr: final snr,
+        mjdObs: final mjdObs,
+        frameStartUnix: final frameStartUnix,
+        accepted: final accepted,
+        rejectReason: final rejectReason,
+        reduceLive: final reduceLive,
+        applyDifferential: final applyDifferential,
+      ):
+        sse_encode_i_32(21, serializer);
+        sse_encode_String(nodeId, serializer);
+        sse_encode_String(targetDesignation, serializer);
+        sse_encode_list_String(referenceStars, serializer);
+        sse_encode_u_32(frame, serializer);
+        sse_encode_u_32(total, serializer);
+        sse_encode_String(filter, serializer);
+        sse_encode_f_64(exposureSecs, serializer);
+        sse_encode_opt_box_autoadd_f_64(airmass, serializer);
+        sse_encode_opt_box_autoadd_f_64(fwhmArcsec, serializer);
+        sse_encode_opt_box_autoadd_f_64(snr, serializer);
+        sse_encode_f_64(mjdObs, serializer);
+        sse_encode_f_64(frameStartUnix, serializer);
+        sse_encode_bool(accepted, serializer);
+        sse_encode_opt_String(rejectReason, serializer);
+        sse_encode_bool(reduceLive, serializer);
+        sse_encode_bool(applyDifferential, serializer);
+      case SequencerEvent_PhotometryCadenceBroken(
+        nodeId: final nodeId,
+        frame: final frame,
+        total: final total,
+        gapSecs: final gapSecs,
+        maxGapSecs: final maxGapSecs,
+        cadenceBreaks: final cadenceBreaks,
+      ):
+        sse_encode_i_32(22, serializer);
+        sse_encode_String(nodeId, serializer);
+        sse_encode_u_32(frame, serializer);
+        sse_encode_u_32(total, serializer);
+        sse_encode_f_64(gapSecs, serializer);
+        sse_encode_f_64(maxGapSecs, serializer);
+        sse_encode_u_32(cadenceBreaks, serializer);
+      case SequencerEvent_PhotometrySummary(
+        nodeId: final nodeId,
+        targetDesignation: final targetDesignation,
+        filter: final filter,
+        framesCaptured: final framesCaptured,
+        cadenceBreaks: final cadenceBreaks,
+        lastRejectReason: final lastRejectReason,
+      ):
+        sse_encode_i_32(23, serializer);
+        sse_encode_String(nodeId, serializer);
+        sse_encode_String(targetDesignation, serializer);
+        sse_encode_String(filter, serializer);
+        sse_encode_u_32(framesCaptured, serializer);
+        sse_encode_u_32(cadenceBreaks, serializer);
+        sse_encode_opt_String(lastRejectReason, serializer);
       case SequencerEvent_RecoveryStarted(
         startedAtIso: final startedAtIso,
         causeKind: final causeKind,
@@ -26034,7 +26201,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         phase: final phase,
         lastError: final lastError,
       ):
-        sse_encode_i_32(21, serializer);
+        sse_encode_i_32(24, serializer);
         sse_encode_String(startedAtIso, serializer);
         sse_encode_String(causeKind, serializer);
         sse_encode_opt_String(causeCustomLabel, serializer);
@@ -26057,7 +26224,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         phase: final phase,
         lastError: final lastError,
       ):
-        sse_encode_i_32(22, serializer);
+        sse_encode_i_32(25, serializer);
         sse_encode_String(startedAtIso, serializer);
         sse_encode_String(causeKind, serializer);
         sse_encode_opt_String(causeCustomLabel, serializer);
@@ -26080,7 +26247,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         phase: final phase,
         lastError: final lastError,
       ):
-        sse_encode_i_32(23, serializer);
+        sse_encode_i_32(26, serializer);
         sse_encode_String(startedAtIso, serializer);
         sse_encode_String(causeKind, serializer);
         sse_encode_opt_String(causeCustomLabel, serializer);
@@ -26104,7 +26271,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         lastError: final lastError,
         abortedByUser: final abortedByUser,
       ):
-        sse_encode_i_32(24, serializer);
+        sse_encode_i_32(27, serializer);
         sse_encode_String(startedAtIso, serializer);
         sse_encode_String(causeKind, serializer);
         sse_encode_opt_String(causeCustomLabel, serializer);
@@ -26124,7 +26291,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         displayName: final displayName,
         timeoutSecs: final timeoutSecs,
       ):
-        sse_encode_i_32(25, serializer);
+        sse_encode_i_32(28, serializer);
         sse_encode_String(nodeId, serializer);
         sse_encode_String(pluginId, serializer);
         sse_encode_String(nodeTypeId, serializer);
@@ -26137,7 +26304,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         nodeTypeId: final nodeTypeId,
         detailJson: final detailJson,
       ):
-        sse_encode_i_32(26, serializer);
+        sse_encode_i_32(29, serializer);
         sse_encode_String(nodeId, serializer);
         sse_encode_String(pluginId, serializer);
         sse_encode_String(nodeTypeId, serializer);
@@ -26150,7 +26317,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         nodeId: final nodeId,
         sequenceRunId: final sequenceRunId,
       ):
-        sse_encode_i_32(27, serializer);
+        sse_encode_i_32(30, serializer);
         sse_encode_String(timestampIso, serializer);
         sse_encode_String(category, serializer);
         sse_encode_String(summary, serializer);

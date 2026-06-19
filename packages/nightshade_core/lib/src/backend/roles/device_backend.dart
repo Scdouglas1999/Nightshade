@@ -265,6 +265,48 @@ abstract class DeviceBackend {
   Future<void> rotatorSyncToPa(String deviceId, double pa);
 
   // =========================================================================
+  // Dome Control
+  // =========================================================================
+
+  /// Open the dome shutter
+  Future<void> domeOpenShutter(String deviceId);
+
+  /// Close the dome shutter
+  Future<void> domeCloseShutter(String deviceId);
+
+  /// Slew the dome to an azimuth (degrees)
+  Future<void> domeSlewToAzimuth(String deviceId, double azimuth);
+
+  /// Enable/disable dome-mount slaving (slewing the dome with the mount)
+  Future<void> domeSetSlaved(String deviceId, bool slaved);
+
+  /// Park the dome
+  Future<void> domePark(String deviceId);
+
+  /// Move the dome to its home position. ASCOM domes have no explicit unpark
+  /// verb; finding home releases the parked state (standard ASCOM behaviour).
+  Future<void> domeFindHome(String deviceId);
+
+  /// Abort dome slew/movement
+  Future<void> domeAbortSlew(String deviceId);
+
+  // =========================================================================
+  // Cover Calibrator Control
+  // =========================================================================
+
+  /// Open the cover
+  Future<void> coverOpen(String deviceId);
+
+  /// Close the cover
+  Future<void> coverClose(String deviceId);
+
+  /// Turn the calibrator light on at [brightness]
+  Future<void> calibratorOn(String deviceId, int brightness);
+
+  /// Turn the calibrator light off
+  Future<void> calibratorOff(String deviceId);
+
+  // =========================================================================
   // Equipment Status
   // =========================================================================
 

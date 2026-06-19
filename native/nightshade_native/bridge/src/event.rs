@@ -625,6 +625,95 @@ pub enum SequencerEvent {
         reason: String,
     },
 
+    // ===== typed Science / photometry progress payloads =====
+    //
+    // Photometry progress already existed as `ProgressDetail` variants
+    // (`PhotometryFrame`, `PhotometryCadenceBroken`, `PhotometrySummary` — see
+    // `nightshade_sequencer::node::progress`) but was only shipped stringified
+    // through `ProgressDetail::detail_text()` on `InstructionProgress.detail`.
+    // The Dart light-curve panel parsed that string fragilely (it has to recover
+    // floats like SNR / FWHM / airmass that Rust formatted with `{:?}`). These
+    // typed variants mirror the corresponding `ProgressDetail` field shapes so
+    // the panel binds to explicit fields. Following the Wave-3 precedent above,
+    // the bridge's `run_sequencer_event_loop` emits these typed variants
+    // alongside the legacy `InstructionProgress` — the typed variants are
+    // *additional*, not replacements, so any subscriber that hasn't migrated
+    // keeps working.
+    /// Science: per-frame photometry payload from the
+    /// `SciencePhotometryInstruction`. Mirrors
+    /// `ProgressDetail::PhotometryFrame`. The Dart science pipeline writes a row
+    /// to `photometry_measurements` and updates the live light-curve chart on
+    /// the Run Dashboard.
+    PhotometryFrame {
+        /// Node ID for mapping progress to the correct tree node.
+        node_id: String,
+        /// Resolved target designation (e.g. `"V* DY Peg"`).
+        target_designation: String,
+        /// Reference / comparison star designations used for differential
+        /// photometry. Empty when differential photometry is disabled.
+        reference_stars: Vec<String>,
+        /// 1-based frame index within the current photometry burst.
+        frame: u32,
+        total: u32,
+        filter: String,
+        exposure_secs: f64,
+        /// Airmass at exposure midpoint. `None` when no WCS / pointing was
+        /// available to compute it.
+        airmass: Option<f64>,
+        /// Measured stellar FWHM (arc-seconds). `None` when the frame yielded
+        /// no usable star measurement.
+        fwhm_arcsec: Option<f64>,
+        /// Signal-to-noise ratio of the target aperture. `None` when not
+        /// measured.
+        snr: Option<f64>,
+        /// Modified Julian Date at exposure midpoint (FITS `MJD-OBS`).
+        mjd_obs: f64,
+        /// Unix epoch seconds at exposure start.
+        frame_start_unix: f64,
+        /// True when the frame passed every quality gate
+        /// (`PhotometryFrameVerdict::Pass`).
+        accepted: bool,
+        /// Rejection reason when `accepted == false`
+        /// (`PhotometryFrameVerdict::Reject { reason }`); `None` when accepted.
+        reject_reason: Option<String>,
+        /// True when live reduction was performed for this frame.
+        reduce_live: bool,
+        /// True when differential photometry was applied for this frame.
+        apply_differential: bool,
+    },
+    /// Science: cadence-violation event emitted whenever the inter-frame
+    /// start-to-start gap exceeds the configured ceiling. Mirrors
+    /// `ProgressDetail::PhotometryCadenceBroken`. Surfaced by the dashboard
+    /// photometry panel; does NOT abort the burst.
+    PhotometryCadenceBroken {
+        /// Node ID for mapping progress to the correct tree node.
+        node_id: String,
+        /// 1-based frame index whose start broke the cadence.
+        frame: u32,
+        total: u32,
+        /// Observed start-to-start gap (seconds).
+        gap_secs: f64,
+        /// Configured maximum allowed gap (seconds).
+        max_gap_secs: f64,
+        /// Cumulative cadence breaks for the current node run.
+        cadence_breaks: u32,
+    },
+    /// Science: end-of-burst summary for the photometry node. Mirrors
+    /// `ProgressDetail::PhotometrySummary`.
+    PhotometrySummary {
+        /// Node ID for mapping progress to the correct tree node.
+        node_id: String,
+        target_designation: String,
+        filter: String,
+        /// Number of frames captured during the burst (accepted + rejected).
+        frames_captured: u32,
+        /// Total cadence breaks observed during the burst.
+        cadence_breaks: u32,
+        /// Last rejection reason seen during the burst; `None` when no frame
+        /// was rejected.
+        last_reject_reason: Option<String>,
+    },
+
     // ===== Recovery Mode — typed entry / progress / exit events =====
     //
     // Pre-Wave-4.5, the Rust executor's `ExecutorEvent::Recovery*` events

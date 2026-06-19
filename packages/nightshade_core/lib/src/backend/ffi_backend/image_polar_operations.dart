@@ -44,6 +44,35 @@ mixin _FfiImagePolarOperations on _FfiBackendBase {
     );
   }
 
+  @override
+  Future<bridge.FitsReadResult> readFitsFile({required String filePath}) {
+    return bridge_api.apiReadFitsFile(filePath: filePath);
+  }
+
+  @override
+  Uint8List autoStretchImage({
+    required int width,
+    required int height,
+    required List<int> data,
+  }) {
+    return bridge_api.apiAutoStretchImage(
+      width: width,
+      height: height,
+      data: data,
+    );
+  }
+
+  @override
+  Future<void> renderFinishingPreview({
+    required String inputFits,
+    required String outputPng,
+  }) {
+    return const StretchPipelineService().renderFinishingPreview(
+      inputFits: inputFits,
+      outputPng: outputPng,
+    );
+  }
+
   // =========================================================================
   @override
   Stream<Map<String, dynamic>> get polarAlignmentEvents =>

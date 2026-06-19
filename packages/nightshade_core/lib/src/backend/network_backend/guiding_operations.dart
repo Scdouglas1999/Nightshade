@@ -6,6 +6,21 @@ mixin _NetworkBackendGuidingOperations on _NetworkBackendTransport {
   // =========================================================================
 
   @override
+  Future<bool> isPhd2Running({String host = 'localhost', int port = 4400}) {
+    // Host-local: this probes a PHD2 event-server socket on the host's
+    // loopback (default localhost:4400). A remote client cannot reach the
+    // host's PHD2 socket, and the headless API exposes no "is PHD2 running"
+    // endpoint — only phd2/connect + phd2/status (which require PHD2 to
+    // already be up). The onboarding test-connection step that calls this is
+    // a local-setup-only flow.
+    throw UnsupportedError(
+      'isPhd2Running is host-local: a remote client cannot probe the host '
+      "PHD2 socket. Use phd2/status against an already-connected PHD2 "
+      'instead.',
+    );
+  }
+
+  @override
   Future<void> phd2Connect({String host = 'localhost', int port = 4400}) async {
     await _post('phd2/connect', {'host': host, 'port': port});
   }

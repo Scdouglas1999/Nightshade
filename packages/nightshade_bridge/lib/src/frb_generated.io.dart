@@ -5908,6 +5908,78 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       wireObj.kind.ExposureAdjusted.reason = pre_reason;
       return;
     }
+    if (apiObj is SequencerEvent_PhotometryFrame) {
+      var pre_node_id = cst_encode_String(apiObj.nodeId);
+      var pre_target_designation = cst_encode_String(apiObj.targetDesignation);
+      var pre_reference_stars = cst_encode_list_String(apiObj.referenceStars);
+      var pre_frame = cst_encode_u_32(apiObj.frame);
+      var pre_total = cst_encode_u_32(apiObj.total);
+      var pre_filter = cst_encode_String(apiObj.filter);
+      var pre_exposure_secs = cst_encode_f_64(apiObj.exposureSecs);
+      var pre_airmass = cst_encode_opt_box_autoadd_f_64(apiObj.airmass);
+      var pre_fwhm_arcsec = cst_encode_opt_box_autoadd_f_64(apiObj.fwhmArcsec);
+      var pre_snr = cst_encode_opt_box_autoadd_f_64(apiObj.snr);
+      var pre_mjd_obs = cst_encode_f_64(apiObj.mjdObs);
+      var pre_frame_start_unix = cst_encode_f_64(apiObj.frameStartUnix);
+      var pre_accepted = cst_encode_bool(apiObj.accepted);
+      var pre_reject_reason = cst_encode_opt_String(apiObj.rejectReason);
+      var pre_reduce_live = cst_encode_bool(apiObj.reduceLive);
+      var pre_apply_differential = cst_encode_bool(apiObj.applyDifferential);
+      wireObj.tag = 21;
+      wireObj.kind.PhotometryFrame.node_id = pre_node_id;
+      wireObj.kind.PhotometryFrame.target_designation = pre_target_designation;
+      wireObj.kind.PhotometryFrame.reference_stars = pre_reference_stars;
+      wireObj.kind.PhotometryFrame.frame = pre_frame;
+      wireObj.kind.PhotometryFrame.total = pre_total;
+      wireObj.kind.PhotometryFrame.filter = pre_filter;
+      wireObj.kind.PhotometryFrame.exposure_secs = pre_exposure_secs;
+      wireObj.kind.PhotometryFrame.airmass = pre_airmass;
+      wireObj.kind.PhotometryFrame.fwhm_arcsec = pre_fwhm_arcsec;
+      wireObj.kind.PhotometryFrame.snr = pre_snr;
+      wireObj.kind.PhotometryFrame.mjd_obs = pre_mjd_obs;
+      wireObj.kind.PhotometryFrame.frame_start_unix = pre_frame_start_unix;
+      wireObj.kind.PhotometryFrame.accepted = pre_accepted;
+      wireObj.kind.PhotometryFrame.reject_reason = pre_reject_reason;
+      wireObj.kind.PhotometryFrame.reduce_live = pre_reduce_live;
+      wireObj.kind.PhotometryFrame.apply_differential = pre_apply_differential;
+      return;
+    }
+    if (apiObj is SequencerEvent_PhotometryCadenceBroken) {
+      var pre_node_id = cst_encode_String(apiObj.nodeId);
+      var pre_frame = cst_encode_u_32(apiObj.frame);
+      var pre_total = cst_encode_u_32(apiObj.total);
+      var pre_gap_secs = cst_encode_f_64(apiObj.gapSecs);
+      var pre_max_gap_secs = cst_encode_f_64(apiObj.maxGapSecs);
+      var pre_cadence_breaks = cst_encode_u_32(apiObj.cadenceBreaks);
+      wireObj.tag = 22;
+      wireObj.kind.PhotometryCadenceBroken.node_id = pre_node_id;
+      wireObj.kind.PhotometryCadenceBroken.frame = pre_frame;
+      wireObj.kind.PhotometryCadenceBroken.total = pre_total;
+      wireObj.kind.PhotometryCadenceBroken.gap_secs = pre_gap_secs;
+      wireObj.kind.PhotometryCadenceBroken.max_gap_secs = pre_max_gap_secs;
+      wireObj.kind.PhotometryCadenceBroken.cadence_breaks = pre_cadence_breaks;
+      return;
+    }
+    if (apiObj is SequencerEvent_PhotometrySummary) {
+      var pre_node_id = cst_encode_String(apiObj.nodeId);
+      var pre_target_designation = cst_encode_String(apiObj.targetDesignation);
+      var pre_filter = cst_encode_String(apiObj.filter);
+      var pre_frames_captured = cst_encode_u_32(apiObj.framesCaptured);
+      var pre_cadence_breaks = cst_encode_u_32(apiObj.cadenceBreaks);
+      var pre_last_reject_reason = cst_encode_opt_String(
+        apiObj.lastRejectReason,
+      );
+      wireObj.tag = 23;
+      wireObj.kind.PhotometrySummary.node_id = pre_node_id;
+      wireObj.kind.PhotometrySummary.target_designation =
+          pre_target_designation;
+      wireObj.kind.PhotometrySummary.filter = pre_filter;
+      wireObj.kind.PhotometrySummary.frames_captured = pre_frames_captured;
+      wireObj.kind.PhotometrySummary.cadence_breaks = pre_cadence_breaks;
+      wireObj.kind.PhotometrySummary.last_reject_reason =
+          pre_last_reject_reason;
+      return;
+    }
     if (apiObj is SequencerEvent_RecoveryStarted) {
       var pre_started_at_iso = cst_encode_String(apiObj.startedAtIso);
       var pre_cause_kind = cst_encode_String(apiObj.causeKind);
@@ -5923,7 +5995,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       var pre_max_duration_secs = cst_encode_f_64(apiObj.maxDurationSecs);
       var pre_phase = cst_encode_String(apiObj.phase);
       var pre_last_error = cst_encode_opt_String(apiObj.lastError);
-      wireObj.tag = 21;
+      wireObj.tag = 24;
       wireObj.kind.RecoveryStarted.started_at_iso = pre_started_at_iso;
       wireObj.kind.RecoveryStarted.cause_kind = pre_cause_kind;
       wireObj.kind.RecoveryStarted.cause_custom_label = pre_cause_custom_label;
@@ -5953,7 +6025,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       var pre_max_duration_secs = cst_encode_f_64(apiObj.maxDurationSecs);
       var pre_phase = cst_encode_String(apiObj.phase);
       var pre_last_error = cst_encode_opt_String(apiObj.lastError);
-      wireObj.tag = 22;
+      wireObj.tag = 25;
       wireObj.kind.RecoveryProgress.started_at_iso = pre_started_at_iso;
       wireObj.kind.RecoveryProgress.cause_kind = pre_cause_kind;
       wireObj.kind.RecoveryProgress.cause_custom_label = pre_cause_custom_label;
@@ -5983,7 +6055,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       var pre_max_duration_secs = cst_encode_f_64(apiObj.maxDurationSecs);
       var pre_phase = cst_encode_String(apiObj.phase);
       var pre_last_error = cst_encode_opt_String(apiObj.lastError);
-      wireObj.tag = 23;
+      wireObj.tag = 26;
       wireObj.kind.RecoveryCompleted.started_at_iso = pre_started_at_iso;
       wireObj.kind.RecoveryCompleted.cause_kind = pre_cause_kind;
       wireObj.kind.RecoveryCompleted.cause_custom_label =
@@ -6015,7 +6087,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       var pre_phase = cst_encode_String(apiObj.phase);
       var pre_last_error = cst_encode_opt_String(apiObj.lastError);
       var pre_aborted_by_user = cst_encode_bool(apiObj.abortedByUser);
-      wireObj.tag = 24;
+      wireObj.tag = 27;
       wireObj.kind.RecoveryGaveUp.started_at_iso = pre_started_at_iso;
       wireObj.kind.RecoveryGaveUp.cause_kind = pre_cause_kind;
       wireObj.kind.RecoveryGaveUp.cause_custom_label = pre_cause_custom_label;
@@ -6036,7 +6108,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       var pre_config_json = cst_encode_String(apiObj.configJson);
       var pre_display_name = cst_encode_opt_String(apiObj.displayName);
       var pre_timeout_secs = cst_encode_u_32(apiObj.timeoutSecs);
-      wireObj.tag = 25;
+      wireObj.tag = 28;
       wireObj.kind.PluginNodeRequested.node_id = pre_node_id;
       wireObj.kind.PluginNodeRequested.plugin_id = pre_plugin_id;
       wireObj.kind.PluginNodeRequested.node_type_id = pre_node_type_id;
@@ -6050,7 +6122,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       var pre_plugin_id = cst_encode_String(apiObj.pluginId);
       var pre_node_type_id = cst_encode_String(apiObj.nodeTypeId);
       var pre_detail_json = cst_encode_String(apiObj.detailJson);
-      wireObj.tag = 26;
+      wireObj.tag = 29;
       wireObj.kind.PluginNodeProgress.node_id = pre_node_id;
       wireObj.kind.PluginNodeProgress.plugin_id = pre_plugin_id;
       wireObj.kind.PluginNodeProgress.node_type_id = pre_node_type_id;
@@ -6066,7 +6138,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       var pre_sequence_run_id = cst_encode_opt_box_autoadd_i_64(
         apiObj.sequenceRunId,
       );
-      wireObj.tag = 27;
+      wireObj.tag = 30;
       wireObj.kind.DecisionLogged.timestamp_iso = pre_timestamp_iso;
       wireObj.kind.DecisionLogged.category = pre_category;
       wireObj.kind.DecisionLogged.summary = pre_summary;
@@ -21200,6 +21272,83 @@ final class wire_cst_SequencerEvent_ExposureAdjusted extends ffi.Struct {
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> reason;
 }
 
+final class wire_cst_SequencerEvent_PhotometryFrame extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> node_id;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> target_designation;
+
+  external ffi.Pointer<wire_cst_list_String> reference_stars;
+
+  @ffi.Uint32()
+  external int frame;
+
+  @ffi.Uint32()
+  external int total;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> filter;
+
+  @ffi.Double()
+  external double exposure_secs;
+
+  external ffi.Pointer<ffi.Double> airmass;
+
+  external ffi.Pointer<ffi.Double> fwhm_arcsec;
+
+  external ffi.Pointer<ffi.Double> snr;
+
+  @ffi.Double()
+  external double mjd_obs;
+
+  @ffi.Double()
+  external double frame_start_unix;
+
+  @ffi.Bool()
+  external bool accepted;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> reject_reason;
+
+  @ffi.Bool()
+  external bool reduce_live;
+
+  @ffi.Bool()
+  external bool apply_differential;
+}
+
+final class wire_cst_SequencerEvent_PhotometryCadenceBroken extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> node_id;
+
+  @ffi.Uint32()
+  external int frame;
+
+  @ffi.Uint32()
+  external int total;
+
+  @ffi.Double()
+  external double gap_secs;
+
+  @ffi.Double()
+  external double max_gap_secs;
+
+  @ffi.Uint32()
+  external int cadence_breaks;
+}
+
+final class wire_cst_SequencerEvent_PhotometrySummary extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> node_id;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> target_designation;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> filter;
+
+  @ffi.Uint32()
+  external int frames_captured;
+
+  @ffi.Uint32()
+  external int cadence_breaks;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> last_reject_reason;
+}
+
 final class wire_cst_SequencerEvent_RecoveryStarted extends ffi.Struct {
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> started_at_iso;
 
@@ -21381,6 +21530,13 @@ final class SequencerEventKind extends ffi.Union {
   external wire_cst_SequencerEvent_IntegrationBudget IntegrationBudget;
 
   external wire_cst_SequencerEvent_ExposureAdjusted ExposureAdjusted;
+
+  external wire_cst_SequencerEvent_PhotometryFrame PhotometryFrame;
+
+  external wire_cst_SequencerEvent_PhotometryCadenceBroken
+  PhotometryCadenceBroken;
+
+  external wire_cst_SequencerEvent_PhotometrySummary PhotometrySummary;
 
   external wire_cst_SequencerEvent_RecoveryStarted RecoveryStarted;
 

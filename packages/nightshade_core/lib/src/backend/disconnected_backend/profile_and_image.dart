@@ -91,6 +91,28 @@ mixin _DisconnectedBackendProfileAndImage on Object
     _throwNotConnected();
   }
 
+  @override
+  Future<FitsReadResult> readFitsFile({required String filePath}) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Uint8List autoStretchImage({
+    required int width,
+    required int height,
+    required List<int> data,
+  }) {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> renderFinishingPreview({
+    required String inputFits,
+    required String outputPng,
+  }) async {
+    _throwNotConnected();
+  }
+
   // =========================================================================
   // Polar Alignment
   // =========================================================================

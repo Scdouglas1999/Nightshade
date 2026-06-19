@@ -32,7 +32,9 @@ import 'utils/error_snackbar.dart';
 import 'widgets/checkpoint_resume_dialog.dart';
 import 'widgets/tailscale_setup_sheet.dart';
 
-part 'main_parts/mobile_connection_ops.dart';
+part 'main_parts/mobile_connection_state.dart';
+part 'main_parts/mobile_discovery_ops.dart';
+part 'main_parts/mobile_reconnect_ops.dart';
 
 void main() async {
   developer.log('Starting Nightshade...', name: 'Main', level: 800);
@@ -255,7 +257,11 @@ class NightshadeMobileApp extends ConsumerStatefulWidget {
 }
 
 class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
-    with WidgetsBindingObserver, _NightshadeMobileConnectionOps {
+    with
+        WidgetsBindingObserver,
+        _MobileConnectionState,
+        _MobileDiscoveryOps,
+        _MobileReconnectOps {
   @override
   void initState() {
     super.initState();

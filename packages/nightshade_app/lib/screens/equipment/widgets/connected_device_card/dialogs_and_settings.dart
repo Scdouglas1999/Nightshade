@@ -594,13 +594,8 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
                     ref.read(domeStateProvider.notifier).setSlaved(slaved);
                     try {
                       final backend = ref.read(backendProvider);
-                      if (backend is NetworkBackend) {
-                        await backend.domeSync(slaved);
-                      } else if (deviceId != null) {
-                        await bridge_api.apiDomeSetSlaved(
-                          deviceId: deviceId,
-                          slaved: slaved,
-                        );
+                      if (deviceId != null) {
+                        await backend.domeSetSlaved(deviceId, slaved);
                       }
                       if (mounted) {
                         pageContext.showSuccessSnackBar(
@@ -720,15 +715,11 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
 
   Future<void> _handleCalibratorBrightness(int brightness) async {
     final state = ref.read(coverCalibratorStateProvider);
-    if (state.deviceId == null) return;
+    final deviceId = state.deviceId;
+    if (deviceId == null) return;
     try {
       final backend = ref.read(backendProvider);
-      if (backend is NetworkBackend) {
-        await backend.calibratorOn(brightness: brightness);
-      } else {
-        await bridge_api.apiCoverCalibratorCalibratorOn(
-            deviceId: state.deviceId!, brightness: brightness);
-      }
+      await backend.calibratorOn(deviceId, brightness);
       ref
           .read(coverCalibratorStateProvider.notifier)
           .updateBrightness(brightness);

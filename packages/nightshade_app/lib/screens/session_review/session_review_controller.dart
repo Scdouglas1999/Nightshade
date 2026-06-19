@@ -4,7 +4,6 @@ import 'dart:math' as math;
 
 import 'package:drift/drift.dart' show Variable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:nightshade_core/nightshade_core.dart' hide BestNight;
 // The controller exposes its own UI-facing [BestNight] (hours-based) to the
 // panels; reach the core service type — also named `BestNight` — under a prefix
@@ -1561,24 +1560,19 @@ typedef FinishingPreviewRenderer = Future<void> Function(
   String outputPng,
 );
 
-/// Production [FinishingPreviewRenderer] — reads the finishing FITS, computes
-/// its auto-stretch (the same MAD/STF stretch the integration preview uses),
-/// applies it to an 8-bit RGBA display buffer, and writes the sibling PNG. All
-/// four calls are native bridge functions; the controller's finishing actions
-/// wrap this in a fail-soft `try` so a render failure never drops the (already
-/// written + persisted) finishing FITS.
+/// Production [FinishingPreviewRenderer] — delegates to
+/// [ImagingBackend.renderFinishingPreview], which reads the finishing FITS,
+/// computes its auto-stretch (the same MAD/STF stretch the integration preview
+/// uses), applies it to an 8-bit RGBA display buffer, and writes the sibling
+/// PNG. The controller's finishing actions wrap this in a fail-soft `try` so a
+/// render failure never drops the (already written + persisted) finishing FITS.
 final finishingPreviewRendererProvider =
     Provider<FinishingPreviewRenderer>((ref) {
-  return (String inputFits, String outputPng) async {
-    final dims = await bridge.apiReadFitsLinearData(filePath: inputFits);
-    final params = await bridge.apiCalculateAutoStretch(filePath: inputFits);
-    final rgba =
-        await bridge.apiApplyStretch(filePath: inputFits, params: params);
-    await bridge.apiSaveRgbaPngFile(
-      filePath: outputPng,
-      width: dims.width,
-      height: dims.height,
-      rgba: rgba,
+  final imaging = ref.watch(imagingBackendProvider);
+  return (String inputFits, String outputPng) {
+    return imaging.renderFinishingPreview(
+      inputFits: inputFits,
+      outputPng: outputPng,
     );
   };
 });

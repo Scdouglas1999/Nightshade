@@ -118,6 +118,51 @@ bridge.SequencerEvent _sequencerEventFromCore(
   Map<String, dynamic> data,
 ) {
   switch (eventType) {
+    case 'Started':
+      return bridge.SequencerEvent.started(
+        sequenceName: data['sequence_name'] as String? ?? '',
+      );
+    case 'PhotometryFrame':
+      // Rebuild the typed science-photometry frame variant from the wire
+      // envelope serialized by `_extractSequencerEventInfo`. Mirrors that
+      // branch field-for-field so remote (network-backend) subscribers receive
+      // the same typed variant the local FFI path does.
+      return bridge.SequencerEvent.photometryFrame(
+        nodeId: data['node_id'] as String? ?? '',
+        targetDesignation: data['target_designation'] as String? ?? '',
+        referenceStars: _stringList(data, 'reference_stars'),
+        frame: _intField(data, 'frame'),
+        total: _intField(data, 'total'),
+        filter: data['filter'] as String? ?? '',
+        exposureSecs: _doubleField(data, 'exposure_secs'),
+        airmass: _optionalDouble(data, 'airmass'),
+        fwhmArcsec: _optionalDouble(data, 'fwhm_arcsec'),
+        snr: _optionalDouble(data, 'snr'),
+        mjdObs: _doubleField(data, 'mjd_obs'),
+        frameStartUnix: _doubleField(data, 'frame_start_unix'),
+        accepted: data['accepted'] as bool? ?? false,
+        rejectReason: _optionalString(data, 'reject_reason'),
+        reduceLive: data['reduce_live'] as bool? ?? false,
+        applyDifferential: data['apply_differential'] as bool? ?? false,
+      );
+    case 'PhotometryCadenceBroken':
+      return bridge.SequencerEvent.photometryCadenceBroken(
+        nodeId: data['node_id'] as String? ?? '',
+        frame: _intField(data, 'frame'),
+        total: _intField(data, 'total'),
+        gapSecs: _doubleField(data, 'gap_secs'),
+        maxGapSecs: _doubleField(data, 'max_gap_secs'),
+        cadenceBreaks: _intField(data, 'cadence_breaks'),
+      );
+    case 'PhotometrySummary':
+      return bridge.SequencerEvent.photometrySummary(
+        nodeId: data['node_id'] as String? ?? '',
+        targetDesignation: data['target_designation'] as String? ?? '',
+        filter: data['filter'] as String? ?? '',
+        framesCaptured: _intField(data, 'frames_captured'),
+        cadenceBreaks: _intField(data, 'cadence_breaks'),
+        lastRejectReason: _optionalString(data, 'last_reject_reason'),
+      );
     case 'RecoveryStarted':
       return bridge.SequencerEvent.recoveryStarted(
         startedAtIso: _stringField(data, 'started_at_iso'),
@@ -345,6 +390,20 @@ double _doubleField(Map<String, dynamic> data, String key) {
   if (value is double) return value;
   if (value is num) return value.toDouble();
   return 0.0;
+}
+
+double? _optionalDouble(Map<String, dynamic> data, String key) {
+  final value = data[key];
+  if (value is num) return value.toDouble();
+  return null;
+}
+
+List<String> _stringList(Map<String, dynamic> data, String key) {
+  final value = data[key];
+  if (value is List) {
+    return value.whereType<String>().toList(growable: false);
+  }
+  return const [];
 }
 
 /// Shared recovery field map for [FfiBackend._extractSequencerEventInfo]

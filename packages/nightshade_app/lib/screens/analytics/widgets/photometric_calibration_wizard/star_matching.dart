@@ -463,7 +463,9 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
     double? pixelScale,
   }) async {
     if (!ref.read(isRemoteModeProvider)) {
-      final fits = await apiReadFitsFile(filePath: filePath);
+      final fits = await ref
+          .read(imagingBackendProvider)
+          .readFitsFile(filePath: filePath);
       return (width: fits.width.toDouble(), height: fits.height.toDouble());
     }
 

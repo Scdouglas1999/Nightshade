@@ -267,21 +267,14 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
 
   Future<void> _handleDomeShutter(ShutterStatus currentStatus) async {
     final domeState = ref.read(domeStateProvider);
-    if (domeState.deviceId == null) return;
+    final deviceId = domeState.deviceId;
+    if (deviceId == null) return;
     try {
       final backend = ref.read(backendProvider);
-      if (backend is NetworkBackend) {
-        if (currentStatus == ShutterStatus.open) {
-          await backend.domeClose();
-        } else {
-          await backend.domeOpen();
-        }
+      if (currentStatus == ShutterStatus.open) {
+        await backend.domeCloseShutter(deviceId);
       } else {
-        if (currentStatus == ShutterStatus.open) {
-          await bridge_api.apiDomeCloseShutter(deviceId: domeState.deviceId!);
-        } else {
-          await bridge_api.apiDomeOpenShutter(deviceId: domeState.deviceId!);
-        }
+        await backend.domeOpenShutter(deviceId);
       }
       if (mounted) {
         context.showSuccessSnackBar(
@@ -299,15 +292,12 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
 
   Future<void> _handleDomePark(bool isParked) async {
     final domeState = ref.read(domeStateProvider);
-    if (domeState.deviceId == null) return;
+    final deviceId = domeState.deviceId;
+    if (deviceId == null) return;
     try {
+      final backend = ref.read(backendProvider);
       if (!isParked) {
-        final backend = ref.read(backendProvider);
-        if (backend is NetworkBackend) {
-          await backend.domePark();
-        } else {
-          await bridge_api.apiDomePark(deviceId: domeState.deviceId!);
-        }
+        await backend.domePark(deviceId);
         if (mounted) {
           context.showSuccessSnackBar('Parking dome');
         }
@@ -315,12 +305,7 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
         // ASCOM domes have no explicit unpark verb; finding home releases the
         // parked state (standard ASCOM behaviour). Drive it so the "Unpark"
         // button is functional instead of a no-op hint.
-        final backend = ref.read(backendProvider);
-        if (backend is NetworkBackend) {
-          await backend.domeHome();
-        } else {
-          await bridge_api.apiDomeFindHome(deviceId: domeState.deviceId!);
-        }
+        await backend.domeFindHome(deviceId);
         if (mounted) {
           context.showSuccessSnackBar('Unparking dome (homing)');
         }
@@ -334,17 +319,11 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
 
   Future<void> _handleDomeSlew(double azimuth) async {
     final domeState = ref.read(domeStateProvider);
-    if (domeState.deviceId == null) return;
+    final deviceId = domeState.deviceId;
+    if (deviceId == null) return;
     try {
       final backend = ref.read(backendProvider);
-      if (backend is NetworkBackend) {
-        await backend.domeSlew(azimuth);
-      } else {
-        await bridge_api.apiDomeSlewToAzimuth(
-          deviceId: domeState.deviceId!,
-          azimuth: azimuth,
-        );
-      }
+      await backend.domeSlewToAzimuth(deviceId, azimuth);
       if (mounted) {
         context.showSuccessSnackBar(
           'Slewing dome to ${azimuth.toStringAsFixed(0)}°',
@@ -359,14 +338,11 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
 
   Future<void> _handleDomeHome() async {
     final domeState = ref.read(domeStateProvider);
-    if (domeState.deviceId == null) return;
+    final deviceId = domeState.deviceId;
+    if (deviceId == null) return;
     try {
       final backend = ref.read(backendProvider);
-      if (backend is NetworkBackend) {
-        await backend.domeHome();
-      } else {
-        await bridge_api.apiDomeFindHome(deviceId: domeState.deviceId!);
-      }
+      await backend.domeFindHome(deviceId);
       if (mounted) {
         context.showSuccessSnackBar('Homing dome');
       }
@@ -379,14 +355,11 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
 
   Future<void> _handleDomeHalt() async {
     final domeState = ref.read(domeStateProvider);
-    if (domeState.deviceId == null) return;
+    final deviceId = domeState.deviceId;
+    if (deviceId == null) return;
     try {
       final backend = ref.read(backendProvider);
-      if (backend is NetworkBackend) {
-        await backend.domeHalt();
-      } else {
-        await bridge_api.apiDomeAbortSlew(deviceId: domeState.deviceId!);
-      }
+      await backend.domeAbortSlew(deviceId);
       if (mounted) {
         context.showSuccessSnackBar('Stopping dome');
       }
@@ -431,23 +404,14 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
 
   Future<void> _handleCoverToggle(bool isOpen) async {
     final coverState = ref.read(coverCalibratorStateProvider);
-    if (coverState.deviceId == null) return;
+    final deviceId = coverState.deviceId;
+    if (deviceId == null) return;
     try {
       final backend = ref.read(backendProvider);
-      if (backend is NetworkBackend) {
-        if (isOpen) {
-          await backend.coverClose();
-        } else {
-          await backend.coverOpen();
-        }
+      if (isOpen) {
+        await backend.coverClose(deviceId);
       } else {
-        if (isOpen) {
-          await bridge_api.apiCoverCalibratorCloseCover(
-              deviceId: coverState.deviceId!);
-        } else {
-          await bridge_api.apiCoverCalibratorOpenCover(
-              deviceId: coverState.deviceId!);
-        }
+        await backend.coverOpen(deviceId);
       }
       if (mounted) {
         context.showSuccessSnackBar(isOpen ? 'Closing cover' : 'Opening cover');
@@ -460,28 +424,19 @@ extension _ConnectedDeviceCommandHandlers on _ConnectedDeviceCardState {
   }
 
   Future<void> _handleCalibratorToggle(CoverCalibratorState state) async {
-    if (state.deviceId == null) return;
+    final deviceId = state.deviceId;
+    if (deviceId == null) return;
     try {
       final backend = ref.read(backendProvider);
       if (state.isCalibratorOn) {
-        if (backend is NetworkBackend) {
-          await backend.calibratorOff();
-        } else {
-          await bridge_api.apiCoverCalibratorCalibratorOff(
-              deviceId: state.deviceId!);
-        }
+        await backend.calibratorOff(deviceId);
         if (mounted) {
           context.showSuccessSnackBar('Calibrator light off');
         }
       } else {
         final brightness =
             state.brightness > 0 ? state.brightness : state.maxBrightness;
-        if (backend is NetworkBackend) {
-          await backend.calibratorOn(brightness: brightness);
-        } else {
-          await bridge_api.apiCoverCalibratorCalibratorOn(
-              deviceId: state.deviceId!, brightness: brightness);
-        }
+        await backend.calibratorOn(deviceId, brightness);
         if (mounted) {
           context.showSuccessSnackBar(
               'Calibrator light on at brightness $brightness');

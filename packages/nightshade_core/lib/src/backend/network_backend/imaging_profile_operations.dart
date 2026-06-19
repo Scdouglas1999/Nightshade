@@ -203,6 +203,51 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
     });
   }
 
+  @override
+  Future<FitsReadResult> readFitsFile({required String filePath}) {
+    // Host-local: a full FITS decode reads the host filesystem and returns the
+    // entire display buffer + histogram. Remote clients fetch only the specific
+    // fields they need from the host instead (e.g. dimensions via
+    // [getFitsDimensions]); there is no endpoint that streams a decoded
+    // FitsReadResult, so this is unsupported over the network.
+    throw UnsupportedError(
+      'readFitsFile is host-local: a remote client cannot decode a FITS file '
+      'on the host filesystem. Use getFitsDimensions for dimensions, or run '
+      'this on the local backend.',
+    );
+  }
+
+  @override
+  Uint8List autoStretchImage({
+    required int width,
+    required int height,
+    required List<int> data,
+  }) {
+    // Host-local: this stretches a raw u16 pixel buffer in process. The host
+    // never accepts client pixel uploads (POST /api/imaging/stretch rejects
+    // them), and a remote client receives already-stretched RGBA from the
+    // host, so there is nothing to route to.
+    throw UnsupportedError(
+      'autoStretchImage is host-local: raw pixel buffers are not transferred '
+      'over the network. Remote clients render the host-stretched RGBA.',
+    );
+  }
+
+  @override
+  Future<void> renderFinishingPreview({
+    required String inputFits,
+    required String outputPng,
+  }) {
+    // Host-local: both the input FITS and the output PNG live on the machine
+    // that owns the finishing artifacts. There is no endpoint to render a
+    // host-side preview on a remote client's behalf.
+    throw UnsupportedError(
+      'renderFinishingPreview is host-local: the finishing FITS and its '
+      'preview PNG live on the host filesystem and cannot be rendered from a '
+      'remote client.',
+    );
+  }
+
   // =========================================================================
   // Polar Alignment
   // =========================================================================

@@ -590,6 +590,58 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'detail_json': sequencerEvent.detailJson,
         },
       );
+    } else if (sequencerEvent is bridge.SequencerEvent_PhotometryFrame) {
+      // Typed science-photometry frame payload. Serialized field-for-field so
+      // the typed variant survives the wire/JSON envelope and the network
+      // backend can rebuild it (see `_sequencerEventFromCore`). The legacy
+      // `InstructionProgress` 'Science Photometry' detail string is emitted
+      // separately by the Rust executor and is unaffected by this branch.
+      return (
+        'PhotometryFrame',
+        {
+          'node_id': sequencerEvent.nodeId,
+          'target_designation': sequencerEvent.targetDesignation,
+          'reference_stars': sequencerEvent.referenceStars,
+          'frame': sequencerEvent.frame,
+          'total': sequencerEvent.total,
+          'filter': sequencerEvent.filter,
+          'exposure_secs': sequencerEvent.exposureSecs,
+          'airmass': sequencerEvent.airmass,
+          'fwhm_arcsec': sequencerEvent.fwhmArcsec,
+          'snr': sequencerEvent.snr,
+          'mjd_obs': sequencerEvent.mjdObs,
+          'frame_start_unix': sequencerEvent.frameStartUnix,
+          'accepted': sequencerEvent.accepted,
+          'reject_reason': sequencerEvent.rejectReason,
+          'reduce_live': sequencerEvent.reduceLive,
+          'apply_differential': sequencerEvent.applyDifferential,
+        },
+      );
+    } else if (sequencerEvent
+        is bridge.SequencerEvent_PhotometryCadenceBroken) {
+      return (
+        'PhotometryCadenceBroken',
+        {
+          'node_id': sequencerEvent.nodeId,
+          'frame': sequencerEvent.frame,
+          'total': sequencerEvent.total,
+          'gap_secs': sequencerEvent.gapSecs,
+          'max_gap_secs': sequencerEvent.maxGapSecs,
+          'cadence_breaks': sequencerEvent.cadenceBreaks,
+        },
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_PhotometrySummary) {
+      return (
+        'PhotometrySummary',
+        {
+          'node_id': sequencerEvent.nodeId,
+          'target_designation': sequencerEvent.targetDesignation,
+          'filter': sequencerEvent.filter,
+          'frames_captured': sequencerEvent.framesCaptured,
+          'cadence_breaks': sequencerEvent.cadenceBreaks,
+          'last_reject_reason': sequencerEvent.lastRejectReason,
+        },
+      );
     } else if (sequencerEvent is bridge.SequencerEvent_RecoveryStarted) {
       return (
         'RecoveryStarted',

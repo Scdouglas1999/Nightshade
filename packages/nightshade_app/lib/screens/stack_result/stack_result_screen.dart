@@ -4,7 +4,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:nightshade_core/nightshade_core.dart';
 // The stacking-engine seam owns the colour STF stretch (the native bridge only
 // exposes the single-channel `apiAutoStretchImage`; its companion
@@ -92,8 +91,9 @@ final stackResultStretchEngineProvider =
 /// violate the project's "no silent fallback" rule.
 enum StackViewerStretch {
   /// STF auto-stretch: the native single-channel STF
-  /// ([bridge.apiAutoStretchImage]) for a mono buffer, or the stacking-engine
-  /// seam's per-channel colour STF for an interleaved-RGB16 buffer.
+  /// ([ImagingBackend.autoStretchImage]) for a mono buffer, or the
+  /// stacking-engine seam's per-channel colour STF for an interleaved-RGB16
+  /// buffer.
   autoStf,
 
   /// Linear min/max normalisation: grayscale for a mono buffer, per-channel
@@ -576,11 +576,11 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
                 channels: 3,
               );
         }
-        return bridge.apiAutoStretchImage(
-          width: result.width,
-          height: result.height,
-          data: buffer,
-        );
+        return ref.read(imagingBackendProvider).autoStretchImage(
+              width: result.width,
+              height: result.height,
+              data: buffer,
+            );
       case StackViewerStretch.linear:
         return channels == 3
             ? _linearColor(buffer, result.width * result.height)

@@ -12,7 +12,7 @@ export '../models/backend/backend_types.dart';
 // Also re-export CameraRecommendedSettings so device service / UI code can
 // stay on the nightshade_backend import path.
 export 'package:nightshade_bridge/nightshade_bridge.dart'
-    show PlateSolveResult, CameraRecommendedSettings;
+    show PlateSolveResult, CameraRecommendedSettings, FitsReadResult;
 
 // Re-export the role interfaces so consumers that want a single import
 // path can write `import '.../nightshade_backend.dart';` and still get

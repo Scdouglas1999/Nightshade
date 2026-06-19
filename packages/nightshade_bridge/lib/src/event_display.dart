@@ -402,6 +402,13 @@ String _sequencerTitle(SequencerEvent v) {
     SequencerEvent_PluginNodeProgress() => 'Plugin node progress',
     // Replay Debug — structured executor decision stream.
     SequencerEvent_DecisionLogged() => 'Decision logged',
+    // Typed Science / photometry payloads. Surfaced as their own
+    // titles so the trigger feed / event log shows the photometry outcome
+    // instead of swallowing them under "Instruction progress".
+    SequencerEvent_PhotometryFrame(accepted: final ok) =>
+      ok ? 'Photometry frame' : 'Photometry frame rejected',
+    SequencerEvent_PhotometryCadenceBroken() => 'Cadence broken',
+    SequencerEvent_PhotometrySummary() => 'Photometry complete',
   };
 }
 
@@ -561,7 +568,62 @@ String _sequencerDetail(SequencerEvent v) {
       sequenceRunId: final runId,
     ) =>
       runId == null ? '$category: $summary' : '$category #$runId: $summary',
+    // Typed Science / photometry payloads. The light-curve panel binds
+    // to the explicit fields directly; these one-line renders feed the
+    // trigger feed / event log so it agrees with the panel wording.
+    SequencerEvent_PhotometryFrame(
+      targetDesignation: final tgt,
+      frame: final f,
+      total: final t,
+      filter: final flt,
+      snr: final snr,
+      fwhmArcsec: final fwhm,
+      accepted: final ok,
+      rejectReason: final reason,
+    ) =>
+      _photometryFrameDetail(tgt, f, t, flt, snr, fwhm, ok, reason),
+    SequencerEvent_PhotometryCadenceBroken(
+      frame: final f,
+      total: final t,
+      gapSecs: final gap,
+      maxGapSecs: final maxGap,
+      cadenceBreaks: final breaks,
+    ) =>
+      'frame $f/$t: ${gap.toStringAsFixed(1)}s gap '
+          '(max ${maxGap.toStringAsFixed(1)}s); break #$breaks',
+    SequencerEvent_PhotometrySummary(
+      targetDesignation: final tgt,
+      filter: final flt,
+      framesCaptured: final frames,
+      cadenceBreaks: final breaks,
+      lastRejectReason: final reason,
+    ) =>
+      '$tgt $flt: $frames frames, $breaks cadence breaks'
+          '${reason != null && reason.isNotEmpty ? ", last reject: $reason" : ""}',
   };
+}
+
+/// Single-line render of a PhotometryFrame event for the trigger feed /
+/// event log. Pulled out of the switch arm because Dart switch-expressions
+/// don't allow statements inside the arm body.
+String _photometryFrameDetail(
+  String target,
+  int frame,
+  int total,
+  String filter,
+  double? snr,
+  double? fwhm,
+  bool accepted,
+  String? rejectReason,
+) {
+  final outcome = accepted
+      ? 'PASS'
+      : (rejectReason != null && rejectReason.isNotEmpty
+            ? 'REJECT ($rejectReason)'
+            : 'REJECT');
+  final snrText = snr != null ? 'SNR ${snr.toStringAsFixed(1)}' : 'SNR —';
+  final fwhmText = fwhm != null ? 'FWHM ${fwhm.toStringAsFixed(2)}"' : 'FWHM —';
+  return '$target frame $frame/$total $filter · $snrText · $fwhmText · $outcome';
 }
 
 /// Single-line render of an IntegrationBudget event. Pulled out

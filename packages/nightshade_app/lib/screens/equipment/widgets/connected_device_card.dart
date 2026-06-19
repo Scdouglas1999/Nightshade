@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_api;
 import '../../../services/mount_command_service.dart';
 import '../../../utils/device_format_utils.dart';
 import '../../../utils/snackbar_helper.dart';

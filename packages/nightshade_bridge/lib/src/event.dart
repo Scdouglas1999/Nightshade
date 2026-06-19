@@ -500,7 +500,7 @@ sealed class SafetyEvent with _$SafetyEvent {
   const factory SafetyEvent.parkCompleted() = SafetyEvent_ParkCompleted;
 }
 
-/// Flat scheduler score row exposed across FRB. Mirrors
+/// flat scheduler score row exposed across FRB. Mirrors
 /// `nightshade_sequencer::node::logic::target_scheduler::SchedulerScoreSummary`
 /// but lives in the bridge crate so we don't have to expose the sequencer
 /// type to FRB. The Dart side consumes this directly in the run-dashboard
@@ -663,7 +663,7 @@ sealed class SequencerEvent with _$SequencerEvent {
     /// Running count of rejected frames for the whole run.
     required int rejectedTotal,
 
-    /// On-disk save path of the accepted frame, so
+    /// on-disk save path of the accepted frame, so
     /// the thumbnail strip can render an inline preview of
     /// accepted frames the same way it already does for rejected
     /// frames via `FrameRejected.reject_path`. `None` for legacy /
@@ -744,7 +744,7 @@ sealed class SequencerEvent with _$SequencerEvent {
     required List<SchedulerScoreEntry> scores,
   }) = SequencerEvent_SchedulerDecision;
 
-  /// Per-target integration budget tick.
+  /// per-target integration budget tick.
   /// Mirrors `ProgressDetail::IntegrationBudget`.
   const factory SequencerEvent.integrationBudget({
     /// The TargetHeader node id this budget belongs to.
@@ -758,7 +758,7 @@ sealed class SequencerEvent with _$SequencerEvent {
     required bool budgetMet,
   }) = SequencerEvent_IntegrationBudget;
 
-  /// Sky-brightness adaptive exposure decision.
+  /// sky-brightness adaptive exposure decision.
   /// Mirrors `ProgressDetail::ExposureAdjusted`. Emitted before every
   /// exposure burst whenever the adapter was consulted (regardless of
   /// whether the duration actually changed), so the Run Dashboard can
@@ -786,6 +786,102 @@ sealed class SequencerEvent with _$SequencerEvent {
     /// `unavailable`, `disabled`, `out_of_nominal_bounds`.
     required String reason,
   }) = SequencerEvent_ExposureAdjusted;
+
+  /// Science: per-frame photometry payload from the
+  /// `SciencePhotometryInstruction`. Mirrors
+  /// `ProgressDetail::PhotometryFrame`. The Dart science pipeline writes a row
+  /// to `photometry_measurements` and updates the live light-curve chart on
+  /// the Run Dashboard.
+  const factory SequencerEvent.photometryFrame({
+    /// Node ID for mapping progress to the correct tree node.
+    required String nodeId,
+
+    /// Resolved target designation (e.g. `"V* DY Peg"`).
+    required String targetDesignation,
+
+    /// Reference / comparison star designations used for differential
+    /// photometry. Empty when differential photometry is disabled.
+    required List<String> referenceStars,
+
+    /// 1-based frame index within the current photometry burst.
+    required int frame,
+    required int total,
+    required String filter,
+    required double exposureSecs,
+
+    /// Airmass at exposure midpoint. `None` when no WCS / pointing was
+    /// available to compute it.
+    double? airmass,
+
+    /// Measured stellar FWHM (arc-seconds). `None` when the frame yielded
+    /// no usable star measurement.
+    double? fwhmArcsec,
+
+    /// Signal-to-noise ratio of the target aperture. `None` when not
+    /// measured.
+    double? snr,
+
+    /// Modified Julian Date at exposure midpoint (FITS `MJD-OBS`).
+    required double mjdObs,
+
+    /// Unix epoch seconds at exposure start.
+    required double frameStartUnix,
+
+    /// True when the frame passed every quality gate
+    /// (`PhotometryFrameVerdict::Pass`).
+    required bool accepted,
+
+    /// Rejection reason when `accepted == false`
+    /// (`PhotometryFrameVerdict::Reject { reason }`); `None` when accepted.
+    String? rejectReason,
+
+    /// True when live reduction was performed for this frame.
+    required bool reduceLive,
+
+    /// True when differential photometry was applied for this frame.
+    required bool applyDifferential,
+  }) = SequencerEvent_PhotometryFrame;
+
+  /// Science: cadence-violation event emitted whenever the inter-frame
+  /// start-to-start gap exceeds the configured ceiling. Mirrors
+  /// `ProgressDetail::PhotometryCadenceBroken`. Surfaced by the dashboard
+  /// photometry panel; does NOT abort the burst.
+  const factory SequencerEvent.photometryCadenceBroken({
+    /// Node ID for mapping progress to the correct tree node.
+    required String nodeId,
+
+    /// 1-based frame index whose start broke the cadence.
+    required int frame,
+    required int total,
+
+    /// Observed start-to-start gap (seconds).
+    required double gapSecs,
+
+    /// Configured maximum allowed gap (seconds).
+    required double maxGapSecs,
+
+    /// Cumulative cadence breaks for the current node run.
+    required int cadenceBreaks,
+  }) = SequencerEvent_PhotometryCadenceBroken;
+
+  /// Science: end-of-burst summary for the photometry node. Mirrors
+  /// `ProgressDetail::PhotometrySummary`.
+  const factory SequencerEvent.photometrySummary({
+    /// Node ID for mapping progress to the correct tree node.
+    required String nodeId,
+    required String targetDesignation,
+    required String filter,
+
+    /// Number of frames captured during the burst (accepted + rejected).
+    required int framesCaptured,
+
+    /// Total cadence breaks observed during the burst.
+    required int cadenceBreaks,
+
+    /// Last rejection reason seen during the burst; `None` when no frame
+    /// was rejected.
+    String? lastRejectReason,
+  }) = SequencerEvent_PhotometrySummary;
 
   /// Recovery Mode: the executor just entered the `Recovering`
   /// state. Subscribers (dashboard banner, audible alert player,
@@ -860,7 +956,7 @@ sealed class SequencerEvent with _$SequencerEvent {
     required bool abortedByUser,
   }) = SequencerEvent_RecoveryGaveUp;
 
-  /// The executor is waiting for the Dart side to
+  /// the executor is waiting for the Dart side to
   /// dispatch a plugin node and reply with the verdict.
   const factory SequencerEvent.pluginNodeRequested({
     /// Executor-side node identifier. The reply MUST echo this.
@@ -886,7 +982,7 @@ sealed class SequencerEvent with _$SequencerEvent {
     required int timeoutSecs,
   }) = SequencerEvent_PluginNodeRequested;
 
-  /// Live plugin-node progress payload. Mirrors
+  /// live plugin-node progress payload. Mirrors
   /// `ProgressDetail::PluginNode`. The JSON detail is serialised as a
   /// string at the bridge boundary because FRB does not transport
   /// `serde_json::Value` directly; Dart parses it with
@@ -953,7 +1049,7 @@ sealed class SystemEvent with _$SystemEvent {
     required String message,
     required String level,
 
-    /// Per-NotificationNode override list of
+    /// per-NotificationNode override list of
     /// NotificationTransportKind names (Dart enum, serialised as strings).
     /// The Dart NotificationRouter consumes this field to bypass the
     /// matrix's `custom` rule and dispatch to the user-picked transports

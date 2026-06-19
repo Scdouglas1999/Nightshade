@@ -14432,6 +14432,74 @@ impl SseDecode for crate::event::SequencerEvent {
                 };
             }
             21 => {
+                let mut var_nodeId = <String>::sse_decode(deserializer);
+                let mut var_targetDesignation = <String>::sse_decode(deserializer);
+                let mut var_referenceStars = <Vec<String>>::sse_decode(deserializer);
+                let mut var_frame = <u32>::sse_decode(deserializer);
+                let mut var_total = <u32>::sse_decode(deserializer);
+                let mut var_filter = <String>::sse_decode(deserializer);
+                let mut var_exposureSecs = <f64>::sse_decode(deserializer);
+                let mut var_airmass = <Option<f64>>::sse_decode(deserializer);
+                let mut var_fwhmArcsec = <Option<f64>>::sse_decode(deserializer);
+                let mut var_snr = <Option<f64>>::sse_decode(deserializer);
+                let mut var_mjdObs = <f64>::sse_decode(deserializer);
+                let mut var_frameStartUnix = <f64>::sse_decode(deserializer);
+                let mut var_accepted = <bool>::sse_decode(deserializer);
+                let mut var_rejectReason = <Option<String>>::sse_decode(deserializer);
+                let mut var_reduceLive = <bool>::sse_decode(deserializer);
+                let mut var_applyDifferential = <bool>::sse_decode(deserializer);
+                return crate::event::SequencerEvent::PhotometryFrame {
+                    node_id: var_nodeId,
+                    target_designation: var_targetDesignation,
+                    reference_stars: var_referenceStars,
+                    frame: var_frame,
+                    total: var_total,
+                    filter: var_filter,
+                    exposure_secs: var_exposureSecs,
+                    airmass: var_airmass,
+                    fwhm_arcsec: var_fwhmArcsec,
+                    snr: var_snr,
+                    mjd_obs: var_mjdObs,
+                    frame_start_unix: var_frameStartUnix,
+                    accepted: var_accepted,
+                    reject_reason: var_rejectReason,
+                    reduce_live: var_reduceLive,
+                    apply_differential: var_applyDifferential,
+                };
+            }
+            22 => {
+                let mut var_nodeId = <String>::sse_decode(deserializer);
+                let mut var_frame = <u32>::sse_decode(deserializer);
+                let mut var_total = <u32>::sse_decode(deserializer);
+                let mut var_gapSecs = <f64>::sse_decode(deserializer);
+                let mut var_maxGapSecs = <f64>::sse_decode(deserializer);
+                let mut var_cadenceBreaks = <u32>::sse_decode(deserializer);
+                return crate::event::SequencerEvent::PhotometryCadenceBroken {
+                    node_id: var_nodeId,
+                    frame: var_frame,
+                    total: var_total,
+                    gap_secs: var_gapSecs,
+                    max_gap_secs: var_maxGapSecs,
+                    cadence_breaks: var_cadenceBreaks,
+                };
+            }
+            23 => {
+                let mut var_nodeId = <String>::sse_decode(deserializer);
+                let mut var_targetDesignation = <String>::sse_decode(deserializer);
+                let mut var_filter = <String>::sse_decode(deserializer);
+                let mut var_framesCaptured = <u32>::sse_decode(deserializer);
+                let mut var_cadenceBreaks = <u32>::sse_decode(deserializer);
+                let mut var_lastRejectReason = <Option<String>>::sse_decode(deserializer);
+                return crate::event::SequencerEvent::PhotometrySummary {
+                    node_id: var_nodeId,
+                    target_designation: var_targetDesignation,
+                    filter: var_filter,
+                    frames_captured: var_framesCaptured,
+                    cadence_breaks: var_cadenceBreaks,
+                    last_reject_reason: var_lastRejectReason,
+                };
+            }
+            24 => {
                 let mut var_startedAtIso = <String>::sse_decode(deserializer);
                 let mut var_causeKind = <String>::sse_decode(deserializer);
                 let mut var_causeCustomLabel = <Option<String>>::sse_decode(deserializer);
@@ -14455,7 +14523,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     last_error: var_lastError,
                 };
             }
-            22 => {
+            25 => {
                 let mut var_startedAtIso = <String>::sse_decode(deserializer);
                 let mut var_causeKind = <String>::sse_decode(deserializer);
                 let mut var_causeCustomLabel = <Option<String>>::sse_decode(deserializer);
@@ -14479,7 +14547,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     last_error: var_lastError,
                 };
             }
-            23 => {
+            26 => {
                 let mut var_startedAtIso = <String>::sse_decode(deserializer);
                 let mut var_causeKind = <String>::sse_decode(deserializer);
                 let mut var_causeCustomLabel = <Option<String>>::sse_decode(deserializer);
@@ -14503,7 +14571,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     last_error: var_lastError,
                 };
             }
-            24 => {
+            27 => {
                 let mut var_startedAtIso = <String>::sse_decode(deserializer);
                 let mut var_causeKind = <String>::sse_decode(deserializer);
                 let mut var_causeCustomLabel = <Option<String>>::sse_decode(deserializer);
@@ -14529,7 +14597,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     aborted_by_user: var_abortedByUser,
                 };
             }
-            25 => {
+            28 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_pluginId = <String>::sse_decode(deserializer);
                 let mut var_nodeTypeId = <String>::sse_decode(deserializer);
@@ -14545,7 +14613,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     timeout_secs: var_timeoutSecs,
                 };
             }
-            26 => {
+            29 => {
                 let mut var_nodeId = <String>::sse_decode(deserializer);
                 let mut var_pluginId = <String>::sse_decode(deserializer);
                 let mut var_nodeTypeId = <String>::sse_decode(deserializer);
@@ -14557,7 +14625,7 @@ impl SseDecode for crate::event::SequencerEvent {
                     detail_json: var_detailJson,
                 };
             }
-            27 => {
+            30 => {
                 let mut var_timestampIso = <String>::sse_decode(deserializer);
                 let mut var_category = <String>::sse_decode(deserializer);
                 let mut var_summary = <String>::sse_decode(deserializer);
@@ -18223,6 +18291,77 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 reason.into_into_dart().into_dart(),
             ]
             .into_dart(),
+            crate::event::SequencerEvent::PhotometryFrame {
+                node_id,
+                target_designation,
+                reference_stars,
+                frame,
+                total,
+                filter,
+                exposure_secs,
+                airmass,
+                fwhm_arcsec,
+                snr,
+                mjd_obs,
+                frame_start_unix,
+                accepted,
+                reject_reason,
+                reduce_live,
+                apply_differential,
+            } => [
+                21.into_dart(),
+                node_id.into_into_dart().into_dart(),
+                target_designation.into_into_dart().into_dart(),
+                reference_stars.into_into_dart().into_dart(),
+                frame.into_into_dart().into_dart(),
+                total.into_into_dart().into_dart(),
+                filter.into_into_dart().into_dart(),
+                exposure_secs.into_into_dart().into_dart(),
+                airmass.into_into_dart().into_dart(),
+                fwhm_arcsec.into_into_dart().into_dart(),
+                snr.into_into_dart().into_dart(),
+                mjd_obs.into_into_dart().into_dart(),
+                frame_start_unix.into_into_dart().into_dart(),
+                accepted.into_into_dart().into_dart(),
+                reject_reason.into_into_dart().into_dart(),
+                reduce_live.into_into_dart().into_dart(),
+                apply_differential.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            crate::event::SequencerEvent::PhotometryCadenceBroken {
+                node_id,
+                frame,
+                total,
+                gap_secs,
+                max_gap_secs,
+                cadence_breaks,
+            } => [
+                22.into_dart(),
+                node_id.into_into_dart().into_dart(),
+                frame.into_into_dart().into_dart(),
+                total.into_into_dart().into_dart(),
+                gap_secs.into_into_dart().into_dart(),
+                max_gap_secs.into_into_dart().into_dart(),
+                cadence_breaks.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            crate::event::SequencerEvent::PhotometrySummary {
+                node_id,
+                target_designation,
+                filter,
+                frames_captured,
+                cadence_breaks,
+                last_reject_reason,
+            } => [
+                23.into_dart(),
+                node_id.into_into_dart().into_dart(),
+                target_designation.into_into_dart().into_dart(),
+                filter.into_into_dart().into_dart(),
+                frames_captured.into_into_dart().into_dart(),
+                cadence_breaks.into_into_dart().into_dart(),
+                last_reject_reason.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
             crate::event::SequencerEvent::RecoveryStarted {
                 started_at_iso,
                 cause_kind,
@@ -18235,7 +18374,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 phase,
                 last_error,
             } => [
-                21.into_dart(),
+                24.into_dart(),
                 started_at_iso.into_into_dart().into_dart(),
                 cause_kind.into_into_dart().into_dart(),
                 cause_custom_label.into_into_dart().into_dart(),
@@ -18260,7 +18399,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 phase,
                 last_error,
             } => [
-                22.into_dart(),
+                25.into_dart(),
                 started_at_iso.into_into_dart().into_dart(),
                 cause_kind.into_into_dart().into_dart(),
                 cause_custom_label.into_into_dart().into_dart(),
@@ -18285,7 +18424,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 phase,
                 last_error,
             } => [
-                23.into_dart(),
+                26.into_dart(),
                 started_at_iso.into_into_dart().into_dart(),
                 cause_kind.into_into_dart().into_dart(),
                 cause_custom_label.into_into_dart().into_dart(),
@@ -18311,7 +18450,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 last_error,
                 aborted_by_user,
             } => [
-                24.into_dart(),
+                27.into_dart(),
                 started_at_iso.into_into_dart().into_dart(),
                 cause_kind.into_into_dart().into_dart(),
                 cause_custom_label.into_into_dart().into_dart(),
@@ -18333,7 +18472,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 display_name,
                 timeout_secs,
             } => [
-                25.into_dart(),
+                28.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 plugin_id.into_into_dart().into_dart(),
                 node_type_id.into_into_dart().into_dart(),
@@ -18348,7 +18487,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 node_type_id,
                 detail_json,
             } => [
-                26.into_dart(),
+                29.into_dart(),
                 node_id.into_into_dart().into_dart(),
                 plugin_id.into_into_dart().into_dart(),
                 node_type_id.into_into_dart().into_dart(),
@@ -18363,7 +18502,7 @@ impl flutter_rust_bridge::IntoDart for crate::event::SequencerEvent {
                 node_id,
                 sequence_run_id,
             } => [
-                27.into_dart(),
+                30.into_dart(),
                 timestamp_iso.into_into_dart().into_dart(),
                 category.into_into_dart().into_dart(),
                 summary.into_into_dart().into_dart(),
@@ -21884,6 +22023,74 @@ impl SseEncode for crate::event::SequencerEvent {
                 <Option<String>>::sse_encode(filter, serializer);
                 <String>::sse_encode(reason, serializer);
             }
+            crate::event::SequencerEvent::PhotometryFrame {
+                node_id,
+                target_designation,
+                reference_stars,
+                frame,
+                total,
+                filter,
+                exposure_secs,
+                airmass,
+                fwhm_arcsec,
+                snr,
+                mjd_obs,
+                frame_start_unix,
+                accepted,
+                reject_reason,
+                reduce_live,
+                apply_differential,
+            } => {
+                <i32>::sse_encode(21, serializer);
+                <String>::sse_encode(node_id, serializer);
+                <String>::sse_encode(target_designation, serializer);
+                <Vec<String>>::sse_encode(reference_stars, serializer);
+                <u32>::sse_encode(frame, serializer);
+                <u32>::sse_encode(total, serializer);
+                <String>::sse_encode(filter, serializer);
+                <f64>::sse_encode(exposure_secs, serializer);
+                <Option<f64>>::sse_encode(airmass, serializer);
+                <Option<f64>>::sse_encode(fwhm_arcsec, serializer);
+                <Option<f64>>::sse_encode(snr, serializer);
+                <f64>::sse_encode(mjd_obs, serializer);
+                <f64>::sse_encode(frame_start_unix, serializer);
+                <bool>::sse_encode(accepted, serializer);
+                <Option<String>>::sse_encode(reject_reason, serializer);
+                <bool>::sse_encode(reduce_live, serializer);
+                <bool>::sse_encode(apply_differential, serializer);
+            }
+            crate::event::SequencerEvent::PhotometryCadenceBroken {
+                node_id,
+                frame,
+                total,
+                gap_secs,
+                max_gap_secs,
+                cadence_breaks,
+            } => {
+                <i32>::sse_encode(22, serializer);
+                <String>::sse_encode(node_id, serializer);
+                <u32>::sse_encode(frame, serializer);
+                <u32>::sse_encode(total, serializer);
+                <f64>::sse_encode(gap_secs, serializer);
+                <f64>::sse_encode(max_gap_secs, serializer);
+                <u32>::sse_encode(cadence_breaks, serializer);
+            }
+            crate::event::SequencerEvent::PhotometrySummary {
+                node_id,
+                target_designation,
+                filter,
+                frames_captured,
+                cadence_breaks,
+                last_reject_reason,
+            } => {
+                <i32>::sse_encode(23, serializer);
+                <String>::sse_encode(node_id, serializer);
+                <String>::sse_encode(target_designation, serializer);
+                <String>::sse_encode(filter, serializer);
+                <u32>::sse_encode(frames_captured, serializer);
+                <u32>::sse_encode(cadence_breaks, serializer);
+                <Option<String>>::sse_encode(last_reject_reason, serializer);
+            }
             crate::event::SequencerEvent::RecoveryStarted {
                 started_at_iso,
                 cause_kind,
@@ -21896,7 +22103,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 phase,
                 last_error,
             } => {
-                <i32>::sse_encode(21, serializer);
+                <i32>::sse_encode(24, serializer);
                 <String>::sse_encode(started_at_iso, serializer);
                 <String>::sse_encode(cause_kind, serializer);
                 <Option<String>>::sse_encode(cause_custom_label, serializer);
@@ -21920,7 +22127,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 phase,
                 last_error,
             } => {
-                <i32>::sse_encode(22, serializer);
+                <i32>::sse_encode(25, serializer);
                 <String>::sse_encode(started_at_iso, serializer);
                 <String>::sse_encode(cause_kind, serializer);
                 <Option<String>>::sse_encode(cause_custom_label, serializer);
@@ -21944,7 +22151,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 phase,
                 last_error,
             } => {
-                <i32>::sse_encode(23, serializer);
+                <i32>::sse_encode(26, serializer);
                 <String>::sse_encode(started_at_iso, serializer);
                 <String>::sse_encode(cause_kind, serializer);
                 <Option<String>>::sse_encode(cause_custom_label, serializer);
@@ -21969,7 +22176,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 last_error,
                 aborted_by_user,
             } => {
-                <i32>::sse_encode(24, serializer);
+                <i32>::sse_encode(27, serializer);
                 <String>::sse_encode(started_at_iso, serializer);
                 <String>::sse_encode(cause_kind, serializer);
                 <Option<String>>::sse_encode(cause_custom_label, serializer);
@@ -21990,7 +22197,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 display_name,
                 timeout_secs,
             } => {
-                <i32>::sse_encode(25, serializer);
+                <i32>::sse_encode(28, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <String>::sse_encode(plugin_id, serializer);
                 <String>::sse_encode(node_type_id, serializer);
@@ -22004,7 +22211,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 node_type_id,
                 detail_json,
             } => {
-                <i32>::sse_encode(26, serializer);
+                <i32>::sse_encode(29, serializer);
                 <String>::sse_encode(node_id, serializer);
                 <String>::sse_encode(plugin_id, serializer);
                 <String>::sse_encode(node_type_id, serializer);
@@ -22018,7 +22225,7 @@ impl SseEncode for crate::event::SequencerEvent {
                 node_id,
                 sequence_run_id,
             } => {
-                <i32>::sse_encode(27, serializer);
+                <i32>::sse_encode(30, serializer);
                 <String>::sse_encode(timestamp_iso, serializer);
                 <String>::sse_encode(category, serializer);
                 <String>::sse_encode(summary, serializer);
@@ -25251,6 +25458,49 @@ mod io {
                     }
                 }
                 21 => {
+                    let ans = unsafe { self.kind.PhotometryFrame };
+                    crate::event::SequencerEvent::PhotometryFrame {
+                        node_id: ans.node_id.cst_decode(),
+                        target_designation: ans.target_designation.cst_decode(),
+                        reference_stars: ans.reference_stars.cst_decode(),
+                        frame: ans.frame.cst_decode(),
+                        total: ans.total.cst_decode(),
+                        filter: ans.filter.cst_decode(),
+                        exposure_secs: ans.exposure_secs.cst_decode(),
+                        airmass: ans.airmass.cst_decode(),
+                        fwhm_arcsec: ans.fwhm_arcsec.cst_decode(),
+                        snr: ans.snr.cst_decode(),
+                        mjd_obs: ans.mjd_obs.cst_decode(),
+                        frame_start_unix: ans.frame_start_unix.cst_decode(),
+                        accepted: ans.accepted.cst_decode(),
+                        reject_reason: ans.reject_reason.cst_decode(),
+                        reduce_live: ans.reduce_live.cst_decode(),
+                        apply_differential: ans.apply_differential.cst_decode(),
+                    }
+                }
+                22 => {
+                    let ans = unsafe { self.kind.PhotometryCadenceBroken };
+                    crate::event::SequencerEvent::PhotometryCadenceBroken {
+                        node_id: ans.node_id.cst_decode(),
+                        frame: ans.frame.cst_decode(),
+                        total: ans.total.cst_decode(),
+                        gap_secs: ans.gap_secs.cst_decode(),
+                        max_gap_secs: ans.max_gap_secs.cst_decode(),
+                        cadence_breaks: ans.cadence_breaks.cst_decode(),
+                    }
+                }
+                23 => {
+                    let ans = unsafe { self.kind.PhotometrySummary };
+                    crate::event::SequencerEvent::PhotometrySummary {
+                        node_id: ans.node_id.cst_decode(),
+                        target_designation: ans.target_designation.cst_decode(),
+                        filter: ans.filter.cst_decode(),
+                        frames_captured: ans.frames_captured.cst_decode(),
+                        cadence_breaks: ans.cadence_breaks.cst_decode(),
+                        last_reject_reason: ans.last_reject_reason.cst_decode(),
+                    }
+                }
+                24 => {
                     let ans = unsafe { self.kind.RecoveryStarted };
                     crate::event::SequencerEvent::RecoveryStarted {
                         started_at_iso: ans.started_at_iso.cst_decode(),
@@ -25265,7 +25515,7 @@ mod io {
                         last_error: ans.last_error.cst_decode(),
                     }
                 }
-                22 => {
+                25 => {
                     let ans = unsafe { self.kind.RecoveryProgress };
                     crate::event::SequencerEvent::RecoveryProgress {
                         started_at_iso: ans.started_at_iso.cst_decode(),
@@ -25280,7 +25530,7 @@ mod io {
                         last_error: ans.last_error.cst_decode(),
                     }
                 }
-                23 => {
+                26 => {
                     let ans = unsafe { self.kind.RecoveryCompleted };
                     crate::event::SequencerEvent::RecoveryCompleted {
                         started_at_iso: ans.started_at_iso.cst_decode(),
@@ -25295,7 +25545,7 @@ mod io {
                         last_error: ans.last_error.cst_decode(),
                     }
                 }
-                24 => {
+                27 => {
                     let ans = unsafe { self.kind.RecoveryGaveUp };
                     crate::event::SequencerEvent::RecoveryGaveUp {
                         started_at_iso: ans.started_at_iso.cst_decode(),
@@ -25311,7 +25561,7 @@ mod io {
                         aborted_by_user: ans.aborted_by_user.cst_decode(),
                     }
                 }
-                25 => {
+                28 => {
                     let ans = unsafe { self.kind.PluginNodeRequested };
                     crate::event::SequencerEvent::PluginNodeRequested {
                         node_id: ans.node_id.cst_decode(),
@@ -25322,7 +25572,7 @@ mod io {
                         timeout_secs: ans.timeout_secs.cst_decode(),
                     }
                 }
-                26 => {
+                29 => {
                     let ans = unsafe { self.kind.PluginNodeProgress };
                     crate::event::SequencerEvent::PluginNodeProgress {
                         node_id: ans.node_id.cst_decode(),
@@ -25331,7 +25581,7 @@ mod io {
                         detail_json: ans.detail_json.cst_decode(),
                     }
                 }
-                27 => {
+                30 => {
                     let ans = unsafe { self.kind.DecisionLogged };
                     crate::event::SequencerEvent::DecisionLogged {
                         timestamp_iso: ans.timestamp_iso.cst_decode(),
@@ -34004,6 +34254,9 @@ mod io {
         SchedulerDecision: wire_cst_SequencerEvent_SchedulerDecision,
         IntegrationBudget: wire_cst_SequencerEvent_IntegrationBudget,
         ExposureAdjusted: wire_cst_SequencerEvent_ExposureAdjusted,
+        PhotometryFrame: wire_cst_SequencerEvent_PhotometryFrame,
+        PhotometryCadenceBroken: wire_cst_SequencerEvent_PhotometryCadenceBroken,
+        PhotometrySummary: wire_cst_SequencerEvent_PhotometrySummary,
         RecoveryStarted: wire_cst_SequencerEvent_RecoveryStarted,
         RecoveryProgress: wire_cst_SequencerEvent_RecoveryProgress,
         RecoveryCompleted: wire_cst_SequencerEvent_RecoveryCompleted,
@@ -34156,6 +34409,46 @@ mod io {
         sky_brightness_mag: *mut f64,
         filter: *mut wire_cst_list_prim_u_8_strict,
         reason: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_SequencerEvent_PhotometryFrame {
+        node_id: *mut wire_cst_list_prim_u_8_strict,
+        target_designation: *mut wire_cst_list_prim_u_8_strict,
+        reference_stars: *mut wire_cst_list_String,
+        frame: u32,
+        total: u32,
+        filter: *mut wire_cst_list_prim_u_8_strict,
+        exposure_secs: f64,
+        airmass: *mut f64,
+        fwhm_arcsec: *mut f64,
+        snr: *mut f64,
+        mjd_obs: f64,
+        frame_start_unix: f64,
+        accepted: bool,
+        reject_reason: *mut wire_cst_list_prim_u_8_strict,
+        reduce_live: bool,
+        apply_differential: bool,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_SequencerEvent_PhotometryCadenceBroken {
+        node_id: *mut wire_cst_list_prim_u_8_strict,
+        frame: u32,
+        total: u32,
+        gap_secs: f64,
+        max_gap_secs: f64,
+        cadence_breaks: u32,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_SequencerEvent_PhotometrySummary {
+        node_id: *mut wire_cst_list_prim_u_8_strict,
+        target_designation: *mut wire_cst_list_prim_u_8_strict,
+        filter: *mut wire_cst_list_prim_u_8_strict,
+        frames_captured: u32,
+        cadence_breaks: u32,
+        last_reject_reason: *mut wire_cst_list_prim_u_8_strict,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]

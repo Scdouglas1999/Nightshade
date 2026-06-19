@@ -982,6 +982,43 @@ typedef struct wire_cst_SequencerEvent_ExposureAdjusted {
   struct wire_cst_list_prim_u_8_strict *reason;
 } wire_cst_SequencerEvent_ExposureAdjusted;
 
+typedef struct wire_cst_SequencerEvent_PhotometryFrame {
+  struct wire_cst_list_prim_u_8_strict *node_id;
+  struct wire_cst_list_prim_u_8_strict *target_designation;
+  struct wire_cst_list_String *reference_stars;
+  uint32_t frame;
+  uint32_t total;
+  struct wire_cst_list_prim_u_8_strict *filter;
+  double exposure_secs;
+  double *airmass;
+  double *fwhm_arcsec;
+  double *snr;
+  double mjd_obs;
+  double frame_start_unix;
+  bool accepted;
+  struct wire_cst_list_prim_u_8_strict *reject_reason;
+  bool reduce_live;
+  bool apply_differential;
+} wire_cst_SequencerEvent_PhotometryFrame;
+
+typedef struct wire_cst_SequencerEvent_PhotometryCadenceBroken {
+  struct wire_cst_list_prim_u_8_strict *node_id;
+  uint32_t frame;
+  uint32_t total;
+  double gap_secs;
+  double max_gap_secs;
+  uint32_t cadence_breaks;
+} wire_cst_SequencerEvent_PhotometryCadenceBroken;
+
+typedef struct wire_cst_SequencerEvent_PhotometrySummary {
+  struct wire_cst_list_prim_u_8_strict *node_id;
+  struct wire_cst_list_prim_u_8_strict *target_designation;
+  struct wire_cst_list_prim_u_8_strict *filter;
+  uint32_t frames_captured;
+  uint32_t cadence_breaks;
+  struct wire_cst_list_prim_u_8_strict *last_reject_reason;
+} wire_cst_SequencerEvent_PhotometrySummary;
+
 typedef struct wire_cst_SequencerEvent_RecoveryStarted {
   struct wire_cst_list_prim_u_8_strict *started_at_iso;
   struct wire_cst_list_prim_u_8_strict *cause_kind;
@@ -1078,6 +1115,9 @@ typedef union SequencerEventKind {
   struct wire_cst_SequencerEvent_SchedulerDecision SchedulerDecision;
   struct wire_cst_SequencerEvent_IntegrationBudget IntegrationBudget;
   struct wire_cst_SequencerEvent_ExposureAdjusted ExposureAdjusted;
+  struct wire_cst_SequencerEvent_PhotometryFrame PhotometryFrame;
+  struct wire_cst_SequencerEvent_PhotometryCadenceBroken PhotometryCadenceBroken;
+  struct wire_cst_SequencerEvent_PhotometrySummary PhotometrySummary;
   struct wire_cst_SequencerEvent_RecoveryStarted RecoveryStarted;
   struct wire_cst_SequencerEvent_RecoveryProgress RecoveryProgress;
   struct wire_cst_SequencerEvent_RecoveryCompleted RecoveryCompleted;

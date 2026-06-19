@@ -1,16 +1,14 @@
 /// Declarative route-table primitives for the headless API.
 ///
-/// The headless server currently still registers HTTP routes inline by
-/// calling `router.get/post/put/delete(...)` inside `start()`. This
-/// module is the typed foundation a follow-up step will build on: each
-/// per-domain route file will expose a top-level
-/// `List<HeadlessRoute> buildXxxRoutes(handler refs)` function, and
-/// `HeadlessApiServer.start()` will concatenate them all and call
-/// [registerRoutes] which iterates and invokes the appropriate
-/// `router.<verb>(...)` for each entry. Until that conversion lands,
-/// [HeadlessRoute] is unused at runtime — checked in so the type, the
-/// dispatch walker, and the design-decision rationale below are in
-/// review and ready to consume.
+/// The headless server registers every HTTP route through this typed
+/// table. Each per-domain route file exposes a top-level
+/// `List<HeadlessRoute> buildXxxRoutes(handler refs)` function;
+/// `server_lifecycle.dart` concatenates them all into a single
+/// `allRoutes` list and calls [registerRoutes], which iterates the list
+/// and invokes the appropriate `router.<verb>(...)` for each entry. As a
+/// result [HeadlessRoute] is the single source of truth for the routing
+/// table at runtime — there is no inline `router.get/post/...` wiring in
+/// `start()` anymore.
 ///
 /// Design choices baked in here:
 ///   * `List<HeadlessRoute>` over `Map<(method,path), handler>`. The

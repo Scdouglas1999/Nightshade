@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -11,7 +10,7 @@ import 'device_picker_step.dart';
 ///
 /// Most users guide with PHD2 over its TCP socket (default 4400), so
 /// alongside the device picker we expose a dedicated host:port field
-/// with a "Test connection" button that runs [bridge.checkPhd2Running]
+/// with a "Test connection" button that runs [GuidingBackend.isPhd2Running]
 /// — a real socket probe, not a stub. Native guiders (camera-tracked
 /// stars without PHD2) still show up in the picker.
 class OnboardingGuiderStep extends ConsumerStatefulWidget {
@@ -77,7 +76,9 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
       return;
     }
     try {
-      final running = await bridge.checkPhd2Running(host: host, port: port);
+      final running = await ref
+          .read(guidingBackendProvider)
+          .isPhd2Running(host: host, port: port);
       if (!mounted) return;
       setState(() {
         _testing = false;

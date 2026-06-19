@@ -1,9 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_api;
 
 import '../backend/nightshade_backend.dart';
-import '../backend/network_backend.dart';
 import '../models/equipment/equipment_models.dart';
 import '../providers/backend_provider.dart';
 import '../providers/equipment/cover_calibrator_state_provider.dart';
@@ -234,18 +232,13 @@ class SafeRigService {
 
   /// Issue the dome-shutter close command against [deviceId].
   ///
-  /// Routed through the active backend: a [NetworkBackend] forwards to the
-  /// imaging host's `dome/close` endpoint; the local FFI backend calls the
-  /// Rust bridge directly (the dome/cover close operations are not part of the
-  /// role interface, so this mirrors the established `command_handlers.dart`
-  /// dispatch). `@visibleForTesting` so unit tests can record the call without
-  /// a live bridge.
+  /// Routed through the active backend's [DeviceBackend] role: the network
+  /// backend forwards to the imaging host's `dome/close` endpoint; the local
+  /// FFI backend calls the Rust bridge. `@visibleForTesting` so unit tests can
+  /// record the call without a live bridge.
   @visibleForTesting
   Future<void> closeDomeShutter(NightshadeBackend backend, String deviceId) {
-    if (backend is NetworkBackend) {
-      return backend.domeClose();
-    }
-    return bridge_api.apiDomeCloseShutter(deviceId: deviceId);
+    return backend.domeCloseShutter(deviceId);
   }
 
   /// Issue the cover close command against [deviceId]. See [closeDomeShutter].
@@ -254,10 +247,7 @@ class SafeRigService {
     NightshadeBackend backend,
     String deviceId,
   ) {
-    if (backend is NetworkBackend) {
-      return backend.coverClose();
-    }
-    return bridge_api.apiCoverCalibratorCloseCover(deviceId: deviceId);
+    return backend.coverClose(deviceId);
   }
 
   void _emitNotification(String reason, SafeRigResult result) {

@@ -11,17 +11,24 @@
 //
 // The panel mounts only when a SciencePhotometryNode has executed at
 // least one frame in the current run. Visibility is driven by a small
-// notifier (`lightCurveActivityProvider`) that listens to the executor's
-// InstructionProgress stream and remembers the last Science Photometry
-// target / filter / cadence-break counter.
+// notifier (`lightCurveActivityProvider`) that watches the typed run-event
+// stream and binds the photometry SequencerEvent variants
+// (PhotometryFrame / PhotometryCadenceBroken / PhotometrySummary) to remember
+// the last Science Photometry target / filter / cadence-break counter.
 
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+// The typed `NightshadeEvent` union (and its `EventPayload_*` arms) carries the
+// photometry SequencerEvent variants this panel binds to. It collides by name
+// with the wire/JSON event model the barrel above keeps canonical, so it is
+// imported from the core's dedicated typed-event seam under the `ns_events`
+// prefix. The non-colliding `EventPayload_Sequencer` arm is reachable
+// unprefixed off the barrel.
+import 'package:nightshade_core/nightshade_core_events.dart' as ns_events;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 class LightCurvePanel extends ConsumerWidget {
@@ -450,122 +457,98 @@ class LightCurveActivity {
   static const empty = LightCurveActivity();
 }
 
-/// Subscribes to the executor event stream and observes the
-/// `InstructionProgress` payload from the Science Photometry node. The
-/// Rust side stringifies `ProgressDetail::PhotometryFrame` /
-/// `PhotometryCadenceBroken` / `PhotometrySummary` via
-/// `ProgressDetail::detail_text()`; we only need the target name +
-/// filter + cadence-break counter (the chart proper subscribes to the
-/// Drift-backed `sessionPhotometryProvider`).
+/// Subscribes to the typed run-event stream ([nightshadeEventsProvider]) and
+/// observes the photometry [ns_events.SequencerEvent] variants emitted by the
+/// Science Photometry node: `PhotometryFrame`, `PhotometryCadenceBroken`, and
+/// `PhotometrySummary`. Every field this panel needs — target designation,
+/// filter, and the authoritative cadence-break counter — survives the FRB
+/// boundary as typed data, so there is no detail-string parsing here. The chart
+/// proper subscribes separately to the Drift-backed `sessionPhotometryProvider`
+/// for the actual measurements.
 class _LightCurveActivityNotifier extends StateNotifier<LightCurveActivity> {
   _LightCurveActivityNotifier(this._ref) : super(LightCurveActivity.empty) {
     _wire();
   }
 
   final Ref _ref;
-  StreamSubscription<NightshadeEvent>? _subscription;
-  ProviderSubscription<DiagnosticsBackend>? _backendSubscription;
+  ProviderSubscription<AsyncValue<ns_events.NightshadeEvent>>? _subscription;
 
   void _wire() {
-    void resubscribe(DiagnosticsBackend backend) {
-      _subscription?.cancel();
-      _subscription = backend.eventStream.listen(_onEvent);
-    }
-
-    resubscribe(_ref.read(diagnosticsBackendProvider));
-    _backendSubscription =
-        _ref.listen<DiagnosticsBackend>(diagnosticsBackendProvider, (_, next) {
-      resubscribe(next);
-    });
+    // Listening to the typed StreamProvider keeps us aligned with the
+    // sibling Run Dashboard panels (scheduler / trigger feed) that read the
+    // same typed surface, and it transparently follows backend swaps
+    // (FFI <-> network) without manual resubscription.
+    _subscription = _ref.listen<AsyncValue<ns_events.NightshadeEvent>>(
+      nightshadeEventsProvider,
+      (_, next) => next.whenData(_onEvent),
+    );
   }
 
-  void _onEvent(NightshadeEvent event) {
-    if (event.category != EventCategory.sequencer) return;
-    if (event.eventType == 'Started') {
-      // New run — reset state so a fresh sequence doesn't render the
-      // previous run's curve.
+  void _onEvent(ns_events.NightshadeEvent event) {
+    final payload = event.payload;
+    if (payload is! EventPayload_Sequencer) return;
+    final sequencer = payload.field0;
+
+    // Match on the concrete variant classes re-exported through the core seam.
+    // (The freezed `whenOrNull` pattern helpers live in an extension the seam
+    // does not re-export, so we destructure the variants directly.) Each branch
+    // reads typed fields straight off the variant — no detail-string parsing.
+
+    if (sequencer is SequencerEvent_Started) {
+      // New run — reset state so a fresh sequence doesn't render the previous
+      // run's curve.
       state = LightCurveActivity.empty;
       return;
     }
-    if (event.eventType != 'InstructionProgress') return;
 
-    final instruction = event.data['instruction'] is String
-        ? event.data['instruction'] as String
-        : null;
-    if (instruction != 'Science Photometry') return;
-    final detail = event.data['detail'];
-    if (detail is! String) return;
-
-    // The detail string formats are emitted by
-    // `ProgressDetail::detail_text()` (Rust). We parse just the bits we
-    // need; the Drift-backed light curve provider is the authoritative
-    // source for actual measurements.
-    //   PhotometryFrame: "<target> frame <n>/<total> <filter> | snr=... fwhm=...\" airmass=... PASS"
-    //   PhotometryCadenceBroken: "Cadence broken at frame <n>/<total>: <gap>s gap (max <max>s); break #<count>"
-    //   PhotometrySummary:        "<target> <filter> burst complete: <n> frames, <breaks> cadence breaks..."
-
-    if (detail.startsWith('Cadence broken')) {
-      // Extract `break #N` so the visible counter stays in sync with
-      // the executor's authoritative break count.
-      final breakIdx = detail.lastIndexOf('break #');
-      int? newCount;
-      if (breakIdx >= 0) {
-        final tail = detail.substring(breakIdx + 'break #'.length);
-        newCount = int.tryParse(tail.trim());
-      }
-      state = state.copyWith(
-        cadenceBreaks: newCount ?? state.cadenceBreaks + 1,
-        lastFrameAt: DateTime.now(),
-      );
-      return;
-    }
-
-    if (detail.contains('burst complete')) {
-      // Summary line — keep the activity surface live (panel still
-      // visible) but bump the frame count if it parses cleanly.
+    if (sequencer is SequencerEvent_PhotometryFrame) {
+      // Graceful fallback: an empty designation / filter on the wire keeps the
+      // previously-observed value rather than clobbering it with a blank.
+      final target = sequencer.targetDesignation.trim();
+      final filter = sequencer.filter.trim();
       state = state.copyWith(
         hasSeenPhotometry: true,
+        lastTargetDesignation:
+            target.isEmpty ? state.lastTargetDesignation : target,
+        lastFilter: filter.isEmpty ? state.lastFilter : filter,
+        framesCaptured: state.framesCaptured + 1,
         lastFrameAt: DateTime.now(),
       );
       return;
     }
 
-    // PhotometryFrame fast path: split on " frame " to recover the
-    // target designation, then the trailing token before " | " is the
-    // filter. We deliberately do not parse SNR / FWHM / airmass — the
-    // chart's authoritative values come from the DB row.
-    final frameIdx = detail.indexOf(' frame ');
-    if (frameIdx <= 0) return;
-    final target = detail.substring(0, frameIdx).trim();
-
-    // Filter token: between the "<n>/<total> " counter and " | ".
-    String? filter;
-    final pipeIdx = detail.indexOf(' | ');
-    if (pipeIdx > frameIdx) {
-      // e.g. "M31 frame 12/60 V | snr=..."
-      // Slice between the counter end (last space before " | ") and " | "
-      final beforePipe = detail.substring(0, pipeIdx);
-      final lastSpace = beforePipe.lastIndexOf(' ');
-      if (lastSpace > frameIdx) {
-        filter = beforePipe.substring(lastSpace + 1).trim();
-        if (filter.isEmpty) filter = null;
-      }
+    if (sequencer is SequencerEvent_PhotometryCadenceBroken) {
+      // `cadenceBreaks` is the executor's authoritative running count, so we
+      // assign it directly rather than incrementing locally.
+      state = state.copyWith(
+        cadenceBreaks: sequencer.cadenceBreaks,
+        lastFrameAt: DateTime.now(),
+      );
+      return;
     }
 
-    state = state.copyWith(
-      hasSeenPhotometry: true,
-      lastTargetDesignation:
-          target.isEmpty ? state.lastTargetDesignation : target,
-      lastFilter: filter ?? state.lastFilter,
-      framesCaptured: state.framesCaptured + 1,
-      lastFrameAt: DateTime.now(),
-    );
+    if (sequencer is SequencerEvent_PhotometrySummary) {
+      // Burst complete — keep the activity surface live (panel stays visible)
+      // and reconcile the target / filter / break counter with the summary's
+      // authoritative values, falling back to the last-observed values when a
+      // field is absent.
+      final target = sequencer.targetDesignation.trim();
+      final filter = sequencer.filter.trim();
+      state = state.copyWith(
+        hasSeenPhotometry: true,
+        lastTargetDesignation:
+            target.isEmpty ? state.lastTargetDesignation : target,
+        lastFilter: filter.isEmpty ? state.lastFilter : filter,
+        cadenceBreaks: sequencer.cadenceBreaks,
+        lastFrameAt: DateTime.now(),
+      );
+      return;
+    }
   }
 
   @override
   void dispose() {
-    _subscription?.cancel();
-    _backendSubscription?.close();
+    _subscription?.close();
     super.dispose();
   }
 }
