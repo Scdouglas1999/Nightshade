@@ -207,7 +207,8 @@ class _SciencePhotometryPropertiesState
         NightshadeTextField(
           controller: _targetCtl,
           label: 'Target designation',
-          hint: 'AAVSO / catalogue identifier (e.g. "V0376 Per", "TIC 38846515")',
+          hint:
+              'AAVSO / catalogue identifier (e.g. "V0376 Per", "TIC 38846515")',
           onChanged: (v) =>
               _update((n) => n.copyWith(targetDesignation: v.trim())),
         ),
@@ -354,7 +355,8 @@ class _SciencePhotometryPropertiesState
           'Larger values tolerate slower download / longer dithers. '
           'A gap larger than this fires a cadence-broken warning '
           'on the dashboard but does NOT abort the burst.',
-          style: NightshadeTypography.captionSm.copyWith(color: colors.textMuted),
+          style:
+              NightshadeTypography.captionSm.copyWith(color: colors.textMuted),
         ),
         const SizedBox(height: NightshadeTokens.spaceLg),
 
@@ -596,7 +598,8 @@ class _SciencePhotometryPropertiesState
       padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceXs),
       child: Text(
         label,
-        style: NightshadeTypography.labelSm.copyWith(color: colors.textSecondary),
+        style:
+            NightshadeTypography.labelSm.copyWith(color: colors.textSecondary),
       ),
     );
   }

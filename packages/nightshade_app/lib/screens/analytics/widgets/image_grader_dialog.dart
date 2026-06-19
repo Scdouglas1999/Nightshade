@@ -597,7 +597,8 @@ class _PreviewSummary extends StatelessWidget {
           const SizedBox(height: NightshadeTokens.spaceSm),
           Text(
             activeRules,
-            style: NightshadeTypography.monoXs.copyWith(color: colors.textMuted),
+            style:
+                NightshadeTypography.monoXs.copyWith(color: colors.textMuted),
           ),
         ],
       ),
@@ -663,8 +664,8 @@ class _RejectionList extends StatelessWidget {
   Widget build(BuildContext context) {
     if (rejections.isEmpty) {
       return Padding(
-        padding: const EdgeInsets.symmetric(
-            vertical: NightshadeTokens.spaceMd + 2),
+        padding:
+            const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceMd + 2),
         child: Text(
           'No frames currently fail any rule.',
           style: NightshadeTypography.caption.copyWith(color: colors.textMuted),

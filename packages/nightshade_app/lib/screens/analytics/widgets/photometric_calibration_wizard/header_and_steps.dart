@@ -41,9 +41,7 @@ extension _PhotometricWizardHeaderAndSteps
                   : Text(
                       '${index + 1}',
                       style: NightshadeTypography.labelStrongSm.copyWith(
-                        color: isActive
-                            ? colors.textPrimary
-                            : colors.textMuted,
+                        color: isActive ? colors.textPrimary : colors.textMuted,
                       ),
                     ),
             ),
@@ -92,8 +90,7 @@ extension _PhotometricWizardHeaderAndSteps
                     overflow: TextOverflow.ellipsis,
                     style: NightshadeTypography.labelSm.copyWith(
                       color: isActive ? colors.primary : colors.textMuted,
-                      fontWeight:
-                          isActive ? FontWeight.w600 : FontWeight.w400,
+                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
                     ),
                   ),
                 );

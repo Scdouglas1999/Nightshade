@@ -93,9 +93,7 @@ class TransientsView extends ConsumerWidget {
               ],
             ),
           ),
-
         _CitizenScienceStrip(colors: colors),
-
         _FilterTabBar(
           colors: colors,
           currentFilter: currentFilter,
@@ -103,7 +101,6 @@ class TransientsView extends ConsumerWidget {
             ref.read(_transientFilterProvider.notifier).state = filter;
           },
         ),
-
         Expanded(
           child: alertsAsync.when(
             data: (alerts) =>
@@ -246,7 +243,8 @@ class TransientsView extends ConsumerWidget {
     await queueTransientForTonight(ref, alert);
   }
 
-  void _viewInFraming(BuildContext context, WidgetRef ref, TransientAlert alert) {
+  void _viewInFraming(
+      BuildContext context, WidgetRef ref, TransientAlert alert) {
     // Seed the target before navigating: the /framing route redirects to
     // /planner?tab=sky&view=framing, which drops any query params.
     ref.read(framingProvider.notifier).setTargetCoordinates(
@@ -469,9 +467,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
               );
             }).toList(),
           ),
-
           const SizedBox(height: NightshadeTokens.spaceLg),
-
           Text(
             'Transient Types',
             style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
@@ -488,9 +484,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
               );
             }).toList(),
           ),
-
           const SizedBox(height: NightshadeTokens.spaceLg),
-
           Text(
             'Magnitude Threshold',
             style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
@@ -523,9 +517,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
             style: NightshadeTypography.captionSm
                 .copyWith(color: colors.textMuted),
           ),
-
           const SizedBox(height: NightshadeTokens.spaceLg),
-
           NightshadeSwitchRow(
             label: 'Notifications',
             subtitle: 'Show notifications for new alerts',

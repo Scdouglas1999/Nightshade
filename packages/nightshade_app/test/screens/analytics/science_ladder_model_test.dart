@@ -96,8 +96,7 @@ void main() {
   group('curve rung', () {
     test('locked until photometry is live', () {
       expect(
-        _eval(hasCalibration: true, hasTarget: true)
-            .states[ScienceRung.curve],
+        _eval(hasCalibration: true, hasTarget: true).states[ScienceRung.curve],
         RungState.locked,
       );
     });

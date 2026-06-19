@@ -177,7 +177,8 @@ class _SectionTitle extends StatelessWidget {
       child: Row(
         children: [
           Icon(icon,
-              size: NightshadeTokens.iconXs, color: titleColor ?? colors.primary),
+              size: NightshadeTokens.iconXs,
+              color: titleColor ?? colors.primary),
           const SizedBox(width: NightshadeTokens.spaceSm),
           Text(
             title,

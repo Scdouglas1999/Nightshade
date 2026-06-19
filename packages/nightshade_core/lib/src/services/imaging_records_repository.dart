@@ -276,13 +276,7 @@ class ImagingRecordsRepository {
   /// Returns null in remote mode (the appliance owns the authoritative DB)
   /// or when the row is absent; absent CD/SIP fields mean an isotropic solve.
   Future<
-    ({
-      double? cd1_1,
-      double? cd1_2,
-      double? cd2_1,
-      double? cd2_2,
-      String? sip,
-    })?
+    ({double? cd1_1, double? cd1_2, double? cd2_1, double? cd2_2, String? sip})?
   >
   getStoredWcsDistortion(int id) async {
     if (_remote != null) return null;

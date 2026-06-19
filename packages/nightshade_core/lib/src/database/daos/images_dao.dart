@@ -401,13 +401,7 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
   /// Read the off-table WCS columns for [id] — the `solved_cd*` matrix and the
   /// `solved_sip` blob. Any may be null when the stored solve was isotropic.
   Future<
-    ({
-      double? cd1_1,
-      double? cd1_2,
-      double? cd2_1,
-      double? cd2_2,
-      String? sip,
-    })?
+    ({double? cd1_1, double? cd1_2, double? cd2_1, double? cd2_2, String? sip})?
   >
   getStoredWcsDistortion(int id) async {
     final row = await customSelect(

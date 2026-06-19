@@ -4,8 +4,8 @@ extension _PhotometricWizardFrameSelection
     on _PhotometricCalibrationWizardState {
   Widget _buildStep1SelectFrame(NightshadeColors colors) {
     final sessions = ref.watch(allSessionsProvider).valueOrNull ?? const [];
-    final sessionId = _selectedSessionId ??
-        (sessions.isNotEmpty ? sessions.first.id : null);
+    final sessionId =
+        _selectedSessionId ?? (sessions.isNotEmpty ? sessions.first.id : null);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,8 +139,8 @@ extension _PhotometricWizardFrameSelection
         if (solvedImages.isEmpty) {
           return Text(
             'No plate-solved light frames found in the latest session.',
-            style: NightshadeTypography.caption
-                .copyWith(color: colors.textMuted),
+            style:
+                NightshadeTypography.caption.copyWith(color: colors.textMuted),
           );
         }
 

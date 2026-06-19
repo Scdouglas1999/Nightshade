@@ -144,7 +144,8 @@ class _PhaseFoldCustomPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
     )..layout();
     canvas.save();
-    canvas.translate(10, plotRect.top + plotHeight / 2 + yLabelPainter.width / 2);
+    canvas.translate(
+        10, plotRect.top + plotHeight / 2 + yLabelPainter.width / 2);
     canvas.rotate(-math.pi / 2);
     yLabelPainter.paint(canvas, Offset.zero);
     canvas.restore();

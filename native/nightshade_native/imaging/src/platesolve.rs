@@ -918,7 +918,9 @@ fn parse_wcs_file_inner(
             *slot = Some(parsed as u32);
             Ok(())
         };
-        let parse_term = |terms: &mut Vec<(u32, u32, f64)>, body: &str| -> Result<(), PlateSolveError> {
+        let parse_term = |terms: &mut Vec<(u32, u32, f64)>,
+                          body: &str|
+         -> Result<(), PlateSolveError> {
             let Some((i, j)) = sip_indices(body) else {
                 return Ok(());
             };
