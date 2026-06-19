@@ -346,8 +346,7 @@ mixin _MobileDiscoveryOps on _MobileConnectionState {
 
   /// Open the Saved Servers screen from the connection screen.
   ///
-  /// This is the DEFAULT-UI entry point into the roaming list (previously it
-  /// was reachable only from the legacy companion dashboard). The screen's
+  /// This is the DEFAULT-UI entry point into the roaming list. The screen's
   /// "Add server" FAB routes back here via [onAddServer]: rather than forking
   /// the QR / manual-entry / discovery plumbing, the callback simply pops the
   /// list so the operator lands back on the connection screen and uses its
@@ -438,9 +437,7 @@ mixin _MobileDiscoveryOps on _MobileConnectionState {
         // Verify the server's identity BEFORE the pairing code leaves the
         // device. This runs the /api/info pre-flight inside the pairing
         // client; a hostile node presenting its own pairing endpoint cannot
-        // harvest the code because the pin won't match. This replaces the old
-        // post-hoc fingerprint compare, which only fired after the code had
-        // already been transmitted.
+        // harvest the code because the pin won't match.
         pinnedFingerprint: data.fingerprint,
       );
       final RemotePairingVerifyResult result;

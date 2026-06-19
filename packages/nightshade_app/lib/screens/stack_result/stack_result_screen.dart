@@ -5,14 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-// The stacking-engine seam owns the colour STF stretch (the native bridge only
-// exposes the single-channel `apiAutoStretchImage`; its companion
-// `_autoStretchColor` is the per-channel PixInsight STF that matches the
-// native colour-capture path). The seam is not re-exported through the core
-// barrel, so the result viewer reaches it directly to render an OSC result with
-// the exact same curve a live colour capture would produce. (Matches the
-// established `// ignore: implementation_imports` precedent in
-// screens/imaging/widgets/stacking_panel.dart.)
+// Reaches the seam directly: the per-channel colour STF (_autoStretchColor)
+// that matches the native OSC capture curve is not re-exported through the
+// core barrel.
 // ignore: implementation_imports
 import 'package:nightshade_core/src/services/stacking_engine_seam.dart'
     show BridgeStackingEngineSeam, StackingEngineSeam;
