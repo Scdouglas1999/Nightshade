@@ -230,60 +230,6 @@ class _DomeProperties extends ConsumerWidget {
   }
 }
 
-class _UnknownNodeProperties extends StatelessWidget {
-  final NightshadeColors colors;
-  final SequenceNode node;
-
-  const _UnknownNodeProperties({required this.colors, required this.node});
-
-  @override
-  Widget build(BuildContext context) {
-    final typeName = node.runtimeType.toString();
-    // Log so any unexpected dispatch falls into the debug stream rather than
-    // hiding behind a vague UI message.
-    assert(() {
-      // ignore: avoid_print
-      print('[NodePropertiesPanel] No property panel registered for $typeName');
-      return true;
-    }());
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.warning.withValues(alpha: 0.08),
-        border: Border.all(color: colors.warning.withValues(alpha: 0.4)),
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(LucideIcons.alertTriangle, size: 16, color: colors.warning),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'No property editor for $typeName',
-                  style:
-                      NightshadeTypography.h6.copyWith(color: colors.warning),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'This node will still run with its current values, but you cannot edit them here. '
-                  'Save and re-load to keep its state; report this if you expected an editor.',
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.textSecondary),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _OpenCoverProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final OpenCoverNode node;
