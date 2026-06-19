@@ -18,16 +18,42 @@ permissions:
 
 env:
   FLUTTER_VERSION: '3.44.1'
-  # Artifact version. Bump this in lockstep with the app pubspecs and the tag
-  # (e.g. v4.3.0 -> APP_VERSION 4.3.0) so the published file names match.
-  APP_VERSION: '4.3.0'
 
 jobs:
+  # Single source of truth for the artifact version: the desktop pubspec. On a
+  # tag push the tag must match (vX.Y.Z) or the build fails loudly, so published
+  # file names can never drift from the tag — or the pubspec — again.
+  version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      app_version: ${{ steps.resolve.outputs.app_version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Resolve + validate version
+        id: resolve
+        run: |
+          set -euo pipefail
+          pubspec_version="$(grep '^version:' apps/desktop/pubspec.yaml | head -1 | sed -E 's/^version:[[:space:]]*//; s/\+.*$//')"
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            tag_version="${GITHUB_REF_NAME#v}"
+            if [ "$tag_version" != "$pubspec_version" ]; then
+              echo "::error::Tag ${GITHUB_REF_NAME} (${tag_version}) does not match apps/desktop/pubspec.yaml (${pubspec_version}). Bump the pubspecs and the tag in lockstep."
+              exit 1
+            fi
+          fi
+          echo "app_version=${pubspec_version}" >> "$GITHUB_OUTPUT"
+          echo "Resolved APP_VERSION=${pubspec_version}"
+
   # --------------------------------------------------------------------------
   android:
     name: Android APK
+    needs: version
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      APP_VERSION: ${{ needs.version.outputs.app_version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -109,6 +135,9 @@ jobs:
     # keeping the host-native build (no Docker) and existing packaging intact.
     runs-on: ubuntu-22.04
     timeout-minutes: 45
+    needs: version
+    env:
+      APP_VERSION: ${{ needs.version.outputs.app_version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -259,7 +288,9 @@ jobs:
     # deprecated.
     runs-on: windows-2022
     timeout-minutes: 60
+    needs: version
     env:
+      APP_VERSION: ${{ needs.version.outputs.app_version }}
       # The imaging crate's build.rs links libraw; point it at the vendored
       # import lib/DLL so the Rust build is self-contained on a clean runner.
       LIBRAW_DIR: ${{ github.workspace }}\lib\libraw
