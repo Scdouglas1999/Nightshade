@@ -51,13 +51,13 @@ class ScienceLadderCard extends ConsumerWidget {
     );
 
     if (collapsed) {
-      return _CollapsedRow(progress: progress, onExpand: () => _setCollapsed(ref, false));
+      return _CollapsedRow(
+          progress: progress, onExpand: () => _setCollapsed(ref, false));
     }
 
     final next = progress.nextActionable;
-    final nextSpec = next == null
-        ? null
-        : kScienceLadder.firstWhere((s) => s.rung == next);
+    final nextSpec =
+        next == null ? null : kScienceLadder.firstWhere((s) => s.rung == next);
 
     return NightshadeCard(
       padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
@@ -68,7 +68,8 @@ class ScienceLadderCard extends ConsumerWidget {
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: NightshadeDecorations.emphasisSurface(colors.primary),
+                decoration:
+                    NightshadeDecorations.emphasisSurface(colors.primary),
                 child: Icon(
                   LucideIcons.flaskConical,
                   color: colors.primary,
@@ -136,7 +137,9 @@ class ScienceLadderCard extends ConsumerWidget {
   }
 
   void _setCollapsed(WidgetRef ref, bool collapsed) {
-    ref.read(scienceSettingsProvider.notifier).setScienceGuideCollapsed(collapsed);
+    ref
+        .read(scienceSettingsProvider.notifier)
+        .setScienceGuideCollapsed(collapsed);
   }
 
   void _openRung(BuildContext context, WidgetRef ref, ScienceRungSpec spec) {
@@ -202,7 +205,11 @@ class _RungChip extends StatelessWidget {
     final (accent, foreground, digit) = switch (state) {
       RungState.done => (colors.success, colors.success, colors.success),
       RungState.ready => (colors.primary, colors.textPrimary, colors.primary),
-      RungState.locked => (colors.textMuted, colors.textMuted, colors.textSecondary),
+      RungState.locked => (
+          colors.textMuted,
+          colors.textMuted,
+          colors.textSecondary
+        ),
     };
 
     return GestureDetector(
@@ -275,8 +282,8 @@ class _CollapsedRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final step =
-        (progress.nextActionable == null ? 5 : progress.doneCount + 1).clamp(1, 5);
+    final step = (progress.nextActionable == null ? 5 : progress.doneCount + 1)
+        .clamp(1, 5);
     return ScienceNavRowCard(
       icon: LucideIcons.flaskConical,
       iconColor: colors.primary,

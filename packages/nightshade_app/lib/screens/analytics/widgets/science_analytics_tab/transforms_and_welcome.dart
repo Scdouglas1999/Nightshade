@@ -92,7 +92,8 @@ class _PhotometricTransformsCard extends ConsumerWidget {
       children: [
         for (final t in transforms) ...[
           _TransformRow(colors: colors, transform: t),
-          if (t != transforms.last) const SizedBox(height: NightshadeTokens.spaceXs + 2),
+          if (t != transforms.last)
+            const SizedBox(height: NightshadeTokens.spaceXs + 2),
         ],
       ],
     );

@@ -14,8 +14,7 @@ class ScienceEmptyOnramp extends ConsumerWidget {
     return EmptyState(
       icon: LucideIcons.flaskConical,
       title: 'Turn pretty pictures into real measurements',
-      body:
-          'Five short steps take you from a calibrated sky to data the AAVSO '
+      body: 'Five short steps take you from a calibrated sky to data the AAVSO '
           'and MPC can use. Start whenever you are at the eyepiece.',
       action: NightshadeButton(
         label: 'Show me the 5 steps',

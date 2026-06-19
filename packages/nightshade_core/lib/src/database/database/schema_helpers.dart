@@ -685,9 +685,7 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
       );
     }
     if (!await _columnExists('captured_images', 'fwhm')) {
-      await customStatement(
-        'ALTER TABLE captured_images ADD COLUMN fwhm REAL',
-      );
+      await customStatement('ALTER TABLE captured_images ADD COLUMN fwhm REAL');
     }
     // v51: anisotropic WCS — the four CD-matrix scalars plus a `solved_sip`
     // JSON blob. Raw-DDL columns retrofitted by the v51 onUpgrade branch;

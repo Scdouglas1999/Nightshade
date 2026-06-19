@@ -230,7 +230,8 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
         NodePaletteItem(
           name: 'Science Photometry',
           icon: 'analytics',
-          description: 'Cadence-enforced photometric capture with live reduction',
+          description:
+              'Cadence-enforced photometric capture with live reduction',
           createNode: () => SciencePhotometryNode(
             filter: effectiveFilter ?? 'Clear',
             exposureSecs: effectiveExposureDuration,

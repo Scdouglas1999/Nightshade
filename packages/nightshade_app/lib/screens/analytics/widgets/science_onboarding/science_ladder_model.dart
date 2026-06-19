@@ -30,16 +30,14 @@ const List<ScienceRungSpec> kScienceLadder = <ScienceRungSpec>[
   ScienceRungSpec(
     rung: ScienceRung.measure,
     title: 'Measure your sky',
-    blurb:
-        "Calibrate against real stars and your rig stops guessing — every "
+    blurb: "Calibrate against real stars and your rig stops guessing — every "
         "brightness it reports from here is a number you can stand behind.",
     ctaLabel: 'Run calibration',
   ),
   ScienceRungSpec(
     rung: ScienceRung.track,
     title: 'Track a star',
-    blurb:
-        "Point at a target and let the photometry follow it frame to frame. "
+    blurb: "Point at a target and let the photometry follow it frame to frame. "
         "Watching one star's brightness live is where the science starts to "
         "feel real.",
     ctaLabel: 'Pick a target',
@@ -56,8 +54,7 @@ const List<ScienceRungSpec> kScienceLadder = <ScienceRungSpec>[
   ScienceRungSpec(
     rung: ScienceRung.period,
     title: 'Find the period',
-    blurb:
-        "If that curve repeats, there's a clock hiding in it — an orbit, a "
+    blurb: "If that curve repeats, there's a clock hiding in it — an orbit, a "
         "rotation, a pulsation. Let the analysis fold your points and tell you "
         "how long the cycle runs.",
     ctaLabel: 'Analyse the period',
@@ -84,8 +81,7 @@ class ScienceLadderProgress {
     return null;
   }
 
-  int get doneCount =>
-      states.values.where((s) => s == RungState.done).length;
+  int get doneCount => states.values.where((s) => s == RungState.done).length;
 }
 
 ScienceLadderProgress evaluateLadder({

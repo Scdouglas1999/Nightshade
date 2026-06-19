@@ -105,7 +105,8 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
                         ),
                         alignment: Alignment.center,
                         child: Icon(LucideIcons.x,
-                            size: NightshadeTokens.iconXs, color: colors.textMuted),
+                            size: NightshadeTokens.iconXs,
+                            color: colors.textMuted),
                       ),
                     ),
                   ),
@@ -517,7 +518,8 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
             return Column(
               children: [
                 lsColumn,
-                Divider(height: NightshadeTokens.space2xl, color: colors.border),
+                Divider(
+                    height: NightshadeTokens.space2xl, color: colors.border),
                 blsColumn,
               ],
             );

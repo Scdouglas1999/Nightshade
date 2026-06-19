@@ -39,11 +39,7 @@ class ScienceInfoButton extends StatelessWidget {
   final String title;
   final String body;
 
-  const ScienceInfoButton({
-    super.key,
-    required this.title,
-    required this.body,
-  });
+  const ScienceInfoButton({super.key, required this.title, required this.body});
 
   @override
   Widget build(BuildContext context) {

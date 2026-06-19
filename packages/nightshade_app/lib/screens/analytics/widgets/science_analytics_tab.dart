@@ -232,9 +232,8 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
     final photometryLive =
         ref.watch(scienceModeStateProvider).differentialPhotometryActive;
     final hasPeriodResult = ref.watch(periodAnalysisProvider).result != null;
-    final hasExportableData = lightCurve.isNotEmpty ||
-        moving.isNotEmpty ||
-        calibrations.isNotEmpty;
+    final hasExportableData =
+        lightCurve.isNotEmpty || moving.isNotEmpty || calibrations.isNotEmpty;
 
     // Audit §4.12: when neither an active session nor any standalone capture
     // has produced science data, render a single shared placeholder instead

@@ -264,7 +264,9 @@ class _TransientCardState extends State<TransientCard> {
             children: [
               primaryButtons,
               const SizedBox(height: NightshadeTokens.spaceSm),
-              Row(mainAxisAlignment: MainAxisAlignment.end, children: iconActions),
+              Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: iconActions),
             ],
           );
         }
@@ -322,7 +324,8 @@ class _TransientCardState extends State<TransientCard> {
         children: [
           Icon(icon, size: NightshadeTokens.iconSm, color: color),
           const SizedBox(width: NightshadeTokens.spaceXs),
-          Text(label, style: NightshadeTypography.labelSm.copyWith(color: color)),
+          Text(label,
+              style: NightshadeTypography.labelSm.copyWith(color: color)),
         ],
       ),
     );
@@ -622,8 +625,8 @@ class _DetailRow extends StatelessWidget {
         const SizedBox(width: NightshadeTokens.spaceXs),
         Text(
           '$label: ',
-          style: NightshadeTypography.captionSm
-              .copyWith(color: colors.textMuted),
+          style:
+              NightshadeTypography.captionSm.copyWith(color: colors.textMuted),
         ),
         Expanded(
           child: Text(

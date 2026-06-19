@@ -129,9 +129,7 @@ class _ReportBody extends ConsumerWidget {
           _MountStatsRow(report: report, colors: colors),
           const SizedBox(height: 20),
           _SectionTitle(
-              title: 'Guiding',
-              icon: LucideIcons.activity,
-              colors: colors),
+              title: 'Guiding', icon: LucideIcons.activity, colors: colors),
           _GuideStatsBlock(report: report, colors: colors),
           if (report.avgTemperatureC != null ||
               report.avgHumidityPercent != null ||
@@ -184,8 +182,8 @@ class _ReportBody extends ConsumerWidget {
           // History tab shows that session's recoveries, not the
           // currently-running one's.
           Consumer(builder: (context, ref, _) {
-            final recoveriesAsync = ref.watch(
-                recoveryHistoryForSessionProvider(report.sessionId));
+            final recoveriesAsync =
+                ref.watch(recoveryHistoryForSessionProvider(report.sessionId));
             final recoveries = recoveriesAsync.valueOrNull ?? const [];
             if (recoveries.isEmpty) return const SizedBox.shrink();
             return Column(
@@ -222,13 +220,12 @@ class _ReportBody extends ConsumerWidget {
             // `opticalTrainCurrentSnapshotProvider`, so a historical
             // report shows that session's drift, not the live run's.
             final snapshot = ref
-                .watch(opticalTrainSnapshotForSessionProvider(
-                    report.sessionId))
+                .watch(opticalTrainSnapshotForSessionProvider(report.sessionId))
                 .valueOrNull;
             final baseline = snapshot?.baseline;
             final current = snapshot?.current;
-            final healthSummary = ref.watch(
-                postSessionHealthSummaryProvider(report.sessionId));
+            final healthSummary =
+                ref.watch(postSessionHealthSummaryProvider(report.sessionId));
 
             // Synthesize an OpticalTrainDiagnostics from the
             // current snapshot so the helper can compute drift.
@@ -248,8 +245,7 @@ class _ReportBody extends ConsumerWidget {
               preSession: baseline,
               postSession: currentDiag,
               healthSummary: healthSummary,
-              opticalTrainDriftThreshold:
-                  settings.opticalTrainDriftThreshold,
+              opticalTrainDriftThreshold: settings.opticalTrainDriftThreshold,
             );
 
             if (diagnostics.isEmpty) return const SizedBox.shrink();

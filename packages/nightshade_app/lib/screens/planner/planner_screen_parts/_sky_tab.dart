@@ -107,7 +107,8 @@ class _SkyTabState extends ConsumerState<_SkyTab> {
                 foregroundColor: colors.textSecondary,
                 backgroundColor: colors.surfaceAlt,
                 side: BorderSide(color: colors.border),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 visualDensity: VisualDensity.compact,
                 textStyle:
                     const TextStyle(fontSize: NightshadeTypography.fontSize12),
