@@ -17,6 +17,7 @@ import 'api/devices/mount.dart';
 import 'api/devices/simulation.dart';
 import 'api/devices/switch.dart';
 import 'api/diagnostics.dart';
+import 'api/difference_image.dart';
 import 'api/discovery.dart';
 import 'api/event_stream.dart';
 import 'api/finishing_analyze.dart';
@@ -34,6 +35,7 @@ import 'api/post_session.dart';
 import 'api/secondary_rig.dart';
 import 'api/sequencer.dart';
 import 'api/session.dart';
+import 'api/sky_atlas.dart';
 import 'api/storage.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -102,7 +104,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 459524578;
+  int get rustContentHash => -441620728;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -546,6 +548,14 @@ abstract class RustLibApi extends BaseApi {
   Future<bool> crateApiApiVersionApiDeviceSupportsVersion({
     required String deviceId,
     required int requiredVersion,
+  });
+
+  Future<String> crateApiDifferenceImageApiDifferenceImage({
+    required String argsJson,
+  });
+
+  Future<String> crateApiDifferenceImageApiDifferenceTileCenter({
+    required String argsJson,
   });
 
   Future<void> crateApiConnectionApiDisconnectDevice({
@@ -1423,6 +1433,26 @@ abstract class RustLibApi extends BaseApi {
   void crateApiStorageApiSetLocation({ObserverLocation? location});
 
   void crateApiDiagnosticsApiSetQhyDiscoveryEnabled({required bool enabled});
+
+  Future<String> crateApiSkyAtlasApiSkyAtlas({required String argsJson});
+
+  Future<String> crateApiSkyAtlasApiSkyAtlasAddFrame({
+    required String argsJson,
+  });
+
+  Future<String> crateApiSkyAtlasApiSkyAtlasGrowth({required String argsJson});
+
+  Future<String> crateApiSkyAtlasApiSkyAtlasMergeDelta({
+    required String argsJson,
+  });
+
+  Future<String> crateApiSkyAtlasApiSkyAtlasQueryCutout({
+    required String argsJson,
+  });
+
+  Future<String> crateApiSkyAtlasApiSkyAtlasRegionInfo({
+    required String argsJson,
+  });
 
   Future<ApiLiveStackingResult> crateApiImagingApiStackingAddFrame({
     required String imagePath,
@@ -4615,6 +4645,67 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "api_device_supports_version",
         argNames: ["deviceId", "requiredVersion"],
+      );
+
+  @override
+  Future<String> crateApiDifferenceImageApiDifferenceImage({
+    required String argsJson,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(argsJson);
+          return wire.wire__crate__api__difference_image__api_difference_image(
+            port_,
+            arg0,
+          );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_String,
+          decodeErrorData: dco_decode_String,
+        ),
+        constMeta: kCrateApiDifferenceImageApiDifferenceImageConstMeta,
+        argValues: [argsJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDifferenceImageApiDifferenceImageConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_difference_image",
+        argNames: ["argsJson"],
+      );
+
+  @override
+  Future<String> crateApiDifferenceImageApiDifferenceTileCenter({
+    required String argsJson,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(argsJson);
+          return wire
+              .wire__crate__api__difference_image__api_difference_tile_center(
+                port_,
+                arg0,
+              );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_String,
+          decodeErrorData: dco_decode_String,
+        ),
+        constMeta: kCrateApiDifferenceImageApiDifferenceTileCenterConstMeta,
+        argValues: [argsJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiDifferenceImageApiDifferenceTileCenterConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_difference_tile_center",
+        argNames: ["argsJson"],
       );
 
   @override
@@ -11523,6 +11614,176 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "api_set_qhy_discovery_enabled",
         argNames: ["enabled"],
+      );
+
+  @override
+  Future<String> crateApiSkyAtlasApiSkyAtlas({required String argsJson}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(argsJson);
+          return wire.wire__crate__api__sky_atlas__api_sky_atlas(port_, arg0);
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_String,
+          decodeErrorData: dco_decode_String,
+        ),
+        constMeta: kCrateApiSkyAtlasApiSkyAtlasConstMeta,
+        argValues: [argsJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSkyAtlasApiSkyAtlasConstMeta =>
+      const TaskConstMeta(debugName: "api_sky_atlas", argNames: ["argsJson"]);
+
+  @override
+  Future<String> crateApiSkyAtlasApiSkyAtlasAddFrame({
+    required String argsJson,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(argsJson);
+          return wire.wire__crate__api__sky_atlas__api_sky_atlas_add_frame(
+            port_,
+            arg0,
+          );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_String,
+          decodeErrorData: dco_decode_String,
+        ),
+        constMeta: kCrateApiSkyAtlasApiSkyAtlasAddFrameConstMeta,
+        argValues: [argsJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSkyAtlasApiSkyAtlasAddFrameConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_sky_atlas_add_frame",
+        argNames: ["argsJson"],
+      );
+
+  @override
+  Future<String> crateApiSkyAtlasApiSkyAtlasGrowth({required String argsJson}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(argsJson);
+          return wire.wire__crate__api__sky_atlas__api_sky_atlas_growth(
+            port_,
+            arg0,
+          );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_String,
+          decodeErrorData: dco_decode_String,
+        ),
+        constMeta: kCrateApiSkyAtlasApiSkyAtlasGrowthConstMeta,
+        argValues: [argsJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSkyAtlasApiSkyAtlasGrowthConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_sky_atlas_growth",
+        argNames: ["argsJson"],
+      );
+
+  @override
+  Future<String> crateApiSkyAtlasApiSkyAtlasMergeDelta({
+    required String argsJson,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(argsJson);
+          return wire.wire__crate__api__sky_atlas__api_sky_atlas_merge_delta(
+            port_,
+            arg0,
+          );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_String,
+          decodeErrorData: dco_decode_String,
+        ),
+        constMeta: kCrateApiSkyAtlasApiSkyAtlasMergeDeltaConstMeta,
+        argValues: [argsJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSkyAtlasApiSkyAtlasMergeDeltaConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_sky_atlas_merge_delta",
+        argNames: ["argsJson"],
+      );
+
+  @override
+  Future<String> crateApiSkyAtlasApiSkyAtlasQueryCutout({
+    required String argsJson,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(argsJson);
+          return wire.wire__crate__api__sky_atlas__api_sky_atlas_query_cutout(
+            port_,
+            arg0,
+          );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_String,
+          decodeErrorData: dco_decode_String,
+        ),
+        constMeta: kCrateApiSkyAtlasApiSkyAtlasQueryCutoutConstMeta,
+        argValues: [argsJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSkyAtlasApiSkyAtlasQueryCutoutConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_sky_atlas_query_cutout",
+        argNames: ["argsJson"],
+      );
+
+  @override
+  Future<String> crateApiSkyAtlasApiSkyAtlasRegionInfo({
+    required String argsJson,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(argsJson);
+          return wire.wire__crate__api__sky_atlas__api_sky_atlas_region_info(
+            port_,
+            arg0,
+          );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_String,
+          decodeErrorData: dco_decode_String,
+        ),
+        constMeta: kCrateApiSkyAtlasApiSkyAtlasRegionInfoConstMeta,
+        argValues: [argsJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSkyAtlasApiSkyAtlasRegionInfoConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_sky_atlas_region_info",
+        argNames: ["argsJson"],
       );
 
   @override

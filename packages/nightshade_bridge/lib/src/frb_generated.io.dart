@@ -17,6 +17,7 @@ import 'api/devices/mount.dart';
 import 'api/devices/simulation.dart';
 import 'api/devices/switch.dart';
 import 'api/diagnostics.dart';
+import 'api/difference_image.dart';
 import 'api/discovery.dart';
 import 'api/event_stream.dart';
 import 'api/finishing_analyze.dart';
@@ -34,6 +35,7 @@ import 'api/post_session.dart';
 import 'api/secondary_rig.dart';
 import 'api/sequencer.dart';
 import 'api/session.dart';
+import 'api/sky_atlas.dart';
 import 'api/storage.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -10388,6 +10390,60 @@ class RustLibWire implements BaseWire {
             void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>, int)
           >();
 
+  void wire__crate__api__difference_image__api_difference_image(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> args_json,
+  ) {
+    return _wire__crate__api__difference_image__api_difference_image(
+      port_,
+      args_json,
+    );
+  }
+
+  late final _wire__crate__api__difference_image__api_difference_imagePtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__difference_image__api_difference_image',
+      );
+  late final _wire__crate__api__difference_image__api_difference_image =
+      _wire__crate__api__difference_image__api_difference_imagePtr
+          .asFunction<
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)
+          >();
+
+  void wire__crate__api__difference_image__api_difference_tile_center(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> args_json,
+  ) {
+    return _wire__crate__api__difference_image__api_difference_tile_center(
+      port_,
+      args_json,
+    );
+  }
+
+  late final _wire__crate__api__difference_image__api_difference_tile_centerPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__difference_image__api_difference_tile_center',
+      );
+  late final _wire__crate__api__difference_image__api_difference_tile_center =
+      _wire__crate__api__difference_image__api_difference_tile_centerPtr
+          .asFunction<
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)
+          >();
+
   void wire__crate__api__connection__api_disconnect_device(
     int port_,
     int device_type,
@@ -15942,6 +15998,160 @@ class RustLibWire implements BaseWire {
   late final _wire__crate__api__diagnostics__api_set_qhy_discovery_enabled =
       _wire__crate__api__diagnostics__api_set_qhy_discovery_enabledPtr
           .asFunction<WireSyncRust2DartDco Function(bool)>();
+
+  void wire__crate__api__sky_atlas__api_sky_atlas(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> args_json,
+  ) {
+    return _wire__crate__api__sky_atlas__api_sky_atlas(port_, args_json);
+  }
+
+  late final _wire__crate__api__sky_atlas__api_sky_atlasPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >('frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas');
+  late final _wire__crate__api__sky_atlas__api_sky_atlas =
+      _wire__crate__api__sky_atlas__api_sky_atlasPtr
+          .asFunction<
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)
+          >();
+
+  void wire__crate__api__sky_atlas__api_sky_atlas_add_frame(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> args_json,
+  ) {
+    return _wire__crate__api__sky_atlas__api_sky_atlas_add_frame(
+      port_,
+      args_json,
+    );
+  }
+
+  late final _wire__crate__api__sky_atlas__api_sky_atlas_add_framePtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_add_frame',
+      );
+  late final _wire__crate__api__sky_atlas__api_sky_atlas_add_frame =
+      _wire__crate__api__sky_atlas__api_sky_atlas_add_framePtr
+          .asFunction<
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)
+          >();
+
+  void wire__crate__api__sky_atlas__api_sky_atlas_growth(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> args_json,
+  ) {
+    return _wire__crate__api__sky_atlas__api_sky_atlas_growth(port_, args_json);
+  }
+
+  late final _wire__crate__api__sky_atlas__api_sky_atlas_growthPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_growth',
+      );
+  late final _wire__crate__api__sky_atlas__api_sky_atlas_growth =
+      _wire__crate__api__sky_atlas__api_sky_atlas_growthPtr
+          .asFunction<
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)
+          >();
+
+  void wire__crate__api__sky_atlas__api_sky_atlas_merge_delta(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> args_json,
+  ) {
+    return _wire__crate__api__sky_atlas__api_sky_atlas_merge_delta(
+      port_,
+      args_json,
+    );
+  }
+
+  late final _wire__crate__api__sky_atlas__api_sky_atlas_merge_deltaPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_merge_delta',
+      );
+  late final _wire__crate__api__sky_atlas__api_sky_atlas_merge_delta =
+      _wire__crate__api__sky_atlas__api_sky_atlas_merge_deltaPtr
+          .asFunction<
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)
+          >();
+
+  void wire__crate__api__sky_atlas__api_sky_atlas_query_cutout(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> args_json,
+  ) {
+    return _wire__crate__api__sky_atlas__api_sky_atlas_query_cutout(
+      port_,
+      args_json,
+    );
+  }
+
+  late final _wire__crate__api__sky_atlas__api_sky_atlas_query_cutoutPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_query_cutout',
+      );
+  late final _wire__crate__api__sky_atlas__api_sky_atlas_query_cutout =
+      _wire__crate__api__sky_atlas__api_sky_atlas_query_cutoutPtr
+          .asFunction<
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)
+          >();
+
+  void wire__crate__api__sky_atlas__api_sky_atlas_region_info(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> args_json,
+  ) {
+    return _wire__crate__api__sky_atlas__api_sky_atlas_region_info(
+      port_,
+      args_json,
+    );
+  }
+
+  late final _wire__crate__api__sky_atlas__api_sky_atlas_region_infoPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_region_info',
+      );
+  late final _wire__crate__api__sky_atlas__api_sky_atlas_region_info =
+      _wire__crate__api__sky_atlas__api_sky_atlas_region_infoPtr
+          .asFunction<
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)
+          >();
 
   void wire__crate__api__imaging__api_stacking_add_frame(
     int port_,
