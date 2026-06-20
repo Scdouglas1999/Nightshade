@@ -1,0 +1,201 @@
+import 'dart:io';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_core/nightshade_core.dart';
+import 'package:shelf/shelf.dart';
+
+import '../response_helpers.dart';
+
+/// Handlers for the Pillar A ("Your Sky") personal sky-atlas surface.
+///
+/// Exposes the atlas region list + per-region detail, a co-added cutout image,
+/// and the per-region fold timeline so a [NetworkBackend] mobile companion can
+/// browse the host's atlas over REST. Reads go through [SkyAtlasService] (region
+/// rows from the Drift DAO; coverage / cutout from the native bridge) — the same
+/// service the desktop UI uses, so the host stays the single source of truth.
+class AtlasHandlers {
+  final ProviderContainer container;
+
+  AtlasHandlers(this.container);
+
+  LoggingService get _logger => container.read(loggingServiceProvider);
+  SkyAtlasService get _service => container.read(skyAtlasServiceProvider);
+
+  void _logInfo(String message) =>
+      _logger.info(message, source: 'AtlasHandlers');
+
+  // ===========================================================================
+  // GET /api/atlas/regions
+  // ===========================================================================
+
+  Future<Response> handleGetRegions(Request request) async {
+    _logInfo('[API] GET /api/atlas/regions');
+    final regions = await _service.regions();
+    return jsonOk({
+      'regions': regions.map(_regionToJson).toList(),
+      'count': regions.length,
+    });
+  }
+
+  // ===========================================================================
+  // GET /api/atlas/region/<id>
+  // ===========================================================================
+
+  Future<Response> handleGetRegion(Request request, String id) async {
+    _logInfo('[API] GET /api/atlas/region/$id');
+    final regionId = int.tryParse(id);
+    if (regionId == null) {
+      return jsonBadRequest({'error': 'region id must be an integer'});
+    }
+    final region = await _findRegion(regionId);
+    if (region == null) {
+      return jsonNotFound({'error': 'region $regionId not found'});
+    }
+
+    // Live native coverage for the region cone augments the denormalized DB
+    // rollups so the companion sees the true integration depth without a
+    // second round-trip.
+    final coverage = await _service.regionCoverage(
+      centerRaDeg: region.centerRaDeg,
+      centerDecDeg: region.centerDecDeg,
+      radiusDeg: region.radiusDeg,
+    );
+
+    return jsonOk({'region': _regionToJson(region), 'coverage': coverage});
+  }
+
+  // ===========================================================================
+  // GET /api/atlas/region/<id>/cutout
+  // ===========================================================================
+  //
+  // Returns the co-added PNG of the region cone as image bytes. Optional query
+  // params: outPixels (default 2048), interp (bilinear|catmullRom|lanczos3).
+
+  Future<Response> handleGetRegionCutout(Request request, String id) async {
+    _logInfo('[API] GET /api/atlas/region/$id/cutout');
+    final regionId = int.tryParse(id);
+    if (regionId == null) {
+      return jsonBadRequest({'error': 'region id must be an integer'});
+    }
+    final region = await _findRegion(regionId);
+    if (region == null) {
+      return jsonNotFound({'error': 'region $regionId not found'});
+    }
+
+    final qp = request.url.queryParameters;
+    final outPixels = int.tryParse(qp['outPixels'] ?? '') ?? 2048;
+    final interp = _parseInterp(qp['interp']);
+
+    final result = await _service.cutout(
+      centerRaDeg: region.centerRaDeg,
+      centerDecDeg: region.centerDecDeg,
+      radiusDeg: region.radiusDeg,
+      outPixels: outPixels,
+      interp: interp,
+    );
+
+    final pngPath = result['pngPath'] as String?;
+    if (pngPath == null || pngPath.trim().isEmpty) {
+      return jsonInternalServerError({
+        'error': 'cutout did not produce a PNG for region $regionId',
+      });
+    }
+    final file = File(pngPath);
+    if (!await file.exists()) {
+      return jsonInternalServerError({
+        'error': 'cutout PNG missing on disk for region $regionId',
+      });
+    }
+    final bytes = await file.readAsBytes();
+    return contentResponse(
+      bytes,
+      contentType: 'image/png',
+      contentLength: bytes.length,
+      headers: {
+        'cache-control': 'no-cache',
+        'x-covered-fraction':
+            (result['coveredFraction'] as num?)?.toString() ?? '0',
+        'x-tiles-used': (result['tilesUsed'] as num?)?.toString() ?? '0',
+      },
+    );
+  }
+
+  // ===========================================================================
+  // GET /api/atlas/region/<id>/timeline
+  // ===========================================================================
+
+  Future<Response> handleGetRegionTimeline(Request request, String id) async {
+    _logInfo('[API] GET /api/atlas/region/$id/timeline');
+    final regionId = int.tryParse(id);
+    if (regionId == null) {
+      return jsonBadRequest({'error': 'region id must be an integer'});
+    }
+    final region = await _findRegion(regionId);
+    if (region == null) {
+      return jsonNotFound({'error': 'region $regionId not found'});
+    }
+
+    final folds = await _service.regionTimeline(regionId);
+
+    // The deepening growth curve for the cone (cumulative frames / seconds per
+    // fold) — the companion plots this as the "your sky is getting deeper" line.
+    final growth = await _service.growth(
+      centerRaDeg: region.centerRaDeg,
+      centerDecDeg: region.centerDecDeg,
+      radiusDeg: region.radiusDeg,
+    );
+
+    return jsonOk({
+      'regionId': regionId,
+      'folds': folds.map(_foldToJson).toList(),
+      'growth': growth,
+    });
+  }
+
+  // ===========================================================================
+  // Helpers
+  // ===========================================================================
+
+  Future<SkyAtlasRegionRow?> _findRegion(int regionId) async {
+    final regions = await _service.regions();
+    for (final region in regions) {
+      if (region.id == regionId) return region;
+    }
+    return null;
+  }
+
+  AtlasInterp _parseInterp(String? value) {
+    final normalized = value?.trim().toLowerCase();
+    for (final interp in AtlasInterp.values) {
+      if (interp.wire.toLowerCase() == normalized) return interp;
+    }
+    return AtlasInterp.lanczos3;
+  }
+
+  Map<String, dynamic> _regionToJson(SkyAtlasRegionRow region) => {
+    'id': region.id,
+    'name': region.name,
+    'kind': region.kind,
+    'centerRaDeg': region.centerRaDeg,
+    'centerDecDeg': region.centerDecDeg,
+    'radiusDeg': region.radiusDeg,
+    'targetId': region.targetId,
+    'tileCount': region.tileCount,
+    'integrationSeconds': region.integrationSeconds,
+    'createdAt': region.createdAt.toUtc().toIso8601String(),
+  };
+
+  Map<String, dynamic> _foldToJson(SkyAtlasFoldRow fold) => {
+    'id': fold.id,
+    'tileId': fold.tileId,
+    'healpixOrder': fold.healpixOrder,
+    'sessionId': fold.sessionId,
+    'foldedAt': fold.foldedAt.toUtc().toIso8601String(),
+    'framesAdded': fold.framesAdded,
+    'weightAdded': fold.weightAdded,
+    'integrationSecondsAdded': fold.integrationSecondsAdded,
+    'rejected': fold.rejected,
+    'contributor': fold.contributor,
+    'label': fold.label,
+  };
+}
