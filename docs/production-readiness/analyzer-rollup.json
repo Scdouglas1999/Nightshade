@@ -1,5 +1,5 @@
 {
-  "generatedAtUtc": "2026-06-19T02:09:38.530650Z",
+  "generatedAtUtc": "2026-06-20T18:47:36.389477Z",
   "analyzerExitCode": 0,
   "policyPath": "docs/production-readiness/analyzer-policy.yaml",
   "policy": {
@@ -28,12 +28,12 @@
     "all": {
       "errors": 0,
       "warnings": 0,
-      "infos": 67
+      "infos": 73
     },
     "production": {
       "errors": 0,
       "warnings": 0,
-      "infos": 32
+      "infos": 36
     },
     "criticalWarnings": 0,
     "failed": false
@@ -112,6 +112,16 @@
       "column": 33,
       "length": 7,
       "message": "Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "SORT_CHILD_PROPERTIES_LAST",
+      "file": "/home/scdouglas/Documents/Nightshade2/packages/nightshade_app/lib/screens/analytics/widgets/science_onboarding/science_rung_sheet.dart",
+      "line": 47,
+      "column": 7,
+      "length": 1436,
+      "message": "The 'child' argument should be last in widget constructor invocations."
     },
     {
       "severity": "INFO",
@@ -275,6 +285,16 @@
     },
     {
       "severity": "INFO",
+      "type": "LINT",
+      "code": "PREFER_CONST_CONSTRUCTORS",
+      "file": "/home/scdouglas/Documents/Nightshade2/packages/nightshade_app/lib/screens/sequencer/widgets/session_report_dialog.dart",
+      "line": 50,
+      "column": 22,
+      "length": 244,
+      "message": "Use 'const' with the constructor to improve performance."
+    },
+    {
+      "severity": "INFO",
       "type": "HINT",
       "code": "DEPRECATED_MEMBER_USE",
       "file": "/home/scdouglas/Documents/Nightshade2/packages/nightshade_app/lib/screens/sequencer/widgets/smart_exposure_properties.dart",
@@ -312,6 +332,16 @@
       "column": 11,
       "length": 13,
       "message": "'axisAlignment' is deprecated and shouldn't be used. Use alignment instead. This property provides full control over both axes, which is an improvement over the old axisAlignment. This feature was deprecated after v3.41.0-1.0.pre."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "PREFER_CONST_CONSTRUCTORS",
+      "file": "/home/scdouglas/Documents/Nightshade2/packages/nightshade_app/lib/screens/tonight/tonight_screen.dart",
+      "line": 566,
+      "column": 12,
+      "length": 699,
+      "message": "Use 'const' with the constructor to improve performance."
     },
     {
       "severity": "INFO",
@@ -362,6 +392,16 @@
       "column": 33,
       "length": 12,
       "message": "Invalid use of a private type in a public API."
+    },
+    {
+      "severity": "INFO",
+      "type": "LINT",
+      "code": "SORT_CHILD_PROPERTIES_LAST",
+      "file": "/home/scdouglas/Documents/Nightshade2/packages/nightshade_ui/lib/src/components/science_info_button.dart",
+      "line": 19,
+      "column": 9,
+      "length": 179,
+      "message": "The 'child' argument should be last in widget constructor invocations."
     }
   ],
   "stderr": []

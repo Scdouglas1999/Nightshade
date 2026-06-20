@@ -101,6 +101,8 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
     _weatherHandlers = WeatherHandlers(container);
     _suggestionHandlers = SuggestionHandlers(container);
     _transientHandlers = TransientHandlers(container);
+    _firstLightHandlers = FirstLightHandlers(container);
+    _atlasHandlers = AtlasHandlers(container);
     _backupHandlers = BackupHandlers(container);
     _syncHandlers = SyncHandlers(container);
     _framingHandlers = FramingHandlers(container, jobManager: _jobManager);

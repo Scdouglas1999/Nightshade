@@ -23,6 +23,8 @@ export 'handlers/analytics_handlers.dart';
 export 'handlers/weather_handlers.dart';
 export 'handlers/suggestion_handlers.dart';
 export 'handlers/transient_handlers.dart';
+export 'handlers/first_light_handlers.dart';
+export 'handlers/atlas_handlers.dart';
 export 'handlers/backup_handlers.dart';
 export 'handlers/sync_handlers.dart';
 export 'handlers/framing_handlers.dart';

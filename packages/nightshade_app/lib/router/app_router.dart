@@ -23,6 +23,8 @@ import '../screens/settings/settings_screen.dart';
 import '../screens/settings/plate_solving_settings_screen.dart';
 import '../screens/polar_alignment/polar_alignment_screen.dart';
 import '../screens/transients/transients_screen.dart';
+import '../screens/your_sky/your_sky_screen.dart';
+import '../screens/constellation/constellation_screen.dart';
 import '../screens/planner/planner_screen.dart';
 import '../screens/tonight/tonight_screen.dart';
 import '../screens/scheduler/scheduler_screen.dart';
@@ -341,6 +343,30 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             redirect: (context, state) => '/science?tab=transients',
             pageBuilder: (context, state) => const CustomTransitionPage(
               child: TransientsScreen(),
+              transitionsBuilder: PageTransitions.slideFadeTransition,
+              transitionDuration: Duration(milliseconds: 300),
+            ),
+          ),
+          // Pillar A ("Your Sky") — the personal growing all-sky atlas. A
+          // top-level shell destination; the region detail opens as a pushed
+          // MaterialPageRoute from within the screen.
+          GoRoute(
+            path: '/your-sky',
+            name: 'your-sky',
+            pageBuilder: (context, state) => const CustomTransitionPage(
+              child: YourSkyScreen(),
+              transitionsBuilder: PageTransitions.slideFadeTransition,
+              transitionDuration: Duration(milliseconds: 300),
+            ),
+          ),
+          // Pillar C ("Constellation") — the community swarm surface. A
+          // top-level shell destination; shared-target detail opens as a pushed
+          // MaterialPageRoute from within the screen.
+          GoRoute(
+            path: '/constellation',
+            name: 'constellation',
+            pageBuilder: (context, state) => const CustomTransitionPage(
+              child: ConstellationScreen(),
               transitionsBuilder: PageTransitions.slideFadeTransition,
               transitionDuration: Duration(milliseconds: 300),
             ),

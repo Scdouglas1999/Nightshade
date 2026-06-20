@@ -4,7 +4,10 @@ import 'package:nightshade_app/screens/shell/shell_navigation.dart';
 void main() {
   group('ShellNavigation', () {
     test('primaryDestinations exposes the consolidated desktop side-nav', () {
-      expect(ShellNavigation.primaryDestinations, hasLength(8));
+      // v5 ("Living Sky") adds the two new pillars — Your Sky and the
+      // Constellation community surface — to the desktop side-nav, ahead of
+      // the trailing Settings slot.
+      expect(ShellNavigation.primaryDestinations, hasLength(10));
       expect(
         ShellNavigation.primaryRoutes,
         [
@@ -15,6 +18,8 @@ void main() {
           '/analytics',
           '/science',
           '/planner',
+          '/your-sky',
+          '/constellation',
           '/settings',
         ],
       );

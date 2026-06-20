@@ -36,9 +36,11 @@ class ShellRouteDestination {
 abstract final class ShellNavigation {
   ShellNavigation._();
 
-  /// Eight consolidated features in side-nav order (matches desktop). Folded
-  /// destinations (Transients, Framing, Planetarium, Flat Wizard, Weather,
-  /// Guiding) live inside these screens and resolve via redirects.
+  /// The consolidated top-level features in side-nav order (matches desktop):
+  /// Dashboard, Equipment, Imaging, Sequencer, Analytics, Science, Planner, Your
+  /// Sky, Constellation, plus Settings. Folded destinations (Transients, Framing,
+  /// Planetarium, Flat Wizard, Weather, Guiding) live inside these screens and
+  /// resolve via redirects.
   static const List<ShellPrimaryDestination> primaryDestinations = [
     ShellPrimaryDestination(
       route: '/dashboard',
@@ -81,6 +83,18 @@ abstract final class ShellNavigation {
       icon: LucideIcons.moonStar,
       label: _navPlanner,
       description: _navPlannerDesc,
+    ),
+    ShellPrimaryDestination(
+      route: '/your-sky',
+      icon: LucideIcons.orbit,
+      label: _navYourSky,
+      description: _navYourSkyDesc,
+    ),
+    ShellPrimaryDestination(
+      route: '/constellation',
+      icon: LucideIcons.users,
+      label: _navConstellation,
+      description: _navConstellationDesc,
     ),
     settings,
   ];
@@ -128,6 +142,20 @@ abstract final class ShellNavigation {
       label: _navPlanner,
     ),
   ];
+
+  /// Primary destinations that do NOT have a fixed bottom-nav slot on phone, in
+  /// side-nav order. Surfaced through the bottom bar's "More" overflow so every
+  /// top-level feature (notably Your Sky + Constellation) is reachable on mobile,
+  /// not just the six core slots + Settings gear.
+  static List<ShellPrimaryDestination> get overflowDestinations {
+    final bottomRoutes =
+        bottomNavigationDestinations.map((d) => d.route).toSet();
+    return [
+      for (final dest in primaryDestinations)
+        if (!bottomRoutes.contains(dest.route) && dest.route != settings.route)
+          dest,
+    ];
+  }
 
   static final List<String> primaryRoutes =
       primaryDestinations.map((d) => d.route).toList(growable: false);
@@ -184,6 +212,14 @@ abstract final class ShellNavigation {
       l10n.text('navPlanner');
   static String _navPlannerDesc(NightshadeLocalizations l10n) =>
       l10n.text('navPlannerDesc');
+  static String _navYourSky(NightshadeLocalizations l10n) =>
+      l10n.text('navYourSky');
+  static String _navYourSkyDesc(NightshadeLocalizations l10n) =>
+      l10n.text('navYourSkyDesc');
+  static String _navConstellation(NightshadeLocalizations l10n) =>
+      l10n.text('navConstellation');
+  static String _navConstellationDesc(NightshadeLocalizations l10n) =>
+      l10n.text('navConstellationDesc');
   static String _settingsTitle(NightshadeLocalizations l10n) =>
       l10n.text('settingsTitle');
   static String _settingsDesc(NightshadeLocalizations l10n) =>

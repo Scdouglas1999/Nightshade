@@ -297,6 +297,10 @@ class HeadlessApiServer {
   late final WeatherHandlers _weatherHandlers;
   late final SuggestionHandlers _suggestionHandlers;
   late final TransientHandlers _transientHandlers;
+  // Pillar B ("First Light"): difference-imaging transient discovery surface.
+  late final FirstLightHandlers _firstLightHandlers;
+  // Pillar A ("Your Sky"): personal sky-atlas browse surface.
+  late final AtlasHandlers _atlasHandlers;
   late final BackupHandlers _backupHandlers;
   // Cloud backup/sync — status + push-now (config lives in desktop settings).
   late final SyncHandlers _syncHandlers;

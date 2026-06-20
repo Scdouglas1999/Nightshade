@@ -336,6 +336,11 @@ export 'src/utils/device_id.dart'
         kPhd2CanonicalId;
 export 'src/services/phd2_status_poll.dart';
 export 'src/services/device_matching_service.dart';
+export 'src/services/imaging_records_repository.dart'
+    show
+        ImagingRecordsRepository,
+        imagingRecordsRepositoryProvider,
+        SolvedFrameFoldHook;
 export 'src/services/imaging_service.dart';
 export 'src/services/stretch_pipeline_service.dart';
 export 'src/services/thumbnail_sidecar_service.dart';
@@ -563,6 +568,27 @@ export 'src/services/color_calibration_service.dart';
 export 'src/services/master_annotation_service.dart';
 export 'src/database/daos/integrated_masters_dao.dart';
 export 'src/database/daos/flat_library_dao.dart';
+// Pillar A ("Your Sky"): personal sky-atlas persistence + tables + service.
+export 'src/database/daos/sky_atlas_dao.dart';
+export 'src/database/tables/sky_atlas_tables.dart' show skyAtlasHealpixOrder;
+export 'src/services/sky_atlas/sky_atlas_models.dart';
+export 'src/services/sky_atlas/sky_atlas_seam.dart';
+export 'src/services/sky_atlas/sky_atlas_service.dart';
+export 'src/providers/sky_atlas_provider.dart';
+// Pillar C ("Constellation"): community hub client + orchestration + providers.
+export 'src/services/constellation/constellation_models.dart';
+export 'src/services/constellation/constellation_client.dart';
+export 'src/services/constellation/constellation_service.dart';
+export 'src/providers/constellation_provider.dart';
+// Pillar B ("First Light"): difference-imaging transient log + scan service +
+// report export.
+export 'src/database/daos/transient_detections_dao.dart';
+export 'src/services/transients/transient_candidate.dart';
+export 'src/services/transients/difference_image_seam.dart';
+export 'src/services/transients/first_light_service.dart';
+export 'src/services/transients/transient_report_service.dart';
+export 'src/services/transients/transient_alert_mapper.dart';
+export 'src/providers/transient_detections_provider.dart';
 // Smart Morning Report (v42): Night Doctor report persistence.
 export 'src/database/daos/night_reports_dao.dart';
 // Durable multi-night campaign counter (Phase B, v43).

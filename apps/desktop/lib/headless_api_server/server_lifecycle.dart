@@ -39,6 +39,8 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       ...buildScienceRoutes(_scienceHandlers),
       ...buildSuggestionRoutes(_suggestionHandlers),
       ...buildTransientRoutes(_transientHandlers),
+      ...buildFirstLightRoutes(_firstLightHandlers),
+      ...buildAtlasRoutes(_atlasHandlers),
       ...buildBackupRoutes(_backupHandlers),
       ...buildSyncRoutes(_syncHandlers),
       ...buildFramingRoutes(_framingHandlers),

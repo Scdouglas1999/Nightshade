@@ -54,6 +54,8 @@ export 'routes/suggestion_routes.dart';
 export 'routes/system_routes.dart';
 export 'routes/target_routes.dart';
 export 'routes/transient_routes.dart';
+export 'routes/first_light_routes.dart';
+export 'routes/atlas_routes.dart';
 export 'routes/update_routes.dart';
 export 'routes/weather_routes.dart';
 export 'routes/webrtc_live_view_routes.dart';

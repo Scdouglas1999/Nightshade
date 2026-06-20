@@ -48,6 +48,27 @@ const Map<String, String> narratorExplainers = <String, String>{
           "period is a physical clock — an orbit, a rotation, or a pulsation. "
           "It's the kind of result that makes a night's worth of subs worth it.",
 
+  // === First Light (difference imaging) ====================================
+  'first_light.transient':
+      "A clean, round point of light is sitting in your difference image where "
+          "your deep template of this field was empty — and it matches nothing in "
+          "the catalog. That's the classic signature of a genuine transient: a "
+          "nova, a supernova, or an outburst nobody has logged yet. Re-image to "
+          "confirm it's real and not a cosmic-ray hit, then it's worth a report "
+          "to AAVSO or the TNS.",
+  'first_light.brightening':
+      "A source you've imaged before has jumped well above its usual brightness "
+          "in this frame's difference image — a real change, not measurement "
+          "scatter. Sudden brightening like this is how dwarf-nova outbursts, "
+          "stellar flares, and AGN flickers announce themselves. Keep watching "
+          "it: the rise and fall is the science.",
+  'first_light.mover':
+      "An elongated residual streaked across your difference image, and its "
+          "shape says it moved between exposures rather than sitting still like a "
+          "star. That's almost always a minor planet or a satellite caught "
+          "mid-pass. A short follow-up set, timed and measured, can turn a "
+          "passing streak into a real astrometric position.",
+
   // === Milestone ===========================================================
   'milestone.limiting_mag':
       "This is how faint your rig is actually reaching tonight, measured from "
@@ -162,6 +183,21 @@ const Map<String, NarratorAction> narratorActions = <String, NarratorAction>{
   'discovery.period_found': NarratorAction(
     route: '/analytics?tab=science',
     label: 'Open science analytics',
+  ),
+
+  // First Light → the difference-imaging discoveries land on the transients /
+  // observing-alerts surface, where they can be confirmed or triaged.
+  'first_light.transient': NarratorAction(
+    route: '/transients',
+    label: 'Observing alerts',
+  ),
+  'first_light.brightening': NarratorAction(
+    route: '/transients',
+    label: 'Observing alerts',
+  ),
+  'first_light.mover': NarratorAction(
+    route: '/transients',
+    label: 'Observing alerts',
   ),
 
   // Milestone → calibration / limiting-mag detail is on the science tab.

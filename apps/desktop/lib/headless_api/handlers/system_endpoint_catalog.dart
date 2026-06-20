@@ -382,6 +382,15 @@ List<String> availableHeadlessEndpoints() {
     'POST /api/transients/<id>/queue',
     'POST /api/transients/<id>/dismiss',
     'POST /api/transients/refresh',
+    // First Light (Pillar B — difference-imaging transient discovery)
+    'GET /api/firstlight/candidates',
+    'POST /api/firstlight/<id>/review',
+    'POST /api/firstlight/<id>/dismiss',
+    // Sky atlas (Pillar A — "Your Sky")
+    'GET /api/atlas/regions',
+    'GET /api/atlas/region/<id>',
+    'GET /api/atlas/region/<id>/cutout',
+    'GET /api/atlas/region/<id>/timeline',
     // Backup
     'GET /api/backup/list',
     'POST /api/backup/create',

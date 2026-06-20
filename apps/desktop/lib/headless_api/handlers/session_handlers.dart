@@ -394,13 +394,30 @@ class SessionHandlers {
 
     if (payload.containsKey('isPlateSolved') &&
         payload['isPlateSolved'] == true) {
-      await imagesDao.updatePlateSolveResult(
-        iid,
-        solvedRa: requireDouble(payload, 'solvedRa'),
-        solvedDec: requireDouble(payload, 'solvedDec'),
-        solvedRotation: requireDouble(payload, 'solvedRotation'),
-        solvedPixelScale: requireDouble(payload, 'solvedPixelScale'),
-      );
+      // Route through the repository (NOT the DAO directly) so the solve-persist
+      // event fires onSolvedFrameFold — the appliance is the authoritative atlas
+      // host, so a solve arriving via the headless API must fold into Your Sky
+      // and run the First Light difference scan, exactly like the desktop path.
+      // Accept + persist the full CD matrix + SIP so the fold and difference scan
+      // use the real distortion rather than CD-from-scale geometry.
+      final cd11 = optionalDouble(payload, 'solvedCd1_1');
+      final cd12 = optionalDouble(payload, 'solvedCd1_2');
+      final cd21 = optionalDouble(payload, 'solvedCd2_1');
+      final cd22 = optionalDouble(payload, 'solvedCd2_2');
+      await container
+          .read(imagingRecordsRepositoryProvider)
+          .updatePlateSolveResult(
+            iid,
+            solvedRa: requireDouble(payload, 'solvedRa'),
+            solvedDec: requireDouble(payload, 'solvedDec'),
+            solvedRotation: requireDouble(payload, 'solvedRotation'),
+            solvedPixelScale: requireDouble(payload, 'solvedPixelScale'),
+            solvedCd1_1: cd11,
+            solvedCd1_2: cd12,
+            solvedCd2_1: cd21,
+            solvedCd2_2: cd22,
+            solvedSip: optionalString(payload, 'solvedSip'),
+          );
     }
 
     if (payload.containsKey('producingNodeId') ||
