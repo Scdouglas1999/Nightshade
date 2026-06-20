@@ -707,10 +707,10 @@ CREATE TABLE captured_images (
     },
   );
 
-  test('fresh database is at schema 51 with stacked_results table', () async {
+  test('fresh database is at schema 52 with stacked_results table', () async {
     final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
     try {
-      expect(db.schemaVersion, equals(51));
+      expect(db.schemaVersion, equals(52));
 
       // v48 (Night Narrator): the narrator_events table must exist on a
       // fresh install (drift createAll) just like on the upgrade path.
@@ -782,7 +782,7 @@ CREATE TABLE captured_images (
           .customSelect('PRAGMA user_version')
           .getSingle();
       expect(upgradedVersion.data['user_version'], equals(db.schemaVersion));
-      expect(db.schemaVersion, equals(51));
+      expect(db.schemaVersion, equals(52));
 
       final tableRow = await db
           .customSelect(
