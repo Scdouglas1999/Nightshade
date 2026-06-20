@@ -7,11 +7,13 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../localization/nightshade_localizations.dart';
 import '../analytics/widgets/science_analytics_tab.dart';
 import '../analytics/widgets/science_export_hub.dart';
+import '../first_light/first_light_view.dart';
 import '../transients/transients_screen.dart';
 
 /// Identifies a Science sub-tab for deep-linking via `?tab=` query param.
 enum ScienceTab {
   workspace,
+  firstLight,
   transients,
 }
 
@@ -24,6 +26,10 @@ ScienceTab? scienceTabFromQuery(String? value) {
   switch (value.toLowerCase()) {
     case 'workspace':
       return ScienceTab.workspace;
+    case 'firstlight':
+    case 'first_light':
+    case 'discovery':
+      return ScienceTab.firstLight;
     case 'transients':
     case 'alerts':
       return ScienceTab.transients;
@@ -72,6 +78,10 @@ class _ScienceScreenState extends ConsumerState<ScienceScreen> {
       AdaptiveTab(
         label: l10n.text('analyticsScience'),
         icon: LucideIcons.flaskConical,
+      ),
+      const AdaptiveTab(
+        label: 'First Light',
+        icon: LucideIcons.sparkles,
       ),
       const AdaptiveTab(
         label: 'Observing Alerts',
@@ -162,6 +172,7 @@ class _ScienceScreenState extends ConsumerState<ScienceScreen> {
               index: _currentSubTab,
               children: const [
                 ScienceAnalyticsTab(),
+                FirstLightView(showHeader: false),
                 TransientsView(showHeader: false),
               ],
             ),

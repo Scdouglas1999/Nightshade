@@ -1,0 +1,138 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_app/screens/first_light/first_light_view.dart';
+import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
+
+TransientDetectionRow _detection({
+  int id = 1,
+  String kind = 'newSource',
+  String? catalogMatch,
+  double? deltaMag,
+  bool reviewed = false,
+  bool dismissed = false,
+}) {
+  return TransientDetectionRow(
+    id: id,
+    sessionId: null,
+    capturedImageId: null,
+    tileId: 42,
+    detectedAt: DateTime.utc(2026, 6, 19, 22, 30),
+    raDeg: 120.5,
+    decDeg: -25.25,
+    residualFlux: 1500.0,
+    deltaMag: deltaMag,
+    snr: 18.3,
+    fwhm: 2.1,
+    eccentricity: 0.12,
+    positionAngleDeg: 0.0,
+    kind: kind,
+    catalogMatch: catalogMatch,
+    confidence: 0.81,
+    reviewed: reviewed,
+    dismissed: dismissed,
+  );
+}
+
+Future<void> _pump(
+  WidgetTester tester, {
+  required List<TransientDetectionRow> candidates,
+  List<NarratorEvent> narrator = const [],
+}) {
+  return tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        firstLightCandidatesProvider.overrideWith(
+          (ref) => Stream.value(candidates),
+        ),
+        recentNarratorFeedProvider.overrideWith(
+          (ref) => Stream.value(narrator),
+        ),
+      ],
+      child: MaterialApp(
+        theme: NightshadeTheme.dark,
+        home: const Scaffold(body: FirstLightView()),
+      ),
+    ),
+  );
+}
+
+void main() {
+  group('FirstLightView', () {
+    testWidgets('renders the unnamed-transient verdict and cutout strip', (
+      tester,
+    ) async {
+      await _pump(tester, candidates: [_detection()]);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Possible unknown transient'), findsOneWidget);
+      // The three side-by-side cutout panels.
+      expect(find.text('Template'), findsOneWidget);
+      expect(find.text('This frame'), findsOneWidget);
+      expect(find.text('Residual'), findsOneWidget);
+      // The metrics + actions.
+      expect(find.textContaining('SNR 18.3'), findsOneWidget);
+      expect(find.text('Submit'), findsOneWidget);
+      expect(find.text('Confirm'), findsOneWidget);
+    });
+
+    testWidgets('names a catalog-matched brightening and shows the delta mag', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        candidates: [
+          _detection(
+            kind: 'pointBrightening',
+            catalogMatch: 'Star V=12.3',
+            deltaMag: -0.42,
+          ),
+        ],
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Star V=12.3'), findsOneWidget);
+      expect(find.textContaining('0.42 mag'), findsOneWidget);
+    });
+
+    testWidgets('shows the empty state when there are no candidates', (
+      tester,
+    ) async {
+      await _pump(tester, candidates: const []);
+      await tester.pumpAndSettle();
+
+      expect(find.text('No transients yet'), findsOneWidget);
+      // No candidate card actions when empty.
+      expect(find.text('Submit'), findsNothing);
+    });
+
+    testWidgets('surfaces a celebrate Narrator event as the highlight', (
+      tester,
+    ) async {
+      final event = NarratorEvent(
+        id: 1,
+        sessionId: null,
+        capturedImageId: null,
+        timestamp: DateTime.now(),
+        eventType: 'first_light.transient',
+        category: NarratorCategory.discovery,
+        severity: NarratorSeverity.celebrate,
+        headline: 'Possible transient — a new source at 08h02m',
+        body: 'Re-image to confirm.',
+        evidence: null,
+        dedupeKey: 'first_light.transient:42',
+        pinned: true,
+      );
+
+      await _pump(tester, candidates: [_detection()], narrator: [event]);
+      await tester.pumpAndSettle();
+
+      expect(find.text("Tonight's highlight"), findsOneWidget);
+      expect(
+        find.text('Possible transient — a new source at 08h02m'),
+        findsOneWidget,
+      );
+    });
+  });
+}

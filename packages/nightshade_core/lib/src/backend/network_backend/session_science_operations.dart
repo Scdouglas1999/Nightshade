@@ -299,6 +299,38 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   }
 
   // =========================================================================
+  // First Light — difference-imaging transient discovery (read + triage)
+  // =========================================================================
+
+  /// Fetch the appliance's First Light transient detections (newest-first).
+  /// Pass [sessionId] for a single session, or null for the across-sessions
+  /// feed. The difference pipeline runs on the host, so a remote client reads
+  /// its persisted candidates here instead of the local DB. Callers
+  /// reconstruct rows via `transientDetectionFromWireJson`.
+  Future<List<Map<String, dynamic>>> getFirstLightCandidates({
+    int? sessionId,
+  }) async {
+    final json = await _get(
+      'firstlight/candidates',
+      sessionId == null ? null : {'sessionId': sessionId.toString()},
+    );
+    final raw = json['candidates'];
+    if (raw is! List) return const [];
+    return raw.whereType<Map<String, dynamic>>().toList(growable: false);
+  }
+
+  /// Mark a First Light detection reviewed (confirmed) on the host.
+  Future<void> reviewFirstLightCandidate(int id) async {
+    await _post('firstlight/$id/review');
+  }
+
+  /// Dismiss a First Light detection as a triaged artefact on the host so the
+  /// next difference scan suppresses the same position.
+  Future<void> dismissFirstLightCandidate(int id) async {
+    await _post('firstlight/$id/dismiss');
+  }
+
+  // =========================================================================
   // Target Suggestions
   // =========================================================================
 

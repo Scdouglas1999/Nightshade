@@ -11,12 +11,14 @@ library;
 import '../science_status.dart' show ScienceStage;
 import 'narrator_engine.dart';
 import 'detectors/discovery_detectors.dart';
+import 'detectors/first_light_detectors.dart';
 import 'detectors/milestone_detectors.dart';
 import 'detectors/conditions_detectors.dart';
 import 'detectors/equipment_detectors.dart';
 import 'detectors/quality_detectors.dart';
 
-/// The full v1 detector catalog (all 19 detectors), discovery-first.
+/// The full detector catalog (22 detectors), discovery-first. The three First
+/// Light (Pillar B) difference-imaging detectors join the original 19.
 NarratorEngine buildDefaultNarratorEngine() {
   return NarratorEngine(
     detectors: [
@@ -24,6 +26,10 @@ NarratorEngine buildDefaultNarratorEngine() {
       MovingObjectDetector(),
       LightCurveEventDetector(),
       PeriodFoundDetector(),
+      // First Light (Pillar B) — difference-imaging discoveries.
+      TransientDiscoveryDetector(),
+      BrighteningDetector(),
+      MoverDetector(),
       // Milestone
       LimitingMagDetector(),
       CalibrationLockedDetector(),
@@ -54,6 +60,12 @@ NarratorEngine buildDefaultNarratorEngine() {
 final Map<String, Duration> defaultNarratorCooldowns = {
   'milestone.best_seeing': const Duration(minutes: 30),
   'discovery.moving_object': const Duration(minutes: 15),
+  // First Light: a possible transient is rare and pinned — a generous cooldown
+  // stops a persistent residual from flooding the feed across a night's frames
+  // (the per-position dedupeKey already collapses repeats; the cooldown guards
+  // distinct nearby residuals on a busy field).
+  'first_light.transient': const Duration(minutes: 30),
+  'first_light.mover': const Duration(minutes: 15),
   'equipment.tilt': const Duration(hours: 6),
   'equipment.focus_drift': const Duration(minutes: 20),
   'equipment.guiding_degraded': const Duration(minutes: 15),

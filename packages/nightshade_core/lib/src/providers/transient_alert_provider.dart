@@ -10,8 +10,10 @@ import '../models/target/target_models.dart';
 import '../services/logging_service.dart';
 import '../services/target_library_service.dart';
 import '../services/transient_alert_service.dart';
+import '../services/transients/transient_alert_mapper.dart';
 import 'backend_provider.dart';
 import 'database_provider.dart';
+import 'transient_detections_provider.dart';
 import 'ui_notification_provider.dart';
 
 // =============================================================================
@@ -257,6 +259,19 @@ final activeTransientAlertsProvider =
       // Create a controller for the stream
       final controller = StreamController<List<TransientAlert>>();
 
+      // Pillar B ("First Light"): self-discovered transients flow through the
+      // same alert surfaces. Watch the local difference-imaging detections and
+      // merge the non-dismissed ones (most confident first) ahead of the
+      // external feed so a fresh discovery sits at the top of the bell.
+      List<TransientAlert> localFirstLightAlerts() {
+        final detections =
+            ref.watch(allTransientDetectionsProvider).valueOrNull ?? const [];
+        return detections
+            .where((d) => !d.dismissed)
+            .map(transientAlertFromDetection)
+            .toList(growable: false);
+      }
+
       // Initial fetch
       Future<void> fetchAlerts() async {
         try {
@@ -286,15 +301,23 @@ final activeTransientAlertsProvider =
             );
           }
 
+          // Merge local First Light discoveries ahead of the external feed.
+          final merged = [...localFirstLightAlerts(), ...alerts];
+
           if (!controller.isClosed) {
-            controller.add(alerts);
+            controller.add(merged);
           }
         } catch (e) {
           logger.error(
             'Error fetching transient alerts: $e',
             source: 'activeTransientAlertsProvider',
           );
-          if (!controller.isClosed) {
+          // Even if the external feed failed, still surface local discoveries —
+          // a self-found transient must never be hidden by a dead uplink.
+          final local = localFirstLightAlerts();
+          if (local.isNotEmpty) {
+            if (!controller.isClosed) controller.add(local);
+          } else if (!controller.isClosed) {
             controller.addError(e);
           }
         }
@@ -305,6 +328,12 @@ final activeTransientAlertsProvider =
 
       // Set up periodic polling
       final timer = Timer.periodic(_alertPollingInterval, (_) {
+        fetchAlerts();
+      });
+
+      // Re-merge whenever the local detections change (a fresh scan persisted a
+      // new transient) so the bell updates without waiting for the poll tick.
+      ref.listen(allTransientDetectionsProvider, (_, __) {
         fetchAlerts();
       });
 

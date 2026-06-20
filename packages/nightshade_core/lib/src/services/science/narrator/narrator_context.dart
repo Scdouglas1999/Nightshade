@@ -22,6 +22,7 @@ import '../../../models/science/science_models.dart'
     show LightCurvePoint, MovingObjectCandidate, TransparencyTrendPoint;
 import '../../optical_train_diagnostics_service.dart'
     show OpticalTrainDiagnostics;
+import '../../transients/transient_candidate.dart' show TransientCandidate;
 import '../science_status.dart' show ScienceStageResult;
 
 /// A single point of the auto-grader's accept/reject history. Produced by a
@@ -164,6 +165,12 @@ class NarratorContext {
   /// Moving-object candidates detected this session.
   final List<MovingObjectCandidate> movingObjects;
 
+  /// First Light (Pillar B) difference-imaging transient candidates from the
+  /// frame that prompted this context, already cross-matched (so
+  /// `catalogMatch == null` is a genuine unknown). Empty whenever the frame was
+  /// not differenced against the atlas (no deep template yet, atlas disabled).
+  final List<TransientCandidate> transientCandidates;
+
   // ── Conditions ────────────────────────────────────────────────────────────
   /// Transparency trend points this session, oldest → newest.
   final List<TransparencyTrendPoint> transparency;
@@ -217,6 +224,7 @@ class NarratorContext {
     this.lightCurve = const [],
     this.periodResults = const [],
     this.movingObjects = const [],
+    this.transientCandidates = const [],
     this.transparency = const [],
     this.skySamples = const [],
     this.weather,
