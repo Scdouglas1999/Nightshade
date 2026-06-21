@@ -75,11 +75,11 @@ class _FlatWizardScreenState extends ConsumerState<FlatWizardScreen>
       alignment: Alignment.bottomRight,
       child: Column(
         children: [
-          // Screen header
-          _buildHeader(colors, state),
-
-          // Tab bar
-          _buildTabBar(colors),
+          // Title + mode tabs share ONE row (the screen title previously sat in
+          // its own ~56px header above the tab bar). The title folds inline to
+          // the left of the tab strip — icon-only on a phone — and the live
+          // "Capturing" badge rides at the right end of the same row.
+          _buildTabBar(colors, state),
 
           // Split view content
           Expanded(
@@ -101,102 +101,96 @@ class _FlatWizardScreenState extends ConsumerState<FlatWizardScreen>
     );
   }
 
-  Widget _buildHeader(NightshadeColors colors, FlatWizardState state) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(bottom: BorderSide(color: colors.border)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: colors.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-            ),
-            child: Icon(LucideIcons.sun, color: colors.primary, size: 24),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Flat Frame Wizard',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize20,
-                    fontWeight: FontWeight.bold,
-                    color: colors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Capture calibration frames with optimal exposure',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize13,
-                    color: colors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (state.isCapturing)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: colors.success.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
-                border:
-                    Border.all(color: colors.success.withValues(alpha: 0.3)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: colors.success,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Capturing',
-                    style: NightshadeTypography.label
-                        .copyWith(color: colors.success),
-                  ),
-                ],
+  /// A compact "Capturing" status pill surfaced inline at the right end of the
+  /// tab row while a flat-capture run is active.
+  Widget _capturingBadge(NightshadeColors colors) {
+    return Padding(
+      padding: const EdgeInsets.only(right: NightshadeTokens.spaceMd),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: colors.success.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
+          border: Border.all(color: colors.success.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colors.success,
               ),
             ),
-        ],
+            const SizedBox(width: 8),
+            Text(
+              'Capturing',
+              style:
+                  NightshadeTypography.label.copyWith(color: colors.success),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildTabBar(NightshadeColors colors) {
+  Widget _buildTabBar(NightshadeColors colors, FlatWizardState state) {
     // AdaptiveTabBar never overflows: the three mode labels scroll
     // horizontally on a narrow phone instead of throwing a RenderFlex.
     // It drives the existing TabController so the TabBarView stays in sync.
+    // The screen title is folded inline to the left of the strip (icon-only on
+    // a phone) and the live "Capturing" badge rides at the right end.
+    final isPhone = Responsive.isPhone(context);
     return Container(
       key: FlatWizardTutorialKeys.tabs,
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(bottom: BorderSide(color: colors.border)),
       ),
-      child: AnimatedBuilder(
-        animation: _tabController,
-        builder: (context, _) => AdaptiveTabBar(
-          tabs: const [
-            AdaptiveTab(label: 'Quick Capture', icon: LucideIcons.zap),
-            AdaptiveTab(label: 'Multi-Filter Batch', icon: LucideIcons.layers),
-            AdaptiveTab(label: 'Sky Flats', icon: LucideIcons.sunrise),
-          ],
-          selectedIndex: _tabController.index,
-          onSelected: (i) => _tabController.animateTo(i),
-        ),
+      child: Row(
+        children: [
+          Padding(
+            padding: EdgeInsets.only(
+              left: NightshadeTokens.spaceLg,
+              right: isPhone
+                  ? NightshadeTokens.spaceSm
+                  : NightshadeTokens.spaceMd,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.sun, size: 18, color: colors.primary),
+                if (!isPhone) ...[
+                  const SizedBox(width: NightshadeTokens.spaceSm),
+                  Text(
+                    'Flat Frame Wizard',
+                    style: NightshadeTypography.h5.copyWith(
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          Expanded(
+            child: AnimatedBuilder(
+              animation: _tabController,
+              builder: (context, _) => AdaptiveTabBar(
+                tabs: const [
+                  AdaptiveTab(label: 'Quick Capture', icon: LucideIcons.zap),
+                  AdaptiveTab(
+                      label: 'Multi-Filter Batch', icon: LucideIcons.layers),
+                  AdaptiveTab(label: 'Sky Flats', icon: LucideIcons.sunrise),
+                ],
+                selectedIndex: _tabController.index,
+                onSelected: (i) => _tabController.animateTo(i),
+              ),
+            ),
+          ),
+          if (state.isCapturing) _capturingBadge(colors),
+        ],
       ),
     );
   }

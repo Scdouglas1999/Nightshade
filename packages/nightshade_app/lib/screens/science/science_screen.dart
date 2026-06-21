@@ -47,9 +47,10 @@ class ScienceWorkspaceView extends ConsumerStatefulWidget {
   /// Selects the initial sub-tab (workspace / first light / observing alerts).
   final String? initialViewQuery;
 
-  /// When true, renders the standalone [ScreenHeader] with the actions in its
-  /// trailing slot. When false (embedded in Analytics), the header is omitted
-  /// and the actions sit inline with the sub-tab bar.
+  /// When true (standalone `/science` route), the screen title folds inline to
+  /// the left of the sub-tab bar. When false (embedded in Analytics), the title
+  /// is omitted (Analytics owns the outer chrome); either way the per-tab
+  /// actions sit inline at the right end of the sub-tab row.
   final bool showHeader;
 
   const ScienceWorkspaceView({
@@ -173,34 +174,56 @@ class _ScienceWorkspaceViewState extends ConsumerState<ScienceWorkspaceView> {
       onSelected: (index) => setState(() => _currentSubTab = index),
     );
 
+    final isPhone = Responsive.isPhone(context);
+
     return Column(
       children: [
-        if (widget.showHeader)
-          ScreenHeader(
-            icon: LucideIcons.flaskConical,
-            title: l10n.text('analyticsScience'),
-            padding: const EdgeInsets.all(NightshadeTokens.spaceXl),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: _actions(context, colors),
-            ),
-          ),
+        // Title + sub-tabs + per-tab actions share ONE row. On the standalone
+        // `/science` route the screen owns its title, so it folds inline to the
+        // left of the tab strip (icon-only on a phone) instead of sitting in a
+        // separate ~56px ScreenHeader above the tabs. When embedded in Analytics
+        // the outer chrome already names the screen, so the title is omitted and
+        // only the per-tab actions ride at the right end of the row.
         Container(
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
             border: Border(bottom: BorderSide(color: colors.border)),
           ),
-          // Embedded in Analytics the screen header is gone, so the per-tab
-          // actions ride inline at the end of the sub-tab bar instead.
-          child: widget.showHeader
-              ? tabBar
-              : Row(
-                  children: [
-                    Expanded(child: tabBar),
-                    ..._actions(context, colors),
-                    const SizedBox(width: NightshadeTokens.spaceSm),
-                  ],
+          child: Row(
+            children: [
+              if (widget.showHeader)
+                Padding(
+                  padding: EdgeInsets.only(
+                    left: NightshadeTokens.spaceLg,
+                    right: isPhone
+                        ? NightshadeTokens.spaceSm
+                        : NightshadeTokens.spaceMd,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        LucideIcons.flaskConical,
+                        size: 18,
+                        color: colors.primary,
+                      ),
+                      if (!isPhone) ...[
+                        const SizedBox(width: NightshadeTokens.spaceSm),
+                        Text(
+                          l10n.text('analyticsScience'),
+                          style: NightshadeTypography.h5.copyWith(
+                            color: colors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
+              Expanded(child: tabBar),
+              ..._actions(context, colors),
+              const SizedBox(width: NightshadeTokens.spaceSm),
+            ],
+          ),
         ),
         Expanded(
           child: IndexedStack(
