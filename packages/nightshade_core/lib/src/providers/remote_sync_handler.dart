@@ -164,11 +164,18 @@ void _applyEquipmentEvent(
         data['device_id'] as String?,
         data['device_name'] as String?,
       );
-      _invalidateEquipmentSyncProviders(reader);
+      // Do NOT invalidate equipmentProfilesProvider here. A device
+      // connecting/disconnecting does not change the profile LIST or the active
+      // profile, but on a slave equipmentProfilesProvider is network-backed:
+      // invalidating it round-trips to the host and cascades through
+      // opticalConfigProvider -> tonightSuggestionsProvider, so doing it on
+      // every mirrored Connected/Disconnected event made "Plan Tonight" thrash
+      // (constant refresh). Connection STATE is already applied above via the
+      // per-device state providers. Profile refreshes happen on actual profile
+      // events (profileChanged / HostMutationEntity.profile) instead.
       break;
     case 'Disconnected':
       _applyDeviceDisconnectedFromSyncPayload(reader, data);
-      _invalidateEquipmentSyncProviders(reader);
       break;
     default:
       // Live telemetry mirroring is SLAVE-ONLY: on the host both
@@ -1419,6 +1426,13 @@ Future<void> _hydrateDeviceTelemetry(
     final notifier = _read(reader, filterWheelStateProvider.notifier);
     notifier.updatePosition(filterWheel.position);
     notifier.setMoving(filterWheel.moving);
+    // The fetched status already carries the wheel's filter names; apply them
+    // so the slave shows the filter list (not just the position). Without this
+    // the names were fetched and silently dropped, leaving filterNames empty on
+    // the slave. setConnected preserves position/state and merges the names.
+    if (filterWheel.filterNames.isNotEmpty) {
+      notifier.setConnected(filterNames: filterWheel.filterNames);
+    }
   }
 
   final rotator = rotatorStatus;

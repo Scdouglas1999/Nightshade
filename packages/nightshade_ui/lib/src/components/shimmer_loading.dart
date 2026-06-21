@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
@@ -27,22 +29,49 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
   // Cache colors to avoid repeated lookups every frame
   List<Color>? _cachedColors;
 
+  // The shimmer animation is an expensive per-frame ShaderMask. On a remote
+  // slave an async provider can sit in its `loading` state effectively forever,
+  // which previously kept every skeleton repainting at ~60Hz indefinitely (a
+  // large part of the slave's idle CPU). Cap how long we animate: after this the
+  // skeleton stays visible but static.
+  static const Duration _shimmerAnimateCap = Duration(seconds: 6);
+  Timer? _capTimer;
+
+  void _startShimmer() {
+    _capTimer?.cancel();
+    _controller.repeat();
+    _capTimer = Timer(_shimmerAnimateCap, () {
+      if (mounted && _controller.isAnimating) {
+        _controller.stop();
+      }
+    });
+  }
+
+  void _stopShimmer() {
+    _capTimer?.cancel();
+    if (_controller.isAnimating) {
+      _controller.stop();
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(vsync: this, duration: widget.duration);
     if (widget.isLoading) {
-      _controller.repeat();
+      _startShimmer();
     }
   }
 
   @override
   void didUpdateWidget(ShimmerLoading oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.isLoading && !_controller.isAnimating) {
-      _controller.repeat();
-    } else if (!widget.isLoading && _controller.isAnimating) {
-      _controller.stop();
+    // Drive on the isLoading TRANSITION (not on isAnimating) so the cap timer
+    // isn't restarted on every unrelated rebuild.
+    if (widget.isLoading && !oldWidget.isLoading) {
+      _startShimmer();
+    } else if (!widget.isLoading && oldWidget.isLoading) {
+      _stopShimmer();
     }
   }
 
@@ -71,6 +100,7 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
 
   @override
   void dispose() {
+    _capTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -87,27 +117,31 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
       return _cachedColors!;
     }();
 
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return ShaderMask(
-          shaderCallback: (bounds) {
-            return LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: _cachedColors!,
-              stops: [
-                (_controller.value - 0.3).clamp(0.0, 1.0),
-                _controller.value,
-                (_controller.value + 0.3).clamp(0.0, 1.0),
-              ],
-            ).createShader(bounds);
-          },
-          blendMode: BlendMode.srcATop,
-          child: child,
-        );
-      },
-      child: widget.child,
+    // RepaintBoundary isolates the per-frame ShaderMask repaint so it can't
+    // bubble out and dirty sibling/ancestor widgets every frame.
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return ShaderMask(
+            shaderCallback: (bounds) {
+              return LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: _cachedColors!,
+                stops: [
+                  (_controller.value - 0.3).clamp(0.0, 1.0),
+                  _controller.value,
+                  (_controller.value + 0.3).clamp(0.0, 1.0),
+                ],
+              ).createShader(bounds);
+            },
+            blendMode: BlendMode.srcATop,
+            child: child,
+          );
+        },
+        child: widget.child,
+      ),
     );
   }
 }

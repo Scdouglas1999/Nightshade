@@ -16,10 +16,15 @@ class _SequenceIndicatorState extends ConsumerState<_SequenceIndicator>
   @override
   void initState() {
     super.initState();
+    // NOT started here. This indicator is in the status bar on EVERY screen;
+    // repeating unconditionally repainted the bar at ~60Hz forever (a large
+    // chunk of the app's idle CPU) to produce no visible change when no
+    // sequence is running. The pulse is started/stopped in build() based on the
+    // actual execution state.
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
-    )..repeat(reverse: true);
+    );
   }
 
   @override
@@ -31,6 +36,16 @@ class _SequenceIndicatorState extends ConsumerState<_SequenceIndicator>
   @override
   Widget build(BuildContext context) {
     final executionState = ref.watch(sequenceExecutionStateProvider);
+    // Only pulse while a sequence is actually running; otherwise hold the
+    // controller still so the status bar isn't repainted every frame at idle.
+    final isRunning = executionState == SequenceExecutionState.running;
+    if (isRunning) {
+      if (!_pulseController.isAnimating) {
+        _pulseController.repeat(reverse: true);
+      }
+    } else if (_pulseController.isAnimating) {
+      _pulseController.stop();
+    }
     final progress = ref.watch(sequenceProgressProvider);
     final statusText = _statusText(executionState);
     final indicatorColor = _indicatorColor(executionState);
