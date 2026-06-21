@@ -341,15 +341,31 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
                 index: _currentSubTab,
                 // Order MUST match `tabs` / [PlannerTab] — one child per enum
                 // value, at the same index.
-                children: const [
-                  _RecommendationTab(),
-                  ProjectsTabContent(),
-                  SchedulerTabContent(),
-                  WeekForecastStrip(),
-                  ProgressTabContent(),
-                  FramingView(),
-                  PlanetariumView(),
-                  _DiscoverTab(),
+                //
+                // The last three are heavy LIVE-SKY views (HiPS tile maps with
+                // time-ticking sky rotation, plus the animated living-sky in
+                // Discover). In a plain IndexedStack every child stays BUILT, so
+                // their animations and per-tick sky rebuilds keep running even
+                // while off-tab — that pegged idle CPU (~78%) and made the whole
+                // planner visibly flash/reload. Build each heavy view only while
+                // it is the active tab; off-tab it collapses to an empty box so
+                // it neither paints nor ticks. The light tabs above stay built
+                // (cheap, and preserves their scroll/selection state).
+                children: [
+                  const _RecommendationTab(),
+                  const ProjectsTabContent(),
+                  const SchedulerTabContent(),
+                  const WeekForecastStrip(),
+                  const ProgressTabContent(),
+                  _currentSubTab == PlannerTab.framing.index
+                      ? const FramingView()
+                      : const SizedBox.shrink(),
+                  _currentSubTab == PlannerTab.planetarium.index
+                      ? const PlanetariumView()
+                      : const SizedBox.shrink(),
+                  _currentSubTab == PlannerTab.discover.index
+                      ? const _DiscoverTab()
+                      : const SizedBox.shrink(),
                 ],
               ),
             ),
