@@ -152,6 +152,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     final colors = NightshadeColors.of(context);
     final l10n = context.l10n;
     final tabs = _tabs(context);
+    final isPhone = Responsive.isPhone(context);
 
     return ContextualTourPrompt(
       screenId: 'analytics',
@@ -167,17 +168,54 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
           bottom: false,
           child: Column(
             children: [
-              // Sub-tabs. AdaptiveTabBar scrolls horizontally (and collapses to
+              // Title + sub-tabs share ONE row (the screen title previously had
+              // no row of its own here — the outer nav named the screen). Fold
+              // the title inline to the left of the tab strip — icon-only on a
+              // phone. AdaptiveTabBar scrolls horizontally (and collapses to
               // icons on a compact phone) instead of overflowing the six tabs.
               Container(
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt,
                   border: Border(bottom: BorderSide(color: colors.border)),
                 ),
-                child: AdaptiveTabBar(
-                  tabs: tabs,
-                  selectedIndex: _currentSubTab,
-                  onSelected: (index) => setState(() => _currentSubTab = index),
+                child: Row(
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.only(
+                        left: NightshadeTokens.spaceLg,
+                        right: isPhone
+                            ? NightshadeTokens.spaceSm
+                            : NightshadeTokens.spaceMd,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            LucideIcons.barChart3,
+                            size: 18,
+                            color: colors.primary,
+                          ),
+                          if (!isPhone) ...[
+                            const SizedBox(width: NightshadeTokens.spaceSm),
+                            Text(
+                              l10n.text('navAnalytics'),
+                              style: NightshadeTypography.h5.copyWith(
+                                color: colors.textPrimary,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: AdaptiveTabBar(
+                        tabs: tabs,
+                        selectedIndex: _currentSubTab,
+                        onSelected: (index) =>
+                            setState(() => _currentSubTab = index),
+                      ),
+                    ),
+                  ],
                 ),
               ),
 

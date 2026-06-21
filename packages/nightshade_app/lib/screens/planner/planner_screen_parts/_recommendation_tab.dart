@@ -72,14 +72,39 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
           candidatesAsync: candidatesAsync,
         ),
         Expanded(
-          child: planAsync.when(
+          // NEVER FLASH: the optimization plan refreshes whenever its inputs
+          // change (location, the 30s state re-hydration, a real target/profile
+          // edit). `when(loading:)` would drop the whole tab to a skeleton on
+          // every one of those, blanking the screen even when the result is
+          // identical. Instead, keep rendering the LAST good plan while a
+          // refresh is in flight (Riverpod retains the previous value across a
+          // reload), and only fall back to the skeleton on the very first load
+          // or the error screen when there is no value to keep showing. The
+          // content updates seamlessly in place when new data actually arrives.
+          child: _whenWithPrevious<SessionOptimizationPlan>(
+            planAsync,
             data: (plan) => _buildBody(context, colors, plan, candidatesAsync),
             loading: () => _buildLoadingState(colors),
-            error: (error, _) => _buildErrorState(context, colors, error),
+            error: (error) => _buildErrorState(context, colors, error),
           ),
         ),
       ],
     );
+  }
+
+  /// Renders [data] using the latest-or-previous value of [async], so an
+  /// in-flight refresh keeps the current content on screen instead of flashing
+  /// the [loading] state. [loading] is only used before the first value exists;
+  /// [error] only when there is no value to fall back to.
+  Widget _whenWithPrevious<T>(
+    AsyncValue<T> async, {
+    required Widget Function(T value) data,
+    required Widget Function() loading,
+    required Widget Function(Object error) error,
+  }) {
+    if (async.hasValue) return data(async.requireValue);
+    if (async.hasError) return error(async.error!);
+    return loading();
   }
 
   Widget _buildBody(
@@ -88,10 +113,11 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
     SessionOptimizationPlan plan,
     AsyncValue<List<TargetSuggestion>> candidatesAsync,
   ) {
-    return candidatesAsync.when(
+    return _whenWithPrevious<List<TargetSuggestion>>(
+      candidatesAsync,
       data: (candidates) => _buildContent(context, colors, plan, candidates),
       loading: () => _buildLoadingState(colors),
-      error: (error, _) => _buildErrorState(context, colors, error),
+      error: (error) => _buildErrorState(context, colors, error),
     );
   }
 

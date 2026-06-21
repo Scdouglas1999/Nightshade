@@ -128,21 +128,60 @@ class _SequencerTabBar extends StatelessWidget {
         bottom: false,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
-          child: AnimatedBuilder(
-            // Rebuild the strip when the controller's selection changes so the
-            // highlighted tab + auto-scroll-into-view follow the active index
-            // regardless of whether the change came from a tap, a keyboard
-            // shortcut, or the provider→controller sync in initState.
-            animation: controller.animation ?? controller,
-            builder: (context, _) {
-              return AdaptiveTabBar(
-                tabs: tabs,
-                selectedIndex: controller.index,
-                horizontalPadding: isPhone ? 8 : 20,
-                onSelected: (i) => controller.animateTo(i),
-                trailing: trailing,
-              );
-            },
+          // Title + sub-tabs share ONE row (the screen had no title row of its
+          // own above the tabs — the outer nav named it). Fold the title inline
+          // to the left of the tab strip — icon-only on a phone — while the
+          // existing keyboard/running chips keep riding at the right end via
+          // the AdaptiveTabBar trailing slot.
+          child: Row(
+            children: [
+              Padding(
+                padding: EdgeInsets.only(
+                  left: NightshadeTokens.spaceLg,
+                  right: isPhone
+                      ? NightshadeTokens.spaceSm
+                      : NightshadeTokens.spaceMd,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      NightshadeIcons.listOrdered,
+                      size: 18,
+                      color: colors.primary,
+                    ),
+                    if (!isPhone) ...[
+                      const SizedBox(width: NightshadeTokens.spaceSm),
+                      Text(
+                        context.l10n.text('navSequencer'),
+                        style: NightshadeTypography.h5.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Expanded(
+                child: AnimatedBuilder(
+                  // Rebuild the strip when the controller's selection changes so
+                  // the highlighted tab + auto-scroll-into-view follow the
+                  // active index regardless of whether the change came from a
+                  // tap, a keyboard shortcut, or the provider→controller sync in
+                  // initState.
+                  animation: controller.animation ?? controller,
+                  builder: (context, _) {
+                    return AdaptiveTabBar(
+                      tabs: tabs,
+                      selectedIndex: controller.index,
+                      horizontalPadding: isPhone ? 8 : 20,
+                      onSelected: (i) => controller.animateTo(i),
+                      trailing: trailing,
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
         ),
       ),
