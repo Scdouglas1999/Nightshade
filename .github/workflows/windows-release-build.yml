@@ -13,7 +13,12 @@ on:
 jobs:
   windows-release-build:
     name: Build Windows Release Artifact
-    runs-on: windows-latest
+    # windows-2022 (not windows-latest): the newer image's bundled CMake/bsdtar
+    # mishandles archives that contain symlinks and breaks flutter_webrtc's
+    # Windows native build ("Cannot extract through symlink ...flutter_webrtc").
+    # Matches release.yml's Windows job. Revisit when a durable CMake/webrtc
+    # workaround lands.
+    runs-on: windows-2022
     timeout-minutes: 60
     env:
       # The imaging crate's build.rs links libraw; point it at the vendored
