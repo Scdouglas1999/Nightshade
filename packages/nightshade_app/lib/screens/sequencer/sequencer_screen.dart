@@ -223,8 +223,18 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
       });
     });
 
-    // Create a default sequence if none exists
+    // Create a default sequence if none exists — but only when it's safe to.
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // A remote slave MIRRORS the master's open sequence; it must never create
+      // a local default (that's what the master pushes down). And on any
+      // instance, only create while the execution state is editable:
+      // createSequence() calls _ensureEditable and throws SequenceLockedException
+      // if a run is paused/running — which, on a slave, is the mirrored master
+      // state, producing the "Cannot create sequence while ... paused" error on
+      // startup.
+      if (ref.read(isRemoteModeProvider)) return;
+      if (!ref.read(canEditSequenceProvider)) return;
       final sequence = ref.read(currentSequenceProvider);
       if (sequence == null) {
         ref.read(currentSequenceProvider.notifier).createSequence();
