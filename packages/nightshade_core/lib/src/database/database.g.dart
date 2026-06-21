@@ -383,6 +383,29 @@ class $EquipmentProfilesTable extends EquipmentProfiles
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _safetyMonitorNameMeta = const VerificationMeta(
+    'safetyMonitorName',
+  );
+  @override
+  late final GeneratedColumn<String> safetyMonitorName =
+      GeneratedColumn<String>(
+        'safety_monitor_name',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _switchNameMeta = const VerificationMeta(
+    'switchName',
+  );
+  @override
+  late final GeneratedColumn<String> switchName = GeneratedColumn<String>(
+    'switch_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _telescopeNameMeta = const VerificationMeta(
     'telescopeName',
   );
@@ -540,6 +563,8 @@ class $EquipmentProfilesTable extends EquipmentProfiles
     filterWheelName,
     guiderName,
     rotatorName,
+    safetyMonitorName,
+    switchName,
     telescopeName,
     telescopeFocalLength,
     telescopeAperture,
@@ -814,6 +839,21 @@ class $EquipmentProfilesTable extends EquipmentProfiles
         ),
       );
     }
+    if (data.containsKey('safety_monitor_name')) {
+      context.handle(
+        _safetyMonitorNameMeta,
+        safetyMonitorName.isAcceptableOrUnknown(
+          data['safety_monitor_name']!,
+          _safetyMonitorNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('switch_name')) {
+      context.handle(
+        _switchNameMeta,
+        switchName.isAcceptableOrUnknown(data['switch_name']!, _switchNameMeta),
+      );
+    }
     if (data.containsKey('telescope_name')) {
       context.handle(
         _telescopeNameMeta,
@@ -1030,6 +1070,14 @@ class $EquipmentProfilesTable extends EquipmentProfiles
         DriftSqlType.string,
         data['${effectivePrefix}rotator_name'],
       ),
+      safetyMonitorName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}safety_monitor_name'],
+      ),
+      switchName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}switch_name'],
+      ),
       telescopeName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}telescope_name'],
@@ -1114,6 +1162,8 @@ class EquipmentProfile extends DataClass
   final String? filterWheelName;
   final String? guiderName;
   final String? rotatorName;
+  final String? safetyMonitorName;
+  final String? switchName;
   final String? telescopeName;
   final double? telescopeFocalLength;
   final double? telescopeAperture;
@@ -1158,6 +1208,8 @@ class EquipmentProfile extends DataClass
     this.filterWheelName,
     this.guiderName,
     this.rotatorName,
+    this.safetyMonitorName,
+    this.switchName,
     this.telescopeName,
     this.telescopeFocalLength,
     this.telescopeAperture,
@@ -1258,6 +1310,12 @@ class EquipmentProfile extends DataClass
     }
     if (!nullToAbsent || rotatorName != null) {
       map['rotator_name'] = Variable<String>(rotatorName);
+    }
+    if (!nullToAbsent || safetyMonitorName != null) {
+      map['safety_monitor_name'] = Variable<String>(safetyMonitorName);
+    }
+    if (!nullToAbsent || switchName != null) {
+      map['switch_name'] = Variable<String>(switchName);
     }
     if (!nullToAbsent || telescopeName != null) {
       map['telescope_name'] = Variable<String>(telescopeName);
@@ -1369,6 +1427,12 @@ class EquipmentProfile extends DataClass
       rotatorName: rotatorName == null && nullToAbsent
           ? const Value.absent()
           : Value(rotatorName),
+      safetyMonitorName: safetyMonitorName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(safetyMonitorName),
+      switchName: switchName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(switchName),
       telescopeName: telescopeName == null && nullToAbsent
           ? const Value.absent()
           : Value(telescopeName),
@@ -1441,6 +1505,10 @@ class EquipmentProfile extends DataClass
       filterWheelName: serializer.fromJson<String?>(json['filterWheelName']),
       guiderName: serializer.fromJson<String?>(json['guiderName']),
       rotatorName: serializer.fromJson<String?>(json['rotatorName']),
+      safetyMonitorName: serializer.fromJson<String?>(
+        json['safetyMonitorName'],
+      ),
+      switchName: serializer.fromJson<String?>(json['switchName']),
       telescopeName: serializer.fromJson<String?>(json['telescopeName']),
       telescopeFocalLength: serializer.fromJson<double?>(
         json['telescopeFocalLength'],
@@ -1498,6 +1566,8 @@ class EquipmentProfile extends DataClass
       'filterWheelName': serializer.toJson<String?>(filterWheelName),
       'guiderName': serializer.toJson<String?>(guiderName),
       'rotatorName': serializer.toJson<String?>(rotatorName),
+      'safetyMonitorName': serializer.toJson<String?>(safetyMonitorName),
+      'switchName': serializer.toJson<String?>(switchName),
       'telescopeName': serializer.toJson<String?>(telescopeName),
       'telescopeFocalLength': serializer.toJson<double?>(telescopeFocalLength),
       'telescopeAperture': serializer.toJson<double?>(telescopeAperture),
@@ -1545,6 +1615,8 @@ class EquipmentProfile extends DataClass
     Value<String?> filterWheelName = const Value.absent(),
     Value<String?> guiderName = const Value.absent(),
     Value<String?> rotatorName = const Value.absent(),
+    Value<String?> safetyMonitorName = const Value.absent(),
+    Value<String?> switchName = const Value.absent(),
     Value<String?> telescopeName = const Value.absent(),
     Value<double?> telescopeFocalLength = const Value.absent(),
     Value<double?> telescopeAperture = const Value.absent(),
@@ -1607,6 +1679,10 @@ class EquipmentProfile extends DataClass
         : this.filterWheelName,
     guiderName: guiderName.present ? guiderName.value : this.guiderName,
     rotatorName: rotatorName.present ? rotatorName.value : this.rotatorName,
+    safetyMonitorName: safetyMonitorName.present
+        ? safetyMonitorName.value
+        : this.safetyMonitorName,
+    switchName: switchName.present ? switchName.value : this.switchName,
     telescopeName: telescopeName.present
         ? telescopeName.value
         : this.telescopeName,
@@ -1701,6 +1777,12 @@ class EquipmentProfile extends DataClass
       rotatorName: data.rotatorName.present
           ? data.rotatorName.value
           : this.rotatorName,
+      safetyMonitorName: data.safetyMonitorName.present
+          ? data.safetyMonitorName.value
+          : this.safetyMonitorName,
+      switchName: data.switchName.present
+          ? data.switchName.value
+          : this.switchName,
       telescopeName: data.telescopeName.present
           ? data.telescopeName.value
           : this.telescopeName,
@@ -1760,6 +1842,8 @@ class EquipmentProfile extends DataClass
           ..write('filterWheelName: $filterWheelName, ')
           ..write('guiderName: $guiderName, ')
           ..write('rotatorName: $rotatorName, ')
+          ..write('safetyMonitorName: $safetyMonitorName, ')
+          ..write('switchName: $switchName, ')
           ..write('telescopeName: $telescopeName, ')
           ..write('telescopeFocalLength: $telescopeFocalLength, ')
           ..write('telescopeAperture: $telescopeAperture, ')
@@ -1809,6 +1893,8 @@ class EquipmentProfile extends DataClass
     filterWheelName,
     guiderName,
     rotatorName,
+    safetyMonitorName,
+    switchName,
     telescopeName,
     telescopeFocalLength,
     telescopeAperture,
@@ -1857,6 +1943,8 @@ class EquipmentProfile extends DataClass
           other.filterWheelName == this.filterWheelName &&
           other.guiderName == this.guiderName &&
           other.rotatorName == this.rotatorName &&
+          other.safetyMonitorName == this.safetyMonitorName &&
+          other.switchName == this.switchName &&
           other.telescopeName == this.telescopeName &&
           other.telescopeFocalLength == this.telescopeFocalLength &&
           other.telescopeAperture == this.telescopeAperture &&
@@ -1903,6 +1991,8 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
   final Value<String?> filterWheelName;
   final Value<String?> guiderName;
   final Value<String?> rotatorName;
+  final Value<String?> safetyMonitorName;
+  final Value<String?> switchName;
   final Value<String?> telescopeName;
   final Value<double?> telescopeFocalLength;
   final Value<double?> telescopeAperture;
@@ -1947,6 +2037,8 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     this.filterWheelName = const Value.absent(),
     this.guiderName = const Value.absent(),
     this.rotatorName = const Value.absent(),
+    this.safetyMonitorName = const Value.absent(),
+    this.switchName = const Value.absent(),
     this.telescopeName = const Value.absent(),
     this.telescopeFocalLength = const Value.absent(),
     this.telescopeAperture = const Value.absent(),
@@ -1992,6 +2084,8 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     this.filterWheelName = const Value.absent(),
     this.guiderName = const Value.absent(),
     this.rotatorName = const Value.absent(),
+    this.safetyMonitorName = const Value.absent(),
+    this.switchName = const Value.absent(),
     this.telescopeName = const Value.absent(),
     this.telescopeFocalLength = const Value.absent(),
     this.telescopeAperture = const Value.absent(),
@@ -2037,6 +2131,8 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     Expression<String>? filterWheelName,
     Expression<String>? guiderName,
     Expression<String>? rotatorName,
+    Expression<String>? safetyMonitorName,
+    Expression<String>? switchName,
     Expression<String>? telescopeName,
     Expression<double>? telescopeFocalLength,
     Expression<double>? telescopeAperture,
@@ -2086,6 +2182,8 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
       if (filterWheelName != null) 'filter_wheel_name': filterWheelName,
       if (guiderName != null) 'guider_name': guiderName,
       if (rotatorName != null) 'rotator_name': rotatorName,
+      if (safetyMonitorName != null) 'safety_monitor_name': safetyMonitorName,
+      if (switchName != null) 'switch_name': switchName,
       if (telescopeName != null) 'telescope_name': telescopeName,
       if (telescopeFocalLength != null)
         'telescope_focal_length': telescopeFocalLength,
@@ -2134,6 +2232,8 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     Value<String?>? filterWheelName,
     Value<String?>? guiderName,
     Value<String?>? rotatorName,
+    Value<String?>? safetyMonitorName,
+    Value<String?>? switchName,
     Value<String?>? telescopeName,
     Value<double?>? telescopeFocalLength,
     Value<double?>? telescopeAperture,
@@ -2181,6 +2281,8 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
       filterWheelName: filterWheelName ?? this.filterWheelName,
       guiderName: guiderName ?? this.guiderName,
       rotatorName: rotatorName ?? this.rotatorName,
+      safetyMonitorName: safetyMonitorName ?? this.safetyMonitorName,
+      switchName: switchName ?? this.switchName,
       telescopeName: telescopeName ?? this.telescopeName,
       telescopeFocalLength: telescopeFocalLength ?? this.telescopeFocalLength,
       telescopeAperture: telescopeAperture ?? this.telescopeAperture,
@@ -2300,6 +2402,12 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     if (rotatorName.present) {
       map['rotator_name'] = Variable<String>(rotatorName.value);
     }
+    if (safetyMonitorName.present) {
+      map['safety_monitor_name'] = Variable<String>(safetyMonitorName.value);
+    }
+    if (switchName.present) {
+      map['switch_name'] = Variable<String>(switchName.value);
+    }
     if (telescopeName.present) {
       map['telescope_name'] = Variable<String>(telescopeName.value);
     }
@@ -2371,6 +2479,8 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
           ..write('filterWheelName: $filterWheelName, ')
           ..write('guiderName: $guiderName, ')
           ..write('rotatorName: $rotatorName, ')
+          ..write('safetyMonitorName: $safetyMonitorName, ')
+          ..write('switchName: $switchName, ')
           ..write('telescopeName: $telescopeName, ')
           ..write('telescopeFocalLength: $telescopeFocalLength, ')
           ..write('telescopeAperture: $telescopeAperture, ')
@@ -32317,6 +32427,8 @@ typedef $$EquipmentProfilesTableCreateCompanionBuilder =
       Value<String?> filterWheelName,
       Value<String?> guiderName,
       Value<String?> rotatorName,
+      Value<String?> safetyMonitorName,
+      Value<String?> switchName,
       Value<String?> telescopeName,
       Value<double?> telescopeFocalLength,
       Value<double?> telescopeAperture,
@@ -32363,6 +32475,8 @@ typedef $$EquipmentProfilesTableUpdateCompanionBuilder =
       Value<String?> filterWheelName,
       Value<String?> guiderName,
       Value<String?> rotatorName,
+      Value<String?> safetyMonitorName,
+      Value<String?> switchName,
       Value<String?> telescopeName,
       Value<double?> telescopeFocalLength,
       Value<double?> telescopeAperture,
@@ -32714,6 +32828,16 @@ class $$EquipmentProfilesTableFilterComposer
 
   ColumnFilters<String> get rotatorName => $composableBuilder(
     column: $table.rotatorName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get safetyMonitorName => $composableBuilder(
+    column: $table.safetyMonitorName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get switchName => $composableBuilder(
+    column: $table.switchName,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -33094,6 +33218,16 @@ class $$EquipmentProfilesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get safetyMonitorName => $composableBuilder(
+    column: $table.safetyMonitorName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get switchName => $composableBuilder(
+    column: $table.switchName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get telescopeName => $composableBuilder(
     column: $table.telescopeName,
     builder: (column) => ColumnOrderings(column),
@@ -33292,6 +33426,16 @@ class $$EquipmentProfilesTableAnnotationComposer
 
   GeneratedColumn<String> get rotatorName => $composableBuilder(
     column: $table.rotatorName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get safetyMonitorName => $composableBuilder(
+    column: $table.safetyMonitorName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get switchName => $composableBuilder(
+    column: $table.switchName,
     builder: (column) => column,
   );
 
@@ -33561,6 +33705,8 @@ class $$EquipmentProfilesTableTableManager
                 Value<String?> filterWheelName = const Value.absent(),
                 Value<String?> guiderName = const Value.absent(),
                 Value<String?> rotatorName = const Value.absent(),
+                Value<String?> safetyMonitorName = const Value.absent(),
+                Value<String?> switchName = const Value.absent(),
                 Value<String?> telescopeName = const Value.absent(),
                 Value<double?> telescopeFocalLength = const Value.absent(),
                 Value<double?> telescopeAperture = const Value.absent(),
@@ -33605,6 +33751,8 @@ class $$EquipmentProfilesTableTableManager
                 filterWheelName: filterWheelName,
                 guiderName: guiderName,
                 rotatorName: rotatorName,
+                safetyMonitorName: safetyMonitorName,
+                switchName: switchName,
                 telescopeName: telescopeName,
                 telescopeFocalLength: telescopeFocalLength,
                 telescopeAperture: telescopeAperture,
@@ -33651,6 +33799,8 @@ class $$EquipmentProfilesTableTableManager
                 Value<String?> filterWheelName = const Value.absent(),
                 Value<String?> guiderName = const Value.absent(),
                 Value<String?> rotatorName = const Value.absent(),
+                Value<String?> safetyMonitorName = const Value.absent(),
+                Value<String?> switchName = const Value.absent(),
                 Value<String?> telescopeName = const Value.absent(),
                 Value<double?> telescopeFocalLength = const Value.absent(),
                 Value<double?> telescopeAperture = const Value.absent(),
@@ -33695,6 +33845,8 @@ class $$EquipmentProfilesTableTableManager
                 filterWheelName: filterWheelName,
                 guiderName: guiderName,
                 rotatorName: rotatorName,
+                safetyMonitorName: safetyMonitorName,
+                switchName: switchName,
                 telescopeName: telescopeName,
                 telescopeFocalLength: telescopeFocalLength,
                 telescopeAperture: telescopeAperture,

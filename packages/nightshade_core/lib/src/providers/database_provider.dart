@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../backend/network_backend.dart';
 import '../database/database.dart' as db;
 import '../models/equipment_profile.dart' as remote_profile;
+import '../models/equipment_profile_remote_mapping.dart';
 import '../database/daos/equipment_profiles_dao.dart';
 import '../database/daos/targets_dao.dart';
 import '../database/daos/sessions_dao.dart';
@@ -246,48 +247,12 @@ Future<db.EquipmentProfile?> _fetchRemoteActiveProfile(
 db.EquipmentProfile _equipmentProfileFromRemote(
   remote_profile.EquipmentProfile profile,
 ) {
-  return db.EquipmentProfile(
-    id: int.tryParse(profile.id) ?? 0,
-    name: profile.name,
-    description: profile.description,
-    isActive: profile.isActive,
-    cameraId: profile.cameraId,
-    mountId: profile.mountId,
-    focuserId: profile.focuserId,
-    filterWheelId: profile.filterWheelId,
-    guiderId: profile.guiderId,
-    rotatorId: profile.rotatorId,
-    domeId: profile.domeId,
-    weatherId: profile.weatherId,
-    coverCalibratorId: profile.coverCalibratorId,
-    cameraName: profile.cameraName,
-    mountName: profile.mountName,
-    focuserName: profile.focuserName,
-    filterWheelName: profile.filterWheelName,
-    guiderName: profile.guiderName,
-    rotatorName: profile.rotatorName,
-    telescopeName: profile.telescopeName,
-    telescopeFocalLength: profile.telescopeFocalLength,
-    telescopeAperture: profile.telescopeAperture,
-    focalLength: profile.focalLength,
-    aperture: profile.aperture,
-    focalRatio: profile.focalRatio,
-    defaultGain: profile.defaultGain,
-    defaultOffset: profile.defaultOffset,
-    defaultBinX: profile.defaultBinX,
-    defaultBinY: profile.defaultBinY,
-    defaultCoolingTemp: profile.defaultCoolingTemp,
-    coolOnConnect: profile.coolOnConnect,
-    defaultCenteringExposure: profile.defaultCenteringExposure,
-    filterNames: profile.filterNames,
-    filterFocusOffsets: profile.filterFocusOffsets,
-    profileIcon: profile.profileIcon,
-    profileColor: profile.profileColor,
-    sortOrder: profile.sortOrder,
-    isDefault: profile.isDefault,
-    createdAt: profile.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
-    updatedAt: profile.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0),
-  );
+  // Route through the single canonical converter so the slave's profile stream
+  // stays lossless (carries safetyMonitorId/switchId/meridianFlipOverrides) and
+  // never drifts from the host's `/api/profiles` mapping. No `existing` arg =>
+  // the remote payload's own isDefault/isActive/sortOrder flags are carried
+  // through, matching the host's row.
+  return remoteProfileToDbRow(profile);
 }
 
 Stream<List<db.Target>> _pollRemoteTargets(NetworkBackend backend) async* {

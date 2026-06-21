@@ -369,8 +369,15 @@ class _DeviceDashboard extends ConsumerWidget {
       connectedCards.add(const SwitchControlCard());
     }
 
-    // No profile selected state
-    if (profile == null) {
+    // No profile selected state.
+    //
+    // REMOTE (slave) mode: cards come from per-device state providers, not the
+    // profile's slots, so a connected device must render even before the host's
+    // profile hydrates (or if the host has devices but no active profile). Only
+    // fall through to the "select a profile" empty-state when there is genuinely
+    // nothing connected. Local/host keeps the original null-profile prompt.
+    final isRemoteMode = ref.watch(isRemoteModeProvider);
+    if (profile == null && (!isRemoteMode || connectedCards.isEmpty)) {
       return _EquipmentEmptyState(
         child: Column(
           mainAxisSize: MainAxisSize.min,

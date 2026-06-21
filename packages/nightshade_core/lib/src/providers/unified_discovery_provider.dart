@@ -4,6 +4,7 @@ import '../models/equipment/unified_device.dart';
 import '../models/equipment/discovery_state.dart';
 import '../services/device_service.dart';
 import '../services/device_matching_service.dart';
+import 'backend_provider.dart';
 import 'settings_provider.dart';
 
 /// Provider for the device matching service
@@ -268,6 +269,18 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
 
   /// Get list of backends available on this platform
   List<DriverType> _getAvailableBackends() {
+    // Remote-client mode: the headless host owns every driver (ASCOM, native,
+    // Alpaca, INDI, simulator) and reports them all through one network
+    // backend. Splitting them into per-driver buckets here is wrong — a
+    // connect-triggered rescan clears each stale bucket and re-filters by
+    // DriverType, which drops the host's devices and makes the whole list
+    // vanish. Collapse to a single bucket so the full remote list is always
+    // merged and rebuilt as one unit. (Mirrors AutoDiscoveryLauncher, which
+    // also short-circuits on isRemoteModeProvider.)
+    if (_ref.read(isRemoteModeProvider)) {
+      return const [DriverType.native];
+    }
+
     final backends = <DriverType>[
       // Simulator always available
       DriverType.simulator,
@@ -303,10 +316,18 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
         case DriverType.ascom:
         case DriverType.native:
         case DriverType.simulator:
+          // In remote mode the single bucket carries every driver the host
+          // reports, so the per-DriverType filter below must be skipped or it
+          // would discard ASCOM/Alpaca/native devices that don't match the
+          // bucket's nominal type.
+          final isRemote = _ref.read(isRemoteModeProvider);
           // Discover all device types in PARALLEL for faster discovery
           final typeFutures = DeviceType.values.map((type) async {
             try {
               final typeDevices = await deviceService.discoverDevices(type);
+              if (isRemote) {
+                return typeDevices;
+              }
               // Filter to only include devices from this backend
               return typeDevices.where((d) => d.driverType == backend).toList();
             } catch (e) {

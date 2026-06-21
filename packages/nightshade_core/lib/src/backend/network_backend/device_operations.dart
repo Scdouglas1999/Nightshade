@@ -222,18 +222,64 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
   }
 
   @override
-  Future<void> connectDevice(DeviceType deviceType, String deviceId) async {
-    await _post('devices/connect', {
-      'deviceType': deviceType.name,
-      'deviceId': deviceId,
-    });
+  Future<void> connectDevice(DeviceType deviceType, String deviceId) {
+    return _dedupedConnectOp(
+      deviceType,
+      deviceId,
+      'devices/connect',
+    );
   }
 
   @override
-  Future<void> disconnectDevice(DeviceType deviceType, String deviceId) async {
-    await _post('devices/disconnect', {
-      'deviceType': deviceType.name,
-      'deviceId': deviceId,
+  Future<void> disconnectDevice(DeviceType deviceType, String deviceId) {
+    return _dedupedConnectOp(
+      deviceType,
+      deviceId,
+      'devices/disconnect',
+    );
+  }
+
+  /// Shared connect/disconnect dispatch with in-flight dedupe and NO retry.
+  ///
+  /// Dedupe: if the SAME operation (connect, or disconnect) for the same
+  /// `<type>:<id>` is already pending, returns the existing future rather than
+  /// firing a second POST — this kills the double-dispatch that piled up on the
+  /// host's serial mount. The endpoint is part of the key so a disconnect is
+  /// never collapsed into an in-flight connect (or vice versa) and silently
+  /// dropped.
+  ///
+  /// Non-retry: connect/disconnect go through `_post(..., maxAttempts: 1)` so a
+  /// slow/timed-out connect is NEVER auto-resent. A slave-side timeout on a
+  /// connect that is actually succeeding must be a no-op on the host (which is
+  /// now idempotent), not a duplicate POST. GET retries are unaffected.
+  Future<void> _dedupedConnectOp(
+    DeviceType deviceType,
+    String deviceId,
+    String endpoint,
+  ) {
+    final key = '$endpoint|${deviceType.name}:$deviceId';
+    final existing = _inFlightConnectOps[key];
+    if (existing != null) {
+      developer.log(
+        '[NetworkBackend] $endpoint already in flight for $key; '
+        'reusing pending request',
+        name: 'NetworkBackend',
+        level: 800,
+      );
+      return existing;
+    }
+    final future = () async {
+      await _post(endpoint, {
+        'deviceType': deviceType.name,
+        'deviceId': deviceId,
+      }, null, 1);
+    }();
+    _inFlightConnectOps[key] = future;
+    return future.whenComplete(() {
+      // Only clear if it's still OUR future (a later op replaced it otherwise).
+      if (identical(_inFlightConnectOps[key], future)) {
+        _inFlightConnectOps.remove(key);
+      }
     });
   }
 

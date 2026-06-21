@@ -151,6 +151,15 @@ abstract class _NetworkBackendTransport {
   int _requestCounter = 0;
   static const int _maxReconnectDelay = 30; // Max 30 seconds
 
+  /// In-flight connect/disconnect requests keyed by `<deviceType>:<deviceId>`.
+  /// A slow connect can otherwise be re-issued by an impatient UI (or by the
+  /// connect dialog firing twice), piling duplicate POSTs onto the host's
+  /// serial bus. While a connect is pending we return the SAME future instead
+  /// of sending a second POST. Connect/disconnect deliberately do NOT use the
+  /// retry path, so a request that times out is never auto-resent — host-side
+  /// idempotency + non-retry together stop the serial-mount pile-up.
+  final Map<String, Future<void>> _inFlightConnectOps = {};
+
   /// Latches `true` the first time a connection attempt reaches the
   /// `connected` state. Used to distinguish the initial-handshake `connecting`
   /// transition from subsequent `reconnecting` attempts so the UI can render

@@ -219,8 +219,11 @@ List<String> availableHeadlessEndpoints() {
     // Profiles
     'GET /api/profiles',
     'POST /api/profiles',
+    'POST /api/profiles/reorder',
+    'POST /api/profiles/default/clear',
     'DELETE /api/profiles/<profileId>',
     'POST /api/profiles/<profileId>/load',
+    'POST /api/profiles/<profileId>/default',
     'GET /api/profiles/active',
     // Settings
     'GET /api/settings',

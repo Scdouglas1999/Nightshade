@@ -97,6 +97,9 @@ class NightshadeApp extends ConsumerWidget {
     ref.watch(hostLocalSyncProvider);
     ref.watch(sequenceLibrarySyncProvider);
     ref.watch(remoteSequenceEditorSyncProvider);
+    // MASTER -> SLAVE: push the master's open sequencer canvas to slaves live.
+    // Self-gates to a no-op unless this instance is a serving FfiBackend master.
+    ref.watch(masterSequenceEditorMirrorProvider);
     // Keep science.camera.* (read noise / gain / saturation) in sync with
     // the connected camera or active profile so photometry works without
     // manual sensor-spec entry.

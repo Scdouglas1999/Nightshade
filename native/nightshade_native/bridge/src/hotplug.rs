@@ -55,7 +55,7 @@
 //! shape is stable today and the FRB regen can land independently.
 
 use crate::api::{api_invalidate_discovery_cache, get_state};
-use crate::device::{DeviceType, DriverType};
+use crate::device::{ConnectionState, DeviceType, DriverType};
 use crate::event::{EquipmentEvent, EventSeverity};
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -247,56 +247,110 @@ fn start_device_poll_watcher() {
 async fn poll_once(suppress_events: bool) {
     let mut observed: HashMap<(DriverType, String), CachedDevice> = HashMap::new();
 
+    // Snapshot the live connection state BEFORE probing any bus. A device that
+    // is currently CONNECTED holds an exclusive serial/USB handle, so the SDK
+    // enumerate would either fail to see it (producing a spurious `device_lost`
+    // -> the UI drops a live device) or re-open the bus and disrupt the live
+    // connection (the remote-connect contention this fix targets). We therefore
+    // (1) skip probing any (driver, device_type) bus that has a connected
+    // device and carry its cached entries forward unchanged, and (2) as a
+    // belt-and-suspenders guard, never emit a removal for a connected device id.
+    let connected = get_state().get_all_device_states().await;
+    let connected_keys: HashSet<(DriverType, String)> = connected
+        .iter()
+        .filter(|d| d.connection_state == ConnectionState::Connected)
+        .map(|d| (d.driver_type, d.device_id.clone()))
+        .collect();
+    let connected_types: HashSet<(DriverType, DeviceType)> = connected
+        .iter()
+        .filter(|d| d.connection_state == ConnectionState::Connected)
+        .map(|d| (d.driver_type, d.device_type))
+        .collect();
+
+    // Carry-forward helper: copy the cached entries for a paused (driver, type)
+    // bus into `observed` so the diff sees no change for that bus — no re-open,
+    // no spurious removal.
+    fn carry_forward_cached(
+        observed: &mut HashMap<(DriverType, String), CachedDevice>,
+        driver: DriverType,
+        device_type: DeviceType,
+    ) {
+        let cache = device_cache().lock().expect("device cache mutex poisoned");
+        for (key, dev) in cache.iter() {
+            if key.0 == driver && dev.device_type == device_type {
+                observed.insert(key.clone(), dev.clone());
+            }
+        }
+    }
+
     for &device_type in POLLED_DEVICE_TYPES {
         // Native (vendor SDK) backend — always polled, the SDK enumerates
-        // are local and don't touch the network.
-        match crate::api::discovery::scan_native_for_type_public(device_type).await {
-            Ok(devices) => {
-                for dev in devices {
-                    observed.insert(
-                        (DriverType::Native, dev.id.clone()),
-                        CachedDevice {
-                            device_type: dev.device_type,
-                            name: dev.name.clone(),
-                            unique_id: dev.unique_id.clone(),
-                            display_name: dev.display_name.clone(),
-                        },
+        // are local and don't touch the network. BUT pause the probe if a
+        // native device of this type is currently connected (bus in use).
+        if connected_types.contains(&(DriverType::Native, device_type)) {
+            tracing::debug!(
+                "Hot-plug poll: skipping native scan for {:?} (device connected, bus in use)",
+                device_type
+            );
+            carry_forward_cached(&mut observed, DriverType::Native, device_type);
+        } else {
+            match crate::api::discovery::scan_native_for_type_public(device_type).await {
+                Ok(devices) => {
+                    for dev in devices {
+                        observed.insert(
+                            (DriverType::Native, dev.id.clone()),
+                            CachedDevice {
+                                device_type: dev.device_type,
+                                name: dev.name.clone(),
+                                unique_id: dev.unique_id.clone(),
+                                display_name: dev.display_name.clone(),
+                            },
+                        );
+                    }
+                }
+                Err(err) => {
+                    tracing::debug!(
+                        "Hot-plug poll: native scan for {:?} failed: {}",
+                        device_type,
+                        err
                     );
                 }
-            }
-            Err(err) => {
-                tracing::debug!(
-                    "Hot-plug poll: native scan for {:?} failed: {}",
-                    device_type,
-                    err
-                );
             }
         }
 
         // ASCOM only on Windows. The ASCOM Profile registry doesn't model
         // hot-plug; this catches users registering a driver via the chooser
-        // mid-session and is cheap (registry read).
+        // mid-session and is cheap (registry read). Same bus-pause rule:
+        // don't re-open an ASCOM driver that is currently connected.
         #[cfg(windows)]
-        match crate::api::discovery::scan_ascom_for_type_public(device_type).await {
-            Ok(devices) => {
-                for dev in devices {
-                    observed.insert(
-                        (DriverType::Ascom, dev.id.clone()),
-                        CachedDevice {
-                            device_type: dev.device_type,
-                            name: dev.name.clone(),
-                            unique_id: dev.unique_id.clone(),
-                            display_name: dev.display_name.clone(),
-                        },
+        if connected_types.contains(&(DriverType::Ascom, device_type)) {
+            tracing::debug!(
+                "Hot-plug poll: skipping ASCOM scan for {:?} (device connected, bus in use)",
+                device_type
+            );
+            carry_forward_cached(&mut observed, DriverType::Ascom, device_type);
+        } else {
+            match crate::api::discovery::scan_ascom_for_type_public(device_type).await {
+                Ok(devices) => {
+                    for dev in devices {
+                        observed.insert(
+                            (DriverType::Ascom, dev.id.clone()),
+                            CachedDevice {
+                                device_type: dev.device_type,
+                                name: dev.name.clone(),
+                                unique_id: dev.unique_id.clone(),
+                                display_name: dev.display_name.clone(),
+                            },
+                        );
+                    }
+                }
+                Err(err) => {
+                    tracing::debug!(
+                        "Hot-plug poll: ASCOM scan for {:?} failed: {}",
+                        device_type,
+                        err
                     );
                 }
-            }
-            Err(err) => {
-                tracing::debug!(
-                    "Hot-plug poll: ASCOM scan for {:?} failed: {}",
-                    device_type,
-                    err
-                );
             }
         }
     }
@@ -312,8 +366,15 @@ async fn poll_once(suppress_events: bool) {
 
         let arrival_keys: Vec<(DriverType, String)> =
             observed_keys.difference(&previous_keys).cloned().collect();
-        let removal_keys: Vec<(DriverType, String)> =
-            previous_keys.difference(&observed_keys).cloned().collect();
+        // Belt-and-suspenders: even if a probe partially enumerated and a
+        // connected device slipped out of `observed`, never emit a removal for
+        // a device that AppState still considers connected. The disconnect path
+        // is the only thing allowed to retire a connected device.
+        let removal_keys: Vec<(DriverType, String)> = previous_keys
+            .difference(&observed_keys)
+            .filter(|key| !connected_keys.contains(*key))
+            .cloned()
+            .collect();
 
         let arrivals: Vec<(DriverType, String, CachedDevice)> = arrival_keys
             .iter()
@@ -881,6 +942,160 @@ mod tests {
             .collect();
         *cache = observed;
         (arrivals, removals)
+    }
+
+    /// Mirror of `poll_once`'s connection-aware diff, isolated from the global
+    /// singleton. Models the two LIM-5 guarantees: (1) for any paused bus
+    /// (a `(driver, type)` with a connected device) the cached entries are
+    /// carried forward into `observed` unchanged, and (2) a removal is never
+    /// emitted for a key that is still in `connected_keys`. Returns
+    /// `(arrivals, removals)` and swaps `cache <- observed` like `poll_once`.
+    fn diff_with_connected_for_test(
+        cache: &mut DeviceCache,
+        mut observed: HashMap<(DriverType, String), CachedDevice>,
+        connected_keys: &HashSet<(DriverType, String)>,
+        connected_types: &HashSet<(DriverType, DeviceType)>,
+    ) -> (
+        Vec<(DriverType, String, CachedDevice)>,
+        Vec<(DriverType, String, CachedDevice)>,
+    ) {
+        // Carry-forward: for every paused bus, copy its cached entries into
+        // `observed` (simulating "we never re-probed that bus").
+        for (key, dev) in cache.iter() {
+            if connected_types.contains(&(key.0, dev.device_type)) {
+                observed.entry(key.clone()).or_insert_with(|| dev.clone());
+            }
+        }
+
+        let previous_keys: HashSet<(DriverType, String)> = cache.keys().cloned().collect();
+        let observed_keys: HashSet<(DriverType, String)> = observed.keys().cloned().collect();
+        let arrival_keys: Vec<(DriverType, String)> =
+            observed_keys.difference(&previous_keys).cloned().collect();
+        let removal_keys: Vec<(DriverType, String)> = previous_keys
+            .difference(&observed_keys)
+            .filter(|key| !connected_keys.contains(*key))
+            .cloned()
+            .collect();
+        let arrivals: Vec<(DriverType, String, CachedDevice)> = arrival_keys
+            .into_iter()
+            .filter_map(|key| observed.get(&key).map(|dev| (key.0, key.1, dev.clone())))
+            .collect();
+        let removals: Vec<(DriverType, String, CachedDevice)> = removal_keys
+            .into_iter()
+            .filter_map(|key| cache.get(&key).map(|dev| (key.0, key.1, dev.clone())))
+            .collect();
+        *cache = observed;
+        (arrivals, removals)
+    }
+
+    #[test]
+    fn connected_device_missing_from_probe_emits_no_removal() {
+        // A connected serial mount holds the COM handle, so an SDK enumerate
+        // can't see it and `observed` comes back empty for that bus. Without
+        // the connected-key guard this produced a spurious `device_lost` and
+        // the UI dropped the live device. Assert: no removal.
+        let mut cache: DeviceCache = HashMap::new();
+        let key = (DriverType::Native, "native:sw:mount0".to_string());
+        cache.insert(
+            key.clone(),
+            CachedDevice {
+                device_type: DeviceType::Mount,
+                name: "AZ-GTi".to_string(),
+                unique_id: None,
+                display_name: "AZ-GTi".to_string(),
+            },
+        );
+
+        let connected_keys: HashSet<(DriverType, String)> = [key.clone()].into_iter().collect();
+        let connected_types: HashSet<(DriverType, DeviceType)> =
+            [(DriverType::Native, DeviceType::Mount)].into_iter().collect();
+
+        // Probe returned NOTHING for the mount bus (device held the handle).
+        let observed: HashMap<(DriverType, String), CachedDevice> = HashMap::new();
+        let (arrivals, removals) =
+            diff_with_connected_for_test(&mut cache, observed, &connected_keys, &connected_types);
+
+        assert!(arrivals.is_empty(), "no arrivals expected, got {:?}", arrivals);
+        assert!(
+            removals.is_empty(),
+            "connected device must NOT produce a removal, got {:?}",
+            removals
+        );
+    }
+
+    #[test]
+    fn connected_device_cache_entry_is_carried_forward() {
+        // Bus-pause: the connected device's cache entry must survive the poll
+        // (carried forward into the new cache) so the device list is not wiped.
+        let mut cache: DeviceCache = HashMap::new();
+        let key = (DriverType::Native, "native:zwo:cam0".to_string());
+        cache.insert(
+            key.clone(),
+            CachedDevice {
+                device_type: DeviceType::Camera,
+                name: "ZWO ASI533".to_string(),
+                unique_id: Some("usb-533".to_string()),
+                display_name: "ZWO ASI533".to_string(),
+            },
+        );
+
+        let connected_keys: HashSet<(DriverType, String)> = [key.clone()].into_iter().collect();
+        let connected_types: HashSet<(DriverType, DeviceType)> =
+            [(DriverType::Native, DeviceType::Camera)].into_iter().collect();
+
+        // Probe skipped (paused) -> observed has nothing for that bus.
+        let observed: HashMap<(DriverType, String), CachedDevice> = HashMap::new();
+        let (_arrivals, removals) =
+            diff_with_connected_for_test(&mut cache, observed, &connected_keys, &connected_types);
+
+        assert!(removals.is_empty(), "no removal for paused bus");
+        assert!(
+            cache.contains_key(&key),
+            "connected device cache entry must be carried forward, cache: {:?}",
+            cache.keys().collect::<Vec<_>>()
+        );
+        assert_eq!(cache.len(), 1, "cache must retain exactly the carried entry");
+    }
+
+    #[test]
+    fn unconnected_devices_still_diff_normally() {
+        // Regression guard alongside cache_diff_detects_arrival_and_removal:
+        // with NO connected devices the connection-aware path must behave
+        // identically to the plain diff — arrivals and removals both fire.
+        let mut cache: DeviceCache = HashMap::new();
+        let gone_key = (DriverType::Native, "native:test:gone".to_string());
+        cache.insert(
+            gone_key.clone(),
+            CachedDevice {
+                device_type: DeviceType::Focuser,
+                name: "Old Focuser".to_string(),
+                unique_id: None,
+                display_name: "Old Focuser".to_string(),
+            },
+        );
+
+        let new_key = (DriverType::Native, "native:test:fresh".to_string());
+        let mut observed: HashMap<(DriverType, String), CachedDevice> = HashMap::new();
+        observed.insert(
+            new_key.clone(),
+            CachedDevice {
+                device_type: DeviceType::Rotator,
+                name: "Fresh Rotator".to_string(),
+                unique_id: None,
+                display_name: "Fresh Rotator".to_string(),
+            },
+        );
+
+        // Nothing connected.
+        let connected_keys: HashSet<(DriverType, String)> = HashSet::new();
+        let connected_types: HashSet<(DriverType, DeviceType)> = HashSet::new();
+
+        let (arrivals, removals) =
+            diff_with_connected_for_test(&mut cache, observed, &connected_keys, &connected_types);
+        assert_eq!(arrivals.len(), 1, "expected the fresh arrival, got {:?}", arrivals);
+        assert_eq!(arrivals[0].1, "native:test:fresh");
+        assert_eq!(removals.len(), 1, "expected the gone removal, got {:?}", removals);
+        assert_eq!(removals[0].1, "native:test:gone");
     }
 
     #[test]

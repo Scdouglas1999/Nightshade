@@ -51,6 +51,29 @@ extension DeviceConnectionHandlers on DeviceHandlers {
       );
     }
 
+    // Idempotency: if this exact device is already connected or mid-connect,
+    // treat the request as a no-op success. A slave whose connect POST timed
+    // out (slow serial mount) may re-POST a connect that is actually
+    // succeeding; without this short-circuit that second request would
+    // re-enter the driver open and pile up on the bus. The slave side is also
+    // non-retrying, but the operator (or a double-firing dialog) can still
+    // re-issue, so the host must be the authoritative guard.
+    final existingState = _connectionStateFor(deviceType);
+    final connectedId = _connectedDeviceIdFor(deviceType);
+    if (connectedId == deviceId &&
+        (existingState == DeviceConnectionState.connected ||
+            existingState == DeviceConnectionState.connecting)) {
+      _logInfo(
+        '[API] POST /api/devices/connect no-op: ${deviceType.name} $deviceId '
+        'already ${existingState == DeviceConnectionState.connected ? 'connected' : 'connecting'}',
+      );
+      return jsonOk({
+        'status': 'connected',
+        'deviceId': deviceId,
+        'deviceType': deviceType.name,
+      });
+    }
+
     final service = container.read(deviceServiceProvider);
     try {
       await _dispatchConnect(service, deviceType, deviceId);
@@ -64,9 +87,12 @@ extension DeviceConnectionHandlers on DeviceHandlers {
     } catch (e, stackTrace) {
       // The connect threw after passing discovery — most likely the
       // underlying driver refused (cable unplugged, ASCOM driver not
-      // installed, INDI server unreachable, etc.). Surface a 502 with the
-      // service's own message so the remote operator sees the same
-      // diagnostic the desktop UI would have surfaced via a snackbar.
+      // installed, INDI server unreachable, etc.). Surface a 409 (NOT a 502)
+      // with the service's own message: 502 is classified transient by the
+      // slave's HTTP layer, so a 502 here would invite an auto re-POST that
+      // re-enters the serial bus. 409 is a definite, non-retryable result —
+      // the remote operator still sees the same diagnostic message the
+      // desktop UI surfaces via a snackbar.
       _logWarning(
         '[API] POST /api/devices/connect failed for ${deviceType.name} '
         '$deviceId: $e',
@@ -74,7 +100,7 @@ extension DeviceConnectionHandlers on DeviceHandlers {
       throw HandlerFailure(
         code: 'device_connect_failed',
         message: _sanitizeConnectErrorMessage(e),
-        statusCode: 502,
+        statusCode: 409,
         details: {'deviceId': deviceId, 'deviceType': deviceType.name},
         cause: e,
         stackTrace: stackTrace,
@@ -310,6 +336,37 @@ extension DeviceConnectionHandlers on DeviceHandlers {
         return container.read(coverCalibratorStateProvider).deviceId;
       case DeviceType.switch_:
         return container.read(switchStateProvider).deviceId;
+    }
+  }
+
+  /// Reads the current [DeviceConnectionState] held by the matching equipment
+  /// StateNotifier. Used by the connect endpoint to short-circuit a redundant
+  /// connect (idempotency) when the requested device is already connected or
+  /// mid-connect.
+  DeviceConnectionState _connectionStateFor(DeviceType type) {
+    switch (type) {
+      case DeviceType.camera:
+        return container.read(cameraStateProvider).connectionState;
+      case DeviceType.mount:
+        return container.read(mountStateProvider).connectionState;
+      case DeviceType.focuser:
+        return container.read(focuserStateProvider).connectionState;
+      case DeviceType.filterWheel:
+        return container.read(filterWheelStateProvider).connectionState;
+      case DeviceType.guider:
+        return container.read(guiderStateProvider).connectionState;
+      case DeviceType.rotator:
+        return container.read(rotatorStateProvider).connectionState;
+      case DeviceType.dome:
+        return container.read(domeStateProvider).connectionState;
+      case DeviceType.weather:
+        return container.read(weatherStateProvider).connectionState;
+      case DeviceType.safetyMonitor:
+        return container.read(safetyMonitorStateProvider).connectionState;
+      case DeviceType.coverCalibrator:
+        return container.read(coverCalibratorStateProvider).connectionState;
+      case DeviceType.switch_:
+        return container.read(switchStateProvider).connectionState;
     }
   }
 

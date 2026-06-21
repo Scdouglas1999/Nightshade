@@ -14,6 +14,20 @@ List<HeadlessRoute> buildProfileRoutes(ProfileHandlers h) => <HeadlessRoute>[
   // Profiles
   HeadlessRoute(HttpMethod.get, '/api/profiles', h.handleGetProfiles),
   HeadlessRoute(HttpMethod.post, '/api/profiles', h.handleSaveProfile),
+  // Literal single-segment POST. Registered BEFORE the parametric
+  // '/api/profiles/<profileId>/...' routes so a profileId can never swallow
+  // the literal 'reorder' segment (shelf_router matches in registration
+  // order).
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/profiles/reorder',
+    h.handleReorderProfiles,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/profiles/default/clear',
+    h.handleClearDefaultProfile,
+  ),
   HeadlessRoute(
     HttpMethod.delete,
     '/api/profiles/<profileId>',
@@ -23,6 +37,11 @@ List<HeadlessRoute> buildProfileRoutes(ProfileHandlers h) => <HeadlessRoute>[
     HttpMethod.post,
     '/api/profiles/<profileId>/load',
     h.handleLoadProfile,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/profiles/<profileId>/default',
+    h.handleSetDefaultProfile,
   ),
   HeadlessRoute(
     HttpMethod.get,

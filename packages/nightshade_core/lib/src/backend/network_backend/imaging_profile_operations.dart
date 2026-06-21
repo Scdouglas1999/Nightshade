@@ -28,6 +28,31 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
     await _post('profiles/$profileId/load');
   }
 
+  /// Set [profileId] as the host's default startup profile (atomically
+  /// unsetting the previous default and making this row active). Routes to the
+  /// dedicated host endpoint because the generic saveProfile path preserves the
+  /// host row's existing `isDefault` and cannot flip the default.
+  ///
+  /// NetworkBackend-only (not on the abstract ProfileSettingsBackend role) so
+  /// FfiBackend/DisconnectedBackend need no implementation.
+  Future<void> setDefaultProfileRemote(String profileId) async {
+    await _post('profiles/$profileId/default');
+  }
+
+  /// Clear the host's default startup profile (unset `isDefault` on every
+  /// row). Routes to the dedicated host endpoint because saveProfile preserves
+  /// the host row's existing `isDefault`. NetworkBackend-only.
+  Future<void> clearDefaultProfileRemote() async {
+    await _post('profiles/default/clear');
+  }
+
+  /// Persist [orderedIds] as the host's profile display order. Routes to the
+  /// dedicated host endpoint because saveProfile preserves the host row's
+  /// existing `sortOrder`. NetworkBackend-only.
+  Future<void> reorderProfilesRemote(List<String> orderedIds) async {
+    await _post('profiles/reorder', {'profileIds': orderedIds});
+  }
+
   @override
   Future<EquipmentProfile?> getActiveProfile() async {
     final response = await _get('profiles/active');

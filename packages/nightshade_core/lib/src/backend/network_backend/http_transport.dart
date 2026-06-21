@@ -312,8 +312,9 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
     String endpoint, [
     Map<String, dynamic>? body,
     Map<String, String>? extraHeaders,
+    int maxAttempts = 3,
   ]) async {
-    return _retryableRequest(() async {
+    return _retryableRequest(maxAttempts: maxAttempts, () async {
       final uri = _apiUri(endpoint);
 
       final response = await _sendWithAuthRefresh(

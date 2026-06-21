@@ -53,6 +53,8 @@ abstract class EquipmentProfile with _$EquipmentProfile {
     String? filterWheelName,
     String? guiderName,
     String? rotatorName,
+    String? safetyMonitorName,
+    String? switchName,
 
     // Telescope/OTA information
     String? telescopeName,

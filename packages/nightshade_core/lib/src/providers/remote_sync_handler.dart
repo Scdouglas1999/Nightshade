@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../backend/network_backend.dart';
 import '../models/backend/device_info.dart';
+import '../models/backend/device_status.dart';
 import '../models/backend/device_types.dart';
 import '../models/backend/event_types.dart';
 import '../models/backend/sequencer_status.dart';
@@ -14,7 +15,10 @@ import '../models/imaging/imaging_models.dart'
     show CapturePreviewSource, ExposureSettings;
 import '../services/capture_preview_loader.dart'
     show capturePreviewPublisherProvider, capturedImageDataFromResult;
+import '../services/imaging_service.dart' show exposureProgressProvider;
 import '../services/phd2_status_poll.dart';
+import '../services/sequence_file_service.dart'
+    show sequenceFileServiceProvider;
 import 'database_provider.dart';
 import 'equipment_provider.dart';
 import 'framing_provider.dart';
@@ -23,7 +27,7 @@ import 'profiles_provider.dart';
 import 'remote_sync_events.dart';
 import 'sequence_provider.dart';
 import 'session_provider.dart';
-import 'unified_discovery_provider.dart';
+import 'settings_provider.dart' show appSettingsProvider;
 import 'target_progress_provider.dart'
     show allTargetProgressProvider, targetProgressProvider;
 
@@ -49,7 +53,7 @@ Future<void> applyRemoteSyncEvent(
       );
       break;
     case EventCategory.equipment:
-      _applyEquipmentEvent(reader, event);
+      _applyEquipmentEvent(reader, event, networkBackend: networkBackend);
       break;
     case EventCategory.guiding:
       await _applyGuidingEvent(reader, event, networkBackend: networkBackend);
@@ -78,6 +82,15 @@ Future<void> applyRemoteSyncEvent(
               event.eventType == 'ImageSaved' ||
               event.eventType == 'ImageCaptured')) {
         unawaited(_publishRemoteCurrentFrame(reader, networkBackend));
+      }
+      // Slave-only: mirror the master's per-frame exposure countdown onto the
+      // camera card + exposure-progress dashboard. These imaging events drive
+      // [cameraStateProvider.setExposing] / [exposureProgressProvider] exactly
+      // as ImagingService does on the host (whose capture loop never runs on a
+      // remote companion), so the slave's "Exposing" status and the remaining-
+      // time countdown track the master frame-for-frame.
+      if (networkBackend != null) {
+        _applyExposureMirror(reader, event.eventType, event.data);
       }
       break;
     case EventCategory.safety:
@@ -129,7 +142,11 @@ Future<void> _applySystemSyncEvent(
   }
 }
 
-void _applyEquipmentEvent(Object reader, NightshadeEvent event) {
+void _applyEquipmentEvent(
+  Object reader,
+  NightshadeEvent event, {
+  NetworkBackend? networkBackend,
+}) {
   final data = event.data;
   switch (event.eventType) {
     case 'Connecting':
@@ -153,12 +170,291 @@ void _applyEquipmentEvent(Object reader, NightshadeEvent event) {
       _applyDeviceDisconnectedFromSyncPayload(reader, data);
       _invalidateEquipmentSyncProviders(reader);
       break;
+    default:
+      // Live telemetry mirroring is SLAVE-ONLY: on the host both
+      // DeviceService.event_handling AND host_local_sync run, so applying
+      // these here when networkBackend == null (the host path) would
+      // double-apply state DeviceService already wrote. The slave is a pure
+      // observer with no DeviceService, so networkBackend != null cleanly
+      // scopes this to the remote companion. Connection-state cases above
+      // stay unconditional (they run on both host and slave).
+      if (networkBackend != null) {
+        _applyEquipmentTelemetry(reader, event.eventType, data);
+      }
+      break;
+  }
+}
+
+/// Slave-only: mirror the master's per-frame exposure countdown by driving the
+/// same notifiers [ImagingService] drives on the host. The host capture loop
+/// never runs on a remote companion, so these imaging-category events are the
+/// slave's only source for the camera card's "Exposing" status and the
+/// remaining-time countdown. Payload keys match the host emitter
+/// (`progress`/`remainingSecs`), with snake_case fallbacks for the
+/// `ExposureStarted` frame fields.
+void _applyExposureMirror(
+  Object reader,
+  String eventType,
+  Map<String, dynamic> data,
+) {
+  final cameraNotifier = _read(reader, cameraStateProvider.notifier);
+  final progressNotifier = _read(reader, exposureProgressProvider.notifier);
+  switch (eventType) {
+    case 'ExposureStarted':
+    case 'ExposureStartedWithFrame':
+      final duration =
+          (data['durationSecs'] as num?)?.toDouble() ??
+          (data['duration_secs'] as num?)?.toDouble() ??
+          0.0;
+      final frameNumber =
+          (data['frameNumber'] as num?)?.toInt() ??
+          (data['frame_number'] as num?)?.toInt() ??
+          0;
+      final totalFrames =
+          (data['totalFrames'] as num?)?.toInt() ??
+          (data['total_frames'] as num?)?.toInt();
+      cameraNotifier.setExposing(true, progress: 0.0);
+      if (duration > 0) {
+        progressNotifier.startExposure(duration, frameNumber, totalFrames);
+      }
+      break;
+    case 'ExposureProgress':
+      final progress = (data['progress'] as num?)?.toDouble() ?? 0.0;
+      final remaining =
+          (data['remainingSecs'] as num?)?.toDouble() ??
+          (data['remaining_secs'] as num?)?.toDouble() ??
+          0.0;
+      // The slave does not know the configured exposure time locally, so derive
+      // elapsed defensively from progress + remaining.
+      final total = (progress > 0.0 && progress < 1.0)
+          ? remaining / (1.0 - progress)
+          : null;
+      final elapsed = total != null
+          ? (total - remaining).clamp(0.0, total).toDouble()
+          : 0.0;
+      cameraNotifier.setExposing(true, progress: progress);
+      progressNotifier.updateProgress(elapsed, remaining, progress * 100);
+      break;
+    case 'ExposureComplete':
+    case 'ExposureCancelled':
+      cameraNotifier.setExposing(false);
+      break;
+  }
+}
+
+/// Slave-only: mirror the master's live equipment telemetry into the same
+/// per-device notifiers [DeviceService.event_handling] writes on the host, but
+/// with NO reconnect / critical-device / heartbeat side effects (a remote
+/// companion must never originate connect commands back to the host).
+///
+/// Event names + payload shapes are kept in lock-step with
+/// `device_service/event_handling.dart`. Only camera/mount/focuser/filter-
+/// wheel/rotator carry live values; dome/weather/safetyMonitor/coverCalibrator/
+/// switch mirror CONNECTION STATE ONLY (no source telemetry events). The
+/// per-frame exposure countdown is mirrored via the imaging-category
+/// `ExposureStarted`/`ExposureProgress`/`ExposureComplete` events in
+/// [_applyExposureMirror]; the current-frame hero tile is mirrored separately
+/// via the imaging/current-frame path.
+void _applyEquipmentTelemetry(
+  Object reader,
+  String eventType,
+  Map<String, dynamic> data,
+) {
+  switch (eventType) {
+    // --- Camera temperature / cooling ------------------------------------
+    case 'CameraTemperatureChanged':
+      final temp = (data['temperature'] as num?)?.toDouble();
+      final power = (data['coolerPower'] as num?)?.toDouble() ?? 0.0;
+      if (temp != null) {
+        _read(
+          reader,
+          cameraStateProvider.notifier,
+        ).updateTemperature(temp, power);
+      }
+      break;
+    case 'CameraCoolingStarted':
+      final targetTemp = (data['target_temp'] as num?)?.toDouble();
+      _read(reader, cameraStateProvider.notifier).setCooling(true);
+      if (targetTemp != null) {
+        _read(reader, cameraStateProvider.notifier).setTargetTemp(targetTemp);
+      }
+      break;
+    case 'CameraCoolingReached':
+      final temp = (data['temperature'] as num?)?.toDouble();
+      if (temp != null) {
+        _read(
+          reader,
+          cameraStateProvider.notifier,
+        ).updateTemperature(temp, 0.0);
+      }
+      break;
+    case 'CameraWarmingStarted':
+      _read(reader, cameraStateProvider.notifier).setCooling(false);
+      break;
+    case 'CameraWarmingCompleted':
+      // No additional state change (matches event_handling.dart).
+      break;
+
+    // --- Mount position / motion -----------------------------------------
+    case 'MountPositionChanged':
+      final ra = (data['ra'] as num?)?.toDouble();
+      final dec = (data['dec'] as num?)?.toDouble();
+      final alt = (data['altitude'] as num?)?.toDouble() ?? 0.0;
+      final az = (data['azimuth'] as num?)?.toDouble() ?? 0.0;
+      if (ra != null && dec != null) {
+        _read(
+          reader,
+          mountStateProvider.notifier,
+        ).updatePosition(ra, dec, alt, az);
+      }
+      if (data['isSlewing'] is bool) {
+        _read(
+          reader,
+          mountStateProvider.notifier,
+        ).setSlewing(data['isSlewing'] as bool);
+      }
+      if (data['isTracking'] is bool) {
+        _read(
+          reader,
+          mountStateProvider.notifier,
+        ).setTracking(data['isTracking'] as bool);
+      }
+      if (data['isParked'] is bool) {
+        _read(
+          reader,
+          mountStateProvider.notifier,
+        ).setParked(data['isParked'] as bool);
+      }
+      break;
+    case 'MountSlewStarted':
+      _read(reader, mountStateProvider.notifier).setSlewing(true);
+      break;
+    case 'MountSlewCompleted':
+      _read(reader, mountStateProvider.notifier).setSlewing(false);
+      final ra = (data['ra'] as num?)?.toDouble();
+      final dec = (data['dec'] as num?)?.toDouble();
+      if (ra != null && dec != null) {
+        _read(
+          reader,
+          mountStateProvider.notifier,
+        ).updatePosition(ra, dec, 0.0, 0.0);
+      }
+      break;
+    case 'MountTrackingStarted':
+      _read(reader, mountStateProvider.notifier).setTracking(true);
+      break;
+    case 'MountTrackingStopped':
+      _read(reader, mountStateProvider.notifier).setTracking(false);
+      break;
+    case 'MountParkStarted':
+      _read(reader, mountStateProvider.notifier).setSlewing(true);
+      break;
+    case 'MountParkCompleted':
+      _read(reader, mountStateProvider.notifier).setSlewing(false);
+      _read(reader, mountStateProvider.notifier).setParked(true);
+      _read(reader, mountStateProvider.notifier).setTracking(false);
+      break;
+    case 'MountUnparked':
+      _read(reader, mountStateProvider.notifier).setParked(false);
+      break;
+
+    // --- Focuser ----------------------------------------------------------
+    case 'FocuserMoveStarted':
+      _read(reader, focuserStateProvider.notifier).setMoving(true);
+      break;
+    case 'FocuserMoveCompleted':
+      _read(reader, focuserStateProvider.notifier).setMoving(false);
+      final position = data['position'] as int?;
+      if (position != null) {
+        _read(reader, focuserStateProvider.notifier).updatePosition(position);
+      }
+      break;
+    case 'FocuserTemperatureChanged':
+      final temperature = (data['temperature'] as num?)?.toDouble();
+      if (temperature != null) {
+        _read(
+          reader,
+          focuserStateProvider.notifier,
+        ).updateTemperature(temperature);
+      }
+      break;
+    case 'FocuserPositionChanged':
+      final focuserPosition = data['position'] as int?;
+      if (focuserPosition != null) {
+        _read(
+          reader,
+          focuserStateProvider.notifier,
+        ).updatePosition(focuserPosition);
+      }
+      final focuserMoving = data['isMoving'] as bool?;
+      if (focuserMoving != null) {
+        _read(reader, focuserStateProvider.notifier).setMoving(focuserMoving);
+      }
+      final focuserTemp = (data['temperature'] as num?)?.toDouble();
+      if (focuserTemp != null) {
+        _read(
+          reader,
+          focuserStateProvider.notifier,
+        ).updateTemperature(focuserTemp);
+      }
+      break;
+
+    // --- Filter wheel -----------------------------------------------------
+    case 'FilterChanging':
+      _read(reader, filterWheelStateProvider.notifier).setMoving(true);
+      break;
+    case 'FilterChanged':
+      _read(reader, filterWheelStateProvider.notifier).setMoving(false);
+      final position = data['position'] as int?;
+      if (position != null) {
+        _read(
+          reader,
+          filterWheelStateProvider.notifier,
+        ).updatePosition(position);
+      }
+      break;
+    case 'FilterWheelPositionChanged':
+      final filterPosition = data['position'] as int?;
+      if (filterPosition != null) {
+        _read(
+          reader,
+          filterWheelStateProvider.notifier,
+        ).updatePosition(filterPosition);
+      }
+      final filterMoving = data['isMoving'] as bool?;
+      if (filterMoving != null) {
+        _read(
+          reader,
+          filterWheelStateProvider.notifier,
+        ).setMoving(filterMoving);
+      }
+      break;
+
+    // --- Rotator ----------------------------------------------------------
+    case 'RotatorMoveStarted':
+      _read(reader, rotatorStateProvider.notifier).setMoving(true);
+      break;
+    case 'RotatorMoveCompleted':
+      _read(reader, rotatorStateProvider.notifier).setMoving(false);
+      final angle = (data['angle'] as num?)?.toDouble();
+      if (angle != null) {
+        _read(reader, rotatorStateProvider.notifier).updatePosition(angle);
+      }
+      break;
   }
 }
 
 void _invalidateEquipmentSyncProviders(Object reader) {
   _invalidate(reader, equipmentProfilesProvider);
-  _invalidate(reader, unifiedDiscoveryProvider);
+  // Deliberately NOT invalidating unifiedDiscoveryProvider here. It is a
+  // StateNotifier whose state resets to an EMPTY device list on invalidation
+  // and does not auto-rediscover, so invalidating it on every remote
+  // Connected/Disconnected event wipes the user's scanned "Available Devices"
+  // list (the whole panel goes blank the instant they connect a device in
+  // remote-client mode). Device connection *status* is tracked by the
+  // per-class device state providers (updated above via the sync payload),
+  // not by the discovery list, so the discovered set is stable across
+  // connect/disconnect and must be left intact.
 }
 
 Future<void> _applyGuidingEvent(
@@ -267,6 +563,8 @@ void _applyHostMutation(Object reader, Map<String, dynamic> data) {
       _applyFramingMutationFromHost(reader, action, data);
     case HostMutationEntity.sequencer:
       _applySequencerMutationFromHost(reader, action, data);
+    case HostMutationEntity.sequenceEditor:
+      _applySequenceEditorMirror(reader, action, data);
     case HostMutationEntity.profile:
     case HostMutationEntity.settings:
       _invalidateHostProfiles(reader);
@@ -399,6 +697,69 @@ void _applySequencerMutationFromHost(
       sequenceProgressProvider.notifier,
     ).updateProgress(message: message);
   }
+}
+
+/// SLAVE apply: mirror the master's OPEN sequence-editor canvas.
+///
+/// The master broadcasts its working/dirty open sequence via the
+/// [HostMutationEntity.sequenceEditor] host-mutation (see
+/// `masterSequenceEditorMirrorProvider`). Here the slave reflects it onto its
+/// own [currentSequenceProvider] so the sequencer screen follows the master's
+/// live canvas — not just re-saved library rows.
+///
+/// Guards (single-hardware-owner invariant; master is authoritative but never
+/// silently clobbers a slave operator mid-edit):
+///   * If the slave editor has unsaved edits ([CurrentSequenceNotifier.isDirty])
+///     we SKIP the apply — same guard as [reloadOpenSequenceIfIdle].
+///   * `cleared` empties the slave canvas to match the master closing its
+///     editor.
+/// Applies use `discardUnsaved: true` only after the isDirty guard has already
+/// passed (the editor is clean), so no confirmed-clean work is lost.
+void _applySequenceEditorMirror(
+  Object reader,
+  String action,
+  Map<String, dynamic> data,
+) {
+  final editor = _read(reader, currentSequenceProvider.notifier);
+
+  if (action == HostMutationAction.cleared) {
+    // Don't wipe a slave operator's unsaved canvas just because the master
+    // closed its editor.
+    if (editor.isDirty) {
+      return;
+    }
+    editor.clearSequence(discardUnsaved: true);
+    return;
+  }
+
+  // Never clobber the slave operator's in-progress edits. The slave diverges
+  // until it returns to a clean state, which is the documented master-
+  // authoritative behavior.
+  if (editor.isDirty) {
+    return;
+  }
+
+  final rawSequence = data['sequence'];
+  if (rawSequence is! Map) {
+    return;
+  }
+
+  final Sequence parsed;
+  try {
+    final map = Map<String, dynamic>.from(rawSequence);
+    var seq = _read(reader, sequenceFileServiceProvider).parseFromMap(map);
+    final dbId = data['databaseId'];
+    if (dbId is int) {
+      seq = seq.copyWith(databaseId: dbId);
+    }
+    parsed = seq;
+  } catch (_) {
+    // Best-effort: a malformed mirror frame must not crash the slave's sync
+    // loop. The next frame (or a library reload) will recover.
+    return;
+  }
+
+  editor.loadSequence(parsed, discardUnsaved: true);
 }
 
 int? _parseSequenceId(Map<String, dynamic> data) {
@@ -887,6 +1248,15 @@ void _applyConnectedDevice(Object reader, DeviceInfo device) {
 }
 
 /// Full session hydration for remote companions (and reconnect recovery).
+///
+/// Makes the slave correct IMMEDIATELY on first connect and TELEMETRY-STABLE
+/// across the 30s repoll: it never blanks a populated card. Per-device live
+/// status is fetched into a LOCAL BUFFER first (each fetch wrapped in its own
+/// try/catch, all run in parallel via [Future.wait]), then applied in a single
+/// pass. On a per-device failure the prior telemetry for that device is left
+/// intact — one slow device on a high-latency link can neither stall nor wipe
+/// the others. Connection state is applied first so cards exist before live
+/// values land.
 Future<void> hydrateRemoteSessionState(
   Object reader,
   NetworkBackend backend,
@@ -902,9 +1272,162 @@ Future<void> hydrateRemoteSessionState(
     _applyConnectedDevice(reader, device);
   }
 
+  // Buffer-then-apply per-device live telemetry. Only camera/mount/focuser/
+  // filterwheel/rotator expose a status GET; dome/weather/safetyMonitor/
+  // coverCalibrator/switch mirror connection state only (no status endpoint).
+  await _hydrateDeviceTelemetry(reader, backend, devices);
+
   await _hydratePhd2GuiderState(reader, backend);
+
+  // Active-profile + populated cards parity at first connect: refetch the
+  // profile providers from the (now SQLite-backed) host /api/profiles so the
+  // slave's equipment screen reflects the master's real active profile
+  // immediately, not only after the next 10s poll / profile mutation.
+  _invalidateHostProfiles(reader);
+
+  // Settings parity at first connect must not wait for the 10s poll: force a
+  // re-pull of appSettingsProvider (its build() re-fetches backend.getSettings
+  // in NetworkBackend mode). No-op cost on the host (settings are local there;
+  // hydration only runs on the slave / on BackendReconnected).
+  _invalidate(reader, appSettingsProvider);
+
+  // Framing target is NOT seeded from framing/current-position here: that GET
+  // returns the mount's current pointing (already mirrored via getMountStatus),
+  // not a chosen framing target, and FramingNotifier.setTargetCoordinates would
+  // clobber the real target + trigger a survey-image load + push back to the
+  // host. Framing target parity flows through the framingTargetChanged event +
+  // HostMutationEntity.framing path instead.
+
   _invalidateEquipmentSyncProviders(reader);
   backend.invalidateDeviceCache();
   _invalidate(reader, savedSequencesProvider);
   _invalidate(reader, savedSequenceSummariesProvider);
+}
+
+/// Buffer-then-apply per-device live status for the connected equipment that
+/// exposes a status GET. Each fetch is isolated in its own try/catch and run in
+/// parallel; results are applied only after ALL fetches settle, so a failed or
+/// slow device never blanks a card.
+Future<void> _hydrateDeviceTelemetry(
+  Object reader,
+  NetworkBackend backend,
+  List<DeviceInfo> devices,
+) async {
+  String? idFor(DeviceType type) =>
+      devices.where((d) => d.deviceType == type).map((d) => d.id).firstOrNull;
+
+  final cameraId = idFor(DeviceType.camera);
+  final mountId = idFor(DeviceType.mount);
+  final focuserId = idFor(DeviceType.focuser);
+  final filterWheelId = idFor(DeviceType.filterWheel);
+  final rotatorId = idFor(DeviceType.rotator);
+
+  CameraStatus? cameraStatus;
+  MountStatus? mountStatus;
+  FocuserStatus? focuserStatus;
+  FilterWheelStatus? filterWheelStatus;
+  RotatorStatus? rotatorStatus;
+
+  Future<void> fetchCamera() async {
+    if (cameraId == null) return;
+    try {
+      cameraStatus = await backend.getCameraStatus(cameraId);
+    } catch (_) {
+      // Leave prior camera telemetry intact.
+    }
+  }
+
+  Future<void> fetchMount() async {
+    if (mountId == null) return;
+    try {
+      mountStatus = await backend.getMountStatus(mountId);
+    } catch (_) {}
+  }
+
+  Future<void> fetchFocuser() async {
+    if (focuserId == null) return;
+    try {
+      focuserStatus = await backend.getFocuserStatus(focuserId);
+    } catch (_) {}
+  }
+
+  Future<void> fetchFilterWheel() async {
+    if (filterWheelId == null) return;
+    try {
+      filterWheelStatus = await backend.getFilterWheelStatus(filterWheelId);
+    } catch (_) {}
+  }
+
+  Future<void> fetchRotator() async {
+    if (rotatorId == null) return;
+    try {
+      rotatorStatus = await backend.getRotatorStatus(rotatorId);
+    } catch (_) {}
+  }
+
+  await Future.wait([
+    fetchCamera(),
+    fetchMount(),
+    fetchFocuser(),
+    fetchFilterWheel(),
+    fetchRotator(),
+  ]);
+
+  // Single apply pass — no intervening clear, so cards never blank.
+  final camera = cameraStatus;
+  if (camera != null) {
+    final notifier = _read(reader, cameraStateProvider.notifier);
+    final temp = camera.sensorTemp;
+    if (temp != null) {
+      notifier.updateTemperature(temp, camera.coolerPower ?? 0.0);
+    }
+    notifier.setCooling(camera.coolerOn);
+    final target = camera.targetTemp;
+    if (target != null) {
+      notifier.setTargetTemp(target);
+    }
+  }
+
+  final mount = mountStatus;
+  if (mount != null) {
+    final notifier = _read(reader, mountStateProvider.notifier);
+    notifier.updatePosition(
+      mount.rightAscension,
+      mount.declination,
+      mount.altitude,
+      mount.azimuth,
+    );
+    notifier.setTracking(mount.tracking);
+    notifier.setSlewing(mount.slewing);
+    notifier.setParked(mount.parked);
+    notifier.setTrackingRate(mount.trackingRate);
+  }
+
+  final focuser = focuserStatus;
+  if (focuser != null) {
+    final notifier = _read(reader, focuserStateProvider.notifier);
+    notifier.updatePosition(focuser.position);
+    notifier.setMoving(focuser.moving);
+    final temp = focuser.temperature;
+    if (temp != null) {
+      notifier.updateTemperature(temp);
+    }
+  }
+
+  final filterWheel = filterWheelStatus;
+  if (filterWheel != null) {
+    final notifier = _read(reader, filterWheelStateProvider.notifier);
+    notifier.updatePosition(filterWheel.position);
+    notifier.setMoving(filterWheel.moving);
+  }
+
+  final rotator = rotatorStatus;
+  if (rotator != null) {
+    final notifier = _read(reader, rotatorStateProvider.notifier);
+    notifier.updatePosition(
+      rotator.position,
+      mechanicalPosition: rotator.mechanicalPosition,
+    );
+    notifier.setMoving(rotator.moving || rotator.isMoving);
+  }
 }
