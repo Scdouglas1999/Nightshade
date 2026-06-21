@@ -230,12 +230,18 @@ void main(List<String> args) async {
     // honours whatever the user toggled in Settings → Remote Access.
     if (serveRequested) {
       try {
-        // Ensure the settings state is loaded so setWebServerEnabled can both
-        // persist and patch the live state the lifecycle listener reads.
-        await container.read(appSettingsProvider.future);
+        // Persist web_server_enabled=true straight to the settings DAO. We must
+        // NOT await appSettingsProvider.future here: that provider may not
+        // resolve until after the first frame (its build can depend on the
+        // backend swap that is still in flight), so awaiting it before runApp
+        // hangs main() forever and the shown window stays blank. The DAO is the
+        // source the lifecycle listener (attached in startBackgroundServices
+        // below, fireImmediately) reads, so writing it here — before that
+        // listener attaches — is sufficient for the embedded server to come up
+        // on launch, and it never blocks the UI.
         await container
-            .read(appSettingsProvider.notifier)
-            .setWebServerEnabled(true);
+            .read(settingsDaoProvider)
+            .setSetting('web_server_enabled', 'true');
       } catch (error) {
         developer.log(
           '--serve: failed to force web_server_enabled on; the embedded '
