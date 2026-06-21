@@ -33,6 +33,8 @@ part 'planner_screen_parts/_candidate_list.dart';
 part 'planner_screen_parts/_filtered_empty_state.dart';
 part 'planner_screen_parts/_primary_target_card.dart';
 part 'planner_screen_parts/_search_results.dart';
+part 'planner_screen_parts/_projects_tab.dart';
+part 'planner_screen_parts/_schedule_tab.dart';
 part 'planner_screen_parts/_discover_tab.dart';
 
 /// Identifies a Plan Tonight sub-tab for deep-linking via `?tab=` query
@@ -42,16 +44,15 @@ part 'planner_screen_parts/_discover_tab.dart';
 /// Order rationale — the tabs read left-to-right as a planning-to-execution
 /// funnel, grouped by intent rather than by build order:
 ///   * [recommendation] — "what's best right now" (the landing page / default).
-///   * [projects] — sits next to Recommendation because both are *planning
-///     intent*: choose a campaign and set multi-night integration goals.
-///   * [scheduler] — the dynamic target queue: *execution sequencing* of the
-///     chosen work across the night.
-///   * [week] — sits next to the scheduler because both are *execution-timing
-///     intent*: the seven-night forecast answers "which upcoming nights to run
-///     the queue on".
-///   * [progress] — the retrospective roll-up.
-///   * [sky] — the framing/planetarium workspace absorbed from the standalone
-///     `/framing` and `/planetarium` screens; reached via `?tab=sky`.
+///   * [projects] — the multi-night campaign workspace: pick a campaign and
+///     track per-target integration goals, or switch scope to the global
+///     all-targets progress roll-up. (Absorbs the former standalone "Progress".)
+///   * [schedule] — the seven-night forecast strip atop the dynamic target
+///     queue: which upcoming nights to run, and the queue that runs them.
+///     (Unifies the former "This Week" forecast + "Target Queue" scheduler.)
+///   * [framing] / [planetarium] — the sky-work surfaces promoted to first-class
+///     tabs (absorbed from the standalone `/framing` and `/planetarium` routes).
+///   * [discover] — the Your Sky / Constellation discovery surfaces.
 ///
 /// The rendered `tabs` list and the `IndexedStack` children in
 /// [_PlannerScreenState.build] are kept in lockstep with this order because the
@@ -60,9 +61,7 @@ part 'planner_screen_parts/_discover_tab.dart';
 enum PlannerTab {
   recommendation,
   projects,
-  scheduler,
-  week,
-  progress,
+  schedule,
   framing,
   planetarium,
   discover,
@@ -81,20 +80,19 @@ PlannerTab? plannerTabFromQuery(String? value) {
     case 'project':
     case 'campaign':
     case 'campaigns':
+    case 'progress':
+    case 'history':
       return PlannerTab.projects;
+    case 'schedule':
     case 'scheduler':
     case 'queue':
     case 'target-queue':
     case 'targetqueue':
-      return PlannerTab.scheduler;
     case 'week':
     case 'forecast':
     case 'thisweek':
     case 'this-week':
-      return PlannerTab.week;
-    case 'progress':
-    case 'history':
-      return PlannerTab.progress;
+      return PlannerTab.schedule;
     case 'framing':
       return PlannerTab.framing;
     case 'planetarium':
@@ -118,8 +116,15 @@ const int _kPlannerPageSize = 25;
 /// everything tonight" so it never disappears when the user narrows filters.
 final _plannerOptimizationProvider =
     FutureProvider.autoDispose<SessionOptimizationPlan>((ref) async {
-  final settings = await ref.watch(appSettingsProvider.future);
-  if (settings.latitude == 0.0 && settings.longitude == 0.0) {
+  // Depend on the SELECT-based location provider, not the whole appSettings
+  // future. The host broadcasts `settings/updated` very frequently (scheduler
+  // runtime config), and awaiting appSettingsProvider.future re-ran this plan —
+  // and thus reloaded the Recommendation tab — on every one. appObserverLocation
+  // only emits when latitude/longitude actually change, so unrelated settings
+  // churn no longer thrashes the tab.
+  final location = ref.watch(appObserverLocationProvider);
+  if (location == null ||
+      (location.latitude == 0.0 && location.longitude == 0.0)) {
     throw StateError(
       'Observing location is not configured. '
       'Set your latitude and longitude in Settings before using the planner.',
@@ -144,24 +149,21 @@ final _plannerVisibleCountProvider = StateProvider.autoDispose<int>(
 
 /// Full "Plan Tonight" workspace.
 ///
-/// Five sub-tabs (W8-SCHED-MERGE + multi-night planning, C11):
+/// Six sub-tabs:
 ///   * Recommendation — the primary scoring engine: best target right now,
 ///     filterable / sortable / searchable candidate list, SIMBAD fallback,
 ///     risk factors and rationale.
-///   * Projects — the multi-night campaign layer ([ProjectsTabContent], C9):
-///     group targets into a campaign, set per-filter integration goals, and
-///     track accrued-vs-remaining progress across clear nights. Includes the
-///     C11 Smart Night handoff: "Plan in Smart Night" seeds the wizard with the
-///     active campaign's still-incomplete targets so one click plans the
-///     campaign rather than the generic "best of everything tonight" set.
-///   * Target Queue — RoboTarget-class dynamic scheduler, formerly the
-///     standalone `/scheduler` screen. The body is embedded via
-///     [SchedulerTabContent] so the `/scheduler` deep-link redirect lands
-///     on the same code path.
-///   * This Week — the seven-night forecast strip ([WeekForecastStrip], C10):
-///     ranks upcoming nights for the active campaign's incomplete targets.
-///   * Progress — per-target imaging progress + ETA, consumes
-///     `allTargetProgressProvider`.
+///   * Projects — the multi-night campaign workspace ([_ProjectsTab]): a scope
+///     switch between the active campaign's per-target integration goals
+///     ([ProjectsTabContent], C9, with the C11 "Plan in Smart Night" handoff)
+///     and the global all-targets progress roll-up ([ProgressTabContent]).
+///   * Schedule — the seven-night forecast strip ([WeekForecastStrip], C10)
+///     pinned above the RoboTarget-class dynamic scheduler ([SchedulerTabContent],
+///     formerly the standalone `/scheduler` screen): which nights to run, and the
+///     queue that runs them.
+///   * Framing / Planetarium — the sky-work surfaces (absorbed from the
+///     standalone `/framing` and `/planetarium` routes).
+///   * Discover — the Your Sky / Constellation discovery surfaces.
 ///
 /// Query param `?tab=` selects the initial tab via [plannerTabFromQuery].
 class PlannerScreen extends ConsumerStatefulWidget {
@@ -220,7 +222,7 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
     // The assert is a developer guard against future drift; the tab-structure
     // tests assert the same invariant at runtime. Each tab carries an icon so
     // [AdaptiveTabBar] can collapse to icon-only on a compact phone rather than
-    // overflowing the five tabs.
+    // overflowing the tab strip.
     final l10n = context.l10n;
     final tabs = <(PlannerTab, AdaptiveTab)>[
       (
@@ -238,24 +240,10 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
         ),
       ),
       (
-        PlannerTab.scheduler,
+        PlannerTab.schedule,
         AdaptiveTab(
-          label: l10n.text('plannerTabTargetQueue'),
-          icon: LucideIcons.listOrdered,
-        ),
-      ),
-      (
-        PlannerTab.week,
-        AdaptiveTab(
-          label: l10n.text('plannerTabThisWeek'),
+          label: l10n.text('plannerTabSchedule'),
           icon: LucideIcons.calendarDays,
-        ),
-      ),
-      (
-        PlannerTab.progress,
-        AdaptiveTab(
-          label: l10n.text('plannerTabProgress'),
-          icon: LucideIcons.trendingUp,
         ),
       ),
       (
@@ -358,10 +346,8 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
                 // only residual is a cheap ~1Hz clock rebuild that never paints.
                 children: [
                   const _RecommendationTab(),
-                  const ProjectsTabContent(),
-                  const SchedulerTabContent(),
-                  const WeekForecastStrip(),
-                  const ProgressTabContent(),
+                  const _ProjectsTab(),
+                  const _ScheduleTab(),
                   TickerMode(
                     enabled: _currentSubTab == PlannerTab.framing.index,
                     child: const FramingView(),

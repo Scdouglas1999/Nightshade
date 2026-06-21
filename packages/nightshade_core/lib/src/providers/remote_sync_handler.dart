@@ -573,8 +573,19 @@ void _applyHostMutation(Object reader, Map<String, dynamic> data) {
     case HostMutationEntity.sequenceEditor:
       _applySequenceEditorMirror(reader, action, data);
     case HostMutationEntity.profile:
-    case HostMutationEntity.settings:
       _invalidateHostProfiles(reader);
+    case HostMutationEntity.settings:
+      // Deliberately NOT invalidating anything per-event here. The host
+      // broadcasts `settings/updated` at very high frequency — the scheduler
+      // persists runtime config (e.g. conditions_score) many times a second and
+      // each persist emits a settings mutation (measured ~14/s on a live rig).
+      // Reacting per-event reloaded the entire "Plan Tonight" Recommendation tab
+      // dozens of times a second on a slave (it also previously, wrongly,
+      // invalidated the equipment-PROFILE providers — a settings change is not a
+      // profile change). appSettings is already re-pulled every 30s by
+      // hydrateRemoteSessionState (and on reconnect), so a genuine settings
+      // change mirrors within one poll cycle without the churn.
+      break;
     case HostMutationEntity.sequence:
       _invalidateSequenceLibrary(reader, sequenceId: _parseSequenceId(data));
     case HostMutationEntity.target:
