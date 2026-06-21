@@ -216,6 +216,43 @@ bridge.SequencerEvent _sequencerEventFromCore(
         lastError: _optionalString(data, 'last_error'),
         abortedByUser: data['aborted_by_user'] as bool? ?? false,
       );
+    // Benign lifecycle / progress events. These were previously unhandled and
+    // fell through to the `default` arm below, which synthesizes a
+    // SequencerEvent.error — flagged critical by isCriticalEvent and shown as a
+    // false "Sequencer error" banner on the dashboard. This bit slaves hard:
+    // when the master merely PAUSED a sequence, the mirrored 'Paused' event
+    // became a bogus critical error. Map them to their real, non-critical
+    // variants. Both bare and 'Sequence'-prefixed names are accepted so the
+    // mapping is robust to either emission convention.
+    case 'Paused':
+    case 'SequencePaused':
+      return const bridge.SequencerEvent.paused();
+    case 'Resumed':
+    case 'SequenceResumed':
+      return const bridge.SequencerEvent.resumed();
+    case 'Stopped':
+    case 'SequenceStopped':
+      return const bridge.SequencerEvent.stopped();
+    case 'Completed':
+    case 'SequenceCompleted':
+      return const bridge.SequencerEvent.completed();
+    case 'NodeStarted':
+      return bridge.SequencerEvent.nodeStarted(
+        nodeId: _stringField(data, 'node_id'),
+        nodeType: _stringField(data, 'node_type'),
+      );
+    case 'NodeCompleted':
+      return bridge.SequencerEvent.nodeCompleted(
+        nodeId: _stringField(data, 'node_id'),
+        status: _stringField(data, 'status'),
+      );
+    case 'ProgressUpdated':
+    case 'Progress':
+    case 'InstructionProgress':
+      return bridge.SequencerEvent.progress(
+        current: _intField(data, 'current'),
+        total: _intField(data, 'total'),
+      );
     default:
       return bridge.SequencerEvent.error(
         message: data['message'] as String? ?? eventType,
