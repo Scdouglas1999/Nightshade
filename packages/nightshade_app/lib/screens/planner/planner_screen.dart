@@ -299,30 +299,48 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
         bottom: false,
         child: Column(
           children: [
-            if (!isPhone) _PlannerHeader(colors: colors),
+            // Title + sub-tabs share ONE row on every form factor. The screen
+            // title previously sat in its own ~56px header row above
+            // the tabs, which wasted vertical space (the bottom/side nav already
+            // names the screen). Fold the title inline to the left of the tab
+            // strip: icon-only on a phone, icon + label on tablet/desktop.
             Container(
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
                 border: Border(bottom: BorderSide(color: colors.border)),
               ),
-              child: isPhone
-                  ? Row(
+              child: Row(
+                children: [
+                  Padding(
+                    padding: EdgeInsets.only(
+                      left: NightshadeTokens.spaceLg,
+                      right: isPhone
+                          ? NightshadeTokens.spaceSm
+                          : NightshadeTokens.spaceMd,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            left: NightshadeTokens.spaceLg,
-                            right: NightshadeTokens.spaceSm,
-                          ),
-                          child: Icon(
-                            LucideIcons.moonStar,
-                            size: 18,
-                            color: colors.primary,
-                          ),
+                        Icon(
+                          LucideIcons.moonStar,
+                          size: 18,
+                          color: colors.primary,
                         ),
-                        Expanded(child: tabBar),
+                        if (!isPhone) ...[
+                          const SizedBox(width: NightshadeTokens.spaceSm),
+                          Text(
+                            context.l10n.text('plannerTitle'),
+                            style: NightshadeTypography.h5.copyWith(
+                              color: colors.textPrimary,
+                            ),
+                          ),
+                        ],
                       ],
-                    )
-                  : tabBar,
+                    ),
+                  ),
+                  Expanded(child: tabBar),
+                ],
+              ),
             ),
             Expanded(
               child: IndexedStack(

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../backend/network_backend.dart';
 import '../database/database.dart' as db;
@@ -208,23 +209,16 @@ final allSettingsProvider = StreamProvider<Map<String, String>>((ref) {
 
 Stream<List<db.EquipmentProfile>> _pollRemoteEquipmentProfiles(
   NetworkBackend backend,
-) async* {
-  yield await _fetchRemoteEquipmentProfiles(backend);
-  while (true) {
-    await Future.delayed(const Duration(seconds: 10));
-    yield await _fetchRemoteEquipmentProfiles(backend);
-  }
-}
+) =>
+    _pollRemote(() => _fetchRemoteEquipmentProfiles(backend), listEquals);
 
 Stream<db.EquipmentProfile?> _pollRemoteActiveProfile(
   NetworkBackend backend,
-) async* {
-  yield await _fetchRemoteActiveProfile(backend);
-  while (true) {
-    await Future.delayed(const Duration(seconds: 10));
-    yield await _fetchRemoteActiveProfile(backend);
-  }
-}
+) =>
+    _pollRemote(
+      () => _fetchRemoteActiveProfile(backend),
+      (a, b) => a == b,
+    );
 
 Future<List<db.EquipmentProfile>> _fetchRemoteEquipmentProfiles(
   NetworkBackend backend,
@@ -255,44 +249,56 @@ db.EquipmentProfile _equipmentProfileFromRemote(
   return remoteProfileToDbRow(profile);
 }
 
-Stream<List<db.Target>> _pollRemoteTargets(NetworkBackend backend) async* {
-  yield await _fetchRemoteTargets(backend);
+/// Polls [fetch] every [interval], emitting the first value and thereafter
+/// ONLY when the value actually changes (per [unchanged]).
+///
+/// The remote list/profile providers below are backed by these polls. They
+/// previously re-emitted an identical payload on every 10s tick. Because the
+/// planner's `tonightSuggestionsProvider` awaits these streams, every redundant
+/// emission reloaded the whole suggestion pipeline and BLANKED the Plan Tonight
+/// Recommendation tab — with targets/sessions/profiles/active-profile all on
+/// staggered 10s timers that produced a full reload every few seconds. It also
+/// multiplied REST traffic against the host (a contributor to the slave's
+/// connection churn and momentary hangs). The change-guard makes a quiet host
+/// emit exactly once, so the UI settles.
+Stream<T> _pollRemote<T>(
+  Future<T> Function() fetch,
+  bool Function(T a, T b) unchanged, {
+  Duration interval = const Duration(seconds: 10),
+}) async* {
+  var last = await fetch();
+  yield last;
   while (true) {
-    await Future.delayed(const Duration(seconds: 10));
-    yield await _fetchRemoteTargets(backend);
+    await Future.delayed(interval);
+    final next = await fetch();
+    if (!unchanged(last, next)) {
+      last = next;
+      yield next;
+    }
   }
 }
+
+Stream<List<db.Target>> _pollRemoteTargets(NetworkBackend backend) =>
+    _pollRemote(() => _fetchRemoteTargets(backend), listEquals);
 
 Stream<List<db.Sequence>> _pollRemoteSequenceRows(
   NetworkBackend backend, {
   required bool templates,
-}) async* {
-  yield await _fetchRemoteSequenceRows(backend, templates: templates);
-  while (true) {
-    await Future.delayed(const Duration(seconds: 10));
-    yield await _fetchRemoteSequenceRows(backend, templates: templates);
-  }
-}
+}) =>
+    _pollRemote(
+      () => _fetchRemoteSequenceRows(backend, templates: templates),
+      listEquals,
+    );
 
 Stream<List<db.ImagingSession>> _pollRemoteSessions(
   NetworkBackend backend,
-) async* {
-  yield await _fetchRemoteSessions(backend);
-  while (true) {
-    await Future.delayed(const Duration(seconds: 10));
-    yield await _fetchRemoteSessions(backend);
-  }
-}
+) =>
+    _pollRemote(() => _fetchRemoteSessions(backend), listEquals);
 
 Stream<List<db.CapturedImage>> _pollRemoteImages(
   NetworkBackend backend,
-) async* {
-  yield await _fetchRemoteImages(backend);
-  while (true) {
-    await Future.delayed(const Duration(seconds: 10));
-    yield await _fetchRemoteImages(backend);
-  }
-}
+) =>
+    _pollRemote(() => _fetchRemoteImages(backend), listEquals);
 
 Future<List<db.Target>> _fetchRemoteTargets(NetworkBackend backend) async {
   final targets = await backend.getAllTargets();
