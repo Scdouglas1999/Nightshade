@@ -10,6 +10,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../framing/altitude_chart.dart';
 import '../framing/framing_screen.dart';
 import '../planetarium/planetarium_screen.dart';
+import '../your_sky/your_sky_screen.dart';
+import '../constellation/constellation_screen.dart';
 import '../../localization/nightshade_localizations.dart';
 import '../../utils/plan_tonight_sequencer_helper.dart';
 import 'widgets/progress_tab_content.dart';
@@ -31,7 +33,7 @@ part 'planner_screen_parts/_candidate_list.dart';
 part 'planner_screen_parts/_filtered_empty_state.dart';
 part 'planner_screen_parts/_primary_target_card.dart';
 part 'planner_screen_parts/_search_results.dart';
-part 'planner_screen_parts/_sky_tab.dart';
+part 'planner_screen_parts/_discover_tab.dart';
 
 /// Identifies a Plan Tonight sub-tab for deep-linking via `?tab=` query
 /// param. Order here matches the rendered tab order; Recommendation is the
@@ -61,7 +63,9 @@ enum PlannerTab {
   scheduler,
   week,
   progress,
-  sky,
+  framing,
+  planetarium,
+  discover,
 }
 
 /// Maps the router `?tab=` query value to a [PlannerTab]. Returns null for
@@ -91,10 +95,16 @@ PlannerTab? plannerTabFromQuery(String? value) {
     case 'progress':
     case 'history':
       return PlannerTab.progress;
-    case 'sky':
     case 'framing':
+      return PlannerTab.framing;
     case 'planetarium':
-      return PlannerTab.sky;
+      return PlannerTab.planetarium;
+    case 'discover':
+    case 'sky':
+    case 'yoursky':
+    case 'your-sky':
+    case 'constellation':
+      return PlannerTab.discover;
   }
   return null;
 }
@@ -249,10 +259,24 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
         ),
       ),
       (
-        PlannerTab.sky,
+        PlannerTab.framing,
         AdaptiveTab(
-          label: l10n.text('plannerTabSky'),
+          label: l10n.text('plannerTabFraming'),
+          icon: LucideIcons.crop,
+        ),
+      ),
+      (
+        PlannerTab.planetarium,
+        AdaptiveTab(
+          label: l10n.text('plannerTabPlanetarium'),
           icon: LucideIcons.globe,
+        ),
+      ),
+      (
+        PlannerTab.discover,
+        AdaptiveTab(
+          label: l10n.text('plannerTabDiscover'),
+          icon: LucideIcons.orbit,
         ),
       ),
     ];
@@ -323,7 +347,9 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
                   SchedulerTabContent(),
                   WeekForecastStrip(),
                   ProgressTabContent(),
-                  _SkyTab(),
+                  FramingView(),
+                  PlanetariumView(),
+                  _DiscoverTab(),
                 ],
               ),
             ),

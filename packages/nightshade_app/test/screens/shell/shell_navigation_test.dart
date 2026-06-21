@@ -3,11 +3,12 @@ import 'package:nightshade_app/screens/shell/shell_navigation.dart';
 
 void main() {
   group('ShellNavigation', () {
-    test('primaryDestinations exposes the consolidated desktop side-nav', () {
-      // v5 ("Living Sky") adds the two new pillars — Your Sky and the
-      // Constellation community surface — to the desktop side-nav, ahead of
-      // the trailing Settings slot.
-      expect(ShellNavigation.primaryDestinations, hasLength(10));
+    test('primaryDestinations leads with the nightly-imaging tools', () {
+      // The rail leads with what an imager touches every night. Framing,
+      // Planetarium, Your Sky and Constellation are nested inside Plan Tonight;
+      // Science is folded into Analytics; Settings is reached from the gear —
+      // none of them hold a rail slot. Guiding + Weather are first-class again.
+      expect(ShellNavigation.primaryDestinations, hasLength(8));
       expect(
         ShellNavigation.primaryRoutes,
         [
@@ -15,12 +16,10 @@ void main() {
           '/equipment',
           '/imaging',
           '/sequencer',
-          '/analytics',
-          '/science',
+          '/guiding',
+          '/weather',
           '/planner',
-          '/your-sky',
-          '/constellation',
-          '/settings',
+          '/analytics',
         ],
       );
     });
@@ -35,7 +34,7 @@ void main() {
         '/equipment',
         '/imaging',
         '/sequencer',
-        '/science',
+        '/guiding',
         '/planner',
       ]);
       expect(routes, isNot(contains('/transients')));
@@ -51,8 +50,11 @@ void main() {
     });
 
     test('isBottomNavRoute covers consolidated routes only', () {
-      expect(ShellNavigation.isBottomNavRoute('/science'), isTrue);
-      expect(ShellNavigation.isBottomNavRoute('/settings'), isTrue);
+      expect(ShellNavigation.isBottomNavRoute('/guiding'), isTrue);
+      expect(ShellNavigation.isBottomNavRoute('/weather'), isTrue);
+      // Settings, Science and the folded surfaces are no longer rail routes.
+      expect(ShellNavigation.isBottomNavRoute('/settings'), isFalse);
+      expect(ShellNavigation.isBottomNavRoute('/science'), isFalse);
       expect(ShellNavigation.isBottomNavRoute('/transients'), isFalse);
       expect(ShellNavigation.isBottomNavRoute('/polar-alignment'), isFalse);
     });

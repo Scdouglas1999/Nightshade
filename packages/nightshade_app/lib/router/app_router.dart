@@ -147,26 +147,32 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               transitionDuration: Duration(milliseconds: 300),
             ),
           ),
-          // DEPRECATED: use /planner?tab=sky (view=planetarium). Folded into
-          // Plan Tonight → Sky as a segmented view (§UX consolidation); kept
-          // for deep-link compatibility.
+          // Planetarium is a first-class Plan Tonight tab. This standalone path
+          // is kept for deep-link compatibility (notifications, legacy links) and
+          // redirects onto the Planner's Planetarium tab.
           GoRoute(
             path: '/planetarium',
             name: 'planetarium',
-            redirect: (context, state) => '/planner?tab=sky&view=planetarium',
+            redirect: (context, state) => '/planner?tab=planetarium',
             pageBuilder: (context, state) => const CustomTransitionPage(
               child: PlanetariumScreen(),
               transitionsBuilder: PageTransitions.slideFadeTransition,
               transitionDuration: Duration(milliseconds: 300),
             ),
           ),
-          // DEPRECATED: use /planner?tab=sky (view=framing). Folded into Plan
-          // Tonight → Sky as a segmented view (§UX consolidation); kept for
-          // deep-link compatibility.
+          // Framing is a first-class Plan Tonight tab. This standalone path is
+          // kept for deep-link compatibility (the framing handoff passes
+          // `?ra=&dec=&name=`, which the Planner forwards to the Framing tab) and
+          // redirects onto the Planner's Framing tab.
           GoRoute(
             path: '/framing',
             name: 'framing',
-            redirect: (context, state) => '/planner?tab=sky&view=framing',
+            redirect: (context, state) {
+              // Preserve any target hand-off query (?ra=&dec=&name=) so a
+              // "send to framing" deep-link still lands on the framed target.
+              final q = state.uri.query;
+              return '/planner?tab=framing${q.isEmpty ? '' : '&$q'}';
+            },
             pageBuilder: (context, state) => const CustomTransitionPage(
               child: FramingScreen(),
               transitionsBuilder: PageTransitions.slideFadeTransition,
@@ -176,22 +182,33 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/analytics',
             name: 'analytics',
-            redirect: (context, state) =>
-                state.uri.queryParameters['tab'] == 'science'
-                    ? '/science'
-                    : null,
             pageBuilder: (context, state) {
               final tabQuery = state.uri.queryParameters['tab'];
+              // `?view=` selects the inner science sub-view (workspace / first
+              // light / observing alerts) when the Science tab is shown — fed by
+              // the /science and /transients redirects.
+              final viewQuery = state.uri.queryParameters['view'];
               return CustomTransitionPage(
-                child: AnalyticsScreen(initialTabQuery: tabQuery),
+                child: AnalyticsScreen(
+                  initialTabQuery: tabQuery,
+                  initialScienceView: viewQuery,
+                ),
                 transitionsBuilder: PageTransitions.slideFadeTransition,
                 transitionDuration: const Duration(milliseconds: 300),
               );
             },
           ),
+          // Science is folded into Analytics → Science (nested Workspace / First
+          // Light / Observing Alerts). This standalone path is kept for deep-link
+          // compatibility and redirects onto the Analytics Science tab, mapping
+          // its `?tab=` sub-view onto the Analytics `?view=` param.
           GoRoute(
             path: '/science',
             name: 'science',
+            redirect: (context, state) {
+              final sub = state.uri.queryParameters['tab'];
+              return '/analytics?tab=science${sub == null ? '' : '&view=$sub'}';
+            },
             pageBuilder: (context, state) {
               final tabQuery = state.uri.queryParameters['tab'];
               return CustomTransitionPage(
@@ -334,37 +351,43 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               transitionDuration: Duration(milliseconds: 300),
             ),
           ),
-          // DEPRECATED: use /science?tab=transients. Folded into Science →
-          // Observing Alerts as a tab (§UX consolidation); kept for deep-link
-          // compatibility (notifications, transient alert badge).
+          // Observing Alerts live under Analytics → Science. This standalone path
+          // is kept for deep-link compatibility (notifications, transient alert
+          // badge) and redirects onto that nested view.
           GoRoute(
             path: '/transients',
             name: 'transients',
-            redirect: (context, state) => '/science?tab=transients',
+            redirect: (context, state) =>
+                '/analytics?tab=science&view=transients',
             pageBuilder: (context, state) => const CustomTransitionPage(
               child: TransientsScreen(),
               transitionsBuilder: PageTransitions.slideFadeTransition,
               transitionDuration: Duration(milliseconds: 300),
             ),
           ),
-          // Pillar A ("Your Sky") — the personal growing all-sky atlas. A
-          // top-level shell destination; the region detail opens as a pushed
-          // MaterialPageRoute from within the screen.
+          // Pillar A ("Your Sky") — the personal growing all-sky atlas. Now nested
+          // under Plan Tonight → Discover; this path is kept for deep-link
+          // compatibility and redirects onto that segmented view. The region
+          // detail still opens as a pushed MaterialPageRoute from within the view.
           GoRoute(
             path: '/your-sky',
             name: 'your-sky',
+            redirect: (context, state) => '/planner?tab=discover&view=yoursky',
             pageBuilder: (context, state) => const CustomTransitionPage(
               child: YourSkyScreen(),
               transitionsBuilder: PageTransitions.slideFadeTransition,
               transitionDuration: Duration(milliseconds: 300),
             ),
           ),
-          // Pillar C ("Constellation") — the community swarm surface. A
-          // top-level shell destination; shared-target detail opens as a pushed
-          // MaterialPageRoute from within the screen.
+          // Pillar C ("Constellation") — the community swarm surface. Now nested
+          // under Plan Tonight → Discover; this path is kept for deep-link
+          // compatibility and redirects onto that segmented view. Shared-target
+          // detail still opens as a pushed MaterialPageRoute from within the view.
           GoRoute(
             path: '/constellation',
             name: 'constellation',
+            redirect: (context, state) =>
+                '/planner?tab=discover&view=constellation',
             pageBuilder: (context, state) => const CustomTransitionPage(
               child: ConstellationScreen(),
               transitionsBuilder: PageTransitions.slideFadeTransition,

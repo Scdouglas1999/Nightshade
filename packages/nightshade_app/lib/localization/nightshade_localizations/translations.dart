@@ -531,7 +531,9 @@ final Map<String, Map<String, String>> _localizedValues = {
     'plannerTabTargetQueue': 'Target Queue',
     'plannerTabThisWeek': 'This Week',
     'plannerTabProgress': 'Progress',
-    'plannerTabSky': 'Sky',
+    'plannerTabFraming': 'Framing',
+    'plannerTabPlanetarium': 'Planetarium',
+    'plannerTabDiscover': 'Discover',
     // Settings catalog section labels that were previously hard-coded.
     'settingsFilesStorage': 'Files & Storage',
     'settingsAdaptiveExposure': 'Adaptive Exposure',
@@ -1088,7 +1090,9 @@ final Map<String, Map<String, String>> _localizedValues = {
     'plannerTabTargetQueue': 'Cola de objetivos',
     'plannerTabThisWeek': 'Esta semana',
     'plannerTabProgress': 'Progreso',
-    'plannerTabSky': 'Cielo',
+    'plannerTabFraming': 'Encuadre',
+    'plannerTabPlanetarium': 'Planetario',
+    'plannerTabDiscover': 'Descubrir',
     // Settings catalog section labels that were previously hard-coded.
     'settingsFilesStorage': 'Archivos y almacenamiento',
     'settingsAdaptiveExposure': 'Exposición adaptativa',

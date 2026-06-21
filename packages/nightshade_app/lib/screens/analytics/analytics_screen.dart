@@ -5,6 +5,8 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// Used by part files (history_cards.dart, session_detail_dialog.dart) for
+// context.go / context.push — part files share the library's imports.
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -18,6 +20,7 @@ import '../../utils/snackbar_helper.dart';
 import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/tutorial_keys/analytics_keys.dart';
 import '../diagnostics/diagnostics_screen.dart';
+import '../science/science_screen.dart';
 import '../sequencer/widgets/session_report_dialog.dart';
 import 'widgets/session_chart.dart';
 import 'widgets/image_thumbnail_strip.dart';
@@ -74,10 +77,17 @@ class AnalyticsScreen extends ConsumerStatefulWidget {
   /// `/diagnostics` redirect).
   final String? initialTabQuery;
 
+  /// Raw `?view=` value parsed from the router. Selects the inner science
+  /// sub-view (workspace / first light / observing alerts) and, when present,
+  /// forces the Science tab open — fed by the `/science` and `/transients`
+  /// redirects.
+  final String? initialScienceView;
+
   const AnalyticsScreen({
     super.key,
     this.initialTab,
     this.initialTabQuery,
+    this.initialScienceView,
   });
 
   @override
@@ -90,9 +100,14 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
   @override
   void initState() {
     super.initState();
-    final resolved = widget.initialTab ??
-        analyticsTabFromQuery(widget.initialTabQuery) ??
-        AnalyticsTab.session;
+    // A `?view=` deep-link (from /science or /transients) always lands on the
+    // Science tab; otherwise honour `initialTab` / `?tab=`, then fall back to
+    // Session.
+    final resolved = widget.initialScienceView != null
+        ? AnalyticsTab.science
+        : widget.initialTab ??
+            analyticsTabFromQuery(widget.initialTabQuery) ??
+            AnalyticsTab.session;
     _currentSubTab = resolved.index;
   }
 
@@ -170,37 +185,22 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
               Expanded(
                 child: IndexedStack(
                   index: _currentSubTab,
-                  children: const [
-                    _SessionTab(),
-                    _HistoryTab(),
-                    _ProjectsTab(),
-                    _EquipmentStatsTab(),
-                    _ScienceMovedTab(),
-                    DiagnosticsTabContent(),
+                  children: [
+                    const _SessionTab(),
+                    const _HistoryTab(),
+                    const _ProjectsTab(),
+                    const _EquipmentStatsTab(),
+                    ScienceWorkspaceView(
+                      initialViewQuery: widget.initialScienceView,
+                      showHeader: false,
+                    ),
+                    const DiagnosticsTabContent(),
                   ],
                 ),
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _ScienceMovedTab extends StatelessWidget {
-  const _ScienceMovedTab();
-
-  @override
-  Widget build(BuildContext context) {
-    return EmptyState(
-      icon: LucideIcons.flaskConical,
-      title: context.l10n.text('analyticsScience'),
-      body: 'The science workspace now lives in its own area.',
-      action: NightshadeButton(
-        onPressed: () => context.go('/science'),
-        label: 'Open Science',
-        icon: LucideIcons.arrowRight,
       ),
     );
   }

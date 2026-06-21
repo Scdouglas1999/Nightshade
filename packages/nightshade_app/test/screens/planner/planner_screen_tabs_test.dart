@@ -99,7 +99,9 @@ int _tabIndex(String label) {
     'Target Queue',
     'This Week',
     'Progress',
-    'Sky',
+    'Framing',
+    'Planetarium',
+    'Discover',
   ];
   final i = order.indexOf(label);
   if (i < 0) throw ArgumentError('Unknown planner tab label: $label');
@@ -156,9 +158,10 @@ void main() {
     });
 
     test('enum declares the intended planning-to-execution order', () {
-      // C11 ordering decision: Projects sits next to Recommendation (planning
-      // intent); This Week sits next to the scheduler queue (execution-timing
-      // intent). Guards against an accidental reorder of the enum.
+      // Planning/decision tabs first, then the sky-work tabs (Framing,
+      // Planetarium) promoted to first-class peers, then the Discover surface
+      // (Your Sky | Constellation). Guards against an accidental reorder of the
+      // enum — the selected index is PlannerTab.index.
       expect(
         PlannerTab.values,
         const [
@@ -167,7 +170,9 @@ void main() {
           PlannerTab.scheduler,
           PlannerTab.week,
           PlannerTab.progress,
-          PlannerTab.sky,
+          PlannerTab.framing,
+          PlannerTab.planetarium,
+          PlannerTab.discover,
         ],
       );
     });
