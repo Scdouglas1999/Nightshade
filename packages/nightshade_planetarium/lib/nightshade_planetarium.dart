@@ -46,6 +46,7 @@ export 'src/services/element_refresh_service.dart';
 
 // Planning
 export 'src/planning/target_scoring.dart';
+export 'src/planning/weighted_score.dart';
 
 // Providers
 export 'src/providers/planetarium_providers.dart';

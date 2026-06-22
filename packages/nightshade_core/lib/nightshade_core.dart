@@ -88,6 +88,8 @@ export 'src/models/calibration/dark_library_match_tolerances.dart';
 // Wire-level model classes for the headless calibration API.
 export 'src/models/calibration/remote_calibration_models.dart';
 export 'src/models/sequence/sequence_models.dart';
+// Active-plan ownership of the editor/executor slot (manual vs automated).
+export 'src/models/sequence/active_plan_owner.dart';
 // Sky-brightness adaptive exposure event surface.
 export 'src/models/sequence/adaptive_exposure_event.dart';
 export 'src/models/sequence/instruction_progress_detail.dart';

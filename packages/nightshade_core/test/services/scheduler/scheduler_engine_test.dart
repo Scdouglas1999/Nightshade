@@ -21,6 +21,7 @@ class _RecordingSink implements SchedulerSequenceSink {
   int resumeCount = 0;
   int stopCount = 0;
   int parkCount = 0;
+  int releaseCount = 0;
 
   @override
   Future<void> dispatchSequence(Sequence sequence) async {
@@ -45,6 +46,11 @@ class _RecordingSink implements SchedulerSequenceSink {
   @override
   Future<void> parkForEndOfNight() async {
     parkCount++;
+  }
+
+  @override
+  Future<void> releaseSequenceOwnership() async {
+    releaseCount++;
   }
 }
 
@@ -1520,5 +1526,58 @@ void main() {
         await engine.dispose();
       },
     );
+  });
+
+  group('SchedulerEngine - active-plan ownership release', () {
+    test(
+      'engine.stop() disengages autopilot and releases editor ownership',
+      () async {
+        final sink = _RecordingSink();
+        final engine = SchedulerEngine(
+          site: _site,
+          sequenceSink: sink,
+          candidateLoader: () async => [
+            _candidate(
+              id: 1,
+              name: 'High in south',
+              raHours: 14.0,
+              decDegrees: 30.0,
+            ),
+          ],
+          clock: _fixedNow,
+        );
+
+        await engine.start();
+        expect(sink.dispatched, isNotEmpty, reason: 'autopilot took the slot');
+        expect(sink.releaseCount, 0, reason: 'still engaged after start');
+
+        await engine.stop();
+        // Full disengage -> ownership handed back to the operator exactly once.
+        expect(sink.releaseCount, 1);
+
+        await engine.dispose();
+      },
+    );
+
+    test('engine.dispose() releases editor ownership', () async {
+      final sink = _RecordingSink();
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => [
+          _candidate(
+            id: 1,
+            name: 'High in south',
+            raHours: 14.0,
+            decDegrees: 30.0,
+          ),
+        ],
+        clock: _fixedNow,
+      );
+
+      await engine.start();
+      await engine.dispose();
+      expect(sink.releaseCount, greaterThanOrEqualTo(1));
+    });
   });
 }

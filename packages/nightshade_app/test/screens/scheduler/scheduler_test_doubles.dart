@@ -20,6 +20,8 @@ class FakeSchedulerSequenceSink implements SchedulerSequenceSink {
   Future<void> stopSequence() async {}
   @override
   Future<void> parkForEndOfNight() async {}
+  @override
+  Future<void> releaseSequenceOwnership() async {}
 }
 
 /// In-memory fake of [IntegrationGoalService] for widget tests. Only

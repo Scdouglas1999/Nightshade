@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import '../astronomy/astronomy_calculations.dart';
 import '../celestial_object.dart';
+import 'weighted_score.dart';
 
 /// Minimum observable altitude (degrees) at a given compass azimuth, as
 /// imposed by the local skyline (trees, buildings, hills).
@@ -26,6 +27,48 @@ class ScoringWeights {
     this.darknessWeight = 0.15,
     this.airmassWeight = 0.15,
   });
+
+  /// Build the ordered five-axis [WeightedFactor] list for the shared
+  /// [WeightedScore] aggregator. Factor ORDER (altitude, moonDistance,
+  /// transitProximity, darkness, airmass) is the pinned cross-language
+  /// contract — it matches the Rust `scoring::ScoringWeights` field order and
+  /// the `TargetSchedulerNode` field order. Callers pass the five `0..100`
+  /// axis scores in the same order.
+  List<WeightedFactor> factors({
+    required double altitudeScore,
+    required double moonDistanceScore,
+    required double transitProximityScore,
+    required double darknessScore,
+    required double airmassScore,
+  }) {
+    return [
+      WeightedFactor(
+        name: 'altitude',
+        value: altitudeScore,
+        weight: altitudeWeight,
+      ),
+      WeightedFactor(
+        name: 'moonDistance',
+        value: moonDistanceScore,
+        weight: moonDistanceWeight,
+      ),
+      WeightedFactor(
+        name: 'transitProximity',
+        value: transitProximityScore,
+        weight: transitProximityWeight,
+      ),
+      WeightedFactor(
+        name: 'darkness',
+        value: darknessScore,
+        weight: darknessWeight,
+      ),
+      WeightedFactor(
+        name: 'airmass',
+        value: airmassScore,
+        weight: airmassWeight,
+      ),
+    ];
+  }
 }
 
 /// Result of scoring a target
@@ -231,18 +274,19 @@ class TargetScoringService {
       visibility: visibility,
     );
 
-    // Calculate weighted total score
-    final totalScore =
-        (altScore * weights.altitudeWeight +
-            moonScore * weights.moonDistanceWeight +
-            transitScore * weights.transitProximityWeight +
-            darknessScore * weights.darknessWeight +
-            airmassScore * weights.airmassWeight) /
-        (weights.altitudeWeight +
-            weights.moonDistanceWeight +
-            weights.transitProximityWeight +
-            weights.darknessWeight +
-            weights.airmassWeight);
+    // Calculate weighted total score via the shared aggregation contract.
+    // NORMALIZED mode == divide by the weight-sum, reproducing the previous
+    // open-coded `Σ(axis*weight) / Σ(weight)` exactly.
+    final totalScore = WeightedScore.total(
+      weights.factors(
+        altitudeScore: altScore,
+        moonDistanceScore: moonScore,
+        transitProximityScore: transitScore,
+        darknessScore: darknessScore,
+        airmassScore: airmassScore,
+      ),
+      mode: WeightedScoreMode.normalized,
+    );
 
     return TargetScore(
       target: target,
@@ -424,18 +468,18 @@ class TargetScoringService {
       nightEnd: nightEnd,
     );
 
-    // Calculate weighted total score
-    final totalScore =
-        (altScore * weights.altitudeWeight +
-            moonScore * weights.moonDistanceWeight +
-            transitScore * weights.transitProximityWeight +
-            darknessScore * weights.darknessWeight +
-            airmassScore * weights.airmassWeight) /
-        (weights.altitudeWeight +
-            weights.moonDistanceWeight +
-            weights.transitProximityWeight +
-            weights.darknessWeight +
-            weights.airmassWeight);
+    // Calculate weighted total score via the shared aggregation contract
+    // (NORMALIZED — identical to the previous open-coded weighted average).
+    final totalScore = WeightedScore.total(
+      weights.factors(
+        altitudeScore: altScore,
+        moonDistanceScore: moonScore,
+        transitProximityScore: transitScore,
+        darknessScore: darknessScore,
+        airmassScore: airmassScore,
+      ),
+      mode: WeightedScoreMode.normalized,
+    );
 
     return TargetScore(
       target: target,

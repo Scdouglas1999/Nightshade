@@ -10,6 +10,7 @@ import '../models/scheduler/scheduler_decision.dart';
 import '../models/scheduler/scheduler_status.dart';
 import '../models/scheduler/target_constraint.dart';
 import '../models/planning/project.dart';
+import '../models/sequence/active_plan_owner.dart';
 import '../models/sequence/sequence_models.dart';
 import '../services/planning/project_service.dart'
     show
@@ -123,17 +124,28 @@ SchedulerTriggerEvent? _mapEventToTrigger(NightshadeEvent event) {
 class _ExecutorSequenceSink implements SchedulerSequenceSink {
   final Ref _ref;
 
-  _ExecutorSequenceSink(this._ref);
+  // Capture the notifier eagerly at construction (where ref.read is legal).
+  // releaseSequenceOwnership() runs from SchedulerEngine.dispose(), which fires
+  // inside the schedulerEngineProvider onDispose — at that point ref functions
+  // are forbidden (the provider's dependency changed before it rebuilt), so we
+  // must NOT call _ref.read there. currentSequenceProvider is a global (non-
+  // autoDispose) StateNotifierProvider, so this notifier instance is stable for
+  // the container's lifetime and safe to cache.
+  final CurrentSequenceNotifier _currentSequence;
+
+  _ExecutorSequenceSink(this._ref)
+    : _currentSequence = _ref.read(currentSequenceProvider.notifier);
 
   @override
   Future<void> dispatchSequence(Sequence sequence) async {
-    final currentNotifier = _ref.read(currentSequenceProvider.notifier);
-    // The scheduler dispatches generated sequences as part of its own
-    // autopilot loop; the in-editor sequence has nothing to do with what
-    // the scheduler decided to run next. Discard the unsaved guard so a
-    // user happening to have an unsaved sequence in the editor doesn't
-    // throw inside the scheduler's run path.
-    currentNotifier.loadSequence(sequence, discardUnsaved: true);
+    // The scheduler dispatches generated sequences as part of its own autopilot
+    // loop. Rather than silently discarding the operator's unsaved in-editor
+    // work (the old discardUnsaved:true clobber), hand the editor slot to the
+    // autopilot owner: takeOwnership STASHES the manual sequence on the first
+    // hand-off and flips the owner to autopilot. stopSequence() restores it. A
+    // re-dispatch while the autopilot already owns the slot (target switch) just
+    // swaps the loaded plan without disturbing the stashed manual sequence.
+    _currentSequence.takeOwnership(sequence, ActivePlanOwner.autopilot);
     final executor = _ref.read(sequenceExecutorProvider);
     await executor.start();
   }
@@ -154,6 +166,15 @@ class _ExecutorSequenceSink implements SchedulerSequenceSink {
   Future<void> stopSequence() async {
     final executor = _ref.read(sequenceExecutorProvider);
     await executor.stop();
+  }
+
+  @override
+  Future<void> releaseSequenceOwnership() async {
+    // Autopilot disengaged: restore manual ownership and the operator's stashed
+    // unsaved sequence (a no-op if the autopilot never owned the slot). Uses the
+    // cached notifier — this runs during schedulerEngineProvider disposal where
+    // ref.read would throw "_didChangeDependency".
+    _currentSequence.releaseOwnership();
   }
 
   @override
@@ -394,9 +415,7 @@ class SchedulerCandidateLoader {
       for (final m in memberships) {
         final base = byId[m.targetId];
         if (base == null) continue;
-        scoped.add(
-          base.copyWithPriority(m.priorityOverride ?? base.priority),
-        );
+        scoped.add(base.copyWithPriority(m.priorityOverride ?? base.priority));
       }
       scoped.sort((a, b) {
         final byPriority = b.priority.compareTo(a.priority);

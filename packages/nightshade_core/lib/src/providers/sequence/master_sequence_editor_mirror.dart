@@ -77,6 +77,7 @@ final masterSequenceEditorMirrorProvider = Provider<void>((ref) {
   void emitSnapshot(Sequence sequence) {
     if (isDisposed) return;
     final editor = ref.read(currentSequenceProvider.notifier);
+    final owner = ref.read(activePlanOwnerProvider);
     final Map<String, dynamic> sequenceMap;
     try {
       sequenceMap = ref
@@ -103,6 +104,11 @@ final masterSequenceEditorMirrorProvider = Provider<void>((ref) {
             'sequence': sequenceMap,
             if (sequence.databaseId != null) 'databaseId': sequence.databaseId,
             'isDirty': editor.isDirty,
+            // Who owns the host's open plan (manual vs autopilot/Smart Night/
+            // mosaic). Additive + backward-compatible: an older slave ignores
+            // the field; an older host omits it and the slave defaults to
+            // manual via ActivePlanOwnerWire.fromWire.
+            'activePlanOwner': owner.wireValue,
           },
         );
   }

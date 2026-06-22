@@ -9,6 +9,7 @@ import '../models/backend/device_types.dart';
 import '../models/backend/event_types.dart';
 import '../models/backend/sequencer_status.dart';
 import '../models/equipment/equipment_models.dart' show DeviceConnectionState;
+import '../models/sequence/active_plan_owner.dart';
 import '../models/sequence/sequence_models.dart';
 import '../models/backend/host_mutation_event.dart';
 import '../models/imaging/imaging_models.dart'
@@ -763,6 +764,8 @@ void _applySequenceEditorMirror(
       return;
     }
     editor.clearSequence(discardUnsaved: true);
+    // Editor closed host-side -> back to manual ownership on the slave.
+    editor.adoptOwner(ActivePlanOwner.manual);
     return;
   }
 
@@ -794,6 +797,12 @@ void _applySequenceEditorMirror(
   }
 
   editor.loadSequence(parsed, discardUnsaved: true);
+  // Reflect the host's active-plan owner so the slave's UI shows WHO owns the
+  // plan (host autopilot -> slave shows autopilot-owned, not stale manual).
+  // Applied AFTER loadSequence: loadSequence resets the owner to manual (it is a
+  // manual-load primitive), so adopting here lands the correct owner last.
+  // Backward-compatible: an older host omits the field and fromWire -> manual.
+  editor.adoptOwner(ActivePlanOwnerWire.fromWire(data['activePlanOwner']));
 }
 
 /// G2: seed the slave's sequencer canvas with the master's currently-open
@@ -824,11 +833,7 @@ Future<void> _hydrateOpenEditorSequence(
     // (don't clear, mirroring _applySequenceEditorMirror's dirty-safe behavior).
     return;
   }
-  _applySequenceEditorMirror(
-    reader,
-    HostMutationAction.updated,
-    payload,
-  );
+  _applySequenceEditorMirror(reader, HostMutationAction.updated, payload);
 }
 
 int? _parseSequenceId(Map<String, dynamic> data) {
@@ -1246,8 +1251,9 @@ void _applySequencerStatus(Object reader, SequencerStatus status) {
   // without this the Vitals tile reads idle next to a live progress bar. Null
   // vitals (idle host, or a host build that doesn't emit them) clears the tile.
   final vitals = status.runVitals;
-  _read(reader, liveSequenceStatsProvider.notifier).state =
-      vitals == null ? null : SequenceRunStats.fromRemoteVitals(vitals);
+  _read(reader, liveSequenceStatsProvider.notifier).state = vitals == null
+      ? null
+      : SequenceRunStats.fromRemoteVitals(vitals);
 }
 
 SequenceExecutionState _mapSequencerState(String rawState) {
@@ -1468,28 +1474,36 @@ Future<void> _hydrateDeviceTelemetry(
     if (mountId == null) return;
     try {
       mountStatus = await backend.getMountStatus(mountId);
-    } catch (_) {}
+    } catch (_) {
+      // Leave prior mount telemetry intact.
+    }
   }
 
   Future<void> fetchFocuser() async {
     if (focuserId == null) return;
     try {
       focuserStatus = await backend.getFocuserStatus(focuserId);
-    } catch (_) {}
+    } catch (_) {
+      // Leave prior focuser telemetry intact.
+    }
   }
 
   Future<void> fetchFilterWheel() async {
     if (filterWheelId == null) return;
     try {
       filterWheelStatus = await backend.getFilterWheelStatus(filterWheelId);
-    } catch (_) {}
+    } catch (_) {
+      // Leave prior filter-wheel telemetry intact.
+    }
   }
 
   Future<void> fetchRotator() async {
     if (rotatorId == null) return;
     try {
       rotatorStatus = await backend.getRotatorStatus(rotatorId);
-    } catch (_) {}
+    } catch (_) {
+      // Leave prior rotator telemetry intact.
+    }
   }
 
   await Future.wait([

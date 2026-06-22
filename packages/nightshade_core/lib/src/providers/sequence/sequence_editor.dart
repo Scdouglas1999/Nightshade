@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../models/imaging/imaging_models.dart';
+import '../../models/sequence/active_plan_owner.dart';
 import '../../models/sequence/sequence_models.dart';
 import '../../models/sequence/template_snippet.dart';
 import '../sequence_provider.dart' show sequenceExecutionStateProvider;
@@ -13,6 +14,18 @@ export 'sequence_editor_exceptions.dart';
 
 part 'sequence_editor/snippet_editing.dart';
 part 'sequence_editor/tree_editing.dart';
+
+/// Reactive view of who owns the currently-loaded plan (manual vs an automated
+/// planner). Written by [CurrentSequenceNotifier]; watched by UI banners and by
+/// the master/slave editor mirror so a slave can render the host's autopilot
+/// ownership instead of a stale manual canvas.
+///
+/// Declared here (alongside the notifier) so the notifier can update it through
+/// its owning [Ref] without a circular import. Defaults to
+/// [ActivePlanOwner.manual] — the historical behavior before ownership existed.
+final activePlanOwnerProvider = StateProvider<ActivePlanOwner>(
+  (ref) => ActivePlanOwner.manual,
+);
 
 /// Provider exposing whether the current sequence can be edited.
 ///
@@ -66,6 +79,32 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
   final Ref? _ref;
   final _undoStack = <Sequence>[];
   final _redoStack = <Sequence>[];
+
+  /// The manual sequence stashed when an automated planner (autopilot / Smart
+  /// Night / mosaic) took over the editor slot, plus its dirty flag at the time
+  /// of the hand-off. Restored verbatim by [releaseOwnership] when the planner
+  /// stops, so starting the autopilot never destroys unsaved manual work.
+  Sequence? _stashedManualSequence;
+  bool _stashedManualDirty = false;
+
+  /// Who currently owns the loaded plan. The notifier is the source of truth;
+  /// it mirrors every change onto [activePlanOwnerProvider] (when a [Ref] is
+  /// present) so the value is reactively observable by UI and the slave mirror.
+  ActivePlanOwner _owner = ActivePlanOwner.manual;
+
+  /// Who currently owns the loaded plan (manual operator vs an automated
+  /// planner). Defaults to [ActivePlanOwner.manual].
+  ActivePlanOwner get activeOwner => _owner;
+
+  void _setOwner(ActivePlanOwner owner) {
+    _owner = owner;
+    final ref = _ref;
+    if (ref == null) return;
+    // Avoid a redundant rebuild when nothing changed.
+    if (ref.read(activePlanOwnerProvider) != owner) {
+      ref.read(activePlanOwnerProvider.notifier).state = owner;
+    }
+  }
 
   Sequence? get _currentSequence => state;
   set _currentSequence(Sequence? value) => state = value;
@@ -229,7 +268,78 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
     state = sequence;
     // Loaded from disk → considered clean.
     _dirty = false;
+    // A direct load is a manual-owner action (library open, import). If an
+    // automated planner had ownership, the operator opening another sequence
+    // reclaims the slot; drop any stash so the next release doesn't resurrect
+    // a now-irrelevant sequence.
+    _stashedManualSequence = null;
+    _stashedManualDirty = false;
+    _setOwner(ActivePlanOwner.manual);
   }
+
+  /// Hand the editor slot to an automated planner ([owner] must be automated:
+  /// autopilot / Smart Night / mosaic), preserving the operator's manual work.
+  ///
+  /// Unlike `loadSequence(..., discardUnsaved: true)` — which silently destroyed
+  /// whatever the operator had open — this STASHES the current manual sequence
+  /// (and its dirty flag) before loading [sequence], then flips the owner. When
+  /// the planner stops, [releaseOwnership] restores the stash so no unsaved
+  /// manual work is lost.
+  ///
+  /// Stashing only happens on the first hand-off (manual -> automated): a
+  /// planner re-dispatching while it already owns the slot (e.g. the autopilot
+  /// switching targets) replaces the loaded plan without touching the stash, so
+  /// the original manual sequence remains the thing restored on stop.
+  void takeOwnership(Sequence sequence, ActivePlanOwner owner) {
+    assert(
+      owner.isAutomated,
+      'takeOwnership is for automated planners; use loadSequence for manual',
+    );
+
+    if (_owner == ActivePlanOwner.manual) {
+      // First hand-off from the operator: preserve the manual canvas so it can
+      // be restored when the planner stops. Only stash a non-null sequence —
+      // an empty editor has nothing worth restoring.
+      _stashedManualSequence = state;
+      _stashedManualDirty = _dirty;
+    }
+
+    // Bypass the unsaved-clobber guard deliberately: the manual work is safely
+    // stashed above, not discarded. Inline the load (rather than calling
+    // loadSequence) so we don't reset the stash/owner that loadSequence clears.
+    _undoStack.clear();
+    _redoStack.clear();
+    state = sequence;
+    _dirty = false;
+    _setOwner(owner);
+  }
+
+  /// Restore manual ownership (and the stashed manual sequence) after an
+  /// automated planner stops. No-op when the operator already owns the slot.
+  ///
+  /// Restores the stashed sequence verbatim — including its dirty flag — so the
+  /// operator gets their unsaved work back exactly as it was when the planner
+  /// took over. When nothing was stashed (the operator started the planner from
+  /// an empty editor) the canvas is cleared.
+  void releaseOwnership() {
+    if (_owner == ActivePlanOwner.manual) return;
+
+    _undoStack.clear();
+    _redoStack.clear();
+    state = _stashedManualSequence;
+    _dirty = _stashedManualDirty;
+    _stashedManualSequence = null;
+    _stashedManualDirty = false;
+    _setOwner(ActivePlanOwner.manual);
+  }
+
+  /// Adopt an owner WITHOUT touching the loaded sequence or the stash.
+  ///
+  /// Used by the master/slave mirror: a slave learns WHO owns the host's plan
+  /// from the mirror frame and reflects it onto [activePlanOwnerProvider] so its
+  /// UI matches, but the sequence itself arrives through the normal mirror apply
+  /// path. The slave never stashes/restores — it follows the host.
+  void adoptOwner(ActivePlanOwner owner) => _setOwner(owner);
 
   /// Load a deep copy of [source] into the editor under fresh node IDs.
   ///

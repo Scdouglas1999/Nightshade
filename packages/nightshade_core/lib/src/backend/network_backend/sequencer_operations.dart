@@ -410,6 +410,11 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
       'sequence': Map<String, dynamic>.from(sequence),
       if (response['databaseId'] is int) 'databaseId': response['databaseId'],
       'isDirty': response['isDirty'] == true,
+      // Carry the active-plan owner through to _applySequenceEditorMirror so a
+      // mid-session slave learns who owns the host's plan on connect. Absent on
+      // an older host -> parsed back to manual by ActivePlanOwnerWire.fromWire.
+      if (response['activePlanOwner'] != null)
+        'activePlanOwner': response['activePlanOwner'],
     };
   }
 

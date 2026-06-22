@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:nightshade_planetarium/nightshade_planetarium.dart'
+    show WeightedFactor, WeightedScore, WeightedScoreMode;
 import 'package:uuid/uuid.dart';
 
 import '../../models/scheduler/integration_goal.dart';
@@ -159,6 +161,11 @@ class SchedulerEngine {
       ),
     );
     await _sequenceSink.stopSequence();
+    // Autopilot fully disengaged: hand the editor slot back to the operator and
+    // restore the manual sequence that dispatchSequence stashed on take-over.
+    // This is the disengage path (not a per-target swap at _maybeStop), so
+    // releasing here does not fight the mid-night transient stops.
+    await _sequenceSink.releaseSequenceOwnership();
   }
 
   /// Trigger an immediate re-evaluation. Returns when the evaluation
@@ -186,6 +193,9 @@ class SchedulerEngine {
     _tickTimer?.cancel();
     _reevaluationDebounceTimer?.cancel();
     _reevaluationDebounceTimer = null;
+    // Engine teardown disengages the autopilot — release the editor slot back to
+    // manual so a stashed sequence isn't orphaned across a provider rebuild.
+    await _sequenceSink.releaseSequenceOwnership();
     await _triggerSubscription?.cancel();
     await _statusController.close();
     await _decisionController.close();
@@ -826,7 +836,16 @@ class SchedulerEngine {
           detail: 'forced-window boost',
         ),
     ];
-    final total = factors.fold<double>(0.0, (s, f) => s + f.weighted);
+    // Fold the soft factors into a total via the shared DECIDE aggregation
+    // contract. The engine uses ADDITIVE mode (Σ of weighted factors, NOT
+    // divided by the weight-sum) — that is the historical behaviour and is
+    // intentionally different from the planner/node NORMALIZED model. Only the
+    // aggregation primitive is shared; the weights and factor set are
+    // unchanged.
+    final total = WeightedScore.total([
+      for (final f in factors)
+        WeightedFactor(name: f.name, value: f.value, weight: f.weight),
+    ], mode: WeightedScoreMode.additive);
 
     return TargetScore(
       targetId: c.targetId,

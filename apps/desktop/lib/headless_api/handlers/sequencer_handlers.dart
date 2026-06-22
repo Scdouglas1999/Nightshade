@@ -86,11 +86,16 @@ class SequencerHandlers {
       return jsonOk({'open': false});
     }
     final isDirty = container.read(currentSequenceProvider.notifier).isDirty;
+    final owner = container.read(activePlanOwnerProvider);
     return jsonOk({
       'open': true,
       'sequence': sequenceMap,
       if (sequence.databaseId != null) 'databaseId': sequence.databaseId,
       'isDirty': isDirty,
+      // Who owns the open plan (manual vs autopilot/Smart Night/mosaic). Lets a
+      // slave seeding mid-session learn the owner on connect. Additive; an older
+      // slave ignores it.
+      'activePlanOwner': owner.wireValue,
     });
   }
 

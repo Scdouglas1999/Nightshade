@@ -95,6 +95,23 @@ class TargetSchedulerNode extends SequenceNode {
     this.horizonProfile,
   });
 
+  /// View of this node's five preview weights as the shared planetarium
+  /// [ScoringWeights] contract — the SAME type the planner
+  /// [TargetScoringService] consumes and the verbatim Dart mirror of the Rust
+  /// `scheduling::scoring::ScoringWeights`. The node's five fields are the
+  /// authoritative serialized values (they round-trip through the Rust
+  /// `TargetSchedulerConfig` serde); this getter just adapts them so the
+  /// in-sequence preview can run through the one shared scorer instead of a
+  /// parallel copy. Field set + order + defaults are pinned cross-language by
+  /// `target_scheduler_contract_parity_test.dart`.
+  ScoringWeights get scoringWeights => ScoringWeights(
+    altitudeWeight: altitudeWeight,
+    moonDistanceWeight: moonDistanceWeight,
+    transitProximityWeight: transitProximityWeight,
+    darknessWeight: darknessWeight,
+    airmassWeight: airmassWeight,
+  );
+
   /// Stable nodeType identifier. Must match the Rust `NodeType` discriminant
   /// (`TargetScheduler`) so `serde_json::from_str` on the round-tripped
   /// config picks the right variant.
