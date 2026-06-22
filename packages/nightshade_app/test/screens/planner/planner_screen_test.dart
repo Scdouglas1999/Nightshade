@@ -346,6 +346,13 @@ void main() {
         ),
       ),
     );
+    // The recommendation body only renders once the async settings stub has
+    // resolved: appSettingsProvider (Future) -> appObserverLocationProvider ->
+    // _plannerOptimizationProvider. On the very first frame the location is
+    // still null, so the optimization provider throws StateError and the tab
+    // shows the "Location not configured" error state. A second pump lets the
+    // settings future complete so the candidate/recommendation rows build.
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(
@@ -418,6 +425,9 @@ void main() {
         ),
       ),
     );
+    // Second pump drains the async settings -> location -> optimization chain
+    // so the candidate rows build instead of the location-error fallback.
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
 
     // The primary card's full-width button plus each candidate row's button
@@ -473,6 +483,9 @@ void main() {
         ),
       ),
     );
+    // Second pump drains the async settings -> location -> optimization chain
+    // so the candidate rows build instead of the location-error fallback.
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Show altitude curve'), findsNothing);

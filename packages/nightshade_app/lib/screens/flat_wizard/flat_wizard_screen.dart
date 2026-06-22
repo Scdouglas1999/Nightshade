@@ -127,8 +127,7 @@ class _FlatWizardScreenState extends ConsumerState<FlatWizardScreen>
             const SizedBox(width: 8),
             Text(
               'Capturing',
-              style:
-                  NightshadeTypography.label.copyWith(color: colors.success),
+              style: NightshadeTypography.label.copyWith(color: colors.success),
             ),
           ],
         ),
@@ -154,14 +153,20 @@ class _FlatWizardScreenState extends ConsumerState<FlatWizardScreen>
           Padding(
             padding: EdgeInsets.only(
               left: NightshadeTokens.spaceLg,
-              right: isPhone
-                  ? NightshadeTokens.spaceSm
-                  : NightshadeTokens.spaceMd,
+              right:
+                  isPhone ? NightshadeTokens.spaceSm : NightshadeTokens.spaceMd,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(LucideIcons.sun, size: 18, color: colors.primary),
+                // On a phone the title folds to icon-only to keep the tab strip
+                // from overflowing, so the visible label is dropped. The screen
+                // identity still rides on the icon via a Semantics label so it
+                // stays accessible (and assertable) without the wide text.
+                Semantics(
+                  label: 'Flat Frame Wizard',
+                  child: Icon(LucideIcons.sun, size: 18, color: colors.primary),
+                ),
                 if (!isPhone) ...[
                   const SizedBox(width: NightshadeTokens.spaceSm),
                   Text(
