@@ -14,6 +14,17 @@ import '../validation.dart';
 /// - Get focus model (linear regression)
 /// - Predict focus position for temperature
 /// - Get/set per-filter focus offsets
+///
+/// Source-of-truth note (focus-model unification, 2026-06):
+/// The `/predict` and `/should-refocus` endpoints are answered by the
+/// DB-backed [PredictiveAfService] — the *same* per-filter model the live
+/// run consults in `device_service/autofocus_controls.dart`. Previously these
+/// two endpoints read the legacy JSON-backed [FocusModelService], so the HTTP
+/// answer a SLAVE queried could disagree with the in-run refocus decision the
+/// HOST actually made. Every other endpoint (data/model/filter-offsets/
+/// export/import) still reads [FocusModelService] because it powers the
+/// equipment scatter-plot UI surface; that read path is unchanged and is
+/// scheduled for a later migration.
 class FocusModelHandlers {
   final ProviderContainer container;
   bool _initialized = false;
@@ -35,11 +46,32 @@ class FocusModelHandlers {
     return service;
   }
 
-  /// Get the current profile ID from the active equipment profile
+  /// Get the current profile ID from the active equipment profile.
+  ///
+  /// String form, keyed to the legacy [FocusModelService] storage (which
+  /// scopes its on-disk JSON files by stringified profile id).
   String? _getActiveProfileId() {
     final activeProfile = container.read(activeEquipmentProfileProvider);
     return activeProfile?.id.toString();
   }
+
+  /// The active profile's integer id, as keyed by [PredictiveAfService]
+  /// (`equipment_profile_id` in the `focus_models` table). `null` is a valid
+  /// key for the predictive model (the "no profile" bucket), so callers
+  /// distinguish "no profile loaded" via [activeEquipmentProfileProvider]
+  /// itself rather than a null id.
+  int? _getActiveProfileIntId() {
+    final activeProfile = container.read(activeEquipmentProfileProvider);
+    return activeProfile?.id;
+  }
+
+  /// True when an equipment profile is loaded. The predictive-AF endpoints
+  /// gate on this rather than on a null int id (id may legitimately be null).
+  bool _hasActiveProfile() =>
+      container.read(activeEquipmentProfileProvider) != null;
+
+  PredictiveAfService get _predictiveAf =>
+      container.read(predictiveAfServiceProvider);
 
   // ===========================================================================
   // Get Focus Data
@@ -216,18 +248,24 @@ class FocusModelHandlers {
   // Predict Focus Position
   // ===========================================================================
 
-  /// GET /api/focus-model/predict?temperature=X
-  /// Predict focus position for temperature
+  /// GET /api/focus-model/predict?temperature=X&filter=Y
+  /// Predict focus position for temperature.
+  ///
+  /// Answered by [PredictiveAfService] — the DB-backed per-filter model the
+  /// live run consults — so the HTTP prediction matches the position the run
+  /// would actually use. The predictive model is keyed per filter, so a
+  /// `filter` query parameter is required to identify which learned model to
+  /// evaluate; without it the endpoint reports `canPredict: false`. The
+  /// response JSON shape is unchanged from the legacy implementation.
   Future<Response> handlePredictFocus(Request request) async {
     _logInfo('[API] GET /api/focus-model/predict');
-    final service = await _getInitializedService();
-    final profileId = _getActiveProfileId();
-
-    if (profileId == null) {
+    if (!_hasActiveProfile()) {
       return jsonBadRequest({
         "error": "No active equipment profile. Load a profile first.",
       });
     }
+    final profileId = _getActiveProfileId();
+    final profileIntId = _getActiveProfileIntId();
 
     // Parse temperature
     final tempParam = request.url.queryParameters['temperature'];
@@ -248,16 +286,31 @@ class FocusModelHandlers {
       );
     }
 
-    // Optional filter
+    // The predictive model is per-filter; without a filter we cannot key it.
     final filter = request.url.queryParameters['filter'];
+    if (filter == null) {
+      return jsonOk({
+        "profileId": profileId,
+        "temperature": temperature,
+        "filter": filter,
+        "canPredict": false,
+        "message":
+            "Cannot make prediction. The predictive focus model is per-filter; "
+            "supply a 'filter' query parameter.",
+      });
+    }
 
-    final prediction = service.predictFocusPosition(
-      profileId: profileId,
-      currentTemperature: temperature,
-      currentFilter: filter,
+    // Consult the SAME gate the run uses (evaluateForFilter). The decision
+    // tells us both the predicted position and whether the model is trusted.
+    final decision = await _predictiveAf.evaluateForFilter(
+      equipmentProfileId: profileIntId,
+      filterName: filter,
+      temperatureCelsius: temperature,
     );
 
-    if (prediction == null) {
+    final position = decision.targetPosition;
+    if (position == null) {
+      // InsufficientData — no fitted model the run would trust.
       return jsonOk({
         "profileId": profileId,
         "temperature": temperature,
@@ -268,19 +321,33 @@ class FocusModelHandlers {
       });
     }
 
+    final confidence = decision.confidence ?? 0.0;
     return jsonOk({
       "profileId": profileId,
       "temperature": temperature,
       "filter": filter,
       "canPredict": true,
       "prediction": {
-        "position": prediction.position,
-        "confidence": prediction.confidence,
-        "confidenceDescription": prediction.confidenceDescription,
-        "basedOnTemperature": prediction.basedOnTemperature,
-        "filterOffset": prediction.filterOffset,
+        "position": position,
+        "confidence": confidence,
+        "confidenceDescription": _confidenceDescription(confidence),
+        "basedOnTemperature": temperature,
+        // The predictive per-filter model bakes any per-filter shift into the
+        // stored slope/intercept for that filter, so there is no separate
+        // reference-relative offset to report here.
+        "filterOffset": 0,
       },
     });
+  }
+
+  /// Human-readable confidence band. Mirrors the legacy
+  /// `FocusPrediction.confidenceDescription` ladder so the JSON wording the
+  /// slave renders is unchanged.
+  String _confidenceDescription(double confidence) {
+    if (confidence >= 0.9) return 'High';
+    if (confidence >= 0.7) return 'Good';
+    if (confidence >= 0.5) return 'Moderate';
+    return 'Low';
   }
 
   // ===========================================================================
@@ -404,18 +471,31 @@ class FocusModelHandlers {
   // Check Should Refocus
   // ===========================================================================
 
-  /// GET /api/focus-model/should-refocus?currentTemp=X&lastFocusTemp=Y
-  /// Check if autofocus should be triggered based on temperature drift
+  /// GET /api/focus-model/should-refocus?currentTemp=X&lastFocusTemp=Y&filter=Z
+  /// Check if autofocus should be triggered based on temperature drift.
+  ///
+  /// Answered by [PredictiveAfService] — the DB-backed per-filter model the
+  /// live run consults — so the boolean a SLAVE reads here matches the gate
+  /// the HOST run applies. The drift formula is identical to the legacy one
+  /// (`|deltaT| * |slope| >= maxDriftSteps`), but the slope and the
+  /// trust gate now come from the *run's* model. The trust gate mirrors
+  /// `evaluateForFilter`: a decision the run treats as `InsufficientData`
+  /// (no fitted regression / too few samples to trust) yields
+  /// `shouldRefocus: false` just as the run would not act on it.
+  ///
+  /// The predictive model is per-filter, so an optional `filter` query
+  /// parameter selects which learned model to consult. When omitted (or no
+  /// model exists for that filter) the endpoint reports `hasModel: false`
+  /// and `shouldRefocus: false`. The response JSON shape is unchanged.
   Future<Response> handleShouldRefocus(Request request) async {
     _logInfo('[API] GET /api/focus-model/should-refocus');
-    final service = await _getInitializedService();
-    final profileId = _getActiveProfileId();
-
-    if (profileId == null) {
+    if (!_hasActiveProfile()) {
       return jsonBadRequest({
         "error": "No active equipment profile. Load a profile first.",
       });
     }
+    final profileId = _getActiveProfileId();
+    final profileIntId = _getActiveProfileIntId();
 
     // Parse parameters
     final currentTempParam = request.url.queryParameters['currentTemp'];
@@ -456,32 +536,87 @@ class FocusModelHandlers {
       );
     }
 
-    final shouldRefocus = service.shouldRefocus(
-      profileId: profileId,
-      currentTemperature: currentTemp,
-      lastFocusTemperature: lastFocusTemp,
+    final filter = request.url.queryParameters['filter'];
+
+    final tempDelta = (currentTemp - lastFocusTemp).abs();
+    final decision = await _shouldRefocusDecision(
+      profileIntId: profileIntId,
+      filter: filter,
+      currentTemp: currentTemp,
+      tempDelta: tempDelta,
       maxDriftSteps: maxDriftSteps,
     );
-
-    // Calculate expected drift for information
-    final profileData = service.getProfileData(profileId);
-    final model = profileData?.temperatureModel;
-    double? expectedDrift;
-    if (model != null) {
-      expectedDrift = (currentTemp - lastFocusTemp).abs() * model.slope.abs();
-    }
 
     return jsonOk({
       "profileId": profileId,
       "currentTemp": currentTemp,
       "lastFocusTemp": lastFocusTemp,
-      "tempDelta": (currentTemp - lastFocusTemp).abs(),
+      "tempDelta": tempDelta,
       "maxDriftSteps": maxDriftSteps,
-      "expectedDrift": expectedDrift,
-      "shouldRefocus": shouldRefocus,
-      "hasModel": model != null,
-      "modelIsReliable": model?.isReliable ?? false,
+      "expectedDrift": decision.expectedDrift,
+      "shouldRefocus": decision.shouldRefocus,
+      "hasModel": decision.hasModel,
+      "modelIsReliable": decision.modelIsReliable,
     });
+  }
+
+  /// Compute the refocus decision from the predictive per-filter model the
+  /// run uses. Shared so a parity/contract test can assert the HTTP answer
+  /// equals the run-time gate for identical inputs.
+  ///
+  /// `modelIsReliable` is true exactly when [PredictiveAfService.evaluateForFilter]
+  /// returns a decision carrying a fitted prediction (i.e. NOT
+  /// `InsufficientData`) — the same condition that lets the run trust the
+  /// model. When the model is unreliable, `shouldRefocus` is forced false
+  /// (the run would run a real sweep on its own schedule, not skip based on
+  /// an untrusted drift estimate).
+  Future<_RefocusDecision> _shouldRefocusDecision({
+    required int? profileIntId,
+    required String? filter,
+    required double currentTemp,
+    required double tempDelta,
+    required double maxDriftSteps,
+  }) async {
+    if (filter == null) {
+      return const _RefocusDecision(
+        shouldRefocus: false,
+        hasModel: false,
+        modelIsReliable: false,
+        expectedDrift: null,
+      );
+    }
+
+    final model = await _predictiveAf.getModel(
+      equipmentProfileId: profileIntId,
+      filterName: filter,
+    );
+    if (model == null) {
+      return const _RefocusDecision(
+        shouldRefocus: false,
+        hasModel: false,
+        modelIsReliable: false,
+        expectedDrift: null,
+      );
+    }
+
+    final expectedDrift = tempDelta * model.slopeStepsPerC.abs();
+
+    // Mirror the run's trust gate. evaluateForFilter returns InsufficientData
+    // (targetPosition == null) when there is no fitted regression or too few
+    // samples for the run to act on the model.
+    final decision = await _predictiveAf.evaluateForFilter(
+      equipmentProfileId: profileIntId,
+      filterName: filter,
+      temperatureCelsius: currentTemp,
+    );
+    final modelIsReliable = decision.targetPosition != null;
+
+    return _RefocusDecision(
+      shouldRefocus: modelIsReliable && expectedDrift >= maxDriftSteps,
+      hasModel: true,
+      modelIsReliable: modelIsReliable,
+      expectedDrift: expectedDrift,
+    );
   }
 
   // ===========================================================================
@@ -553,4 +688,20 @@ class FocusModelHandlers {
       "modelIsReliable": profileData?.temperatureModel?.isReliable ?? false,
     });
   }
+}
+
+/// Outcome of the predictive-AF refocus gate, shared between the HTTP handler
+/// and the parity test so both assert the exact same derivation.
+class _RefocusDecision {
+  final bool shouldRefocus;
+  final bool hasModel;
+  final bool modelIsReliable;
+  final double? expectedDrift;
+
+  const _RefocusDecision({
+    required this.shouldRefocus,
+    required this.hasModel,
+    required this.modelIsReliable,
+    required this.expectedDrift,
+  });
 }
