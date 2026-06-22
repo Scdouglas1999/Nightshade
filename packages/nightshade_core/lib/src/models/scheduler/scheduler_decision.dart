@@ -24,6 +24,22 @@ class ScoreFactor extends Equatable {
 
   @override
   List<Object?> get props => [name, value, weight, weighted, detail];
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'value': value,
+    'weight': weight,
+    'weighted': weighted,
+    if (detail != null) 'detail': detail,
+  };
+
+  factory ScoreFactor.fromJson(Map<String, dynamic> j) => ScoreFactor(
+    name: j['name'] as String? ?? '',
+    value: (j['value'] as num?)?.toDouble() ?? 0,
+    weight: (j['weight'] as num?)?.toDouble() ?? 0,
+    weighted: (j['weighted'] as num?)?.toDouble() ?? 0,
+    detail: j['detail'] as String?,
+  );
 }
 
 /// Full breakdown of a single target's evaluation at a moment in time.
@@ -62,6 +78,28 @@ class TargetScore extends Equatable {
     hardConstraintFailed,
     rejectionReasons,
   ];
+
+  Map<String, dynamic> toJson() => {
+    'targetId': targetId,
+    'targetName': targetName,
+    'totalScore': totalScore,
+    'factors': factors.map((f) => f.toJson()).toList(),
+    'hardConstraintFailed': hardConstraintFailed,
+    'rejectionReasons': rejectionReasons,
+  };
+
+  factory TargetScore.fromJson(Map<String, dynamic> j) => TargetScore(
+    targetId: (j['targetId'] as num?)?.toInt() ?? 0,
+    targetName: j['targetName'] as String? ?? '',
+    totalScore: (j['totalScore'] as num?)?.toDouble() ?? 0,
+    factors: ((j['factors'] as List?) ?? const [])
+        .map((e) => ScoreFactor.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    hardConstraintFailed: j['hardConstraintFailed'] as bool? ?? false,
+    rejectionReasons: ((j['rejectionReasons'] as List?) ?? const [])
+        .map((e) => e as String)
+        .toList(),
+  );
 }
 
 /// A rejected candidate's why-not summary surfaced alongside the chosen
@@ -109,6 +147,30 @@ class RejectedCandidate extends Equatable {
     hardConstraintFailures,
     factors,
   ];
+
+  Map<String, dynamic> toJson() => {
+    'targetId': targetId,
+    'targetName': targetName,
+    'score': score,
+    'primaryReason': primaryReason,
+    'hardConstraintFailures': hardConstraintFailures,
+    'factors': factors.map((f) => f.toJson()).toList(),
+  };
+
+  factory RejectedCandidate.fromJson(Map<String, dynamic> j) =>
+      RejectedCandidate(
+        targetId: (j['targetId'] as num?)?.toInt() ?? 0,
+        targetName: j['targetName'] as String? ?? '',
+        score: (j['score'] as num?)?.toDouble() ?? 0,
+        primaryReason: j['primaryReason'] as String? ?? '',
+        hardConstraintFailures:
+            ((j['hardConstraintFailures'] as List?) ?? const [])
+                .map((e) => e as String)
+                .toList(),
+        factors: ((j['factors'] as List?) ?? const [])
+            .map((e) => ScoreFactor.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
 }
 
 /// The decision the scheduler made at a particular tick.
@@ -164,4 +226,35 @@ class SchedulerDecision extends Equatable {
     isSwitch,
     rejected,
   ];
+
+  Map<String, dynamic> toJson() => {
+    if (chosenTargetId != null) 'chosenTargetId': chosenTargetId,
+    if (chosenTargetName != null) 'chosenTargetName': chosenTargetName,
+    'score': score,
+    'reasoning': reasoning,
+    'scoredCandidates': scoredCandidates.map((s) => s.toJson()).toList(),
+    'rejected': rejected.map((r) => r.toJson()).toList(),
+    'evaluatedAt': evaluatedAt.toIso8601String(),
+    'isSwitch': isSwitch,
+  };
+
+  factory SchedulerDecision.fromJson(Map<String, dynamic> j) =>
+      SchedulerDecision(
+        chosenTargetId: (j['chosenTargetId'] as num?)?.toInt(),
+        chosenTargetName: j['chosenTargetName'] as String?,
+        score: (j['score'] as num?)?.toDouble() ?? 0,
+        reasoning: ((j['reasoning'] as List?) ?? const [])
+            .map((e) => e as String)
+            .toList(),
+        scoredCandidates: ((j['scoredCandidates'] as List?) ?? const [])
+            .map((e) => TargetScore.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        rejected: ((j['rejected'] as List?) ?? const [])
+            .map((e) => RejectedCandidate.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        evaluatedAt:
+            DateTime.tryParse(j['evaluatedAt'] as String? ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0),
+        isSwitch: j['isSwitch'] as bool? ?? false,
+      );
 }

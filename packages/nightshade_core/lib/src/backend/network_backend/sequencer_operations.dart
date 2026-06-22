@@ -413,6 +413,15 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
     };
   }
 
+  /// Remote-only: fetch the host's live autopilot preview decision so the
+  /// slave's scheduler banner mirrors the real host pick instead of recomputing
+  /// against its empty local catalog (which always yields "nothing eligible").
+  /// Not part of the abstract backend — only a NetworkBackend slave calls this.
+  Future<SchedulerDecision> getSchedulerPreview() async {
+    final response = await _get('scheduler/preview');
+    return SchedulerDecision.fromJson(Map<String, dynamic>.from(response));
+  }
+
   @override
   Future<void> sequencerUpdateConditionsScore(ConditionsScore? score) async {
     await _post('sequencer/update-conditions-score', {

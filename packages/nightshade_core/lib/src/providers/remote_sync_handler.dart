@@ -25,6 +25,7 @@ import 'framing_provider.dart';
 import 'imaging_provider.dart' show exposureSettingsProvider;
 import 'profiles_provider.dart';
 import 'remote_sync_events.dart';
+import 'scheduler_provider.dart' show schedulerPreviewDecisionProvider;
 import 'sequence_provider.dart';
 import 'session_provider.dart';
 import 'settings_provider.dart' show appSettingsProvider;
@@ -538,6 +539,12 @@ void _applySequencerEvent(
         currentNodeName: data['node_type'] as String? ?? '',
         currentNodeStatus: NodeStatus.running,
       );
+      // A new node/target means the host autopilot's live pick likely changed;
+      // refresh the mirrored preview so the slave's banner tracks the switch
+      // (no-op when the banner isn't mounted — it's autoDispose).
+      if (networkBackend != null) {
+        _invalidate(reader, schedulerPreviewDecisionProvider);
+      }
       break;
     case 'ProgressUpdated':
     case 'InstructionProgress':
@@ -1373,6 +1380,13 @@ Future<void> hydrateRemoteSessionState(
   backend.invalidateDeviceCache();
   _invalidate(reader, savedSequencesProvider);
   _invalidate(reader, savedSequenceSummariesProvider);
+
+  // Mirror the host's autopilot pick on connect (and each 30s re-hydrate): in
+  // NetworkBackend mode schedulerPreviewDecisionProvider re-fetches GET
+  // /api/scheduler/preview, so the slave's autopilot banner shows the host's
+  // real "what the rig would slew to next" instead of recomputing "nothing
+  // eligible" against the slave's empty local catalog.
+  _invalidate(reader, schedulerPreviewDecisionProvider);
 }
 
 /// Buffer-then-apply per-device live status for the connected equipment that

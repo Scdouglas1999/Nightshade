@@ -27,6 +27,30 @@ class SchedulerHandlers {
       _logger.info(message, source: 'SchedulerHandlers');
 
   // ===========================================================================
+  // Autopilot preview decision (host -> slave mirror)
+  // ===========================================================================
+
+  /// GET /api/scheduler/preview
+  ///
+  /// Returns the host's live autopilot preview decision — "what the rig would
+  /// slew to next". A remote slave's scheduler engine has no candidate data
+  /// (the catalog/targets live in the host DB), so it would always compute
+  /// "nothing eligible"; the slave fetches this instead and mirrors the real
+  /// host pick.
+  Future<Response> handlePreviewDecision(Request request) async {
+    _logInfo('[API] GET /api/scheduler/preview');
+    try {
+      final decision =
+          await container.read(schedulerPreviewDecisionProvider.future);
+      return jsonOk(decision.toJson());
+    } catch (e) {
+      return jsonInternalServerError({
+        'error': 'Failed to compute scheduler preview: $e',
+      });
+    }
+  }
+
+  // ===========================================================================
   // Calculate Altitude
   // ===========================================================================
 

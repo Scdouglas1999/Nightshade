@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../backend/network_backend.dart';
 import '../database/database.dart' as ndb;
 import '../models/scheduler/integration_goal.dart';
 import '../models/scheduler/scheduler_decision.dart';
@@ -20,6 +21,7 @@ import '../services/scheduler/horizon_profile.dart';
 import '../services/scheduler/integration_goal_service.dart';
 import '../services/scheduler/scheduler_engine.dart';
 import '../services/scheduler/target_constraint_service.dart';
+import 'backend_provider.dart';
 import 'clock_provider.dart';
 import 'database_provider.dart';
 import 'event_provider.dart';
@@ -563,6 +565,17 @@ class CurrentSchedulerDecisionNotifier
 /// auto-reeval listeners that poke the engine cover the underlying data edits.
 final schedulerPreviewDecisionProvider =
     FutureProvider.autoDispose<SchedulerDecision>((ref) async {
+      // On a remote SLAVE the local scheduler engine has no candidate data — the
+      // catalog/targets live in the HOST's database, never the slave's — so
+      // previewDecision() would always return "nothing eligible". Mirror the
+      // host's REAL preview ("what the rig would slew to next") instead. This
+      // provider is invalidated by the on-connect hydrate and by scheduler
+      // events (hydrateRemoteSessionState / _applySequencerEvent), so the banner
+      // tracks the host live rather than computing a wrong local answer.
+      final backend = ref.watch(backendProvider);
+      if (backend is NetworkBackend) {
+        return backend.getSchedulerPreview();
+      }
       final engine = ref.watch(schedulerEngineProvider);
       final clock = ref.watch(clockProvider);
       // Re-derive the preview each time the autopilot publishes a fresh decision

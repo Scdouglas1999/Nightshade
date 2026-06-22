@@ -456,6 +456,7 @@ List<String> availableHeadlessEndpoints() {
     'POST /api/cover/calibrator-on',
     'POST /api/cover/calibrator-off',
     // Intelligent Scheduler
+    'GET /api/scheduler/preview',
     'GET /api/scheduler/altitude',
     'GET /api/scheduler/transit-time',
     'GET /api/scheduler/rise-set',
