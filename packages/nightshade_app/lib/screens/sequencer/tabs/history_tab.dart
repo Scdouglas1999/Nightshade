@@ -398,10 +398,14 @@ class _GroupedRunList extends StatelessWidget {
                 children: [
                   Icon(LucideIcons.moon, size: 13, color: colors.textMuted),
                   const SizedBox(width: 6),
-                  Text(
-                    nightFormat.format(night),
-                    style: NightshadeTypography.labelStrongSm
-                        .copyWith(color: colors.textSecondary),
+                  Flexible(
+                    child: Text(
+                      nightFormat.format(night),
+                      style: NightshadeTypography.labelStrongSm
+                          .copyWith(color: colors.textSecondary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Text(

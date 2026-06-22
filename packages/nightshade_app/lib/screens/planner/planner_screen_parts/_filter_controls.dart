@@ -47,6 +47,7 @@ class _SearchField extends StatelessWidget {
               : IconButton(
                   iconSize: 14,
                   icon: Icon(LucideIcons.x, color: colors.textMuted),
+                  tooltip: 'Clear search',
                   onPressed: () {
                     controller.clear();
                     onChanged('');

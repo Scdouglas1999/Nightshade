@@ -59,6 +59,13 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
 
   Widget _buildFooter(NightshadeColors colors) {
     final isLast = _step == 5;
+    // On the Preview step the primary advances to Accept only once a plan
+    // exists. When the build failed (`_previewError != null`, `_preview ==
+    // null`) `_onPrimaryPressed` would silently no-op, leaving an enabled-
+    // looking button that does nothing — the only real exit is the body's
+    // "Back to strategy". Disable Next here so the affordance matches reality.
+    final primaryDisabled =
+        _isBuildingPreview || (_step == 4 && _preview == null);
     return Row(
       children: [
         if (_step > 0)
@@ -87,7 +94,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
           label: Text(_isBuildingPreview
               ? 'Building…'
               : (isLast ? 'Start Sequence' : 'Next')),
-          onPressed: _isBuildingPreview ? null : _onPrimaryPressed,
+          onPressed: primaryDisabled ? null : _onPrimaryPressed,
         ),
       ],
     );

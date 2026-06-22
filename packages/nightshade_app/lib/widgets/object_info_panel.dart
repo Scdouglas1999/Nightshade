@@ -78,6 +78,7 @@ class ObjectInfoPanel extends StatelessWidget {
                   icon: const Icon(LucideIcons.x),
                   onPressed: onClose,
                   color: colors.textMuted,
+                  tooltip: 'Close',
                 ),
               ],
             ),

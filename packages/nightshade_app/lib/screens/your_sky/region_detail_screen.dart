@@ -56,6 +56,7 @@ class RegionDetailScreen extends ConsumerWidget {
           icon:
               const Icon(LucideIcons.arrowLeft, size: NightshadeTokens.iconMd),
           color: colors.textPrimary,
+          tooltip: 'Back',
           onPressed: () => Navigator.of(context).maybePop(),
         ),
         title: Text(
