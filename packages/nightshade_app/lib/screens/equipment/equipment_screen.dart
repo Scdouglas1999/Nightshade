@@ -339,8 +339,14 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
   Future<void> _deleteProfile(int profileId) async {
     try {
       final profileService = ref.read(profileServiceProvider);
-      final dao = ref.read(equipmentProfilesDaoProvider);
-      final deletedProfile = await dao.getProfileById(profileId);
+      // Resolve the row-to-delete from the remote-aware in-memory list, not the
+      // local-only DAO: on a slave (NetworkBackend) the local SQLite is empty,
+      // so a direct DAO read would return null and abort the delete. The model
+      // from this list already carries name/isActive for the undo snackbar.
+      final deletedProfile = ref
+          .read(sortedProfilesProvider)
+          .where((p) => p.id == profileId)
+          .firstOrNull;
       if (deletedProfile == null) {
         throw StateError('Profile $profileId no longer exists');
       }
@@ -436,12 +442,16 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
 
     try {
       final profileService = ref.read(profileServiceProvider);
-      final dao = ref.read(equipmentProfilesDaoProvider);
       final restoredId =
           await profileService.importProfileFromJson(exportedProfileJson);
       _bumpProfileMutationEpoch();
       if (wasActive) {
-        await dao.setActiveProfile(restoredId);
+        // Route reactivation through the remote-aware notifier so a slave hits
+        // remote.loadProfile() on the host; a direct DAO write would only touch
+        // the slave's empty SQLite (restoredId is the host-assigned id).
+        await ref
+            .read(equipmentProfilesProvider.notifier)
+            .setActiveProfile(restoredId);
       }
       ref.read(selectedEquipmentProfileIdProvider.notifier).state = restoredId;
       if (mounted) {

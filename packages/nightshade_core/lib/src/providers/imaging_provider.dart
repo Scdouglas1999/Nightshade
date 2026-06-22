@@ -1,11 +1,15 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../backend/network_backend.dart';
+import '../database/database.dart' as db;
 import '../models/imaging/imaging_models.dart';
 import '../models/imaging/auto_stretch_settings.dart';
+import 'backend_provider.dart';
 import 'database_provider.dart';
 import 'profiles_provider.dart';
 import 'session_optimizer_provider.dart';
+import 'session_provider.dart';
 import 'settings_provider.dart';
 
 /// Current exposure settings
@@ -315,6 +319,100 @@ class SessionImagesNotifier extends StateNotifier<List<CapturedImage>> {
       (total, img) =>
           total + Duration(seconds: img.settings.exposureTime.round()),
     );
+  }
+}
+
+/// Recent frames for the active session, remote-aware.
+///
+/// On the host this is exactly the in-memory [sessionImagesProvider] list (the
+/// local capture loop populates it). On a slave (NetworkBackend) the master is
+/// the node actually imaging, so those frames never reach the local in-memory
+/// list — instead this branches onto the already remote-aware
+/// [allDbImagesProvider] (which polls the host's `/api/images`), filters to the
+/// active session's `dbSessionId`, and maps each Drift row back onto the
+/// in-memory [CapturedImage] shape the cockpit/strip widgets render. Ordering
+/// matches [sessionImagesProvider]: oldest-first (capture order), so the
+/// consumers' "take the tail, reverse to newest-first" logic is unchanged.
+final recentSessionFramesProvider = Provider<List<CapturedImage>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is! NetworkBackend) {
+    return ref.watch(sessionImagesProvider);
+  }
+
+  final sessionId = ref.watch(
+    sessionStateProvider.select((state) => state.dbSessionId),
+  );
+  if (sessionId == null) {
+    return const <CapturedImage>[];
+  }
+
+  final rows = ref.watch(allDbImagesProvider).valueOrNull;
+  if (rows == null) {
+    return const <CapturedImage>[];
+  }
+
+  final sessionRows =
+      rows.where((row) => row.sessionId == sessionId).toList(growable: false)
+        ..sort((a, b) => a.capturedAt.compareTo(b.capturedAt));
+  return sessionRows.map(_capturedImageFromDbRow).toList(growable: false);
+});
+
+CapturedImage _capturedImageFromDbRow(db.CapturedImage row) {
+  return CapturedImage(
+    id: row.id.toString(),
+    filePath: row.filePath,
+    capturedAt: row.capturedAt,
+    settings: ExposureSettings(
+      exposureTime: row.exposureDuration,
+      gain: row.gain ?? 0,
+      offset: row.offset ?? 0,
+      binningX: row.binX,
+      binningY: row.binY,
+      filter: row.filter,
+      frameType: _frameTypeFromDbString(row.frameType),
+    ),
+    stats: row.hfr != null || row.starCount != null
+        ? ImageStats(
+            hfr: row.hfr,
+            starCount: row.starCount,
+            background: row.background,
+            noise: row.noise,
+          )
+        : null,
+    format: _imageFormatFromDbString(row.fileFormat),
+  );
+}
+
+FrameType _frameTypeFromDbString(String str) {
+  switch (str.toLowerCase()) {
+    case 'dark':
+      return FrameType.dark;
+    case 'flat':
+      return FrameType.flat;
+    case 'bias':
+      return FrameType.bias;
+    case 'darkflat':
+      return FrameType.darkFlat;
+    case 'snapshot':
+      return FrameType.snapshot;
+    default:
+      return FrameType.light;
+  }
+}
+
+ImageFileFormat _imageFormatFromDbString(String str) {
+  switch (str.toLowerCase()) {
+    case 'xisf':
+      return ImageFileFormat.xisf;
+    case 'tiff':
+      return ImageFileFormat.tiff;
+    case 'png':
+      return ImageFileFormat.png;
+    case 'jpeg':
+    case 'jpg':
+      return ImageFileFormat.jpeg;
+    default:
+      return ImageFileFormat.fits;
   }
 }
 

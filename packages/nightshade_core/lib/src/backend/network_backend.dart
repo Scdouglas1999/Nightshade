@@ -33,6 +33,8 @@ part 'network_backend/remote_live_view_operations.dart';
 part 'network_backend/domain_operations.dart';
 part 'network_backend/session_science_operations.dart';
 part 'network_backend/planning_accessory_operations.dart';
+part 'network_backend/planning_data_operations.dart';
+part 'network_backend/observing_list_operations.dart';
 part 'network_backend/device_operations.dart';
 part 'network_backend/guiding_operations.dart';
 part 'network_backend/sequencer_operations.dart';
@@ -422,7 +424,9 @@ class NetworkBackend extends _NetworkBackendTransport
         _NetworkBackendSequencerOperations,
         _NetworkBackendStackingOperations,
         _NetworkBackendPostSessionOperations,
-        _NetworkBackendImagingProfileOperations
+        _NetworkBackendImagingProfileOperations,
+        _NetworkBackendPlanningDataOperations,
+        _NetworkBackendObservingListOperations
     implements NightshadeBackend {
   static const _requestIdHeader = _NetworkBackendTransport._requestIdHeader;
 

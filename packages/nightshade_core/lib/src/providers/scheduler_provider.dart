@@ -180,6 +180,44 @@ class _ExecutorSequenceSink implements SchedulerSequenceSink {
   }
 }
 
+/// Normalized target row fed into candidate assembly — sourced from the local
+/// DB on the host, or from the host's REST catalog on a remote slave. Keeping
+/// a single shape lets the local and remote loads share one assembly path.
+class _LoaderTarget {
+  final int id;
+  final String name;
+  final double raHours;
+  final double decDegrees;
+  final int priority;
+  final String? objectType;
+  final String? notes;
+
+  const _LoaderTarget({
+    required this.id,
+    required this.name,
+    required this.raHours,
+    required this.decDegrees,
+    required this.priority,
+    required this.objectType,
+    required this.notes,
+  });
+
+  _LoaderTarget copyWithPriority(int newPriority) => _LoaderTarget(
+    id: id,
+    name: name,
+    raHours: raHours,
+    decDegrees: decDegrees,
+    priority: newPriority,
+    objectType: objectType,
+    notes: notes,
+  );
+
+  bool get isMosaicTarget {
+    final haystack = '$name ${objectType ?? ''} ${notes ?? ''}'.toLowerCase();
+    return haystack.contains('mosaic');
+  }
+}
+
 /// Source of candidate targets for the engine: assembles the latest target
 /// rows, their integration goals + captured counts, their constraints, and
 /// the equipment filter list.
@@ -205,8 +243,25 @@ class SchedulerCandidateLoader {
   /// `scoreCandidate`, so a fully-imaged member target drops out of tonight's
   /// rotation even though it remains in the project.
   Future<List<SchedulerCandidate>> load({int? projectId}) async {
-    final db = ref.read(databaseProvider);
     final goalService = ref.read(integrationGoalServiceProvider);
+
+    // On a remote SLAVE the catalog/targets/constraints/horizons/project
+    // membership all live in the HOST DB; the slave's local SQLite is empty.
+    // Reading it would gate the autopilot preview with ZERO constraints and
+    // ZERO custom horizons (silently wrong), and the project path's local
+    // INNER JOIN would return no rows ("nothing eligible"). Source everything
+    // from the host instead. goalService is already host-aware (above), so the
+    // per-goal counts in the shared assembly loop are correct too.
+    final backend = ref.read(backendProvider);
+    if (backend is NetworkBackend) {
+      return _loadRemote(
+        backend: backend,
+        goalService: goalService,
+        projectId: projectId,
+      );
+    }
+
+    final db = ref.read(databaseProvider);
 
     // Make sure all three scheduler tables exist before we read them. The
     // integration-goal service already ensures its own schema; we ensure
@@ -281,11 +336,115 @@ class SchedulerCandidateLoader {
       constraintsByTarget.putIfAbsent(tc.targetId, () => []).add(tc);
     }
 
+    final targets = targetRows
+        .map(
+          (row) => _LoaderTarget(
+            id: row.read<int>('id'),
+            name: row.read<String>('name'),
+            raHours: row.read<double>('ra'),
+            decDegrees: row.read<double>('dec'),
+            priority: row.read<int>('priority'),
+            objectType: row.readNullable<String>('object_type'),
+            notes: row.readNullable<String>('notes'),
+          ),
+        )
+        .toList();
+
+    return _assembleCandidates(
+      targets: targets,
+      constraintsByTarget: constraintsByTarget,
+      horizonProfiles: horizonProfiles,
+      goalService: goalService,
+    );
+  }
+
+  /// Remote-SLAVE candidate load: every input comes from the HOST over REST
+  /// instead of the slave's empty local DB. Targets/constraints/horizons and
+  /// (for the project path) the membership join are mirrored from the host so
+  /// the autopilot preview gates with the SAME constraints/horizons/scope the
+  /// operator configured on the master — not an un-gated, always-eligible set.
+  Future<List<SchedulerCandidate>> _loadRemote({
+    required NetworkBackend backend,
+    required IntegrationGoalService goalService,
+    int? projectId,
+  }) async {
+    // Host catalog rows, indexed by id.
+    final rawTargets = await backend.getAllTargets();
+    final byId = <int, _LoaderTarget>{};
+    for (final json in rawTargets) {
+      final id = json['id'] as int?;
+      if (id == null) continue;
+      byId[id] = _LoaderTarget(
+        id: id,
+        name: json['name'] as String? ?? 'Untitled target',
+        raHours: (json['ra'] as num?)?.toDouble() ?? 0.0,
+        decDegrees: (json['dec'] as num?)?.toDouble() ?? 0.0,
+        priority: json['priority'] as int? ?? 5,
+        objectType: json['objectType'] as String?,
+        notes: json['notes'] as String?,
+      );
+    }
+
+    final List<_LoaderTarget> targets;
+    if (projectId != null) {
+      // Project scope: the membership rows carry the per-project priority
+      // override; fall back to the target's own priority when unset.
+      final memberships = await backend.getProjectTargets(projectId);
+      final scoped = <_LoaderTarget>[];
+      for (final m in memberships) {
+        final base = byId[m.targetId];
+        if (base == null) continue;
+        scoped.add(
+          base.copyWithPriority(m.priorityOverride ?? base.priority),
+        );
+      }
+      scoped.sort((a, b) {
+        final byPriority = b.priority.compareTo(a.priority);
+        return byPriority != 0 ? byPriority : a.name.compareTo(b.name);
+      });
+      targets = scoped;
+    } else {
+      targets = byId.values.toList()
+        ..sort((a, b) {
+          final byPriority = b.priority.compareTo(a.priority);
+          return byPriority != 0 ? byPriority : a.name.compareTo(b.name);
+        });
+    }
+
+    // Host constraints (enabled only, matching the local query) + horizons.
+    final allConstraints = await backend.getTargetConstraints();
+    final constraintsByTarget = <int, List<TargetConstraint>>{};
+    for (final tc in allConstraints) {
+      if (!tc.enabled) continue;
+      constraintsByTarget.putIfAbsent(tc.targetId, () => []).add(tc);
+    }
+    final horizonProfiles = <int, HorizonProfile>{};
+    for (final hp in await backend.getHorizonProfiles()) {
+      if (hp.id != null) horizonProfiles[hp.id!] = hp;
+    }
+
+    return _assembleCandidates(
+      targets: targets,
+      constraintsByTarget: constraintsByTarget,
+      horizonProfiles: horizonProfiles,
+      goalService: goalService,
+    );
+  }
+
+  /// Shared candidate assembly used by both the local and remote loads. Pure
+  /// over its inputs — only the goal counts come from [goalService] (already
+  /// host-aware), so this is identical on host and slave.
+  Future<List<SchedulerCandidate>> _assembleCandidates({
+    required List<_LoaderTarget> targets,
+    required Map<int, List<TargetConstraint>> constraintsByTarget,
+    required Map<int, HorizonProfile> horizonProfiles,
+    required IntegrationGoalService goalService,
+  }) async {
     final availableFilters = _availableFilters();
 
     final out = <SchedulerCandidate>[];
-    for (final row in targetRows) {
-      final id = row.read<int>('id');
+    for (final target in targets) {
+      final id = target.id;
       final goals = await goalService.listForTarget(id);
       final counts = <int>[];
       for (final g in goals) {
@@ -313,28 +472,20 @@ class SchedulerCandidateLoader {
       out.add(
         SchedulerCandidate(
           targetId: id,
-          name: row.read<String>('name'),
-          raHours: row.read<double>('ra'),
-          decDegrees: row.read<double>('dec'),
-          userPriority: row.read<int>('priority'),
+          name: target.name,
+          raHours: target.raHours,
+          decDegrees: target.decDegrees,
+          userPriority: target.priority,
           goals: goals,
           capturedCounts: counts,
           constraints: cs,
           horizonProfiles: usedProfiles,
           availableFilters: availableFilters,
-          isMosaicTarget: _isMosaicTarget(row),
+          isMosaicTarget: target.isMosaicTarget,
         ),
       );
     }
     return out;
-  }
-
-  bool _isMosaicTarget(QueryRow row) {
-    final objectType = row.readNullable<String>('object_type') ?? '';
-    final notes = row.readNullable<String>('notes') ?? '';
-    final haystack = '${row.read<String>('name')} $objectType $notes'
-        .toLowerCase();
-    return haystack.contains('mosaic');
   }
 
   List<String> _availableFilters() {

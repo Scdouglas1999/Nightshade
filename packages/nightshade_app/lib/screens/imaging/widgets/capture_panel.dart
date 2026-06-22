@@ -23,7 +23,7 @@ class CapturePanel extends ConsumerWidget {
     final exposureSettings = ref.watch(exposureSettingsProvider);
     final namingPattern = ref.watch(namingPatternProvider);
     final sessionState = ref.watch(sessionStateProvider);
-    final sessionImages = ref.watch(sessionImagesProvider);
+    final sessionImages = ref.watch(recentSessionFramesProvider);
     final isRemoteMode = ref.watch(isRemoteModeProvider);
     final cameraState = ref.watch(cameraStateProvider);
     final hostSuffix = isRemoteMode ? ' (host)' : '';

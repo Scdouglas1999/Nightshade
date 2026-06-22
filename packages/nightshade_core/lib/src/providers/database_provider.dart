@@ -300,6 +300,59 @@ Stream<List<db.CapturedImage>> _pollRemoteImages(
 ) =>
     _pollRemote(() => _fetchRemoteImages(backend), listEquals);
 
+/// Polls the host's `/api/sequence-runs` and maps each [RemoteSequenceRun]
+/// onto the local `SequenceRun` Drift row shape the run-history consumers read
+/// (dashboard recap, cockpit Morning Report, sequencer History tab). The
+/// slave's local `sequence_runs` table is never populated, so without this
+/// poll those surfaces always render their empty state even after the master
+/// imaged all night. [sequenceId] scopes the poll to a single sequence for the
+/// family provider.
+/// Public entry point used by `sequence_stats_provider.dart` so the
+/// run-history providers can branch onto the remote transport without
+/// re-implementing the poll/mapping (both file-private here).
+Stream<List<db.SequenceRun>> pollRemoteSequenceRuns(
+  NetworkBackend backend, {
+  int? sequenceId,
+}) =>
+    _pollRemoteRuns(backend, sequenceId: sequenceId);
+
+Stream<List<db.SequenceRun>> _pollRemoteRuns(
+  NetworkBackend backend, {
+  int? sequenceId,
+}) =>
+    _pollRemote(
+      () => _fetchRemoteRuns(backend, sequenceId: sequenceId),
+      listEquals,
+    );
+
+Future<List<db.SequenceRun>> _fetchRemoteRuns(
+  NetworkBackend backend, {
+  int? sequenceId,
+}) async {
+  final page = await backend.fetchSequenceRuns(sequenceId: sequenceId);
+  final mapped = page.items.map(_runRowFromRemote).toList();
+  // Host endpoint already orders by startedAt desc; keep that invariant so the
+  // ".first" the consumers read is the newest run.
+  mapped.sort((a, b) => b.startedAt.compareTo(a.startedAt));
+  return mapped;
+}
+
+db.SequenceRun _runRowFromRemote(RemoteSequenceRun run) {
+  return db.SequenceRun(
+    id: run.id,
+    sequenceId: run.sequenceId,
+    sequenceName: run.sequenceName ?? 'Sequence',
+    startedAt: run.startedAt,
+    endedAt: run.endedAt,
+    status: run.status,
+    statsJson: run.statsJson ?? '{}',
+    // The wire row does not carry the executed-sequence snapshot (it is not
+    // exposed by /api/sequence-runs); the run-history surfaces that consume
+    // this stream do not read it, so leaving it null is lossless for them.
+    sequenceSnapshotJson: null,
+  );
+}
+
 Future<List<db.Target>> _fetchRemoteTargets(NetworkBackend backend) async {
   final targets = await backend.getAllTargets();
   return targets.map(_targetFromJson).toList()

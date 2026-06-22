@@ -333,7 +333,9 @@ class _CandidateRow extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) async {
-    final lists = await ref.read(observingListsDaoProvider).getAllLists();
+    // Read through the remote-aware provider so a slave sees the master's
+    // lists; the local DAO is empty on a NetworkBackend.
+    final lists = await ref.read(observingListsProvider.future);
     if (!context.mounted) return;
 
     final chosenId = await showDialog<int>(

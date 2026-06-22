@@ -23,10 +23,19 @@ import 'database_provider.dart';
 import 'equipment_provider.dart';
 import 'framing_provider.dart';
 import 'imaging_provider.dart' show exposureSettingsProvider;
+import 'observing_list_provider.dart'
+    show listedCatalogIdsProvider, observingListsProvider;
 import 'profiles_provider.dart';
 import 'remote_sync_events.dart';
-import 'scheduler_provider.dart' show schedulerPreviewDecisionProvider;
+import 'planning_provider.dart' show projectListProvider;
+import 'scheduler_provider.dart'
+    show
+        integrationGoalsStreamProvider,
+        schedulerPreviewDecisionProvider,
+        targetConstraintsStreamProvider;
 import 'sequence_provider.dart';
+import 'sequence_stats_provider.dart'
+    show sequenceRunsProvider, liveSequenceStatsProvider, SequenceRunStats;
 import 'session_provider.dart';
 import 'settings_provider.dart' show appSettingsProvider;
 import 'target_progress_provider.dart'
@@ -1231,6 +1240,14 @@ void _applySequencerStatus(Object reader, SequencerStatus status) {
     currentNodeId: status.currentNodeId,
     currentNodeName: status.currentNodeName,
   );
+
+  // Mirror the master's live run-vitals onto the slave's Session Vitals tile.
+  // The local executor never writes liveSequenceStatsProvider on a slave, so
+  // without this the Vitals tile reads idle next to a live progress bar. Null
+  // vitals (idle host, or a host build that doesn't emit them) clears the tile.
+  final vitals = status.runVitals;
+  _read(reader, liveSequenceStatsProvider.notifier).state =
+      vitals == null ? null : SequenceRunStats.fromRemoteVitals(vitals);
 }
 
 SequenceExecutionState _mapSequencerState(String rawState) {
@@ -1387,6 +1404,31 @@ Future<void> hydrateRemoteSessionState(
   // real "what the rig would slew to next" instead of recomputing "nothing
   // eligible" against the slave's empty local catalog.
   _invalidate(reader, schedulerPreviewDecisionProvider);
+
+  // Refresh the host-mirrored planner/scheduler DATA streams on connect (and
+  // each 30s re-hydrate) so the slave's Projects tab, integration-goal editor,
+  // and target-constraint editor show the host's rows immediately rather than
+  // waiting out their first poll tick. In NetworkBackend mode these providers
+  // re-fetch GET /api/projects, /api/integration-goals, /api/target-constraints.
+  _invalidate(reader, projectListProvider);
+  _invalidate(reader, integrationGoalsStreamProvider);
+  _invalidate(reader, targetConstraintsStreamProvider);
+
+  // Run-history parity on connect: in NetworkBackend mode sequenceRunsProvider
+  // polls GET /api/sequence-runs. Invalidating restarts that poll so the
+  // dashboard "Last night" recap, cockpit Morning Report, and the sequencer
+  // History tab show the master's real run history immediately instead of
+  // waiting out the first poll tick (or, before this branch, rendering empty).
+  _invalidate(reader, sequenceRunsProvider);
+
+  // Observing-lists parity on connect: in NetworkBackend mode these providers
+  // re-poll GET /api/observing-lists (and the listed-catalog-ids markers), so
+  // the slave's planetarium Lists tab, the "add to list" pickers, and the
+  // star-chart list markers show the master's curated lists immediately rather
+  // than waiting out the first poll tick. (observingListItemsProvider is a
+  // family keyed by the open list, so it re-polls when first watched.)
+  _invalidate(reader, observingListsProvider);
+  _invalidate(reader, listedCatalogIdsProvider);
 }
 
 /// Buffer-then-apply per-device live status for the connected equipment that

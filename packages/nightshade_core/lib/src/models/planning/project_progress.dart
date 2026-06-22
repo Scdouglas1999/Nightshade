@@ -59,6 +59,17 @@ class FilterProgressLine extends Equatable {
     'isComplete': isComplete,
   };
 
+  /// Tolerant decoder for [toJson]. Only the four base fields are read back;
+  /// the derived totals are recomputed from them.
+  static FilterProgressLine fromJson(Map<String, dynamic> json) {
+    return FilterProgressLine(
+      filter: json['filter'] as String? ?? '',
+      exposureSeconds: (json['exposureSeconds'] as num?)?.toDouble() ?? 0.0,
+      goalFrames: json['goalFrames'] as int? ?? 0,
+      capturedFrames: json['capturedFrames'] as int? ?? 0,
+    );
+  }
+
   @override
   List<Object?> get props => [
     filter,
@@ -135,6 +146,27 @@ class ProjectTargetProgress extends Equatable {
     'isComplete': isComplete,
   };
 
+  /// Tolerant decoder for [toJson]. Reads the base fields and the per-filter
+  /// lines; all aggregates are recomputed from those.
+  static ProjectTargetProgress fromJson(Map<String, dynamic> json) {
+    final rawFilters = json['filters'];
+    final filters = rawFilters is List
+        ? rawFilters
+              .whereType<Map>()
+              .map(
+                (m) => FilterProgressLine.fromJson(m.cast<String, dynamic>()),
+              )
+              .toList()
+        : const <FilterProgressLine>[];
+    return ProjectTargetProgress(
+      targetId: json['targetId'] as int? ?? 0,
+      targetName: json['targetName'] as String? ?? '',
+      raHours: (json['raHours'] as num?)?.toDouble() ?? 0.0,
+      decDegrees: (json['decDegrees'] as num?)?.toDouble() ?? 0.0,
+      filters: filters,
+    );
+  }
+
   @override
   List<Object?> get props => [
     targetId,
@@ -210,6 +242,30 @@ class CampaignProgress extends Equatable {
     'totalRemainingSeconds': totalRemainingSeconds,
     'totalPercentComplete': totalPercentComplete,
   };
+
+  /// Tolerant decoder for [toJson] (host -> slave roll-up mirror).
+  static CampaignProgress fromJson(Map<String, dynamic> json) {
+    final rawProject = json['project'];
+    final rawTargets = json['targets'];
+    return CampaignProgress(
+      project: rawProject is Map
+          ? Project.fromJson(rawProject.cast<String, dynamic>())
+          : Project(
+              name: 'Untitled project',
+              createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+              updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+            ),
+      targets: rawTargets is List
+          ? rawTargets
+                .whereType<Map>()
+                .map(
+                  (m) =>
+                      ProjectTargetProgress.fromJson(m.cast<String, dynamic>()),
+                )
+                .toList()
+          : const <ProjectTargetProgress>[],
+    );
+  }
 
   @override
   List<Object?> get props => [project, targets];

@@ -592,8 +592,9 @@ class _ExportToSequenceButton extends ConsumerWidget {
   }
 
   Future<void> _exportToSequence(BuildContext context, WidgetRef ref) async {
-    final dao = ref.read(observingListsDaoProvider);
-    final items = await dao.getItemsForList(listId);
+    // Read items through the remote-aware provider so a slave exports the
+    // master's list (the local DAO is empty on a NetworkBackend).
+    final items = await ref.read(observingListItemsProvider(listId).future);
 
     if (items.isEmpty) {
       if (context.mounted) {

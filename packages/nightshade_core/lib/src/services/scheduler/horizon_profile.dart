@@ -130,6 +130,24 @@ class HorizonProfile extends Equatable {
     );
   }
 
+  /// Wire serialization (host -> slave mirror): emits the same raw column
+  /// shape the `horizon_profiles` table stores, so the slave can rebuild the
+  /// profile with [fromRow]. Used by `/api/horizon-profiles`.
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'samplesJson': encodeSamples(),
+  };
+
+  /// Tolerant decoder for the wire payload above.
+  static HorizonProfile fromJson(Map<String, dynamic> json) {
+    return HorizonProfile.fromRow(
+      id: json['id'] as int? ?? 0,
+      name: json['name'] as String? ?? '',
+      samplesJson: json['samplesJson'] as String? ?? '[]',
+    );
+  }
+
   /// Parse a multi-line "az alt" text dump (one pair per line) into a
   /// profile. Useful for importing horizon files from other planetariums.
   /// Whitespace and comma separators are accepted; lines starting with #

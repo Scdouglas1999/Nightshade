@@ -28,12 +28,33 @@ class SequencerHandlers {
     final backend = container.read(sequencerBackendProvider);
     final status = await backend.sequencerGetStatus();
 
+    // Mirror the master's live run-vitals onto the status payload so a slave can
+    // reconstruct its Session Vitals tile (the local executor never populates
+    // liveSequenceStatsProvider on a slave). Null when no run is active.
+    final liveStats = container.read(liveSequenceStatsProvider);
+    final Map<String, dynamic>? runVitals = liveStats == null
+        ? null
+        : {
+            'startTime': liveStats.startTime.toIso8601String(),
+            if (liveStats.endTime != null)
+              'endTime': liveStats.endTime!.toIso8601String(),
+            'framesCaptured': liveStats.framesCaptured,
+            'framesRejected': liveStats.framesRejected,
+            'integrationSecs': liveStats.integrationSecs,
+            'triggerFires': liveStats.triggerFires,
+            'autofocusRuns': liveStats.autofocusRuns,
+            'meridianFlips': liveStats.meridianFlips,
+            'ditherCount': liveStats.ditherCount,
+            'warningMessages': liveStats.warningMessages,
+          };
+
     return jsonOk({
       'state': status.state,
       'currentNodeId': status.currentNodeId,
       'currentNodeName': status.currentNodeName,
       'progress': status.progress,
       'message': status.message,
+      if (runVitals != null) 'runVitals': runVitals,
     });
   }
 

@@ -42,7 +42,7 @@ class RunDashboardLiveFrame extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
     final currentImage = ref.watch(currentImageProvider);
-    final sessionImages = ref.watch(sessionImagesProvider);
+    final sessionImages = ref.watch(recentSessionFramesProvider);
 
     // The current frame's own settings can carry a null filter (the live
     // preview is published before the persisted history row is written); fall

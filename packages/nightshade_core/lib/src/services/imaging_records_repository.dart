@@ -98,6 +98,45 @@ class ImagingRecordsRepository {
     return _sessionsDao!.getSessionsForTarget(targetId);
   }
 
+  /// Remote-only: pull the host's `sequence_runs` rows via
+  /// `GET /api/sequence-runs` and map them onto the local Drift `SequenceRun`
+  /// shape. Used by [SessionReportService] so the report's mount/operations and
+  /// errors/warnings sections reflect the master's real run history instead of
+  /// the slave's empty local table. Throws when called on a local repository —
+  /// callers branch on [isRemote] first and read the local DAO directly there.
+  Future<List<db.SequenceRun>> getAllSequenceRunsRemote() async {
+    final remote = _remote;
+    if (remote == null) {
+      throw StateError(
+        'getAllSequenceRunsRemote requires a remote (NetworkBackend) repository',
+      );
+    }
+    final page = await remote.fetchSequenceRuns();
+    return page.items.map(_sequenceRunFromRemote).toList();
+  }
+
+  /// Remote-only: target id -> name map from the host's `/api/targets` list, so
+  /// the session report resolves real target names instead of falling back to
+  /// "Target N" against the slave's empty local `targets` table. Throws when
+  /// called on a local repository (callers branch on [isRemote] first).
+  Future<Map<int, String>> getTargetNamesRemote() async {
+    final remote = _remote;
+    if (remote == null) {
+      throw StateError(
+        'getTargetNamesRemote requires a remote (NetworkBackend) repository',
+      );
+    }
+    final rows = await remote.getAllTargets();
+    final out = <int, String>{};
+    for (final row in rows) {
+      final id = (row['id'] as num?)?.toInt();
+      if (id == null) continue;
+      final name = row['name'] as String?;
+      if (name != null && name.isNotEmpty) out[id] = name;
+    }
+    return out;
+  }
+
   Future<int> startSession({
     String? name,
     int? profileId,
@@ -402,6 +441,23 @@ class ImagingRecordsRepository {
     return _imagesDao!.countImagesByProducingNode(
       producingNodeId: producingNodeId,
       producingRunId: producingRunId,
+    );
+  }
+
+  /// Map a `/api/sequence-runs` wire row onto the local Drift `SequenceRun`
+  /// shape the report builder reads. `statsJson` carries the mount/op counts
+  /// and error/warning lists the report parses; the snapshot column is not
+  /// exposed by the endpoint and the report does not read it.
+  static db.SequenceRun _sequenceRunFromRemote(RemoteSequenceRun run) {
+    return db.SequenceRun(
+      id: run.id,
+      sequenceId: run.sequenceId,
+      sequenceName: run.sequenceName ?? 'Sequence',
+      startedAt: run.startedAt,
+      endedAt: run.endedAt,
+      status: run.status,
+      statsJson: run.statsJson ?? '{}',
+      sequenceSnapshotJson: null,
     );
   }
 

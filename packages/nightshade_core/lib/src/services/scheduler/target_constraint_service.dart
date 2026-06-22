@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../backend/network_backend.dart';
 import '../../database/database.dart' as db;
 import '../../models/scheduler/target_constraint.dart';
+import '../../providers/backend_provider.dart';
 import '../../providers/database_provider.dart';
 import 'integration_goal_service.dart'
     show targetConstraintsSchemaSql, targetConstraintsTargetIndexSql;
@@ -22,7 +24,14 @@ class TargetConstraintService {
   bool _schemaEnsured = false;
   final StreamController<void> _mutations = StreamController<void>.broadcast();
 
-  TargetConstraintService(this._db);
+  /// Non-null on a remote SLAVE: constraints live in the HOST DB, so reads and
+  /// mutations route over `/api/target-constraints` instead of the slave's
+  /// empty local table. Null on the host (FfiBackend) / tests — local path
+  /// unchanged.
+  final NetworkBackend? _remote;
+
+  TargetConstraintService(this._db, {NetworkBackend? remote})
+    : _remote = remote;
 
   Future<void> _ensureSchema() async {
     if (_schemaEnsured) return;
@@ -41,6 +50,12 @@ class TargetConstraintService {
 
   /// Insert a constraint and return its row id.
   Future<int> insert(TargetConstraint constraint) async {
+    final remote = _remote;
+    if (remote != null) {
+      final id = await remote.insertTargetConstraint(constraint);
+      _notifyMutated();
+      return id;
+    }
     await _ensureSchema();
     final id = await _db.customInsert(
       'INSERT INTO target_constraints (target_id, kind, payload_json, enabled) VALUES (?, ?, ?, ?)',
@@ -63,6 +78,12 @@ class TargetConstraintService {
         'TargetConstraintService.update requires a persisted id',
       );
     }
+    final remote = _remote;
+    if (remote != null) {
+      await remote.updateTargetConstraint(constraint);
+      _notifyMutated();
+      return;
+    }
     await _ensureSchema();
     await _db.customStatement(
       'UPDATE target_constraints SET kind = ?, payload_json = ?, enabled = ? WHERE id = ?',
@@ -77,6 +98,12 @@ class TargetConstraintService {
   }
 
   Future<void> setEnabled(int constraintId, bool enabled) async {
+    final remote = _remote;
+    if (remote != null) {
+      await remote.setTargetConstraintEnabled(constraintId, enabled);
+      _notifyMutated();
+      return;
+    }
     await _ensureSchema();
     await _db.customStatement(
       'UPDATE target_constraints SET enabled = ? WHERE id = ?',
@@ -86,6 +113,12 @@ class TargetConstraintService {
   }
 
   Future<void> delete(int constraintId) async {
+    final remote = _remote;
+    if (remote != null) {
+      await remote.deleteTargetConstraint(constraintId);
+      _notifyMutated();
+      return;
+    }
     await _ensureSchema();
     await _db.customStatement('DELETE FROM target_constraints WHERE id = ?', [
       constraintId,
@@ -97,6 +130,12 @@ class TargetConstraintService {
   /// `IntegrationGoalService.deleteForTarget` by the scheduler queue's
   /// per-row delete action.
   Future<void> deleteForTarget(int targetId) async {
+    final remote = _remote;
+    if (remote != null) {
+      await remote.deleteTargetConstraintsForTarget(targetId);
+      _notifyMutated();
+      return;
+    }
     await _ensureSchema();
     await _db.customStatement(
       'DELETE FROM target_constraints WHERE target_id = ?',
@@ -108,12 +147,22 @@ class TargetConstraintService {
   /// Truncate the whole table. Backs the scheduler queue's "Clear all"
   /// action.
   Future<void> deleteAll() async {
+    final remote = _remote;
+    if (remote != null) {
+      await remote.deleteAllTargetConstraints();
+      _notifyMutated();
+      return;
+    }
     await _ensureSchema();
     await _db.customStatement('DELETE FROM target_constraints');
     _notifyMutated();
   }
 
   Future<List<TargetConstraint>> listForTarget(int targetId) async {
+    final remote = _remote;
+    if (remote != null) {
+      return remote.getTargetConstraints(targetId: targetId);
+    }
     await _ensureSchema();
     final rows = await _db
         .customSelect(
@@ -125,6 +174,10 @@ class TargetConstraintService {
   }
 
   Future<List<TargetConstraint>> listAll() async {
+    final remote = _remote;
+    if (remote != null) {
+      return remote.getTargetConstraints();
+    }
     await _ensureSchema();
     final rows = await _db
         .customSelect(
@@ -137,11 +190,39 @@ class TargetConstraintService {
   /// Live stream of every constraint. Emits an initial snapshot then a
   /// fresh list after every mutation made through this service.
   Stream<List<TargetConstraint>> watchAll() async* {
+    final remote = _remote;
+    if (remote != null) {
+      // The host owns the constraints; poll it on a fixed tick with a
+      // change-guard (mirrors database_provider's _pollRemote). Host-side
+      // edits surface within the interval; our own mutations are picked up by
+      // the next poll.
+      var last = await remote.getTargetConstraints();
+      yield last;
+      while (true) {
+        await Future<void>.delayed(const Duration(seconds: 10));
+        final next = await remote.getTargetConstraints();
+        if (!_constraintListEquals(last, next)) {
+          last = next;
+          yield next;
+        }
+      }
+    }
     await _ensureSchema();
     yield await listAll();
     await for (final _ in _mutations.stream) {
       yield await listAll();
     }
+  }
+
+  static bool _constraintListEquals(
+    List<TargetConstraint> a,
+    List<TargetConstraint> b,
+  ) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   TargetConstraint _rowToConstraint(QueryRow row) {
@@ -158,7 +239,11 @@ class TargetConstraintService {
 final targetConstraintServiceProvider = Provider<TargetConstraintService>((
   ref,
 ) {
-  final svc = TargetConstraintService(ref.watch(databaseProvider));
+  final backend = ref.watch(backendProvider);
+  final svc = TargetConstraintService(
+    ref.watch(databaseProvider),
+    remote: backend is NetworkBackend ? backend : null,
+  );
   ref.onDispose(() => svc.dispose());
   return svc;
 });

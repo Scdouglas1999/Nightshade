@@ -416,8 +416,19 @@ class _QuickStartWizardDialogState
 
     _searchDebounce = Timer(const Duration(milliseconds: 300), () async {
       try {
-        final dao = ref.read(targetsDaoProvider);
-        final results = await dao.searchTargets(query);
+        // On a remote-client slave the local targets table is never populated
+        // (targets only arrive over the wire), so a direct DAO search returns
+        // empty. Route the search to the host's `/api/targets/search` and map
+        // the rows back into DbTarget; keep the local DAO path on the host.
+        final backend = ref.read(backendProvider);
+        final List<DbTarget> results;
+        if (backend is NetworkBackend) {
+          final rows = await backend.searchTargets(query);
+          results = rows.map(DbTarget.fromJson).toList();
+        } else {
+          final dao = ref.read(targetsDaoProvider);
+          results = await dao.searchTargets(query);
+        }
         if (mounted) {
           setState(() {
             _searchResults = results;

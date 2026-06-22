@@ -39,13 +39,15 @@ Future<ConstellationCredentials?> resolveConstellationCredentials(
 /// The Constellation orchestration service.
 final constellationServiceProvider = Provider<ConstellationService>((ref) {
   final settings = ref.watch(settingsDaoProvider);
-  final targetsDao = ref.watch(targetsDaoProvider);
   return ConstellationService(
     atlas: ref.watch(skyAtlasServiceProvider),
     logger: ref.watch(loggingServiceProvider),
     credentialsResolver: () => resolveConstellationCredentials(settings),
     localTargetsResolver: () async {
-      final targets = await targetsDao.getAllTargets();
+      // Resolve through the remote-aware targets provider so a slave maps the
+      // MASTER's targets (its own local table is never populated); on the host
+      // this yields the same db.Target rows the local DAO would.
+      final targets = await ref.read(allDbTargetsProvider.future);
       return targets
           .map(
             (t) => (

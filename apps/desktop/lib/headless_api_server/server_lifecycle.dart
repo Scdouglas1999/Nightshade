@@ -50,6 +50,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       ...buildSafetyMonitorRoutes(_safetyMonitorHandlers),
       ...buildAuxiliaryRoutes(_auxiliaryHandlers),
       ...buildSchedulerRoutes(_schedulerHandlers),
+      ...buildPlanningDataRoutes(_planningDataHandlers),
       ...buildFocusModelRoutes(_focusModelHandlers),
       ...buildStackingRoutes(_stackingHandlers),
       ...buildPostSessionRoutes(_postSessionHandlers),

@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../backend/network_backend.dart';
 import '../models/imaging/imaging_models.dart' show AutofocusSettings;
 import '../services/focus_model_service.dart';
+import 'backend_provider.dart';
 import 'profiles_provider.dart';
 import 'equipment_provider.dart';
 import 'settings_provider.dart';
@@ -110,6 +112,17 @@ class FilterOffsetNotifier extends StateNotifier<FilterOffsetState> {
 
       final offsetMode = _resolveOffsetMode();
 
+      // On a slave (NetworkBackend) the autofocus-derived focus model lives in
+      // local JSON files on the master's disk, never on this client. Fetch the
+      // rig's per-filter offsets over REST instead of reading the empty local
+      // store (which would render the "no filter offsets yet" empty-state even
+      // when the master has a full model).
+      final backend = _ref.read(backendProvider);
+      if (backend is NetworkBackend) {
+        await _loadOffsetsFromRemote(backend, offsetMode, generation);
+        return;
+      }
+
       // Get focus data from service
       final focusService = _ref.read(focusModelServiceProvider);
       await focusService.initialize();
@@ -169,6 +182,58 @@ class FilterOffsetNotifier extends StateNotifier<FilterOffsetState> {
           error: 'Failed to load filter offsets: $e',
         );
       }
+    }
+  }
+
+  /// Load offsets for the active profile from the connected rig over REST.
+  ///
+  /// Mirrors [_loadOffsetsForActiveProfile]'s offset-mode handling but sources
+  /// the relative per-filter model from the host (where autofocus runs and the
+  /// focus-model JSON store lives) instead of the empty local store. Absolute
+  /// mode still derives from the per-filter AF configs in AppSettings.
+  Future<void> _loadOffsetsFromRemote(
+    NetworkBackend backend,
+    FilterOffsetMode offsetMode,
+    int generation,
+  ) async {
+    final offsetMap = <String, int>{};
+    String? referenceFilter;
+
+    if (offsetMode == FilterOffsetMode.absolute) {
+      final settingsAsync = _ref.read(appSettingsProvider);
+      final settings = settingsAsync.valueOrNull;
+      if (settings != null) {
+        final afFilterSettings = AutofocusSettings.parseFilterSettingsJson(
+          settings.afFilterSettingsJson,
+        );
+        for (final entry in afFilterSettings.entries) {
+          if (entry.value.focusOffset != 0) {
+            offsetMap[entry.key] = entry.value.focusOffset;
+          }
+        }
+      }
+    } else {
+      final response = await backend.getFilterFocusOffsets();
+      referenceFilter = response['referenceFilter'] as String?;
+      final offsets = response['offsets'];
+      if (offsets is Map) {
+        for (final entry in offsets.entries) {
+          final value = entry.value;
+          if (value is Map && value['offsetSteps'] is num) {
+            offsetMap[entry.key.toString()] =
+                (value['offsetSteps'] as num).toInt();
+          }
+        }
+      }
+    }
+
+    if (generation == _loadGeneration) {
+      state = FilterOffsetState(
+        offsets: offsetMap,
+        referenceFilter: referenceFilter,
+        isLoading: false,
+        offsetMode: offsetMode,
+      );
     }
   }
 

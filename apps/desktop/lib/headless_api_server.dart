@@ -323,6 +323,10 @@ class HeadlessApiServer {
   late final SchedulerHandlers _schedulerHandlers;
   late final FocusModelHandlers _focusModelHandlers;
 
+  // Planner/scheduler DATA tables served to remote slaves
+  // (integration goals / target constraints / horizon profiles / projects).
+  late final PlanningDataHandlers _planningDataHandlers;
+
   // Live stacking (EAA real-time integration) control surface. Public so the
   // server lifecycle can route the `ImageSaved` event stream into its
   // host-side auto-feed coordinator.

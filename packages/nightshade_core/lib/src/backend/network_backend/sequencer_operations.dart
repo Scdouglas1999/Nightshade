@@ -541,6 +541,11 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
       currentNodeName: response['currentNodeName'] as String?,
       progress: (response['progress'] as num?)?.toDouble() ?? 0.0,
       message: response['message'] as String?,
+      runVitals: response['runVitals'] is Map<String, dynamic>
+          ? SequencerRunVitals.fromJson(
+              response['runVitals'] as Map<String, dynamic>,
+            )
+          : null,
     );
   }
 

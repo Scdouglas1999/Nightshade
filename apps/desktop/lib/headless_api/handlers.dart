@@ -42,6 +42,9 @@ export 'handlers/planetarium_handlers.dart';
 
 // Intelligent scheduler and focus model
 export 'handlers/scheduler_handlers.dart';
+
+// Planner/scheduler DATA tables (goals/constraints/horizons/projects)
+export 'handlers/planning_data_handlers.dart';
 export 'handlers/focus_model_handlers.dart';
 
 // Live stacking (EAA real-time integration) control surface

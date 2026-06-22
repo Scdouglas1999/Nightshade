@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../backend/network_backend.dart';
 import '../models/planning/night_forecast.dart';
 import '../models/planning/project.dart';
 import '../models/planning/project_progress.dart';
@@ -12,6 +13,7 @@ import '../services/planning/project_service.dart';
 import '../services/scheduler/integration_goal_service.dart';
 import '../services/weather/providers/openmeteo_cloud_provider.dart';
 import '../services/weather/radar_provider.dart';
+import 'backend_provider.dart';
 import 'database_provider.dart';
 import 'scheduler_provider.dart';
 import 'settings_provider.dart';
@@ -129,6 +131,28 @@ class ActiveProjectNotifier extends StateNotifier<int?> {
 /// front and then re-listing on each mutation.
 final projectListProvider = StreamProvider<List<Project>>((ref) {
   final service = ref.watch(projectServiceProvider);
+  final backend = ref.watch(backendProvider);
+
+  // On a remote SLAVE the projects live in the HOST DB and there is no local
+  // mutation stream to bridge — service.watchChanges() never fires — so poll
+  // the host on a fixed tick with a change-guard (mirrors database_provider's
+  // _pollRemote). Host-side project CRUD surfaces within the interval.
+  if (backend is NetworkBackend) {
+    Stream<List<Project>> pollRemote() async* {
+      var last = await service.listProjects();
+      yield last;
+      while (true) {
+        await Future<void>.delayed(const Duration(seconds: 10));
+        final next = await service.listProjects();
+        if (!listEquals(last, next)) {
+          last = next;
+          yield next;
+        }
+      }
+    }
+
+    return pollRemote();
+  }
 
   Stream<List<Project>> listOnChange() async* {
     // Initial emit so the UI has data before the first mutation.
@@ -292,6 +316,10 @@ final weekForecastProvider = FutureProvider.autoDispose<WeekForecast>((
   // edit recomputes only the candidate set and reuses the cached feed.
   ref.watch(allDbImagesProvider);
   ref.watch(integrationGoalsStreamProvider);
+  // Also subscribe to the catalog up front: _incompleteCandidates resolves
+  // per-target altitude floors from allDbTargetsProvider (host-aware), so the
+  // dependency edge must be registered before the first await below.
+  ref.watch(allDbTargetsProvider);
   final activeProjectId = ref.watch(activeProjectIdProvider);
 
   // Cloud feed — cached per site; capture/goal rebuilds reuse it.
@@ -323,14 +351,18 @@ Future<List<ProjectTargetCandidate>> _incompleteCandidates(
   Ref ref,
   int? activeProjectId,
 ) async {
-  final targetsDao = ref.read(targetsDaoProvider);
+  // Resolve target rows through the host-aware catalog stream so this works on
+  // a remote slave (where the local targets DAO is empty). On the host this is
+  // the same catalog the DAO serves. Indexed by id for O(1) per-target lookup.
+  final targetRows = await ref.watch(allDbTargetsProvider.future);
+  final targetsById = {for (final t in targetRows) t.id: t};
 
   if (activeProjectId != null) {
     final projectService = ref.read(projectServiceProvider);
     final progress = await projectService.buildProgress(activeProjectId);
     final candidates = <ProjectTargetCandidate>[];
     for (final tp in progress.incompleteTargets) {
-      final row = await targetsDao.getTargetById(tp.targetId);
+      final row = targetsById[tp.targetId];
       // A membership pointing at a deleted target is a data-integrity error,
       // but buildProgress already throws on that case before we get here, so a
       // null here would be a genuine race; surface it rather than swallow.
@@ -384,7 +416,7 @@ Future<List<ProjectTargetCandidate>> _incompleteCandidates(
     }
     if (!incomplete) continue;
 
-    final row = await targetsDao.getTargetById(targetId);
+    final row = targetsById[targetId];
     // A goal referencing a missing target is a data-integrity error — fail
     // loud rather than silently skip.
     if (row == null) {

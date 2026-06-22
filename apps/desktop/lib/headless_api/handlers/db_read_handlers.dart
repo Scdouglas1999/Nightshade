@@ -277,6 +277,36 @@ class DbReadHandlers {
   }
 
   // =========================================================================
+  // Journal notes (notes_journal — the operator's per-target / per-run
+  // notes). Distinct from /api/notes-journal, which despite its name serves
+  // the observation_logs table. The notes_journal table lives outside
+  // @DriftDatabase and is read through NotesService's raw SQL, so we serve
+  // it here with the same JournalNote.toJson shape the slave decodes.
+  // =========================================================================
+
+  Future<Response> handleListJournalNotes(Request request) async {
+    _logInfo('[API] GET /api/db/notes');
+    final qp = request.url.queryParameters;
+    final targetId = qp['targetId'];
+    final runId = _parseOptionalInt(qp['runId']);
+
+    final service = NotesService(_database);
+    final List<JournalNote> notes;
+    if (targetId != null && targetId.isNotEmpty) {
+      notes = await service.notesForTarget(targetId);
+    } else if (runId != null) {
+      notes = await service.notesForRun(runId);
+    } else {
+      notes = await service.allNotes();
+    }
+
+    return jsonOk({
+      'items': notes.map((n) => n.toJson()).toList(),
+      'total': notes.length,
+    });
+  }
+
+  // =========================================================================
   // Dark library (paginated read)
   // =========================================================================
 

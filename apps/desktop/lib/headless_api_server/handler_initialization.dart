@@ -123,6 +123,11 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
     _schedulerHandlers = SchedulerHandlers(container);
     _focusModelHandlers = FocusModelHandlers(container);
 
+    // Planner/scheduler DATA tables (goals/constraints/horizons/projects)
+    // served to remote slaves so their candidate loader, editors, and Planner
+    // Projects tab read host rows instead of the slave's empty local DB.
+    _planningDataHandlers = PlanningDataHandlers(container);
+
     // Live stacking control surface (host-side EAA integration).
     _stackingHandlers = StackingHandlers(container);
 

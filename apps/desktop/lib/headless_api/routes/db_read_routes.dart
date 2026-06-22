@@ -32,6 +32,7 @@ List<HeadlessRoute> buildDbReadRoutes(DbReadHandlers h) => <HeadlessRoute>[
     h.handleGetSequenceRunById,
   ),
   HeadlessRoute(HttpMethod.get, '/api/notes-journal', h.handleListNotesJournal),
+  HeadlessRoute(HttpMethod.get, '/api/db/notes', h.handleListJournalNotes),
   HeadlessRoute(
     HttpMethod.get,
     '/api/guide-rms-history',

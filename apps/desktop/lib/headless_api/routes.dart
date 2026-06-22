@@ -42,6 +42,7 @@ export 'routes/run_watch_routes.dart';
 export 'routes/narrator_routes.dart';
 export 'routes/safety_monitor_routes.dart';
 export 'routes/scheduler_routes.dart';
+export 'routes/planning_data_routes.dart';
 export 'routes/science_routes.dart';
 export 'routes/sequence_management_routes.dart';
 export 'routes/sequencer_routes.dart';

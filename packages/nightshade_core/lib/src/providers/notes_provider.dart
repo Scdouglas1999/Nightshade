@@ -1,8 +1,13 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../backend/network_backend.dart';
 import '../models/notes/journal_note.dart';
 import '../services/notes_service.dart';
 import '../services/sequence_diff_service.dart';
+import 'backend_provider.dart';
 import 'database_provider.dart';
 
 /// Riverpod surface for per-target / per-run notes
@@ -34,8 +39,18 @@ final notesServiceProvider = Provider<NotesService>((ref) {
 
 /// Live notes for a target. Family-keyed by the logical target id
 /// string (catalog id or display name).
+///
+/// On a remote client (`NetworkBackend`) the journal lives only on the
+/// master; the slave's local `notes_journal` table is never populated. We
+/// poll the host's `GET /api/db/notes?targetId=` and map each
+/// [RemoteJournalNote] onto [JournalNote]. The local `NotesService` path is
+/// unchanged for the host backend.
 final notesForTargetProvider = StreamProvider.family<List<JournalNote>, String>(
   (ref, targetId) {
+    final backend = ref.watch(backendProvider);
+    if (backend is NetworkBackend) {
+      return _pollRemoteNotes(backend, targetId: targetId);
+    }
     final service = ref.watch(notesServiceProvider);
     return service.watchTargetNotes(targetId);
   },
@@ -46,15 +61,78 @@ final notesForRunProvider = StreamProvider.family<List<JournalNote>, int>((
   ref,
   runId,
 ) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return _pollRemoteNotes(backend, runId: runId);
+  }
   final service = ref.watch(notesServiceProvider);
   return service.watchRunNotes(runId);
 });
 
 /// Live stream of every note (for global search / debug views).
 final allNotesProvider = StreamProvider<List<JournalNote>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return _pollRemoteNotes(backend);
+  }
   final service = ref.watch(notesServiceProvider);
   return service.watchAllNotes();
 });
+
+/// Polls the host's journal notes, emitting only on change (mirrors the
+/// `_pollRemote` change-guard in `database_provider.dart`). [targetId] /
+/// [runId] scope the poll for the family variants.
+Stream<List<JournalNote>> _pollRemoteNotes(
+  NetworkBackend backend, {
+  String? targetId,
+  int? runId,
+  Duration interval = const Duration(seconds: 10),
+}) async* {
+  var last = await _fetchRemoteNotes(backend, targetId: targetId, runId: runId);
+  yield last;
+  while (true) {
+    await Future<void>.delayed(interval);
+    final next = await _fetchRemoteNotes(
+      backend,
+      targetId: targetId,
+      runId: runId,
+    );
+    if (!listEquals(last, next)) {
+      last = next;
+      yield next;
+    }
+  }
+}
+
+Future<List<JournalNote>> _fetchRemoteNotes(
+  NetworkBackend backend, {
+  String? targetId,
+  int? runId,
+}) async {
+  final page = await backend.fetchJournalNotes(
+    targetId: targetId,
+    runId: runId,
+  );
+  final mapped = page.items.map(_noteFromRemote).toList()
+    // Host serves created_at desc; keep newest-first.
+    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  return mapped;
+}
+
+JournalNote _noteFromRemote(RemoteJournalNote row) {
+  return JournalNote(
+    id: row.id,
+    targetId: row.targetId,
+    sequenceRunId: row.sequenceRunId,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    title: row.title,
+    body: row.body,
+    tags: row.tags,
+    attachments: row.attachments,
+    sentiment: row.sentiment,
+  );
+}
 
 /// Singleton diff engine. Stateless, no setup cost.
 final sequenceDiffServiceProvider = Provider<SequenceDiffService>(

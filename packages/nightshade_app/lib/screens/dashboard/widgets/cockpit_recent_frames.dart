@@ -10,8 +10,9 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// Reusable horizontal strip of the most recent captures from the active
 /// session.
 ///
-/// Source: [sessionImagesProvider] (`List<CapturedImage>`, oldest-first as the
-/// session appends). We take the last [_maxFrames] and reverse them so the
+/// Source: [recentSessionFramesProvider] (`List<CapturedImage>`, oldest-first
+/// as the session appends; remote-aware so a slave sees the master's frames).
+/// We take the last [_maxFrames] and reverse them so the
 /// newest capture leads the strip. Each cell renders a small thumbnail plus
 /// filter / exposure / time, mirroring the efficient rendering used by the
 /// sequencer's `ExposureNodeThumbnailStrip`: thumbnails are fetched on demand
@@ -36,9 +37,9 @@ class RecentFramesStrip extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
-    final images = ref.watch(sessionImagesProvider);
+    final images = ref.watch(recentSessionFramesProvider);
 
-    // sessionImagesProvider appends in capture order, so the newest frame is
+    // recentSessionFramesProvider yields capture order, so the newest frame is
     // last. Take the tail (newest [_maxFrames]) and reverse to newest-first.
     final total = images.length;
     final tail =
@@ -69,7 +70,7 @@ class CockpitRecentFrames extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
-    final total = ref.watch(sessionImagesProvider).length;
+    final total = ref.watch(recentSessionFramesProvider).length;
 
     return NightshadeCard(
       child: Column(
