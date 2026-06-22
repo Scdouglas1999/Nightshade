@@ -147,16 +147,6 @@ List<Sequence> _getBuiltInTemplates() {
       rootNodeId: 'unattended-root',
     ),
     Sequence(
-      id: 'template-mosaic',
-      name: 'Mosaic Multi-Panel',
-      description: 'Large field mosaic with per-panel centering',
-      isTemplate: true,
-      createdAt: DateTime.now().subtract(const Duration(days: 8)),
-      modifiedAt: DateTime.now().subtract(const Duration(days: 8)),
-      nodes: _createMosaicMultiPanelNodes(),
-      rootNodeId: 'mosaic-mp-root',
-    ),
-    Sequence(
       id: 'template-comet',
       name: 'Comet/Asteroid Tracking',
       description: 'Moving target imaging with periodic re-centering',

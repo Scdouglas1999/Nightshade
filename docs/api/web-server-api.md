@@ -80,9 +80,9 @@ Get server information and capabilities.
     "GET /api/devices/connected",
     "POST /api/phd2/connect",
     "POST /api/phd2/disconnect",
-    "GET /api/sequences/status",
-    "POST /api/sequences/start",
-    "POST /api/sequences/stop",
+    "GET /api/sequencer/status",
+    "POST /api/sequencer/start",
+    "POST /api/sequencer/stop",
     "GET /api/images/recent"
   ]
 }
@@ -375,7 +375,7 @@ Disconnect from PHD2.
 
 ## Sequence Control
 
-### GET /api/sequences/status
+### GET /api/sequencer/status
 
 Get sequence status.
 
@@ -396,7 +396,7 @@ Get sequence status.
 }
 ```
 
-### POST /api/sequences/start
+### POST /api/sequencer/start
 
 Start a sequence.
 
@@ -416,7 +416,7 @@ Start a sequence.
 }
 ```
 
-### POST /api/sequences/stop
+### POST /api/sequencer/stop
 
 Stop current sequence.
 
@@ -685,7 +685,7 @@ await fetch('http://localhost:8080/api/devices/connect', {
 });
 
 // Get sequence status
-const statusResponse = await fetch('http://localhost:8080/api/sequences/status');
+const statusResponse = await fetch('http://localhost:8080/api/sequencer/status');
 const status = await statusResponse.json();
 console.log('Sequence state:', status.state);
 ```
@@ -707,7 +707,7 @@ requests.post('http://localhost:8080/api/devices/connect', json={
 })
 
 # Get sequence status
-status = requests.get('http://localhost:8080/api/sequences/status').json()
+status = requests.get('http://localhost:8080/api/sequencer/status').json()
 print(f"Sequence state: {status['state']}")
 ```
 

@@ -1,14 +1,14 @@
 // Sequencer-execution defaults surfaced in Settings → Sequencer. Owns the
 // behaviour-tree-level knobs the executor consults: park triggers, the
 // meridian-flip warning window, autofocus cadence, dither cadence, and
-// the native-vs-simulation execution toggle.
+// the simulation execution toggle.
 //
 // Owns:
 //   * parkOnUnsafeWeather, parkBeforeDawn, safetyFailMode
 //   * meridianFlipMinutes, autoFocusOnFilterChange, useFilterFocusOffsets
 //   * autoFocusEveryMinutes
 //   * ditherEnabled, ditherEveryFrames
-//   * useNativeExecution, useSimulationMode
+//   * useSimulationMode
 //
 // Does NOT own:
 //   * Per-instruction recovery defaults → see `recovery.dart`.
@@ -63,11 +63,6 @@ extension SequencerSettingsSection on AppSettingsNotifier {
   Future<void> setDitherEveryFrames(int value) async {
     await _saveSetting('dither_every_frames', value.toString());
     _patchState((s) => s.copyWith(ditherEveryFrames: value));
-  }
-
-  Future<void> setUseNativeExecution(bool value) async {
-    await _saveSetting('use_native_execution', value.toString());
-    _patchState((s) => s.copyWith(useNativeExecution: value));
   }
 
   Future<void> setUseSimulationMode(bool value) async {

@@ -147,10 +147,6 @@ List<String> availableHeadlessEndpoints() {
     'POST /api/plate-solver/verify',
     'GET /api/plate-solver/config',
     'POST /api/plate-solver/config',
-    // Legacy Sequencer
-    'GET /api/sequences/status',
-    'POST /api/sequences/start',
-    'POST /api/sequences/stop',
     // Sequencer
     'GET /api/sequencer/status',
     'GET /api/sequencer/editor-sequence',

@@ -302,7 +302,7 @@ enum TwilightType { civil, nautical, astronomical }
 /// Base class for all sequence nodes.
 ///
 /// Sealed for exhaustive switch matching: every `switch (node)` statement
-/// must cover all 32 subtypes (or use a `_` wildcard) — adding a new node
+/// must cover all 37 subtypes (or use a `_` wildcard) — adding a new node
 /// type will produce compile-time errors at every dispatch site that
 /// hasn't been updated.
 ///

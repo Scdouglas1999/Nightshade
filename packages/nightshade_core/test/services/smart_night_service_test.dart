@@ -397,6 +397,38 @@ void main() {
       expect(plan.warnings.any((w) => w.contains('polar alignment')), isTrue);
     });
 
+    test(
+      'polar alignment node targets the correct celestial pole by latitude',
+      () {
+        SmartNightContext staleContext() => SmartNightContext(
+          windowStart: DateTime(2026, 5, 17, 22),
+          windowEnd: DateTime(2026, 5, 18, 5),
+          bortleClass: 4,
+          daysSinceLastPolarAlignment: 30,
+        );
+
+        PolarAlignmentNode polarNodeFor(double latitudeDeg) {
+          final plan = service.build(
+            profile: monoProfile,
+            latitudeDeg: latitudeDeg,
+            longitudeDeg: -73.0,
+            context: staleContext(),
+            selectedSuggestions: [fakeSuggestion(id: 1, name: 'M51')],
+            strategy: SmartNightStrategy.autoLrgb,
+            settings: const SmartNightSettings(),
+          );
+          return plan.sequence.nodes.values
+              .whereType<PolarAlignmentNode>()
+              .single;
+        }
+
+        // Northern site → north celestial pole.
+        expect(polarNodeFor(41.0).isNorth, isTrue);
+        // Southern site → south celestial pole (the bug being fixed).
+        expect(polarNodeFor(-33.9).isNorth, isFalse);
+      },
+    );
+
     test('adds CloudArriving recovery node when rain forecast > 40%', () {
       final context = SmartNightContext(
         windowStart: DateTime(2026, 5, 17, 22),
@@ -1849,6 +1881,24 @@ void main() {
         ),
         SmartNightStrategy.oscOneShot,
       );
+    });
+  });
+
+  group('latitudeSign', () {
+    test('northern latitudes resolve to north celestial pole', () {
+      expect(latitudeSign(41.0), isTrue);
+      expect(latitudeSign(0.1), isTrue);
+    });
+
+    test('southern latitudes resolve to south celestial pole', () {
+      expect(latitudeSign(-33.9), isFalse);
+      expect(latitudeSign(-0.1), isFalse);
+    });
+
+    test('exact equator and unknown latitude fall back to north', () {
+      expect(latitudeSign(0.0), isTrue);
+      expect(latitudeSign(null), isTrue);
+      expect(latitudeSign(double.nan), isTrue);
     });
   });
 }

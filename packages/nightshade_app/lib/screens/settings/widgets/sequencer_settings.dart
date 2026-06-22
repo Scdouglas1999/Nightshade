@@ -851,24 +851,10 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                 ),
               ],
             ),
-            SettingsSection(
-              title: 'Development',
-              children: [
-                SettingRow(
-                  icon: LucideIcons.cpu,
-                  title: 'Use native execution',
-                  subtitle: 'Execute sequences using native Rust engine',
-                  trailing: SettingsSwitch(
-                    value: settings.useNativeExecution,
-                    onChanged: (value) {
-                      ref
-                          .read(appSettingsProvider.notifier)
-                          .setUseNativeExecution(value);
-                    },
-                  ),
-                  isLast: kReleaseMode,
-                ),
-                if (!kReleaseMode)
+            if (!kReleaseMode)
+              SettingsSection(
+                title: 'Development',
+                children: [
                   SettingRow(
                     icon: LucideIcons.testTube,
                     title: 'Simulation mode',
@@ -883,8 +869,8 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                     ),
                     isLast: true,
                   ),
-              ],
-            ),
+                ],
+              ),
           ],
         );
       },

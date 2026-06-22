@@ -1,8 +1,11 @@
-// Widget tests for the Scheduler screen.
+// Widget tests for the Scheduler tab content (SchedulerTabContent), the
+// body that the Plan Tonight `/planner?tab=scheduler` tab mounts. The
+// standalone `/scheduler` route now redirects to that tab, so these tests
+// drive the tab body directly.
 //
 // We don't spin up the full Riverpod graph (which would require a real
 // drift database, an Ffi backend, and the full event bus). Instead we
-// override the providers the screen actually reads
+// override the providers the widget actually reads
 // (schedulerEngineProvider, schedulerStatusProvider,
 // currentSchedulerDecisionProvider, plus the integration goals,
 // constraint, and target streams) with deterministic test doubles.
@@ -12,7 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:nightshade_app/screens/scheduler/scheduler_screen.dart';
+import 'package:nightshade_app/screens/planner/widgets/scheduler_tab_content.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/database/database.dart' as ndb;
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -209,7 +212,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: NightshadeTheme.dark,
-          home: const Scaffold(body: SchedulerScreen()),
+          home: const Scaffold(body: SchedulerTabContent()),
         ),
       ),
     );
@@ -259,7 +262,7 @@ void main() {
       routes: [
         GoRoute(
           path: '/scheduler',
-          builder: (_, __) => const Scaffold(body: SchedulerScreen()),
+          builder: (_, __) => const Scaffold(body: SchedulerTabContent()),
         ),
         GoRoute(
           path: '/planner',
@@ -348,7 +351,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: NightshadeTheme.dark,
-          home: const Scaffold(body: SchedulerScreen()),
+          home: const Scaffold(body: SchedulerTabContent()),
         ),
       ),
     );
@@ -400,7 +403,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: NightshadeTheme.dark,
-          home: const Scaffold(body: SchedulerScreen()),
+          home: const Scaffold(body: SchedulerTabContent()),
         ),
       ),
     );
@@ -457,7 +460,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: NightshadeTheme.dark,
-          home: const Scaffold(body: SchedulerScreen()),
+          home: const Scaffold(body: SchedulerTabContent()),
         ),
       ),
     );
@@ -533,7 +536,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: NightshadeTheme.dark,
-          home: const Scaffold(body: SchedulerScreen()),
+          home: const Scaffold(body: SchedulerTabContent()),
         ),
       ),
     );
@@ -576,7 +579,7 @@ void main() {
       routes: [
         GoRoute(
           path: '/scheduler',
-          builder: (_, __) => const Scaffold(body: SchedulerScreen()),
+          builder: (_, __) => const Scaffold(body: SchedulerTabContent()),
         ),
         GoRoute(
           path: '/planner',

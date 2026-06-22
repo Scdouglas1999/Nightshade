@@ -27,7 +27,6 @@ import '../screens/your_sky/your_sky_screen.dart';
 import '../screens/constellation/constellation_screen.dart';
 import '../screens/planner/planner_screen.dart';
 import '../screens/tonight/tonight_screen.dart';
-import '../screens/scheduler/scheduler_screen.dart';
 import '../screens/diagnostics/diagnostics_screen.dart';
 import '../screens/diagnostics/diagnostic_dump_screen.dart';
 import '../screens/tutorial/first_night_wizard_route.dart';
@@ -427,11 +426,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/scheduler',
             name: 'scheduler',
             redirect: (context, state) => '/planner?tab=scheduler',
-            pageBuilder: (context, state) => const CustomTransitionPage(
-              child: SchedulerScreen(),
-              transitionsBuilder: PageTransitions.slideFadeTransition,
-              transitionDuration: Duration(milliseconds: 300),
-            ),
           ),
           // DEPRECATED: use /analytics?tab=diagnostics. Kept for one release
           // for deep-link compatibility.

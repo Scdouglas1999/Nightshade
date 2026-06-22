@@ -69,7 +69,6 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
     'alpaca_server_port',
     'alpaca_auto_discover',
     // Sequencer execution / output
-    'use_native_execution',
     'use_simulation_mode',
     'image_output_path',
     // Image Grading
@@ -420,12 +419,6 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
           ? _parseBool(
               settings['alpaca_auto_discover'],
               current.alpacaAutoDiscover,
-            )
-          : null,
-      useNativeExecution: settings.containsKey('use_native_execution')
-          ? _parseBool(
-              settings['use_native_execution'],
-              current.useNativeExecution,
             )
           : null,
       useSimulationMode: settings.containsKey('use_simulation_mode')

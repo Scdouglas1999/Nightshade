@@ -192,6 +192,7 @@ extension _SmartNightSequenceEmitter on SmartNightService {
   ///      └─ WeatherRecovery     (parallel; optional)
   Sequence _emitSequence({
     required EquipmentProfileModel profile,
+    required double latitudeDeg,
     required SmartNightStrategy strategy,
     required SmartNightSettings settings,
     required SmartNightContext context,
@@ -242,7 +243,7 @@ extension _SmartNightSequenceEmitter on SmartNightService {
               'Polar alignment '
               '(${context.daysSinceLastPolarAlignment} days since last)',
           startFromCurrent: true,
-          isNorth: latitudeSign(profile),
+          isNorth: latitudeSign(latitudeDeg),
           parentId: rootId,
           orderIndex: childOrder.length - 1,
         ),

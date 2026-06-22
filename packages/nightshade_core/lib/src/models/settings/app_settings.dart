@@ -66,7 +66,6 @@ abstract class AppSettings with _$AppSettings {
     @Default(11111) int alpacaServerPort,
     @Default(false) bool alpacaAutoDiscover,
     // Sequencer execution settings
-    @Default(true) bool useNativeExecution,
     @Default(false) bool useSimulationMode,
     // Image capture settings
     @Default('') String imageOutputPath,

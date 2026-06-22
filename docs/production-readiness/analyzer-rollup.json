@@ -1,5 +1,5 @@
 {
-  "generatedAtUtc": "2026-06-21T22:13:01.451573Z",
+  "generatedAtUtc": "2026-06-22T17:17:42.315501Z",
   "analyzerExitCode": 0,
   "policyPath": "docs/production-readiness/analyzer-policy.yaml",
   "policy": {
@@ -388,7 +388,7 @@
       "type": "LINT",
       "code": "LIBRARY_PRIVATE_TYPES_IN_PUBLIC_API",
       "file": "/home/scdouglas/Documents/Nightshade2/packages/nightshade_core/lib/src/providers/sequence_stats_provider.dart",
-      "line": 29,
+      "line": 32,
       "column": 33,
       "length": 12,
       "message": "Invalid use of a private type in a public API."

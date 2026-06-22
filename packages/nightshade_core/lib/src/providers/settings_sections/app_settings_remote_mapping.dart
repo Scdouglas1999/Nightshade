@@ -34,7 +34,6 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       alpacaServerHost: remote.alpacaServerHost,
       alpacaServerPort: remote.alpacaServerPort,
       alpacaAutoDiscover: remote.alpacaAutoDiscover,
-      useNativeExecution: remote.useNativeExecution,
       useSimulationMode: remote.useSimulationMode,
       imageOutputPath: remote.imageOutputPath,
       safetyFailMode: remote.safetyFailMode,
@@ -212,7 +211,6 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       alpacaServerHost: settings.alpacaServerHost,
       alpacaServerPort: settings.alpacaServerPort,
       alpacaAutoDiscover: settings.alpacaAutoDiscover,
-      useNativeExecution: settings.useNativeExecution,
       useSimulationMode: settings.useSimulationMode,
       imageOutputPath: settings.imageOutputPath,
       observer: previous?.observer ?? '',
@@ -462,10 +460,6 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       case 'alpacaAutoDiscover':
         return value is bool
             ? current.copyWith(alpacaAutoDiscover: value)
-            : null;
-      case 'useNativeExecution':
-        return value is bool
-            ? current.copyWith(useNativeExecution: value)
             : null;
       case 'useSimulationMode':
         return value is bool

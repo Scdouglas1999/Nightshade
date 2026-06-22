@@ -618,10 +618,6 @@ class HeadlessApiServer {
   // flow (StateNotifier updates, temperature polling, cool-on-connect,
   // recommended-gain auto-apply, filter-name sync, heartbeat monitoring).
 
-  // Legacy /api/sequences/{status,start,stop} routes now register the
-  // sequencer-handler refs directly (see `_setupRoutes()`). Their
-  // previous one-line indirection methods were redundant.
-
   // Dashboard + Run-Watch static-file serving was moved to
   // [StaticFileHandlers] (handlers/static_file_handlers.dart). The handlers
   // there own the SPA-directory resolution, the MIME-type table, the CSP
