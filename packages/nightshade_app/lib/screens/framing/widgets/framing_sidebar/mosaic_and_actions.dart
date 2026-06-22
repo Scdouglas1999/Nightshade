@@ -257,7 +257,8 @@ class FramingMosaicSection extends ConsumerWidget {
             ),
           ),
 
-          // Export button
+          // Create durable mosaic project (project + per-panel rows), routes
+          // to /mosaic/:id so the scheduler/sequencer can drive it.
           if (framingState.mosaicPanels.isNotEmpty) ...[
             const SizedBox(height: 12),
             FramingExportMosaicButton(

@@ -232,10 +232,11 @@ class _Ctas extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // One primary action. "Image tonight" and "Plan Tonight (advanced)" read
-    // as the same thing to a new user; the wizard is now a quiet ghost action
-    // whose verb ("Plan manually") says how it differs — you choose, instead
-    // of the app choosing for you.
+    // One primary action. "Image tonight" launches the opinionated one-tap
+    // auto-imaging flow; "Plan Tonight" is the quiet ghost that opens the
+    // Smart Night wizard so you build a plan you can see and edit. Same verb
+    // ("Plan Tonight") as every other Smart Night entrance in the app, with a
+    // tooltip that says how it differs from the one-tap primary.
     return Wrap(
       spacing: NightshadeTokens.spaceSm,
       runSpacing: NightshadeTokens.spaceSm,
@@ -248,16 +249,13 @@ class _Ctas extends StatelessWidget {
           onPressed: () => context.go('/tonight'),
         ),
         Tooltip(
-          message: 'Pick the target and exposures yourself with the '
-              'Smart Night wizard',
+          message: 'Build a plan you can see and edit — pick the target and '
+              'exposures yourself with the Smart Night wizard',
           child: NightshadeButton(
-            label: 'Plan manually',
-            icon: LucideIcons.slidersHorizontal,
+            label: 'Plan Tonight',
+            icon: LucideIcons.sparkles,
             variant: ButtonVariant.ghost,
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (_) => const SmartNightDialog(),
-            ),
+            onPressed: () => showSmartNightDialog(context),
           ),
         ),
       ],

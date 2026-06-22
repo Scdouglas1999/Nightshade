@@ -132,7 +132,7 @@ class RunDashboardSchedulerPanel extends ConsumerWidget {
               const SizedBox(width: NightshadeTokens.spaceSm),
               Flexible(
                 child: Text(
-                  'TARGET SCHEDULER',
+                  'UNATTENDED AUTOPILOT',
                   style: TextStyle(
                     fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w700,

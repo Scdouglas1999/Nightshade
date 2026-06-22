@@ -222,8 +222,8 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
               ),
               const SizedBox(width: 8),
               NightshadeButton(
-                label: 'Build Plan',
-                icon: LucideIcons.zap,
+                label: 'Plan Tonight',
+                icon: LucideIcons.sparkles,
                 variant: ButtonVariant.primary,
                 size: ButtonSize.small,
                 isLoading: _busy,
@@ -239,10 +239,7 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
   Future<void> _openPlanner(SmartNightDraftLookup lookup) async {
     setState(() => _busy = true);
     try {
-      await showDialog<void>(
-        context: context,
-        builder: (_) => const SmartNightDialog(),
-      );
+      await showSmartNightDialog(context);
       ref.invalidate(pendingSmartNightDraftProvider(lookup));
     } finally {
       if (mounted) setState(() => _busy = false);

@@ -219,12 +219,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     // Header and state badge.
-    expect(find.text('Scheduler'), findsOneWidget);
+    expect(find.text('Unattended Autopilot'), findsOneWidget);
     expect(find.text('Idle'), findsOneWidget);
 
     // Three control buttons should be present in idle state: Start +
     // Re-evaluate (Pause/Resume/Stop hidden while idle).
-    expect(find.widgetWithText(NightshadeButton, 'Start scheduler'),
+    expect(find.widgetWithText(NightshadeButton, 'Run unattended all night'),
         findsOneWidget);
     expect(
         find.widgetWithText(NightshadeButton, 'Re-evaluate'), findsOneWidget);
@@ -359,11 +359,12 @@ void main() {
 
     expect(
       find.textContaining(
-          'Scheduler is stopped. Press Start to begin evaluating'),
+          'Autopilot is stopped. Run unattended all night to begin '
+          'evaluating'),
       findsAtLeastNWidgets(1),
     );
     expect(
-      find.widgetWithText(NightshadeButton, 'Start scheduler'),
+      find.widgetWithText(NightshadeButton, 'Run unattended all night'),
       findsOneWidget,
     );
   });
@@ -412,8 +413,8 @@ void main() {
     expect(find.text('Running'), findsOneWidget);
     expect(find.widgetWithText(NightshadeButton, 'Pause'), findsOneWidget);
     expect(find.widgetWithText(NightshadeButton, 'Stop'), findsOneWidget);
-    expect(
-        find.widgetWithText(NightshadeButton, 'Start scheduler'), findsNothing);
+    expect(find.widgetWithText(NightshadeButton, 'Run unattended all night'),
+        findsNothing);
   });
 
   testWidgets(

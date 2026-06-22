@@ -266,12 +266,10 @@ class _ProjectsTabContentState extends ConsumerState<ProjectsTabContent> {
       return;
     }
 
-    await showDialog<void>(
-      context: context,
-      builder: (_) => SmartNightDialog(
-        seedTargetIds: incompleteIds,
-        seedSourceLabel: active.name,
-      ),
+    await showSmartNightDialog(
+      context,
+      seedTargetIds: incompleteIds,
+      seedSourceLabel: active.name,
     );
   }
 

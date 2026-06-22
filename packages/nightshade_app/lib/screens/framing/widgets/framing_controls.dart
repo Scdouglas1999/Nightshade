@@ -1,6 +1,8 @@
-import 'package:drift/drift.dart' show Value;
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -766,8 +768,17 @@ class _CornerOption extends StatelessWidget {
   }
 }
 
-/// Gradient button that writes each computed mosaic panel into the targets
-/// database as an individual target named `<targetName> - Panel <n>`.
+/// Gradient button that persists the framed mosaic as a DURABLE mosaic
+/// project (the same `mosaic_projects` + per-panel `mosaic_panels`/`targets`
+/// structure the mosaic wizard's "Create Project" writes) and routes the user
+/// to the project screen (`/mosaic/:id`) so the scheduler/sequencer can consume
+/// it.
+///
+/// This replaces the old export-to-targets behaviour, which wrote orphaned
+/// `targets` rows (`objectType: 'mosaic'`) that no project or sequence could
+/// drive — a dead end. The grid geometry is taken from the live framing state
+/// via [FramingNotifier.createDurableMosaicProject], so the persisted project
+/// matches the panels shown on the canvas.
 class FramingExportMosaicButton extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final List<FramingMosaicPanel> panels;
@@ -790,30 +801,34 @@ class _FramingExportMosaicButtonState
   bool _isHovered = false;
   bool _isExporting = false;
 
-  Future<void> _exportToTargets() async {
+  Future<void> _createProject() async {
     if (_isExporting || widget.panels.isEmpty) return;
 
     setState(() => _isExporting = true);
 
     try {
-      final targetsDao = ref.read(targetsDaoProvider);
+      // Persist the framed grid as a durable mosaic project (project row +
+      // per-panel target/panel rows) rather than orphaned target rows, then
+      // route to the project screen so the scheduler/sequencer can drive it.
+      final projectId = await ref
+          .read(framingProvider.notifier)
+          .createDurableMosaicProject(name: widget.targetName);
 
-      // Save each panel as a target
-      for (final panel in widget.panels) {
-        await targetsDao.createTarget(TargetsCompanion.insert(
-          name: '${widget.targetName} - Panel ${panel.index + 1}',
-          ra: panel.centerRaHours,
-          dec: panel.centerDecDegrees,
-          objectType: const Value('mosaic'),
-        ));
+      if (!mounted) return;
+      if (projectId == null) {
+        context.showErrorSnackBar(
+          'Could not create mosaic project: no framed target or rig field of '
+          'view available.',
+        );
+        return;
       }
 
-      if (!mounted) return;
       context.showSuccessSnackBar(
-          'Exported ${widget.panels.length} panels to targets');
+          'Created mosaic project with ${widget.panels.length} panels');
+      unawaited(context.push('/mosaic/$projectId'));
     } catch (e) {
-      context.showErrorSnackBar('Error exporting: $e');
       if (!mounted) return;
+      context.showErrorSnackBar('Could not create mosaic project: $e');
     } finally {
       if (mounted) {
         setState(() => _isExporting = false);
@@ -829,7 +844,7 @@ class _FramingExportMosaicButtonState
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: GestureDetector(
-        onTap: _exportToTargets,
+        onTap: _createProject,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(vertical: 10),
@@ -863,8 +878,8 @@ class _FramingExportMosaicButtonState
               const SizedBox(width: 8),
               Text(
                 _isExporting
-                    ? 'Exporting...'
-                    : 'Export ${widget.panels.length} Panels to Targets',
+                    ? 'Creating project...'
+                    : 'Create Mosaic Project (${widget.panels.length} panels)',
                 style: NightshadeTypography.labelStrongSm
                     .copyWith(color: onPrimary),
               ),
