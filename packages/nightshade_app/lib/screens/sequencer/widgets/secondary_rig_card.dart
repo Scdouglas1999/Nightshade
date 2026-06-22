@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_api;
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 class SecondaryRigCard extends ConsumerWidget {
   const SecondaryRigCard({super.key});
@@ -217,22 +218,22 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final colors = NightshadeColors.of(context);
     final (label, color) = switch (status) {
-      _ when status.waitingForDither => ('Paused (dither)', Colors.orange),
-      _ when status.exposing => ('Exposing', Colors.green),
-      _ when status.running => ('Running', Colors.green),
-      _ => ('Idle', theme.disabledColor),
+      _ when status.waitingForDither => ('Paused (dither)', colors.warning),
+      _ when status.exposing => ('Exposing', colors.success),
+      _ when status.running => ('Running', colors.success),
+      _ => ('Idle', colors.textMuted),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
       ),
       child: Text(
         label,
-        style: theme.textTheme.labelSmall?.copyWith(color: color),
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color),
       ),
     );
   }

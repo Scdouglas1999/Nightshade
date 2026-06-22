@@ -75,11 +75,9 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
             onPressed: () => _update(() => _step--),
           ),
         const Spacer(),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        const SizedBox(width: 10),
+        // No footer "Cancel" — the header ✕ is the single dismissal affordance
+        // (matches the AlertDialog/full-screen-wizard convention). A duplicate
+        // Cancel here just competed with it for the same action.
         FilledButton.icon(
           icon: _isBuildingPreview
               ? const SizedBox(
