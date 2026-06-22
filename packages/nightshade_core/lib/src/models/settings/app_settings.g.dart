@@ -207,6 +207,26 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   bitDepth: json['bitDepth'] as String? ?? '16-bit',
   timezone: json['timezone'] as String? ?? 'UTC',
   useSystemTime: json['useSystemTime'] as bool? ?? true,
+  sequencesPath: json['sequencesPath'] as String? ?? '',
+  smartNightAutoSelect: json['smartNightAutoSelect'] as bool? ?? true,
+  smartNightAutoSelectCount:
+      (json['smartNightAutoSelectCount'] as num?)?.toInt() ?? 2,
+  adaptiveSwapEnabledByDefault:
+      json['adaptiveSwapEnabledByDefault'] as bool? ?? false,
+  adaptiveSwapDefaultThreshold:
+      (json['adaptiveSwapDefaultThreshold'] as num?)?.toDouble() ?? 50.0,
+  adaptiveSwapDefaultHysteresisSecs:
+      (json['adaptiveSwapDefaultHysteresisSecs'] as num?)?.toDouble() ?? 180.0,
+  conditionsScoreWeights:
+      (json['conditionsScoreWeights'] as Map<String, dynamic>?)?.map(
+        (k, e) => MapEntry(k, (e as num).toDouble()),
+      ) ??
+      const <String, double>{
+        'transparency': 0.40,
+        'seeing': 0.25,
+        'cloud': 0.25,
+        'wind': 0.10,
+      },
 );
 
 Map<String, dynamic> _$AppSettingsToJson(
@@ -355,6 +375,14 @@ Map<String, dynamic> _$AppSettingsToJson(
   'bitDepth': instance.bitDepth,
   'timezone': instance.timezone,
   'useSystemTime': instance.useSystemTime,
+  'sequencesPath': instance.sequencesPath,
+  'smartNightAutoSelect': instance.smartNightAutoSelect,
+  'smartNightAutoSelectCount': instance.smartNightAutoSelectCount,
+  'adaptiveSwapEnabledByDefault': instance.adaptiveSwapEnabledByDefault,
+  'adaptiveSwapDefaultThreshold': instance.adaptiveSwapDefaultThreshold,
+  'adaptiveSwapDefaultHysteresisSecs':
+      instance.adaptiveSwapDefaultHysteresisSecs,
+  'conditionsScoreWeights': instance.conditionsScoreWeights,
 };
 
 const _$SafetyFailModeEnumMap = {

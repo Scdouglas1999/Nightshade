@@ -37,6 +37,42 @@ class SequencerHandlers {
     });
   }
 
+  /// GET /api/sequencer/editor-sequence.
+  ///
+  /// G2 (remote hydration): return the master's currently-open editor sequence
+  /// in the SAME payload shape the live editor mirror broadcasts over the WS
+  /// `/events` stream (see `master_sequence_editor_mirror.dart` ->
+  /// `emitSnapshot`), so a slave connecting mid-session can seed its sequencer
+  /// canvas without waiting for the master's next edit. Returns
+  /// `{open: false}` when nothing is open in the editor.
+  Future<Response> handleSequencerEditorSequence(Request request) async {
+    final sequence = container.read(currentSequenceProvider);
+    if (sequence == null) {
+      return jsonOk({'open': false});
+    }
+    final Map<String, dynamic> sequenceMap;
+    try {
+      sequenceMap = container
+          .read(sequenceFileServiceProvider)
+          .sequenceToMap(sequence);
+    } catch (e) {
+      // Mirror the live emitter's behavior: a serialization failure must not
+      // crash the GET — report "nothing to seed" and let the slave fall back to
+      // the next live mirror frame.
+      _logInfo(
+        '[API] GET /api/sequencer/editor-sequence: serialize failed: $e',
+      );
+      return jsonOk({'open': false});
+    }
+    final isDirty = container.read(currentSequenceProvider.notifier).isDirty;
+    return jsonOk({
+      'open': true,
+      'sequence': sequenceMap,
+      if (sequence.databaseId != null) 'databaseId': sequence.databaseId,
+      'isDirty': isDirty,
+    });
+  }
+
   /// Start the sequencer via the canonical [SequenceExecutor.start] path.
   ///
   /// Audit C3 — historical bug: this handler called

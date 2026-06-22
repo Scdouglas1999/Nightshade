@@ -37,6 +37,13 @@ List<HeadlessRoute> buildSequencerRoutes(
     '/api/sequencer/status',
     h.handleSequencerStatus,
   ),
+  // G2 (remote hydration): the master's currently-open editor canvas, in the
+  // same payload shape the live WS editor mirror emits.
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/sequencer/editor-sequence',
+    h.handleSequencerEditorSequence,
+  ),
   HeadlessRoute(
     HttpMethod.post,
     '/api/sequencer/start',

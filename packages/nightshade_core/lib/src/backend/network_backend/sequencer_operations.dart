@@ -19,6 +19,20 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
       if (fovDegrees != null) 'fov': fovDegrees,
     });
 
+    // CD matrix + SIP distortion terms are enriched by the master
+    // (`ImagingHandlers._plateSolveJson`). Tolerate their absence so an older
+    // master — or a solve that carried no distortion model — degrades to a
+    // pure-WCS / linear result instead of crashing.
+    double cd(String key) => (response[key] as num?)?.toDouble() ?? 0;
+    int sipOrder(String key) => (response[key] as num?)?.toInt() ?? 0;
+    Float64List sipCoeffs(String key) {
+      final raw = response[key];
+      if (raw is! List) return Float64List(0);
+      return Float64List.fromList(
+        raw.map((e) => (e as num).toDouble()).toList(),
+      );
+    }
+
     return PlateSolveResult(
       success: response['success'] as bool,
       ra: (response['ra'] as num).toDouble(),
@@ -29,18 +43,18 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
       fieldHeight: (response['fieldHeight'] as num).toDouble(),
       solveTimeSecs: (response['solveTimeSecs'] as num).toDouble(),
       error: response['error'] as String?,
-      cd11: 0,
-      cd12: 0,
-      cd21: 0,
-      cd22: 0,
-      sipAOrder: 0,
-      sipBOrder: 0,
-      sipACoeffs: Float64List(0),
-      sipBCoeffs: Float64List(0),
-      sipApOrder: 0,
-      sipBpOrder: 0,
-      sipApCoeffs: Float64List(0),
-      sipBpCoeffs: Float64List(0),
+      cd11: cd('cd11'),
+      cd12: cd('cd12'),
+      cd21: cd('cd21'),
+      cd22: cd('cd22'),
+      sipAOrder: sipOrder('sipAOrder'),
+      sipBOrder: sipOrder('sipBOrder'),
+      sipACoeffs: sipCoeffs('sipACoeffs'),
+      sipBCoeffs: sipCoeffs('sipBCoeffs'),
+      sipApOrder: sipOrder('sipApOrder'),
+      sipBpOrder: sipOrder('sipBpOrder'),
+      sipApCoeffs: sipCoeffs('sipApCoeffs'),
+      sipBpCoeffs: sipCoeffs('sipBpCoeffs'),
     );
   }
 
@@ -375,6 +389,28 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
       // failing the dashboard tick.
       return null;
     }
+  }
+
+  /// G2 (remote-only): fetch the master's currently-open editor sequence so a
+  /// slave connecting mid-session can seed its sequencer canvas immediately
+  /// instead of waiting for the master's next edit-triggered mirror frame.
+  ///
+  /// Returns the same payload shape the live editor mirror broadcasts over the
+  /// WS `/events` stream (`{sequence, databaseId?, isDirty}`), suitable for
+  /// feeding straight into `_applySequenceEditorMirror`. Returns `null` when no
+  /// sequence is open host-side (`{open: false}`) or the endpoint is missing on
+  /// an older headless host. Not part of the abstract backend — only a
+  /// NetworkBackend slave ever calls this.
+  Future<Map<String, dynamic>?> getOpenEditorSequence() async {
+    final response = await _get('sequencer/editor-sequence');
+    if (response['open'] != true) return null;
+    final sequence = response['sequence'];
+    if (sequence is! Map) return null;
+    return <String, dynamic>{
+      'sequence': Map<String, dynamic>.from(sequence),
+      if (response['databaseId'] is int) 'databaseId': response['databaseId'],
+      'isDirty': response['isDirty'] == true,
+    };
   }
 
   @override

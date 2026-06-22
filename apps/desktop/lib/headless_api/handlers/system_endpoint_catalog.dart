@@ -104,6 +104,7 @@ List<String> availableHeadlessEndpoints() {
     'POST /api/rotator/halt',
     'POST /api/rotator/sync',
     // PHD2
+    'GET /api/phd2/running',
     'POST /api/phd2/connect',
     'POST /api/phd2/disconnect',
     'POST /api/phd2/start-guiding',
@@ -152,6 +153,7 @@ List<String> availableHeadlessEndpoints() {
     'POST /api/sequences/stop',
     // Sequencer
     'GET /api/sequencer/status',
+    'GET /api/sequencer/editor-sequence',
     'POST /api/sequencer/start',
     'POST /api/sequencer/stop',
     'POST /api/sequencer/pause',

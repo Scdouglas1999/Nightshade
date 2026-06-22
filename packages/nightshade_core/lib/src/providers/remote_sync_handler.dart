@@ -780,6 +780,41 @@ void _applySequenceEditorMirror(
   editor.loadSequence(parsed, discardUnsaved: true);
 }
 
+/// G2: seed the slave's sequencer canvas with the master's currently-open
+/// editor sequence on connect.
+///
+/// The live master->slave editor mirror ([masterSequenceEditorMirrorProvider])
+/// only emits on edit, so a slave connecting mid-session sees a blank canvas
+/// until the next master edit. This fetches the master's open editor sequence
+/// in the SAME payload shape that mirror broadcasts (`HostStateChanged` /
+/// [HostMutationEntity.sequenceEditor]) and feeds it through the identical
+/// [_applySequenceEditorMirror] apply path, so seed and live update share one
+/// code path. Returns silently when no sequence is open host-side (the endpoint
+/// reports `open: false`) or the endpoint is unavailable on an older host.
+Future<void> _hydrateOpenEditorSequence(
+  Object reader,
+  NetworkBackend backend,
+) async {
+  final Map<String, dynamic>? payload;
+  try {
+    payload = await backend.getOpenEditorSequence();
+  } catch (_) {
+    // Older headless host without the endpoint, or a transient fetch error:
+    // the live mirror still seeds the canvas on the master's next edit.
+    return;
+  }
+  if (payload == null) {
+    // No sequence open in the master's editor — leave the slave's canvas as-is
+    // (don't clear, mirroring _applySequenceEditorMirror's dirty-safe behavior).
+    return;
+  }
+  _applySequenceEditorMirror(
+    reader,
+    HostMutationAction.updated,
+    payload,
+  );
+}
+
 int? _parseSequenceId(Map<String, dynamic> data) {
   final raw = data['entityId'] ?? data['sequenceId'];
   if (raw is int) {
@@ -1295,6 +1330,24 @@ Future<void> hydrateRemoteSessionState(
   // coverCalibrator/switch mirror connection state only (no status endpoint).
   await _hydrateDeviceTelemetry(reader, backend, devices);
 
+  // G3 (current-frame hero tile): seed the master's last cached frame on
+  // connect. The host-local capture publisher never runs on a slave, so without
+  // this the dashboard's "current frame" tile stays blank until the next
+  // ImageReady event. _publishRemoteCurrentFrame resolves the connected camera
+  // from the (now-hydrated) camera state and no-ops if none is connected or no
+  // frame is cached host-side, so the guard mirrors the live-event path.
+  final cameraState = _read(reader, cameraStateProvider);
+  if (cameraState.connectionState == DeviceConnectionState.connected) {
+    unawaited(_publishRemoteCurrentFrame(reader, backend));
+  }
+
+  // G2 (open sequence-editor canvas): seed the master's live/dirty editor
+  // canvas. It otherwise mirrors only via edit-triggered WS frames, so a slave
+  // connecting mid-edit shows a blank sequencer screen until the next master
+  // edit. Fetch the master's currently-open editor sequence in the same payload
+  // shape the live mirror emits and feed it through the existing apply path.
+  await _hydrateOpenEditorSequence(reader, backend);
+
   await _hydratePhd2GuiderState(reader, backend);
 
   // Active-profile + populated cards parity at first connect: refetch the
@@ -1403,6 +1456,14 @@ Future<void> _hydrateDeviceTelemetry(
     final target = camera.targetTemp;
     if (target != null) {
       notifier.setTargetTemp(target);
+    }
+    // G4 (in-flight exposure): the fetched status already reports whether the
+    // master is mid-exposure. Seed the Exposing flag the same way the live
+    // ExposureStarted handler does so the card/status isn't stuck Idle on a
+    // mid-session connect. Precise remaining-time legitimately waits for the
+    // first live ExposureProgress tick; here we only flip the flag.
+    if (camera.state == CameraState.exposing) {
+      notifier.setExposing(true);
     }
   }
 
