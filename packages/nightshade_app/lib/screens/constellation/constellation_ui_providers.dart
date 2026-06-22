@@ -1,7 +1,12 @@
 import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nightshade_core/nightshade_core.dart';
+// The core barrel also exports a `ConstellationPrivacy` (the wire enum
+// `contributeTarget` consumes). This file declares the richer app-side enum of
+// the same name, so the core one is imported under a prefix to disambiguate.
+import 'package:nightshade_core/nightshade_core.dart' hide ConstellationPrivacy;
+import 'package:nightshade_core/nightshade_core.dart' as core
+    show ConstellationPrivacy;
 
 /// App-side Riverpod surface for the Constellation screens (Pillar C).
 ///
@@ -43,6 +48,13 @@ enum ConstellationPrivacy {
           'never your individual exposures. Others cannot recover your subs.'
       : 'Every calibrated subframe is uploaded so the hub can re-grade and '
           'reject centrally. Larger, slower, and more revealing of your rig.';
+
+  /// The core wire enum [ConstellationService.contributeTarget] consumes. The
+  /// two enums are kept name-aligned (`sums` | `subs`) so the persisted setting
+  /// round-trips through either side.
+  core.ConstellationPrivacy get wire => this == ConstellationPrivacy.sums
+      ? core.ConstellationPrivacy.sums
+      : core.ConstellationPrivacy.subs;
 }
 
 /// The hub identity once connectivity + tiling have been verified, or null when

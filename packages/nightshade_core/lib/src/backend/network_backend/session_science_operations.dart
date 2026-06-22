@@ -331,6 +331,32 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   }
 
   // =========================================================================
+  // Sky Atlas — Pillar A ("Your Sky") personal atlas (read-only)
+  // =========================================================================
+
+  /// Fetch the host's persisted atlas regions (the "Your Sky" browser list).
+  /// The imaging pipeline that folds frames into the atlas runs on the host, so
+  /// a remote client reads its regions here instead of its (empty) local store.
+  /// Callers reconstruct rows via `skyAtlasRegionFromWireJson`.
+  Future<List<Map<String, dynamic>>> getAtlasRegions() async {
+    final json = await _get('atlas/regions');
+    final raw = json['regions'];
+    if (raw is! List) return const [];
+    return raw.whereType<Map<String, dynamic>>().toList(growable: false);
+  }
+
+  /// Fetch the host's per-tile atlas coverage (deepest first) — the heat-overlay
+  /// / gallery feed and the source of the Constellation "your contribution" sum.
+  /// The native coverage query runs on the host. Callers reconstruct rows via
+  /// `AtlasTileCoverage.fromJson`.
+  Future<List<Map<String, dynamic>>> getAtlasCoverage() async {
+    final json = await _get('atlas/coverage');
+    final raw = json['tiles'];
+    if (raw is! List) return const [];
+    return raw.whereType<Map<String, dynamic>>().toList(growable: false);
+  }
+
+  // =========================================================================
   // Target Suggestions
   // =========================================================================
 

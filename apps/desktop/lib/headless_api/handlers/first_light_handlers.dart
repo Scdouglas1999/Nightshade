@@ -124,6 +124,7 @@ class FirstLightHandlers {
     'snr': row.snr,
     'fwhm': row.fwhm,
     'eccentricity': row.eccentricity,
+    'positionAngleDeg': row.positionAngleDeg,
     'kind': row.kind,
     'catalogMatch': row.catalogMatch,
     'confidence': row.confidence,

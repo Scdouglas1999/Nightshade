@@ -27,6 +27,7 @@ void main() {
       'snr': 18.3,
       'fwhm': 2.1,
       'eccentricity': 0.12,
+      'positionAngleDeg': 63.5,
       'kind': 'newSource',
       'catalogMatch': catalogMatch,
       'confidence': 0.81,
@@ -49,6 +50,7 @@ void main() {
       expect(row.snr, 18.3);
       expect(row.fwhm, 2.1);
       expect(row.eccentricity, 0.12);
+      expect(row.positionAngleDeg, 63.5);
       expect(row.kind, 'newSource');
       expect(row.catalogMatch, isNull);
       expect(row.confidence, 0.81);
@@ -84,6 +86,11 @@ void main() {
       expect(row.raDeg, 120.0);
       expect(row.snr, 18.0);
       expect(row.confidence, 1.0);
+    });
+
+    test('absent positionAngleDeg defaults to 0 (pre-fit rows)', () {
+      final json = wire()..remove('positionAngleDeg');
+      expect(transientDetectionFromWireJson(json).positionAngleDeg, 0.0);
     });
   });
 }

@@ -100,9 +100,19 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
     _owner = owner;
     final ref = _ref;
     if (ref == null) return;
-    // Avoid a redundant rebuild when nothing changed.
-    if (ref.read(activePlanOwnerProvider) != owner) {
-      ref.read(activePlanOwnerProvider.notifier).state = owner;
+    // Mirror onto the global owner provider. This is reached during container
+    // teardown via SchedulerEngine.dispose() -> releaseSequenceOwnership(); if
+    // activePlanOwnerProvider was disposed first, ref.read throws. The local
+    // `_owner` above is the source of truth and is already set, so swallow the
+    // reactive-mirror failure rather than let it escape disposal as an
+    // unhandled async error (and leak engine resources behind the throw).
+    try {
+      // Avoid a redundant rebuild when nothing changed.
+      if (ref.read(activePlanOwnerProvider) != owner) {
+        ref.read(activePlanOwnerProvider.notifier).state = owner;
+      }
+    } catch (_) {
+      // Provider already torn down — the local _owner remains authoritative.
     }
   }
 

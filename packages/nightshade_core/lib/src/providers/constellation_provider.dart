@@ -76,15 +76,23 @@ final sharedTargetsProvider = FutureProvider<List<SharedTarget>>((ref) {
   return ref.watch(constellationServiceProvider).browseSharedTargets();
 });
 
-/// Community tiles pulled for blending into "Your Sky" for one target.
+/// Community tiles pulled and blended into "Your Sky" for one target.
 ///
 /// Pulling is a side-effecting fetch (it writes the cached blobs to disk), so
 /// this provider performs the pull and returns the resulting [SwarmTile] index.
+///
+/// We pull with `finalized: false` — the additive `.nst` accumulator — because
+/// that is the only form [ConstellationService.pullTarget] actually folds into
+/// the local atlas (via `mergeSwarmDelta`) so the swarm's depth shows up in Your
+/// Sky. A `finalized: true` FITS pull is a display-only blob with no consumer,
+/// so it would leave the advertised "blended into Your Sky" payoff a no-op.
 final swarmTilesProvider = FutureProvider.family<List<SwarmTile>, int>((
   ref,
   targetId,
 ) {
-  return ref.watch(constellationServiceProvider).pullTarget(targetId);
+  return ref
+      .watch(constellationServiceProvider)
+      .pullTarget(targetId, finalized: false);
 });
 
 /// Follow-the-night suggestions: which shared targets are dark and available for

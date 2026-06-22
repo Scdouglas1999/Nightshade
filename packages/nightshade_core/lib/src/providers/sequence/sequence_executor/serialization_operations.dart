@@ -522,7 +522,10 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
         return {
           'type': 'Recovery',
           'trigger': n.toRustTriggerConfig(),
-          'recovery_action': _recoveryActionToString(n.recoveryAction),
+          'recovery_action': _recoveryActionToRust(
+            n.recoveryAction,
+            n.maxRetries,
+          ),
           'max_retries': n.maxRetries,
         };
       case MeridianFlipNode n:
@@ -844,6 +847,26 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
     }
   }
 
+  /// Serialise a [RecoveryActionType] into the shape Rust's serde
+  /// `RecoveryAction` enum expects.
+  ///
+  /// Most variants are Rust UNIT variants and serialise to a bare string
+  /// (externally-tagged serde default). `Retry` is the exception: it is a Rust
+  /// STRUCT variant `Retry { max_attempts: u32 }`, so serde requires the
+  /// externally-tagged object form `{"Retry": {"max_attempts": N}}`. Emitting
+  /// the bare string `"Retry"` made the whole sequence fail to deserialize at
+  /// load (the bridge collects every node via `nodes?`, so one bad node aborts
+  /// the entire load with InvalidInput). [maxRetries] carries the user-selected
+  /// attempt budget across the bridge.
+  Object _recoveryActionToRust(RecoveryActionType action, int maxRetries) {
+    if (action == RecoveryActionType.retry) {
+      return {
+        'Retry': {'max_attempts': maxRetries},
+      };
+    }
+    return _recoveryActionToString(action);
+  }
+
   String _recoveryActionToString(RecoveryActionType action) {
     switch (action) {
       case RecoveryActionType.continueExecution:
@@ -855,6 +878,11 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
       case RecoveryActionType.nextTarget:
         return 'NextTarget';
       case RecoveryActionType.retry:
+        // Should not be reached for the live serialiser path
+        // (_recoveryActionToRust special-cases retry into the struct-variant
+        // object form). Kept for exhaustiveness; the bare string only
+        // deserialises a UNIT variant and is wrong for Rust's
+        // `Retry { max_attempts }`.
         return 'Retry';
       case RecoveryActionType.parkAndAbort:
         return 'ParkAndAbort';

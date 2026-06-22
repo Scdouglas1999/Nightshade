@@ -2789,3 +2789,83 @@ mod live_stacking_config_tests {
         assert_eq!(config, LiveStackingConfig::default());
     }
 }
+
+#[cfg(test)]
+mod recovery_action_serde_tests {
+    use super::{NodeType, RecoveryAction};
+
+    /// `RecoveryAction::Retry` is a STRUCT variant `Retry { max_attempts }`, so
+    /// serde's externally-tagged default requires the object form
+    /// `{"Retry": {"max_attempts": N}}`. The Dart serialiser
+    /// (`serialization_operations.dart` `_recoveryActionToRust`) now emits this
+    /// shape. This test pins the exact node-level JSON the bridge feeds to
+    /// `serde_json::from_str::<NodeType>` (bridge/src/api/sequencer.rs:212) for
+    /// a Recovery node whose action is Retry, so a regression that reverts to a
+    /// bare `"Retry"` string fails here instead of silently aborting the whole
+    /// sequence load with InvalidInput.
+    #[test]
+    fn recovery_node_with_retry_struct_variant_deserializes() {
+        // Mirrors the Dart `_nodeToConfig` Recovery case: internally `type`-
+        // tagged NodeType plus flattened RecoveryConfig fields.
+        let json = r#"{
+            "type": "Recovery",
+            "trigger": null,
+            "recovery_action": { "Retry": { "max_attempts": 5 } },
+            "max_retries": 5
+        }"#;
+
+        let node: NodeType = serde_json::from_str(json)
+            .expect("Recovery node with struct-variant Retry must deserialize");
+
+        match node {
+            NodeType::Recovery(cfg) => match cfg.recovery_action {
+                RecoveryAction::Retry { max_attempts } => {
+                    assert_eq!(max_attempts, 5, "max_attempts must round-trip");
+                }
+                other => panic!("expected RecoveryAction::Retry, got {other:?}"),
+            },
+            other => panic!("expected NodeType::Recovery, got {other:?}"),
+        }
+    }
+
+    /// Guards the historical bug: a bare `"Retry"` string is rejected by serde
+    /// for a struct variant. If this ever starts succeeding, serde's
+    /// representation of `RecoveryAction` changed and the Dart serialiser must
+    /// be revisited.
+    #[test]
+    fn bare_retry_string_is_rejected() {
+        let json = r#"{
+            "type": "Recovery",
+            "trigger": null,
+            "recovery_action": "Retry",
+            "max_retries": 3
+        }"#;
+
+        let result: Result<NodeType, _> = serde_json::from_str(json);
+        assert!(
+            result.is_err(),
+            "bare-string \"Retry\" must NOT deserialize into the struct variant"
+        );
+    }
+
+    /// Unit variants still use the bare-string form; this confirms the fix did
+    /// not disturb the common path.
+    #[test]
+    fn unit_variant_recovery_action_still_deserializes() {
+        let json = r#"{
+            "type": "Recovery",
+            "trigger": null,
+            "recovery_action": "Continue",
+            "max_retries": 3
+        }"#;
+
+        let node: NodeType = serde_json::from_str(json)
+            .expect("Recovery node with unit-variant action must deserialize");
+        match node {
+            NodeType::Recovery(cfg) => {
+                assert!(matches!(cfg.recovery_action, RecoveryAction::Continue));
+            }
+            other => panic!("expected NodeType::Recovery, got {other:?}"),
+        }
+    }
+}

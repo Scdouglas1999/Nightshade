@@ -84,7 +84,7 @@ class _SharedTargetDetailScreenState
             ),
             if (_blended.isNotEmpty) ...[
               const SizedBox(height: NightshadeTokens.spaceMd),
-              const _RetractHintCard(),
+              const _SwarmTrustCard(),
             ],
             const SizedBox(height: NightshadeTokens.spaceLg),
           ],
@@ -127,16 +127,21 @@ class _SharedTargetDetailScreenState
     setState(() => _pulling = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
+      // Pull the additive `.nst` accumulator (finalized: false) so the service
+      // actually folds it into the local atlas — that merge is what makes the
+      // swarm's depth show up in Your Sky. A finalized FITS pull is a
+      // display-only blob the app never blends, which would make the "blended
+      // into Your Sky" copy below false.
       final tiles = await ref
           .read(constellationServiceProvider)
-          .pullTarget(_target.targetId);
+          .pullTarget(_target.targetId, finalized: false);
       if (!mounted) return;
       setState(() {
         _blended = tiles;
         _pulling = false;
       });
-      // The pulled tiles now live under the atlas swarm/ cache; refresh the
-      // atlas read surface so Your Sky can blend them in.
+      // The pull already merged each delta into the local atlas tiles; refresh
+      // the atlas read surface so Your Sky reflects the deeper blended stack.
       ref.invalidate(skyAtlasCoverageProvider);
       messenger.showSnackBar(
         SnackBar(
@@ -410,8 +415,8 @@ class _BlendCard extends StatelessWidget {
   }
 }
 
-class _RetractHintCard extends StatelessWidget {
-  const _RetractHintCard();
+class _SwarmTrustCard extends StatelessWidget {
+  const _SwarmTrustCard();
 
   @override
   Widget build(BuildContext context) {
@@ -429,8 +434,8 @@ class _RetractHintCard extends StatelessWidget {
           const SizedBox(width: NightshadeTokens.spaceMd),
           Expanded(
             child: Text(
-              'Changed your mind? A contribution can be retracted from the hub '
-              'at any time — the swarm subtracts your sums exactly.',
+              'You only ever shared additive co-add sums, so the hub can subtract '
+              'your contribution exactly to restore the prior depth.',
               style: NightshadeTypography.captionSm.copyWith(
                 color: colors.textMuted,
                 height: 1.4,

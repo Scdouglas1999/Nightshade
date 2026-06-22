@@ -38,6 +38,24 @@ class AtlasHandlers {
   }
 
   // ===========================================================================
+  // GET /api/atlas/coverage
+  // ===========================================================================
+  //
+  // Per-tile coverage rows (deepest first), the heat-overlay / gallery data the
+  // companion's "Your Sky" browser renders and the "your contribution" bar sums.
+  // The native coverage query runs on the host, so a remote client reads it here
+  // instead of its (empty) local atlas store.
+
+  Future<Response> handleGetCoverage(Request request) async {
+    _logInfo('[API] GET /api/atlas/coverage');
+    final tiles = await _service.coverage();
+    return jsonOk({
+      'tiles': tiles.map(_coverageToJson).toList(),
+      'count': tiles.length,
+    });
+  }
+
+  // ===========================================================================
   // GET /api/atlas/region/<id>
   // ===========================================================================
 
@@ -171,6 +189,20 @@ class AtlasHandlers {
     }
     return AtlasInterp.lanczos3;
   }
+
+  /// Serialize a coverage row using the bridge-native key names
+  /// [AtlasTileCoverage.fromJson] consumes (`centerRa` / `centerDec`), so the
+  /// companion reconstructs rows with the same decoder the local path uses.
+  Map<String, dynamic> _coverageToJson(AtlasTileCoverage tile) => {
+    'tileId': tile.tileId,
+    'centerRa': tile.centerRaDeg,
+    'centerDec': tile.centerDecDeg,
+    'coverageMean': tile.coverageMean,
+    'totalFrames': tile.totalFrames,
+    'integrationSeconds': tile.integrationSeconds,
+    'lastFoldIso': tile.lastFoldIso,
+    'channels': tile.channels,
+  };
 
   Map<String, dynamic> _regionToJson(SkyAtlasRegionRow region) => {
     'id': region.id,

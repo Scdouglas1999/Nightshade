@@ -47,6 +47,7 @@ void main() {
           snr: snr,
           fwhm: 2.1,
           eccentricity: 0.1,
+          positionAngleDeg: const Value(63.5),
           kind: kind,
           confidence: 0.8,
           sessionId: Value(sessionId),
@@ -81,6 +82,9 @@ void main() {
         expect(first['tileId'], 42);
         expect(first['kind'], isA<String>());
         expect(first['raDeg'], isA<num>());
+        // positionAngleDeg must survive the wire so remote clients orient the
+        // residual ellipse / streak trail correctly (not silently to 0deg).
+        expect(first['positionAngleDeg'], 63.5);
       },
     );
 

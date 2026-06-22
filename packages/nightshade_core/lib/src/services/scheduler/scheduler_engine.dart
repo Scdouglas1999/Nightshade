@@ -131,10 +131,15 @@ class SchedulerEngine {
     if (_status.state != SchedulerState.running) return;
     _tickTimer?.cancel();
     _tickTimer = null;
+    // Pause the underlying sequence FIRST. If the run already ended,
+    // pauseSequence throws ('Cannot pause: sequence is not running'); in that
+    // case do NOT flip the engine to paused — leaving status=paused while the
+    // sequence is not actually paused diverges status from reality and a later
+    // resume() would no-op against a non-existent run.
+    await _sequenceSink.pauseSequence();
     _updateStatus(
       _status.copyWith(state: SchedulerState.paused, clearNextEvaluation: true),
     );
-    await _sequenceSink.pauseSequence();
   }
 
   Future<void> resume() async {
@@ -160,12 +165,20 @@ class SchedulerEngine {
         clearNextEvaluation: true,
       ),
     );
-    await _sequenceSink.stopSequence();
     // Autopilot fully disengaged: hand the editor slot back to the operator and
     // restore the manual sequence that dispatchSequence stashed on take-over.
     // This is the disengage path (not a per-target swap at _maybeStop), so
     // releasing here does not fight the mid-night transient stops.
-    await _sequenceSink.releaseSequenceOwnership();
+    //
+    // releaseSequenceOwnership() runs in a finally so a throwing stopSequence
+    // (backend down, native fault) can never leave the editor owned by the
+    // autopilot with the operator's stashed manual sequence orphaned behind a
+    // stuck owner state.
+    try {
+      await _sequenceSink.stopSequence();
+    } finally {
+      await _sequenceSink.releaseSequenceOwnership();
+    }
   }
 
   /// Trigger an immediate re-evaluation. Returns when the evaluation
@@ -195,7 +208,19 @@ class SchedulerEngine {
     _reevaluationDebounceTimer = null;
     // Engine teardown disengages the autopilot — release the editor slot back to
     // manual so a stashed sequence isn't orphaned across a provider rebuild.
-    await _sequenceSink.releaseSequenceOwnership();
+    //
+    // Guarded: releaseSequenceOwnership() reaches _setOwner -> ref.read(
+    // activePlanOwnerProvider...), which can throw if that global provider is
+    // already torn down in the same container disposal. If the throw escaped,
+    // the subscription + both controllers below would leak — the exact
+    // ref-after-teardown leak class scheduler_provider already had to fix once.
+    // Resource teardown must run regardless, so swallow the best-effort release.
+    try {
+      await _sequenceSink.releaseSequenceOwnership();
+    } catch (_) {
+      // Teardown best-effort: ownership release can fail if the global owner
+      // provider was disposed first. Resources below must still be released.
+    }
     await _triggerSubscription?.cancel();
     await _statusController.close();
     await _decisionController.close();
@@ -267,21 +292,55 @@ class SchedulerEngine {
 
     if (outcome.isSwitch) {
       final winner = outcome.winner!;
-      _updateStatus(
-        _status.copyWith(
-          currentTargetId: winner.targetId,
-          currentTargetName: winner.targetName,
-        ),
-      );
       if (_status.state == SchedulerState.running) {
         final chosenCandidate = candidates.firstWhere(
           (c) => c.targetId == winner.targetId,
         );
         final seq = buildSequenceForCandidate(chosenCandidate);
-        await _sequenceSink.dispatchSequence(seq);
+        // Commit the winner into status ONLY after dispatch succeeds. If we
+        // committed first and dispatch then threw (a transient pre-flight
+        // failure: brief disk dip, momentarily disconnected filter wheel,
+        // native start hiccup), the next tick would see
+        // currentTargetId == winner and hysteresis would make isSwitch=false,
+        // so the engine would never re-dispatch — the autopilot would believe
+        // it is imaging a target that never started. By dispatching first and
+        // rolling the status back on failure, the next tick retries the switch.
+        try {
+          await _sequenceSink.dispatchSequence(seq);
+        } catch (e) {
+          // Leave currentTargetId unchanged (it is NOT the failed winner) so
+          // the next evaluation re-attempts the switch. Surface the failure on
+          // the status panel and hand the editor slot back to the operator so
+          // their stashed manual sequence is not orphaned behind a wedged
+          // autopilot.
+          _updateStatus(
+            _status.copyWith(
+              lastError: 'Failed to start ${winner.targetName}: $e',
+            ),
+          );
+          await _sequenceSink.releaseSequenceOwnership();
+          return;
+        }
+        _updateStatus(
+          _status.copyWith(
+            currentTargetId: winner.targetId,
+            currentTargetName: winner.targetName,
+            clearError: true,
+          ),
+        );
         // A target was dispatched: a (new) observing night is under way, so
         // re-arm the end-of-night park for the next dawn.
         _parkedForEndOfNight = false;
+      } else {
+        // Not running (preview/idle paths never reach here from a live tick,
+        // but keep the hysteresis state consistent): record the winner so a
+        // subsequent start() does not treat it as a fresh switch.
+        _updateStatus(
+          _status.copyWith(
+            currentTargetId: winner.targetId,
+            currentTargetName: winner.targetName,
+          ),
+        );
       }
     }
   }

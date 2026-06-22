@@ -1,0 +1,91 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_core/nightshade_core.dart';
+
+/// The remote "Your Sky" atlas browser reconstructs `SkyAtlasRegionRow`s from
+/// the appliance's `/api/atlas/regions` wire JSON (companion mode reads the
+/// host's atlas, not its own empty local store). This pins that the
+/// reconstruction is a faithful round-trip of the shape
+/// `AtlasHandlers._regionToJson` emits — in particular that `createdAt` is
+/// parsed from the ISO-8601 string the handler serializes, NOT the epoch-millis
+/// the Drift default serializer would otherwise expect.
+void main() {
+  group('skyAtlasRegionFromWireJson', () {
+    // Mirrors AtlasHandlers._regionToJson exactly.
+    Map<String, dynamic> wire({int? targetId}) => {
+      'id': 7,
+      'name': 'Orion',
+      'kind': 'target',
+      'centerRaDeg': 83.82,
+      'centerDecDeg': -5.39,
+      'radiusDeg': 2.5,
+      'targetId': targetId,
+      'tileCount': 12,
+      'integrationSeconds': 3600.0,
+      'createdAt': DateTime.utc(2026, 6, 19, 22, 30).toIso8601String(),
+    };
+
+    test('reconstructs every column of a target-linked region', () {
+      final row = skyAtlasRegionFromWireJson(wire(targetId: 99));
+
+      expect(row.id, 7);
+      expect(row.name, 'Orion');
+      expect(row.kind, 'target');
+      expect(row.centerRaDeg, 83.82);
+      expect(row.centerDecDeg, -5.39);
+      expect(row.radiusDeg, 2.5);
+      expect(row.targetId, 99);
+      expect(row.tileCount, 12);
+      expect(row.integrationSeconds, 3600.0);
+      expect(row.createdAt.toUtc(), DateTime.utc(2026, 6, 19, 22, 30));
+    });
+
+    test('parses the ISO-8601 createdAt the handler emits (not epoch millis)',
+        () {
+      final row = skyAtlasRegionFromWireJson(wire());
+      // A faithful ISO parse — a millis-expecting decoder would have thrown.
+      expect(row.createdAt.toUtc(), DateTime.utc(2026, 6, 19, 22, 30));
+    });
+
+    test('null targetId stays null (freestanding / orphaned region)', () {
+      expect(skyAtlasRegionFromWireJson(wire()).targetId, isNull);
+    });
+
+    test('integer JSON numbers decode to the double cone fields', () {
+      final json = wire()
+        ..['centerRaDeg'] = 84
+        ..['radiusDeg'] = 3
+        ..['integrationSeconds'] = 3600;
+      final row = skyAtlasRegionFromWireJson(json);
+
+      expect(row.centerRaDeg, 84.0);
+      expect(row.radiusDeg, 3.0);
+      expect(row.integrationSeconds, 3600.0);
+    });
+  });
+
+  group('AtlasTileCoverage.fromJson (host /api/atlas/coverage row)', () {
+    // Mirrors AtlasHandlers._coverageToJson, which emits the bridge-native
+    // key names AtlasTileCoverage.fromJson already consumes.
+    test('reconstructs a coverage row from the host wire shape', () {
+      final row = AtlasTileCoverage.fromJson({
+        'tileId': 42,
+        'centerRa': 120.5,
+        'centerDec': -25.25,
+        'coverageMean': 0.87,
+        'totalFrames': 30,
+        'integrationSeconds': 1800.0,
+        'lastFoldIso': '2026-06-19T22:30:00.000Z',
+        'channels': 3,
+      });
+
+      expect(row.tileId, 42);
+      expect(row.centerRaDeg, 120.5);
+      expect(row.centerDecDeg, -25.25);
+      expect(row.coverageMean, 0.87);
+      expect(row.totalFrames, 30);
+      expect(row.integrationSeconds, 1800.0);
+      expect(row.lastFoldIso, '2026-06-19T22:30:00.000Z');
+      expect(row.channels, 3);
+    });
+  });
+}

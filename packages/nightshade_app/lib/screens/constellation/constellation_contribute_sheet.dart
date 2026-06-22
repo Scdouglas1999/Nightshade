@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:nightshade_core/nightshade_core.dart';
+// Hide the core wire enum of the same name; this screen uses the richer
+// app-side `ConstellationPrivacy` from constellation_ui_providers.dart and maps
+// to the core one via its `.wire` getter when calling the service.
+import 'package:nightshade_core/nightshade_core.dart' hide ConstellationPrivacy;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'constellation_format.dart';
@@ -114,9 +117,9 @@ class _ConstellationContributeSheetState
           const NightshadeAlert(
             severity: NightshadeAlertSeverity.info,
             compact: true,
-            message: 'Anything you contribute can be retracted later — the hub '
-                'subtracts your sums exactly, so the shared depth returns to '
-                'what it was before.',
+            message: 'You only share additive co-add sums, so a contribution '
+                'can be subtracted exactly hub-side — the shared depth returns '
+                'to what it was before.',
           ),
           const SizedBox(height: NightshadeTokens.spaceMd),
           _ConsentRow(
@@ -149,7 +152,7 @@ class _ConstellationContributeSheetState
       );
       final outcome = await ref
           .read(constellationServiceProvider)
-          .contributeTarget(widget.target.targetId);
+          .contributeTarget(widget.target.targetId, privacy: _privacy.wire);
       if (!mounted) return;
       ref.invalidate(constellationPrivacyProvider);
       Navigator.of(context).pop(outcome);

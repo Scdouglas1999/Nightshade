@@ -33,6 +33,18 @@ import '../sky_atlas/sky_atlas_service.dart';
 import 'constellation_client.dart';
 import 'constellation_models.dart';
 
+/// What a contribution puts on the wire.
+///
+/// [sums] (the default) ships only the additive `.nst` accumulator the master
+/// integration already keeps — never the raw individual subframes. [subs] is a
+/// heavier, more-revealing opt-in for a hub that re-grades centrally.
+///
+/// NOTE: the subframe-upload path does not exist yet — there is no atlas export
+/// of raw subs and no hub endpoint to receive them — so [contributeTarget]
+/// refuses [subs] up front rather than silently shipping sums under a SUBS
+/// consent. Wire values mirror the app-side persisted setting (`sums` | `subs`).
+enum ConstellationPrivacy { sums, subs }
+
 /// Resolved hub credentials for one Constellation hub.
 class ConstellationCredentials {
   final Uri hubBaseUrl;
@@ -257,6 +269,11 @@ class ConstellationService {
   /// geometry/order mismatch is collected into the outcome rather than aborting
   /// the whole batch, so one stray tile cannot block a good contribution.
   ///
+  /// [privacy] selects what leaves the device. Only [ConstellationPrivacy.sums]
+  /// is implemented; [ConstellationPrivacy.subs] (raw subframe upload) has no
+  /// export/push path yet, so it is refused here rather than silently shipping
+  /// sums under a SUBS consent — see [ConstellationPrivacy].
+  ///
   /// [since] defaults to the epoch (contribute the full accumulated tile).
   Future<ContributionOutcome> contributeTarget(
     int targetId, {
@@ -264,7 +281,15 @@ class ConstellationService {
     double radiusDeg = 1.5,
     String? instrumentFingerprint,
     String? solver,
+    ConstellationPrivacy privacy = ConstellationPrivacy.sums,
   }) async {
+    if (privacy == ConstellationPrivacy.subs) {
+      throw const ConstellationException(
+        'Sharing raw subframes is not available yet — only additive co-add '
+        'sums can be contributed. Choose "Share co-add sums" instead.',
+        kind: ConstellationErrorKind.conflict,
+      );
+    }
     final joined = _joined[targetId];
     final client = await _requireClient();
     final accepted = <int, ContributionReceipt>{};

@@ -389,6 +389,7 @@ List<String> availableHeadlessEndpoints() {
     'POST /api/firstlight/<id>/dismiss',
     // Sky atlas (Pillar A — "Your Sky")
     'GET /api/atlas/regions',
+    'GET /api/atlas/coverage',
     'GET /api/atlas/region/<id>',
     'GET /api/atlas/region/<id>/cutout',
     'GET /api/atlas/region/<id>/timeline',
