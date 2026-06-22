@@ -1,9 +1,8 @@
-import 'dart:math' as math;
 import '../models/sequence/sequence_models.dart';
 import '../models/imaging/imaging_models.dart' show FrameType;
 import 'package:uuid/uuid.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart'
-    show AstronomyCalculations;
+    show AstronomyCalculations, mosaicPanelCenters;
 
 /// Result of mosaic panel generation
 class MosaicPanel {
@@ -217,14 +216,6 @@ class MosaicValidation {
 class MosaicService {
   const MosaicService();
 
-  double _normalizeRaHours(double raHours) {
-    var normalized = raHours % 24.0;
-    if (normalized < 0) {
-      normalized += 24.0;
-    }
-    return normalized;
-  }
-
   /// Convert int binning to BinningMode enum
   BinningMode _intToBinningMode(int binning) {
     switch (binning) {
@@ -246,81 +237,38 @@ class MosaicService {
   /// Returns a list of panel coordinates calculated using pure Dart spherical geometry.
   /// This implementation is driver-agnostic and works for both local and remote clients.
   List<MosaicPanel> generatePanels(MosaicConfig config) {
-    final panels = <MosaicPanel>[];
-
-    // Calculate effective step sizes accounting for overlap
+    // Calculate effective step sizes accounting for overlap, converting the
+    // panel dimensions from arcminutes to degrees on the sky.
     final overlapFactor = 1.0 - (config.overlapPercent / 100.0);
-    final effectiveWidthArcmin = config.panelWidthArcmin * overlapFactor;
-    final effectiveHeightArcmin = config.panelHeightArcmin * overlapFactor;
+    final stepRaDeg = config.panelWidthArcmin * overlapFactor / 60.0;
+    final stepDecDeg = config.panelHeightArcmin * overlapFactor / 60.0;
 
-    // Convert arcmin to degrees for calculations
-    final stepDecDeg = effectiveHeightArcmin / 60.0;
-    final stepRaDeg = effectiveWidthArcmin / 60.0;
+    // Delegate the panel-center/overlap/rotation/cos(dec) math to the shared,
+    // canonical [mosaicPanelCenters] implementation (in nightshade_planetarium)
+    // so the imaging-side layout and the planetarium preview stay identical —
+    // one source of truth for panel geometry.
+    final centers = mosaicPanelCenters(
+      centerRaHours: config.centerRa,
+      centerDecDegrees: config.centerDec,
+      stepRaDegrees: stepRaDeg,
+      stepDecDegrees: stepDecDeg,
+      columns: config.panelsHorizontal,
+      rows: config.panelsVertical,
+      rotationDegrees: config.rotation,
+    );
 
-    // Calculate center offsets (for centering the grid on the target)
-    final halfHorizontal = (config.panelsHorizontal - 1) / 2.0;
-    final halfVertical = (config.panelsVertical - 1) / 2.0;
-
-    // Pre-calculate rotation if needed
-    final rotationRad = config.rotation * 3.141592653589793 / 180.0;
-    final cosRot = rotationRad == 0 ? 1.0 : _cos(rotationRad);
-    final sinRot = rotationRad == 0 ? 0.0 : _sin(rotationRad);
-
-    // RA compression factor at target declination (cos(dec) correction)
-    final decRad = config.centerDec * 3.141592653589793 / 180.0;
-    final raCompressionFactor = _cos(decRad);
-
-    int panelIndex = 0;
-    for (int row = 0; row < config.panelsVertical; row++) {
-      for (int col = 0; col < config.panelsHorizontal; col++) {
-        // Calculate offset from center in grid coordinates
-        final colOffset = col - halfHorizontal;
-        final rowOffset = row - halfVertical;
-
-        // Apply rotation to get delta in degrees
-        double dRaDeg, dDecDeg;
-        if (config.rotation != 0) {
-          // Rotate the offset
-          dRaDeg =
-              colOffset * stepRaDeg * cosRot - rowOffset * stepDecDeg * sinRot;
-          dDecDeg =
-              colOffset * stepRaDeg * sinRot + rowOffset * stepDecDeg * cosRot;
-        } else {
-          dRaDeg = colOffset * stepRaDeg;
-          dDecDeg = rowOffset * stepDecDeg;
-        }
-
-        // Apply RA compression correction (RA spans more degrees near poles)
-        final raAdjustDeg = raCompressionFactor > 0.001
-            ? dRaDeg / raCompressionFactor
-            : dRaDeg;
-
-        // Convert RA offset from degrees to hours (15 degrees = 1 hour)
-        final raHours = _normalizeRaHours(
-          config.centerRa + (raAdjustDeg / 15.0),
-        );
-        final decDegrees = config.centerDec + dDecDeg;
-
-        panels.add(
-          MosaicPanel(
-            raHours: raHours,
-            decDegrees: decDegrees,
-            panelIndex: panelIndex++,
-            row: row,
-            col: col,
+    return centers
+        .map(
+          (c) => MosaicPanel(
+            raHours: c.raHours,
+            decDegrees: c.decDegrees,
+            panelIndex: c.index,
+            row: c.row,
+            col: c.col,
           ),
-        );
-      }
-    }
-
-    return panels;
+        )
+        .toList();
   }
-
-  /// Cosine using dart:math for accuracy
-  double _cos(double radians) => math.cos(radians);
-
-  /// Sine using dart:math for accuracy
-  double _sin(double radians) => math.sin(radians);
 
   /// Calculate total mosaic area in square degrees (pure Dart implementation)
   double calculateMosaicArea(MosaicConfig config) {

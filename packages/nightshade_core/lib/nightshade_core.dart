@@ -611,6 +611,7 @@ export 'src/database/daos/calibration_tags_dao.dart';
 export 'src/services/disk_space_service.dart';
 export 'src/services/disk_space_guard.dart';
 export 'src/services/safe_rig_service.dart';
+export 'src/services/safety_config_service.dart';
 
 // Utilities
 export 'src/utils/coordinate_parser.dart';

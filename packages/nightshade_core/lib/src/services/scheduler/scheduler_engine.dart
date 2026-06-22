@@ -953,41 +953,8 @@ class SchedulerEngine {
     return hoursToSet;
   }
 
-  double _localSiderealTime(DateTime time) {
-    final utc = time.toUtc();
-    int y = utc.year;
-    int m = utc.month;
-    final d =
-        utc.day + utc.hour / 24.0 + utc.minute / 1440.0 + utc.second / 86400.0;
-    if (m <= 2) {
-      y -= 1;
-      m += 12;
-    }
-    final a = (y / 100).floor();
-    final b = 2 - a + (a / 4).floor();
-    final jd =
-        (365.25 * (y + 4716)).floor() +
-        (30.6001 * (m + 1)).floor() +
-        d +
-        b -
-        1524.5;
-    final t = (jd - 2451545.0) / 36525.0;
-    var gmst =
-        280.46061837 +
-        360.98564736629 * (jd - 2451545.0) +
-        0.000387933 * t * t -
-        t * t * t / 38710000.0;
-    gmst = gmst % 360.0;
-    if (gmst < 0) gmst += 360.0;
-    var lst = gmst / 15.0 + _site.longitudeDegrees / 15.0;
-    while (lst < 0) {
-      lst += 24.0;
-    }
-    while (lst >= 24) {
-      lst -= 24.0;
-    }
-    return lst;
-  }
+  double _localSiderealTime(DateTime time) =>
+      SkyCalculations.localSiderealTimeHours(time, _site.longitudeDegrees);
 
   /// Filter coverage factor: fraction of total goal frames still needed,
   /// gated by whether the equipment wheel can produce those filters.

@@ -7,7 +7,9 @@ import '../models/sequence/sequence_models.dart' show ConditionsScoreWeights;
 import '../services/scheduler/sky_calculations.dart';
 import '../services/adaptive_swap_service.dart';
 import '../services/safe_rig_service.dart';
+import '../services/safety_config_service.dart';
 import '../services/weather/weather_threshold_evaluator.dart';
+import 'database_provider.dart';
 import 'imaging_provider.dart';
 import 'science_provider.dart';
 import 'weather_providers.dart';
@@ -988,4 +990,14 @@ final weatherSafetyProvider =
 final isWeatherSafeProvider = Provider<bool>((ref) {
   final safety = ref.watch(weatherSafetyProvider);
   return safety.isSafe;
+});
+
+/// The single read/write path for the consolidated [SafetyConfig].
+///
+/// Consolidation (Phase 2, 2026-06-22): the one logical safety config used to
+/// be split across `weatherSettingsDao`, `appSettings`, and `settingsDao`.
+/// [SafetyConfigStore] owns the field→store routing so callers no longer fan
+/// writes across stores themselves. See [SafetyConfigStore] for the field map.
+final safetyConfigStoreProvider = Provider<SafetyConfigStore>((ref) {
+  return SafetyConfigStore(ref.watch(databaseProvider));
 });

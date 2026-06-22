@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import '../coordinate_system.dart';
 import '../astronomy/astronomy_calculations.dart';
+import 'mosaic_geometry.dart';
 
 /// Mosaic overlap configuration
 class MosaicOverlap {
@@ -285,21 +286,17 @@ class MosaicPlan {
 
 /// Mosaic planner service
 class MosaicPlanner {
-  static double _normalizeRaHours(double ra) {
-    final normalized = ra % 24.0;
-    return normalized < 0 ? normalized + 24.0 : normalized;
-  }
+  // Panel-center geometry is delegated to the shared [mosaicPanelCenters]
+  // implementation in mosaic_geometry.dart so the planetarium preview and the
+  // imaging-side MosaicService share one source of truth for panel layout.
+  // These two helpers stay as thin forwarders because the corner-projection
+  // math in [PlanetariumMosaicPanel.corners] still references them.
+  static double _normalizeRaHours(double ra) => normalizeRaHours(ra);
 
   static double _raOffsetHoursFromDegrees(
     double eastOffsetDegrees,
     double decDegrees,
-  ) {
-    final cosDec = math.cos(decDegrees * math.pi / 180.0);
-    if (cosDec.abs() < 1e-6) {
-      return 0.0;
-    }
-    return eastOffsetDegrees / 15.0 / cosDec;
-  }
+  ) => raOffsetHoursFromDegrees(eastOffsetDegrees, decDegrees);
 
   /// Calculate required number of panels to cover an area
   static (int rows, int cols) calculatePanelCount({
@@ -342,50 +339,38 @@ class MosaicPlanner {
     final effectiveWidth = config.panelFovWidth + (cols - 1) * stepWidth;
     final effectiveHeight = config.panelFovHeight + (rows - 1) * stepHeight;
 
-    // Starting offset from center
-    final startOffsetX = -effectiveWidth / 2 + config.panelFovWidth / 2;
-    final startOffsetY = -effectiveHeight / 2 + config.panelFovHeight / 2;
+    // Delegate the panel-center/overlap math to the shared, canonical
+    // [mosaicPanelCenters] implementation so the preview and the imaging-side
+    // MosaicService produce identical layouts. The grid step here is the
+    // overlap-reduced spacing (stepWidth/stepHeight, in degrees on the sky);
+    // dec is clamped to [-90, 90] afterward as the preview has always done.
+    final centers = mosaicPanelCenters(
+      centerRaHours: config.center.ra,
+      centerDecDegrees: config.center.dec,
+      stepRaDegrees: stepWidth,
+      stepDecDegrees: stepHeight,
+      columns: cols,
+      rows: rows,
+      rotationDegrees: config.rotation,
+    );
 
-    // Generate panels
-    final panels = <PlanetariumMosaicPanel>[];
-    var index = 0;
-
-    for (var row = 0; row < rows; row++) {
-      for (var col = 0; col < cols; col++) {
-        // Calculate panel center offset from mosaic center
-        final offsetX = startOffsetX + col * stepWidth;
-        final offsetY = startOffsetY + row * stepHeight;
-
-        // Apply rotation
-        final rotRad = config.rotation * math.pi / 180;
-        final rotX = offsetX * math.cos(rotRad) - offsetY * math.sin(rotRad);
-        final rotY = offsetX * math.sin(rotRad) + offsetY * math.cos(rotRad);
-
-        // Convert offset to RA/Dec (accounting for cos(dec) factor)
-        final dRa = _raOffsetHoursFromDegrees(rotX, config.center.dec);
-        final dDec = rotY;
-
-        // Calculate panel center
-        final panelRa = _normalizeRaHours(config.center.ra + dRa);
-
-        final panelDec = (config.center.dec + dDec).clamp(-90.0, 90.0);
-
-        panels.add(
-          PlanetariumMosaicPanel(
-            index: index,
-            row: row,
-            column: col,
-            center: CelestialCoordinate(ra: panelRa, dec: panelDec),
+    final panels = centers
+        .map(
+          (c) => PlanetariumMosaicPanel(
+            index: c.index,
+            row: c.row,
+            column: c.col,
+            center: CelestialCoordinate(
+              ra: c.raHours,
+              dec: c.decDegrees.clamp(-90.0, 90.0),
+            ),
             rotation: config.rotation,
             fovWidth: config.panelFovWidth,
             fovHeight: config.panelFovHeight,
-            priority: row * cols + col,
+            priority: c.row * cols + c.col,
           ),
-        );
-
-        index++;
-      }
-    }
+        )
+        .toList();
 
     final plan = MosaicPlan(
       config: config,

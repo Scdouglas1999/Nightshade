@@ -11,6 +11,7 @@ import '../models/meridian_flip_event.dart';
 import '../models/sequence/sequence_models.dart' show SequenceExecutionState;
 import '../services/logging_service.dart';
 import '../services/notification_service.dart';
+import '../services/scheduler/sky_calculations.dart';
 import 'backend_provider.dart';
 import 'database_provider.dart';
 import 'equipment_provider.dart'
@@ -372,65 +373,19 @@ final isMeridianFlipEnabledProvider = Provider<bool>((ref) {
 /// Compute Local Sidereal Time (hours) for the given UTC instant and observer
 /// longitude (degrees, east positive).
 ///
-/// Why: nightshade_core is the wrong place for a heavy planetarium dep, and
-/// the scheduler engine already uses an identical inline computation. Lifting
-/// it to a shared helper would be a larger refactor; duplicating the proven
-/// formula here keeps the change local. See
-/// `scheduler_engine.dart:_localSiderealTime` — the algorithm is the same.
-double computeLocalSiderealTimeHours(DateTime utc, double longitudeDeg) {
-  final t = utc.toUtc();
-  int y = t.year;
-  int m = t.month;
-  final d =
-      t.day +
-      t.hour / 24.0 +
-      t.minute / 1440.0 +
-      t.second / 86400.0 +
-      t.millisecond / 86400000.0;
-  if (m <= 2) {
-    y -= 1;
-    m += 12;
-  }
-  final a = (y / 100).floor();
-  final b = 2 - a + (a / 4).floor();
-  final jd =
-      (365.25 * (y + 4716)).floor() +
-      (30.6001 * (m + 1)).floor() +
-      d +
-      b -
-      1524.5;
-  final tt = (jd - 2451545.0) / 36525.0;
-  var gmst =
-      280.46061837 +
-      360.98564736629 * (jd - 2451545.0) +
-      0.000387933 * tt * tt -
-      tt * tt * tt / 38710000.0;
-  gmst = gmst % 360.0;
-  if (gmst < 0) gmst += 360.0;
-  var lst = gmst / 15.0 + longitudeDeg / 15.0;
-  while (lst < 0) {
-    lst += 24.0;
-  }
-  while (lst >= 24.0) {
-    lst -= 24.0;
-  }
-  return lst;
-}
+/// Thin alias over [SkyCalculations.localSiderealTimeHours] — the single
+/// shared LST implementation also used by the dynamic scheduler engine. Kept
+/// as a free function because `meridian_countdown_provider.dart` imports it by
+/// this name; the math now lives in one place.
+double computeLocalSiderealTimeHours(DateTime utc, double longitudeDeg) =>
+    SkyCalculations.localSiderealTimeHours(utc, longitudeDeg);
 
 /// Compute the mount's hour angle in hours, normalized to (-12, +12].
 ///
 /// HA = LST - RA, where positive HA means the target is west of the meridian
-/// (i.e., already crossed).
-double computeHourAngleHours(double raHours, double lstHours) {
-  var ha = lstHours - raHours;
-  while (ha > 12.0) {
-    ha -= 24.0;
-  }
-  while (ha <= -12.0) {
-    ha += 24.0;
-  }
-  return ha;
-}
+/// (i.e., already crossed). Thin alias over [SkyCalculations.hourAngleHours].
+double computeHourAngleHours(double raHours, double lstHours) =>
+    SkyCalculations.hourAngleHours(raHours, lstHours);
 
 /// Result of a standalone-monitor poll, exposed so tests can validate the
 /// decision logic without faking timers.
