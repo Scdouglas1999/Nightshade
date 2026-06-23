@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
 import '../backend/network_backend.dart';
+import '../database/daos/living_sky_retention_dao.dart';
 import '../database/daos/transient_detections_dao.dart';
 import '../database/database.dart';
 import '../services/logging_service.dart';
@@ -21,6 +22,12 @@ import 'backend_provider.dart';
 /// reactive newest-first feed the transient gallery and the Narrator's transient
 /// surface render, scoped to a session.
 
+/// Bound on the reactive First Light feeds: the most-recent N detections,
+/// newest-first. Large enough that the visible recent set is unchanged across a
+/// normal session, small enough that a multi-season log never has to be fully
+/// sorted on every DB tick. Deeper history pages via the REST `offset`.
+const int kFirstLightFeedLimit = 200;
+
 /// The First Light scan service.
 final firstLightServiceProvider = Provider<FirstLightService>((ref) {
   return FirstLightService(
@@ -31,6 +38,7 @@ final firstLightServiceProvider = Provider<FirstLightService>((ref) {
     ),
     logger: ref.watch(loggingServiceProvider),
     atlasRootResolver: defaultAtlasRoot,
+    retention: ref.watch(livingSkyRetentionDaoProvider),
   );
 });
 
@@ -57,10 +65,15 @@ final transientDetectionsProvider =
     });
 
 /// Reactive newest-first transient detections across all sessions — backs the
-/// standalone gallery and the export hub's candidate snapshot.
+/// standalone gallery and the export hub's candidate snapshot. Bounded to the
+/// most-recent [kFirstLightFeedLimit] so the feed is an index range over
+/// `idx_transient_detections_detected`, not a full sort of a multi-season log;
+/// the visible recent set is unchanged.
 final allTransientDetectionsProvider =
     StreamProvider<List<TransientDetectionRow>>((ref) {
-      return ref.watch(transientDetectionsDaoProvider).watchAllDetections();
+      return ref
+          .watch(transientDetectionsDaoProvider)
+          .watchRecentDetections(limit: kFirstLightFeedLimit);
     });
 
 /// Reconstruct a [TransientDetectionRow] from the wire JSON the appliance's
@@ -109,7 +122,9 @@ final firstLightCandidatesProvider =
           () => backend.getFirstLightCandidates(),
         );
       }
-      return ref.watch(transientDetectionsDaoProvider).watchAllDetections();
+      return ref
+          .watch(transientDetectionsDaoProvider)
+          .watchRecentDetections(limit: kFirstLightFeedLimit);
     });
 
 /// REST snapshot stream for the remote First Light feed: fetch once, then

@@ -542,4 +542,116 @@ void main() {
       );
     },
   );
+
+  test(
+    'coverageFromIndex equals the native scan but opens no sidecars',
+    () async {
+      // Two folded tiles with distinct depth so the deepest-first ordering and
+      // the per-tile scalars are both exercised. The fold mirrors the same
+      // scalars the native scan would read back from the `.nst` sidecars into
+      // the SkyTiles index row, so the indexed read must match scalar-for-scalar.
+      seam.onDispatch = (args) {
+        // The fold of /tmp/light_001.fits hits tile 42 (the frame() WCS);
+        // build a deterministic two-tile result so both rows are indexed.
+        return {
+          'ok': true,
+          'tilesTouched': [42, 7],
+          'foldsByTile': [
+            {
+              'tileId': 42,
+              'framesAdded': 3,
+              'weightAdded': 3.0,
+              'rejected': 0,
+              'coverageMean': 0.85,
+              'centerRa': 83.6,
+              'centerDec': -5.39,
+              'totalFrames': 3,
+              'integrationSeconds': 900.0,
+              'channels': 1,
+            },
+            {
+              'tileId': 7,
+              'framesAdded': 1,
+              'weightAdded': 1.0,
+              'rejected': 0,
+              'coverageMean': 0.4,
+              'centerRa': 10.0,
+              'centerDec': 41.0,
+              'totalFrames': 1,
+              'integrationSeconds': 300.0,
+              'channels': 3,
+            },
+          ],
+          'framesSkippedNoCoverage': 0,
+        };
+      };
+
+      await service.foldSession(
+        sessionId: 7,
+        frames: [frame()],
+        label: '2026-06-21',
+      );
+
+      // The native scan path (the prior behaviour) returns the same per-tile
+      // scalars the fold persisted; model it as a coverage dispatch so we can
+      // compare the indexed read against the scan-derived value.
+      seam.onDispatch = (args) {
+        expect(
+          args['action'],
+          'coverage',
+          reason: 'only the native coverage scan should dispatch here',
+        );
+        return {
+          'ok': true,
+          'tiles': [
+            {
+              'tileId': 42,
+              'centerRa': 83.6,
+              'centerDec': -5.39,
+              'coverageMean': 0.85,
+              'totalFrames': 3,
+              'integrationSeconds': 900.0,
+              'channels': 1,
+              'lastFoldIso': '2026-06-21',
+            },
+            {
+              'tileId': 7,
+              'centerRa': 10.0,
+              'centerDec': 41.0,
+              'coverageMean': 0.4,
+              'totalFrames': 1,
+              'integrationSeconds': 300.0,
+              'channels': 3,
+              'lastFoldIso': '2026-06-21',
+            },
+          ],
+        };
+      };
+      final scanned = await service.coverage();
+      final dispatchesAfterScan = seam.dispatched.length;
+
+      // The indexed read must open NO sidecars: it never touches the seam.
+      final indexed = await service.coverageFromIndex();
+      expect(
+        seam.dispatched.length,
+        dispatchesAfterScan,
+        reason: 'coverageFromIndex issues no native dispatch (no sidecar open)',
+      );
+
+      // Same row count + same deepest-first ordering (tile 42 then 7).
+      expect(indexed.map((t) => t.tileId).toList(), [42, 7]);
+      expect(scanned.map((t) => t.tileId).toList(), [42, 7]);
+
+      // Same scalars the heat overlay / contribution bar read, per tile.
+      for (var i = 0; i < scanned.length; i++) {
+        expect(indexed[i].tileId, scanned[i].tileId);
+        expect(indexed[i].centerRaDeg, scanned[i].centerRaDeg);
+        expect(indexed[i].centerDecDeg, scanned[i].centerDecDeg);
+        expect(indexed[i].coverageMean, scanned[i].coverageMean);
+        expect(indexed[i].totalFrames, scanned[i].totalFrames);
+        expect(indexed[i].integrationSeconds, scanned[i].integrationSeconds);
+        expect(indexed[i].channels, scanned[i].channels);
+      }
+    },
+  );
 }

@@ -25,9 +25,13 @@
 // deferred to the dedicated Drift table when that lands. Privacy default: SUMS.
 
 import 'dart:async';
-import 'dart:math' as math;
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
 
 import '../../database/daos/constellation_contributions_dao.dart';
+import '../../database/daos/living_sky_retention_dao.dart';
+import '../../database/tables/living_sky_retention.dart';
 import '../logging_service.dart';
 import '../sky_atlas/sky_atlas_models.dart';
 import '../sky_atlas/sky_atlas_service.dart';
@@ -127,6 +131,7 @@ class ConstellationService {
     Function()
     localTargetsResolver,
     ConstellationContributionsDao? contributionsDao,
+    LivingSkyRetentionDao? retentionDao,
     ConstellationClientFactory? clientFactory,
     SharedTargetBrowser? browser,
     RawSubframeResolver? rawSubframeResolver,
@@ -136,6 +141,7 @@ class ConstellationService {
        _credentialsResolver = credentialsResolver,
        _localTargetsResolver = localTargetsResolver,
        _contributions = contributionsDao,
+       _retention = retentionDao,
        _clientFactory = clientFactory ?? _defaultClientFactory,
        _browser = browser ?? _defaultBrowser,
        _rawSubframeResolver = rawSubframeResolver,
@@ -157,6 +163,11 @@ class ConstellationService {
   /// idempotency). Null only in legacy/test wirings that predate the table; the
   /// service degrades to the old whole-tile/epoch behaviour when absent.
   final ConstellationContributionsDao? _contributions;
+
+  /// Per-pillar retention bookkeeping for the swarm-blob sweep ([sweepSwarmBlobs]).
+  /// Null in legacy/test wirings that predate the table; the sweep then still
+  /// reclaims disk but skips the durable high-water marker.
+  final LivingSkyRetentionDao? _retention;
   final ConstellationClientFactory _clientFactory;
   final SharedTargetBrowser _browser;
 
@@ -169,6 +180,12 @@ class ConstellationService {
   /// Cap on how many raw subframes one [contributeRawSubs] call will upload, so
   /// a deep target cannot accidentally fire thousands of large FITS pushes.
   static const int _maxRawSubframesPerContribute = 200;
+
+  /// Default age a cached swarm `.nst`/`.fits` blob may reach before
+  /// [sweepSwarmBlobs] reclaims it. A blob older than this that is not the live
+  /// overlay for a currently-pulled tile is stale working set, safe to delete
+  /// (a later pull re-fetches it).
+  static const Duration _defaultSwarmBlobMaxAge = Duration(days: 14);
 
   static const _logSource = 'ConstellationService';
 
@@ -991,24 +1008,21 @@ class ConstellationService {
   }
 
   /// Local atlas tiles whose centre falls within [radiusDeg] of the cone centre.
+  ///
+  /// Delegates to [SkyAtlasService.tilesInCone], which prefilters on the indexed
+  /// Dec band (`idx_sky_tiles_dec`) before the exact great-circle test, so a
+  /// Contribute/Pull cone read costs scale with the cone — not the whole atlas
+  /// — instead of materializing every tile ever imaged and filtering in Dart.
   Future<List<AtlasTileCoverage>> _localTilesInCone({
     required double centerRaDeg,
     required double centerDecDeg,
     required double radiusDeg,
-  }) async {
-    final coverage = await _atlas.coverage();
-    return coverage
-        .where(
-          (t) =>
-              _angularSeparationDeg(
-                centerRaDeg,
-                centerDecDeg,
-                t.centerRaDeg,
-                t.centerDecDeg,
-              ) <=
-              radiusDeg,
-        )
-        .toList(growable: false);
+  }) {
+    return _atlas.tilesInCone(
+      centerRaDeg: centerRaDeg,
+      centerDecDeg: centerDecDeg,
+      radiusDeg: radiusDeg,
+    );
   }
 
   Future<List<int>> _localTileIdsInCone({
@@ -1029,23 +1043,119 @@ class ConstellationService {
     return '$root/swarm/$_order';
   }
 
-  /// Great-circle separation (deg) via the haversine formula — robust at small
-  /// angles where the spherical law of cosines loses precision.
-  static double _angularSeparationDeg(
-    double ra1Deg,
-    double dec1Deg,
-    double ra2Deg,
-    double dec2Deg,
-  ) {
-    const deg2rad = math.pi / 180.0;
-    final dRa = (ra2Deg - ra1Deg) * deg2rad;
-    final dDec = (dec2Deg - dec1Deg) * deg2rad;
-    final lat1 = dec1Deg * deg2rad;
-    final lat2 = dec2Deg * deg2rad;
-    final a =
-        math.sin(dDec / 2) * math.sin(dDec / 2) +
-        math.cos(lat1) * math.cos(lat2) * math.sin(dRa / 2) * math.sin(dRa / 2);
-    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
-    return c / deg2rad;
+  // --- Retention ----------------------------------------------------------
+
+  /// Reclaim accumulated swarm `.nst`/`.fits` pull/delta blobs under the atlas
+  /// `swarm/<order>/` tree, bounded by age (and optionally total bytes).
+  ///
+  /// Pull caches one community blob per tile and never reclaimed them, so a
+  /// season of follow-the-night browsing slowly fills the same disk as capture
+  /// storage on a constrained appliance. This sweep, run off the existing
+  /// maintenance schedule, deletes blobs older than [maxAge] (default
+  /// [_defaultSwarmBlobMaxAge]); when [maxBytes] is set and the directory still
+  /// exceeds it, the oldest remaining blobs are evicted (LRU by mtime) until it
+  /// fits.
+  ///
+  /// SAFETY: the `localPath` of every tile currently in the in-memory pulled
+  /// overlay ([swarmTiles]) is NEVER deleted regardless of age/space — the live
+  /// overlay that "Your Sky" blends from always survives a sweep. Behaviour is
+  /// otherwise additive: a deleted blob is transparently re-fetched on the next
+  /// pull of that tile.
+  ///
+  /// Progress is recorded against [LivingSkyRetentionScope.swarmBlobs] (sweep
+  /// wall-clock + running reclaimed-file tally) so the marker is durable and the
+  /// next pass resumes cheaply. Returns the number of blobs deleted.
+  Future<int> sweepSwarmBlobs({
+    Duration maxAge = _defaultSwarmBlobMaxAge,
+    int? maxBytes,
+  }) async {
+    final dir = Directory(await _swarmDir());
+    if (!dir.existsSync()) {
+      return 0;
+    }
+
+    // The live overlay set: blobs backing a currently-pulled tile must survive.
+    final live = <String>{
+      for (final tile in _swarm.values) p.normalize(tile.localPath),
+    };
+
+    final now = DateTime.now();
+    final cutoff = now.subtract(maxAge);
+
+    // Snapshot the swarm blobs (skip the live overlay outright) with their mtime
+    // and size, so age + LRU eviction share one stat pass.
+    final blobs = <({File file, DateTime modified, int size})>[];
+    await for (final entity in dir.list(followLinks: false)) {
+      if (entity is! File) continue;
+      final ext = p.extension(entity.path).toLowerCase();
+      if (ext != '.nst' && ext != '.fits') continue;
+      if (live.contains(p.normalize(entity.path))) continue;
+      final stat = entity.statSync();
+      blobs.add((file: entity, modified: stat.modified, size: stat.size));
+    }
+
+    var deleted = 0;
+    var reclaimedBytes = 0;
+    final survivors = <({File file, DateTime modified, int size})>[];
+
+    // Age pass: anything past the cutoff goes now.
+    for (final blob in blobs) {
+      if (blob.modified.isBefore(cutoff)) {
+        if (await _deleteSwarmBlob(blob.file)) {
+          deleted++;
+          reclaimedBytes += blob.size;
+        }
+      } else {
+        survivors.add(blob);
+      }
+    }
+
+    // Space pass: if a byte budget is set and the survivors still overflow it,
+    // evict oldest-first (LRU by mtime) until the working set fits.
+    if (maxBytes != null) {
+      var remainingBytes = survivors.fold<int>(0, (s, b) => s + b.size);
+      if (remainingBytes > maxBytes) {
+        survivors.sort((a, b) => a.modified.compareTo(b.modified));
+        for (final blob in survivors) {
+          if (remainingBytes <= maxBytes) break;
+          if (await _deleteSwarmBlob(blob.file)) {
+            deleted++;
+            reclaimedBytes += blob.size;
+            remainingBytes -= blob.size;
+          }
+        }
+      }
+    }
+
+    if (_retention != null) {
+      await _retention.recordPrune(
+        LivingSkyRetentionScope.swarmBlobs,
+        lastPrunedAt: now,
+        reclaimed: deleted,
+        note: 'reclaimedBytes=$reclaimedBytes',
+      );
+    }
+
+    _logger.info(
+      'sweepSwarmBlobs: reclaimed $deleted swarm blob(s) '
+      '($reclaimedBytes bytes); ${live.length} live overlay(s) preserved.',
+      source: _logSource,
+    );
+    return deleted;
+  }
+
+  /// Delete one swarm blob, swallowing a race where it vanished mid-sweep so one
+  /// unlucky file cannot sink the whole pass. Returns whether it was removed.
+  Future<bool> _deleteSwarmBlob(File file) async {
+    try {
+      await file.delete();
+      return true;
+    } on FileSystemException catch (e) {
+      _logger.warning(
+        'sweepSwarmBlobs: could not delete ${file.path}: ${e.message}',
+        source: _logSource,
+      );
+      return false;
+    }
   }
 }

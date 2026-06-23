@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../database/daos/constellation_contributions_dao.dart';
+import '../database/daos/living_sky_retention_dao.dart';
 import '../database/daos/settings_dao.dart';
 import '../services/constellation/constellation_models.dart';
 import '../services/constellation/constellation_service.dart';
@@ -44,6 +45,7 @@ final constellationServiceProvider = Provider<ConstellationService>((ref) {
     atlas: ref.watch(skyAtlasServiceProvider),
     logger: ref.watch(loggingServiceProvider),
     contributionsDao: ref.watch(constellationContributionsDaoProvider),
+    retentionDao: ref.watch(livingSkyRetentionDaoProvider),
     credentialsResolver: () => resolveConstellationCredentials(settings),
     // HOST-ONLY raw-subframe resolver: the user's own accepted LIGHT frames for
     // the target. Reads the LOCAL images table directly (never the remote-aware

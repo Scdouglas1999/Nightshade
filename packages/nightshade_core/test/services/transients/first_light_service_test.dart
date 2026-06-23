@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -91,6 +92,7 @@ void main() {
     required Map<String, dynamic> diffResult,
     List<PhotometricCatalogStar> stars = const [],
     bool catalogThrows = false,
+    LivingSkyRetentionDao? retention,
   }) {
     return FirstLightService(
       dao: dao,
@@ -98,6 +100,7 @@ void main() {
       catalog: _FakeCatalogMatcher(stars, throwError: catalogThrows),
       logger: LoggingService(),
       atlasRootResolver: () async => '/tmp/test_atlas',
+      retention: retention,
     );
   }
 
@@ -237,6 +240,125 @@ void main() {
     // A new scan of the same residual is suppressed.
     final second = await service.scanFrame(framePath: '/tmp/b.fits', wcs: _wcs);
     expect(second, isEmpty);
+  });
+
+  test(
+    'dismissed-suppression is scoped to the tiles a frame covers (index seek)',
+    () async {
+      // Dismiss a residual on tile 42.
+      final service = build(
+        diffResult: {
+          'ok': true,
+          'candidates': [_candidateJson(tileId: 42)],
+          'tilesChecked': [42],
+        },
+      );
+      final first = await service.scanFrame(
+        framePath: '/tmp/a.fits',
+        wcs: _wcs,
+      );
+      await service.markReviewed(first.single.id, dismissed: true);
+
+      // A frame that only produces a residual on a *different* tile (7) must
+      // not be suppressed by tile-42's dismissal — the suppression read is
+      // scoped to the covered tiles, not the all-time dismissed set. The
+      // dismissed signature is index-seeked by (dismissed, tile_id); seeking
+      // tile 7 returns nothing, so the new residual survives.
+      final other = build(
+        diffResult: {
+          'ok': true,
+          'candidates': [_candidateJson(tileId: 7)],
+          'tilesChecked': [7],
+        },
+      );
+      final survived = await other.scanFrame(
+        framePath: '/tmp/c.fits',
+        wcs: _wcs,
+      );
+      expect(survived, hasLength(1));
+      expect(survived.single.tileId, 7);
+
+      // Sanity: the index-backed scoped read returns the dismissed row for its
+      // own tile, and empty for an unrelated/empty tile set.
+      expect(await dao.dismissedDetectionsForTiles(const [42]), hasLength(1));
+      expect(await dao.dismissedDetectionsForTiles(const [7]), isEmpty);
+      expect(await dao.dismissedDetectionsForTiles(const []), isEmpty);
+    },
+  );
+
+  test('pruneOldDetections ages out dismissed history, keeps reviewed/'
+      'confirmed/unreviewed, and records the retention marker', () async {
+    final retention = LivingSkyRetentionDao(db);
+    final service = build(
+      diffResult: {'ok': true, 'candidates': const []},
+      retention: retention,
+    );
+
+    final old = DateTime.utc(2025, 1, 1);
+    // 1) Old dismissed artefact — reclaimable.
+    final dismissedId = await dao.insertDetection(
+      TransientDetectionsCompanion.insert(
+        tileId: 42,
+        raDeg: 120.0,
+        decDeg: 25.0,
+        residualFlux: 1500.0,
+        snr: 18.0,
+        fwhm: 2.1,
+        eccentricity: 0.1,
+        kind: 'newSource',
+        confidence: 0.8,
+        detectedAt: Value(old),
+        dismissed: const Value(true),
+        reviewed: const Value(true),
+      ),
+    );
+    // 2) Old confirmed named discovery — must be kept.
+    final confirmedId = await dao.insertDetection(
+      TransientDetectionsCompanion.insert(
+        tileId: 42,
+        raDeg: 121.0,
+        decDeg: 25.0,
+        residualFlux: 1500.0,
+        snr: 18.0,
+        fwhm: 2.1,
+        eccentricity: 0.1,
+        kind: 'newSource',
+        confidence: 0.9,
+        detectedAt: Value(old),
+        reviewed: const Value(true),
+      ),
+    );
+    // 3) Old un-reviewed candidate — must be kept (never silently reclaimed).
+    final unreviewedId = await dao.insertDetection(
+      TransientDetectionsCompanion.insert(
+        tileId: 42,
+        raDeg: 122.0,
+        decDeg: 25.0,
+        residualFlux: 1500.0,
+        snr: 18.0,
+        fwhm: 2.1,
+        eccentricity: 0.1,
+        kind: 'newSource',
+        confidence: 0.7,
+        detectedAt: Value(old),
+      ),
+    );
+
+    final reclaimed = await service.pruneOldDetections(
+      horizon: const Duration(days: 30),
+      now: DateTime.utc(2026, 6, 1),
+    );
+
+    expect(reclaimed, 1);
+    expect(await dao.detectionById(dismissedId), isNull);
+    expect(await dao.detectionById(confirmedId), isNotNull);
+    expect(await dao.detectionById(unreviewedId), isNotNull);
+
+    final marker = await retention.getMarker(
+      LivingSkyRetentionScope.transientDetections,
+    );
+    expect(marker, isNotNull);
+    expect(marker!.prunedCount, 1);
   });
 
   test(

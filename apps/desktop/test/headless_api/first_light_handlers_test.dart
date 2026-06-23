@@ -119,6 +119,86 @@ void main() {
       expect((candidates.single as Map)['sessionId'], 7);
     });
 
+    test(
+      'GET candidates bounds the across-sessions feed to the default limit',
+      () async {
+        // A heavy multi-season log: more rows than one page. The poll must
+        // return only the most-recent page, not the whole all-time history.
+        for (var i = 0; i < 250; i++) {
+          await dao.insertDetection(
+            TransientDetectionsCompanion.insert(
+              tileId: 42,
+              raDeg: 120.0,
+              decDeg: 25.0,
+              residualFlux: 1500.0,
+              snr: 18.0,
+              fwhm: 2.1,
+              eccentricity: 0.1,
+              kind: 'newSource',
+              confidence: 0.8,
+              detectedAt: Value(
+                DateTime.utc(2026, 1, 1).add(Duration(minutes: i)),
+              ),
+            ),
+          );
+        }
+
+        final response = await translateHandlerErrors(
+          handlers.handleGetCandidates(
+            Request(
+              'GET',
+              Uri.parse('http://localhost/api/firstlight/candidates'),
+            ),
+          ),
+        );
+
+        final body = jsonDecode(await response.readAsString()) as Map;
+        final candidates = body['candidates'] as List;
+        // Default page size (200), not all 250 rows.
+        expect(candidates, hasLength(200));
+        expect(body['limit'], 200);
+        expect(body['offset'], 0);
+        // Newest-first: the first row is the latest detectedAt.
+        final firstMs = (candidates.first as Map)['detectedAt'] as int;
+        final lastMs = (candidates.last as Map)['detectedAt'] as int;
+        expect(firstMs, greaterThan(lastMs));
+      },
+    );
+
+    test('GET candidates honours limit + offset paging', () async {
+      for (var i = 0; i < 10; i++) {
+        await dao.insertDetection(
+          TransientDetectionsCompanion.insert(
+            tileId: 42,
+            raDeg: 120.0,
+            decDeg: 25.0,
+            residualFlux: 1500.0,
+            snr: 18.0,
+            fwhm: 2.1,
+            eccentricity: 0.1,
+            kind: 'newSource',
+            confidence: 0.8,
+            detectedAt: Value(DateTime.utc(2026, 1, 1).add(Duration(hours: i))),
+          ),
+        );
+      }
+
+      final page = await translateHandlerErrors(
+        handlers.handleGetCandidates(
+          Request(
+            'GET',
+            Uri.parse(
+              'http://localhost/api/firstlight/candidates?limit=3&offset=3',
+            ),
+          ),
+        ),
+      );
+      final body = jsonDecode(await page.readAsString()) as Map;
+      expect((body['candidates'] as List), hasLength(3));
+      expect(body['limit'], 3);
+      expect(body['offset'], 3);
+    });
+
     test('GET candidates rejects a non-integer sessionId', () async {
       final response = await translateHandlerErrors(
         handlers.handleGetCandidates(

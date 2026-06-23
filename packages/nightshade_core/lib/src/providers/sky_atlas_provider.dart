@@ -66,7 +66,11 @@ final skyAtlasCoverageProvider = StreamProvider<List<AtlasTileCoverage>>((ref) {
       AtlasTileCoverage.fromJson,
     );
   }
-  return Stream.fromFuture(ref.watch(skyAtlasServiceProvider).coverage());
+  // Host coverage poll reads the SkyTiles DB index (same scalars, zero sidecar
+  // I/O) rather than the native full-scan of every `.nst` sidecar.
+  return Stream.fromFuture(
+    ref.watch(skyAtlasServiceProvider).coverageFromIndex(),
+  );
 });
 
 /// Reactive list of persisted atlas regions for the browser. Remote (companion)

@@ -175,18 +175,36 @@ class FirstLightHandlers {
     );
   }
 
-  /// GET `/api/firstlight/candidates?sessionId=` — newest-first transient
-  /// detections. `sessionId` is optional; omit it for the across-sessions feed
-  /// the standalone gallery and the export hub read.
+  /// Default page size for the across-sessions REST feed — the most-recent
+  /// [_defaultCandidateLimit] detections, newest-first. A heavy multi-season run
+  /// can accumulate tens of thousands of rows; the old read returned the whole
+  /// all-time log on every poll. The recent set a client renders is unchanged;
+  /// `offset`/`limit` page deeper on demand.
+  static const int _defaultCandidateLimit = 200;
+  static const int _maxCandidateLimit = 1000;
+
+  /// GET `/api/firstlight/candidates?sessionId=&limit=&offset=` — newest-first
+  /// transient detections. `sessionId` is optional; omit it for the
+  /// across-sessions feed the standalone gallery and the export hub read.
+  ///
+  /// The across-sessions feed is **bounded** to the most-recent `limit`
+  /// (default [_defaultCandidateLimit], capped at [_maxCandidateLimit]) so a
+  /// poll is an index range over `idx_transient_detections_detected`, not a
+  /// full sort of all history. `offset` pages older history on demand. A
+  /// `sessionId` read stays scoped to one session (already bounded in practice).
   Future<Response> handleGetCandidates(Request request) async {
-    final raw = request.url.queryParameters['sessionId'];
+    final params = request.url.queryParameters;
+    final raw = params['sessionId'];
+    final limit = _boundedLimit(params['limit']);
+    final offset = _nonNegativeOffset(params['offset']);
     _logInfo(
-      '[API] GET /api/firstlight/candidates${raw == null ? '' : '?sessionId=$raw'}',
+      '[API] GET /api/firstlight/candidates'
+      '${raw == null ? '' : '?sessionId=$raw'}',
     );
 
     final List<TransientDetectionRow> rows;
     if (raw == null || raw.isEmpty) {
-      rows = await _dao.allDetections();
+      rows = await _dao.recentDetections(limit: limit, offset: offset);
     } else {
       final sessionId = int.tryParse(raw);
       if (sessionId == null) {
@@ -202,7 +220,26 @@ class FirstLightHandlers {
     return jsonOk({
       'candidates': rows.map(_rowToWireJson).toList(),
       'unnamedCount': rows.where((r) => r.catalogMatch == null).length,
+      'limit': limit,
+      'offset': offset,
     });
+  }
+
+  /// Parse + clamp the `limit` query param to `[1, _maxCandidateLimit]`,
+  /// defaulting to [_defaultCandidateLimit] when absent or unparseable.
+  int _boundedLimit(String? raw) {
+    if (raw == null || raw.isEmpty) return _defaultCandidateLimit;
+    final parsed = int.tryParse(raw);
+    if (parsed == null || parsed <= 0) return _defaultCandidateLimit;
+    return parsed > _maxCandidateLimit ? _maxCandidateLimit : parsed;
+  }
+
+  /// Parse the `offset` query param, flooring at 0.
+  int _nonNegativeOffset(String? raw) {
+    if (raw == null || raw.isEmpty) return 0;
+    final parsed = int.tryParse(raw);
+    if (parsed == null || parsed < 0) return 0;
+    return parsed;
   }
 
   /// POST `/api/firstlight/<id>/review` — mark a detection reviewed (confirmed).

@@ -2,8 +2,10 @@ import 'dart:math' as math;
 
 import 'package:drift/drift.dart' show Value;
 
+import '../../database/daos/living_sky_retention_dao.dart';
 import '../../database/daos/transient_detections_dao.dart';
 import '../../database/database.dart';
+import '../../database/tables/living_sky_retention.dart';
 import '../../services/sky_atlas/sky_atlas_models.dart';
 import '../../services/wcs/gnomonic_projection.dart';
 import '../logging_service.dart';
@@ -77,12 +79,14 @@ class FirstLightService {
     required TransientCatalogMatcher catalog,
     required LoggingService logger,
     required Future<String> Function() atlasRootResolver,
+    LivingSkyRetentionDao? retention,
     int order = 9,
   }) : _dao = dao,
        _seam = seam,
        _catalog = catalog,
        _logger = logger,
        _atlasRootResolver = atlasRootResolver,
+       _retention = retention,
        _order = order;
 
   final TransientDetectionsDao _dao;
@@ -90,7 +94,14 @@ class FirstLightService {
   final TransientCatalogMatcher _catalog;
   final LoggingService _logger;
   final Future<String> Function() _atlasRootResolver;
+  final LivingSkyRetentionDao? _retention;
   final int _order;
+
+  /// Default retention horizon: triaged-artefact transient history older than
+  /// this is reclaimable by [pruneOldDetections]. Long enough that a season's
+  /// worth of dismissals stays available for review; short enough that the
+  /// append-only log does not grow without bound on a constrained appliance.
+  static const Duration defaultRetentionHorizon = Duration(days: 120);
 
   static const _logSource = 'FirstLightService';
 
@@ -185,8 +196,12 @@ class FirstLightService {
       return const [];
     }
 
-    // Drop residuals that coincide with a previously-dismissed detection.
-    final dismissed = await _dao.dismissedDetections();
+    // Drop residuals that coincide with a previously-dismissed detection. Only
+    // the dismissed rows on the handful of tiles this frame actually produced a
+    // residual on can match, so seek those by tile (index-backed) instead of
+    // full-scanning the all-time dismissed set on every frame.
+    final candidateTiles = rawCandidates.map((c) => c.tileId).toSet();
+    final dismissed = await _dao.dismissedDetectionsForTiles(candidateTiles);
     final surviving = rawCandidates
         .where((c) => !_isDismissed(c, dismissed))
         .toList(growable: false);
@@ -250,6 +265,39 @@ class FirstLightService {
   /// the next scan suppresses the same position.
   Future<void> markReviewed(int id, {bool dismissed = false}) {
     return _dao.markReviewed(id, dismissed: dismissed);
+  }
+
+  /// Age out triaged-artefact transient history so the append-only log does not
+  /// grow unbounded across a multi-season run on a constrained appliance.
+  ///
+  /// Only **dismissed** rows older than [horizon] (default
+  /// [defaultRetentionHorizon]) are reclaimed — an explicit human judgement of
+  /// "artefact". Un-reviewed candidates and confirmed/named discoveries are
+  /// **never** pruned (a possible transient must never be silently reclaimed),
+  /// and the recent set the feed renders is untouched because the horizon is far
+  /// older than the bounded feed window. Records progress against the
+  /// [LivingSkyRetentionScope.transientDetections] marker (if a retention DAO is
+  /// wired) so the sweep is observable. Returns the number of rows reclaimed.
+  Future<int> pruneOldDetections({
+    Duration horizon = defaultRetentionHorizon,
+    DateTime? now,
+  }) async {
+    final cutoff = (now ?? DateTime.now()).toUtc().subtract(horizon);
+    final reclaimed = await _dao.pruneDetections(olderThan: cutoff);
+    if (reclaimed > 0) {
+      _logger.info(
+        'First Light retention: reclaimed $reclaimed dismissed transient '
+        'detection(s) older than $cutoff',
+        source: _logSource,
+      );
+    }
+    await _retention?.recordPrune(
+      LivingSkyRetentionScope.transientDetections,
+      lastPrunedAt: cutoff,
+      reclaimed: reclaimed,
+      note: 'horizon=${horizon.inDays}d',
+    );
+    return reclaimed;
   }
 
   /// Cross-match a residual against the photometric catalog.

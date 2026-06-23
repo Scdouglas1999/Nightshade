@@ -201,6 +201,28 @@ class SkyAtlasDao extends DatabaseAccessor<NightshadeDatabase>
         .getSingleOrNull();
   }
 
+  /// Tiles whose center declination falls within `[minDecDeg, maxDecDeg]`.
+  ///
+  /// The cone selection that drives Contribute / Pull / Your-Sky rendering used
+  /// to materialize EVERY tile ever imaged and filter the cone in Dart — cost
+  /// scaling with atlas size, not the cone. This is the cheap spatial
+  /// prefilter: pass the cone's Dec band (`center.dec ± radius`, clamped to
+  /// `[-90, 90]`) and the read becomes an index range on
+  /// `idx_sky_tiles_dec (center_dec_deg)`; the caller still does the exact
+  /// great-circle in-cone test on this much smaller candidate set (RA wrap and
+  /// the spherical-cap RA widening near the poles make a pure SQL cone unsafe).
+  Future<List<SkyTileRow>> getTilesInDecBand(
+    double minDecDeg,
+    double maxDecDeg,
+  ) {
+    return (select(skyTiles)..where(
+          (t) =>
+              t.centerDecDeg.isBiggerOrEqualValue(minDecDeg) &
+              t.centerDecDeg.isSmallerOrEqualValue(maxDecDeg),
+        ))
+        .get();
+  }
+
   /// Tiles belonging to [regionId], deepest first.
   Future<List<SkyTileRow>> getTilesForRegion(int regionId) {
     return (select(skyTiles)

@@ -48,7 +48,9 @@ class AtlasHandlers {
 
   Future<Response> handleGetCoverage(Request request) async {
     _logInfo('[API] GET /api/atlas/coverage');
-    final tiles = await _service.coverage();
+    // Served from the SkyTiles DB index (same scalars, no `.nst` sidecar scan)
+    // so a companion's coverage poll never thrashes the host's disk.
+    final tiles = await _service.coverageFromIndex();
     return jsonOk({
       'tiles': tiles.map(_coverageToJson).toList(),
       'count': tiles.length,

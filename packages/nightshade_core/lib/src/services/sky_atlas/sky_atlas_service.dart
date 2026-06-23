@@ -348,7 +348,129 @@ class SkyAtlasService {
     return _seam.queryCutout(args);
   }
 
-  /// Per-tile coverage rows for the heat overlay / gallery, deepest first.
+  /// Per-tile coverage rows for the heat overlay / gallery, deepest first —
+  /// served from the [SkyTiles] DB index instead of scanning the on-disk `.nst`
+  /// sidecars.
+  ///
+  /// Every scalar the heat overlay / contribution bar reads
+  /// (`coverageMean`/`totalFrames`/`integrationSeconds`/`channels`/centre) is
+  /// mirrored into the [SkyTiles] index row on each fold, so this indexed read
+  /// returns the SAME numbers as the native [coverage] full-scan while opening
+  /// zero sidecars. The rows are already ordered deepest-first by the DAO
+  /// ([SkyAtlasDao.getAllTiles]), matching [coverage]'s sort.
+  ///
+  /// `lastFoldIso` is taken from the indexed `lastFoldAt` timestamp (the native
+  /// path surfaces the last fold's free-text label instead); both are display
+  /// hints only and never feed a computation.
+  ///
+  /// [includeSwarm] is accepted for call-site parity with [coverage] but, like
+  /// the native coverage scan (whose `CoverageArgs` ignores the overlay flag),
+  /// has no effect: coverage always reports own-light depth. The swarm overlay
+  /// composites only into the per-pixel cutout/tilePng render path.
+  Future<List<AtlasTileCoverage>> coverageFromIndex({
+    bool includeSwarm = false,
+  }) async {
+    final rows = await _dao.getAllTiles();
+    return rows
+        .map(
+          (t) => AtlasTileCoverage(
+            tileId: t.tileId,
+            centerRaDeg: t.centerRaDeg,
+            centerDecDeg: t.centerDecDeg,
+            coverageMean: t.coverageMean,
+            totalFrames: t.totalFrames,
+            integrationSeconds: t.integrationSeconds,
+            lastFoldIso: t.lastFoldAt?.toUtc().toIso8601String(),
+            channels: t.channels,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  /// Local atlas tiles whose centre falls within [radiusDeg] of the cone centre
+  /// — the spatial selector behind Constellation Contribute / Pull and Your-Sky
+  /// cone reads.
+  ///
+  /// The old path materialized EVERY tile ever imaged (via [coverage]) and
+  /// filtered the cone in Dart, so its cost scaled with atlas size, not the
+  /// cone. This reads the cheap [SkyTiles] DB index instead: a Dec-band range
+  /// scan on `idx_sky_tiles_dec` ([SkyAtlasDao.getTilesInDecBand]) narrows to a
+  /// small candidate set, then the exact great-circle test runs on just those
+  /// candidates (the SQL band can't be the final answer — RA wrap and the cap's
+  /// RA widening near the poles make a pure-SQL cone unsafe). The Dec band is
+  /// `centerDec ± radius`, clamped to `[-90, 90]`.
+  ///
+  /// Behaviour-preserving: when the DB index has no tiles in the band (e.g. a
+  /// wiring that has only ever folded through the native seam, or a brand-new
+  /// atlas) it falls back to the [coverage] scan so the same tiles are returned
+  /// — just slower — rather than silently selecting nothing.
+  Future<List<AtlasTileCoverage>> tilesInCone({
+    required double centerRaDeg,
+    required double centerDecDeg,
+    required double radiusDeg,
+  }) async {
+    final minDec = math.max(-90.0, centerDecDeg - radiusDeg);
+    final maxDec = math.min(90.0, centerDecDeg + radiusDeg);
+    final band = await _dao.getTilesInDecBand(minDec, maxDec);
+    final candidates = band.isNotEmpty
+        ? band.map(_coverageFromTileRow).toList(growable: false)
+        : await coverage();
+    return candidates
+        .where(
+          (t) =>
+              _coneSeparationDeg(
+                centerRaDeg,
+                centerDecDeg,
+                t.centerRaDeg,
+                t.centerDecDeg,
+              ) <=
+              radiusDeg,
+        )
+        .toList(growable: false);
+  }
+
+  /// Adapt a [SkyTileRow] (DB index) into the [AtlasTileCoverage] shape the cone
+  /// callers already consume, so the index-backed path is a drop-in for the
+  /// native-scan result.
+  static AtlasTileCoverage _coverageFromTileRow(SkyTileRow row) =>
+      AtlasTileCoverage(
+        tileId: row.tileId,
+        centerRaDeg: row.centerRaDeg,
+        centerDecDeg: row.centerDecDeg,
+        coverageMean: row.coverageMean,
+        totalFrames: row.totalFrames,
+        integrationSeconds: row.integrationSeconds,
+        lastFoldIso: row.lastFoldAt?.toUtc().toIso8601String(),
+        channels: row.channels,
+      );
+
+  /// Great-circle separation (deg) via the haversine formula — robust at the
+  /// small angles cone selection queries at.
+  static double _coneSeparationDeg(
+    double ra1Deg,
+    double dec1Deg,
+    double ra2Deg,
+    double dec2Deg,
+  ) {
+    const deg2rad = math.pi / 180.0;
+    final dRa = (ra2Deg - ra1Deg) * deg2rad;
+    final dDec = (dec2Deg - dec1Deg) * deg2rad;
+    final lat1 = dec1Deg * deg2rad;
+    final lat2 = dec2Deg * deg2rad;
+    final a =
+        math.sin(dDec / 2) * math.sin(dDec / 2) +
+        math.cos(lat1) * math.cos(lat2) * math.sin(dRa / 2) * math.sin(dRa / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return c / deg2rad;
+  }
+
+  /// Per-tile coverage rows for the heat overlay / gallery, deepest first, by
+  /// the native full-scan of the on-disk `.nst` sidecars.
+  ///
+  /// Prefer [coverageFromIndex] for the hot heat-overlay/contribution poll: it
+  /// returns the same scalars from the [SkyTiles] index without any sidecar I/O.
+  /// This native path is retained for callers that genuinely need a
+  /// disk-of-record read (e.g. a sidecar/DB consistency check).
   ///
   /// [includeSwarm] composites the pulled community overlay depth for DISPLAY
   /// only (threaded as `includeOverlay`); it never affects the export path.

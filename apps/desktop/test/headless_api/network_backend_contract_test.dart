@@ -71,6 +71,110 @@ void main() {
       );
     });
   });
+
+  // Wave 3 / Living Sky master-slave parity net.
+  //
+  // The slave-blind bug class (a companion tablet reading empty local state
+  // because a Living Sky NetworkBackend method had no registered/advertised
+  // host route) shipped because nothing pinned the wire seam per-pillar. The
+  // generic scanners above catch a missing route for ANY backend call; this
+  // group makes the Living Sky coverage EXPLICIT so a regression names the
+  // exact pillar surface that lost its host route, and documents Constellation's
+  // host-only status so adding a slave method without a route fails loudly.
+  group('Living Sky master/slave route parity', () {
+    // Every NetworkBackend Living-Sky read/triage call a slave issues, and the
+    // host route it must map to. Mirrors the @ session_science_operations.dart
+    // mixin (Pillar A "Your Sky" + Pillar B "First Light"). Kept as an explicit
+    // expectation so a dropped/renamed route is a named parity failure, not a
+    // generic diff.
+    const livingSkyClientRoutes = <String>{
+      // Pillar A — Your Sky (atlas)
+      'GET /api/atlas/regions',
+      'GET /api/atlas/coverage',
+      'GET /api/atlas/region/{param}',
+      'GET /api/atlas/region/{param}/timeline',
+      'GET /api/atlas/region/{param}/cutout',
+      // Pillar B — First Light (transient discovery)
+      'GET /api/firstlight/candidates',
+      'POST /api/firstlight/{param}/review',
+      'POST /api/firstlight/{param}/dismiss',
+      'POST /api/firstlight/{param}/submit/tns',
+      'POST /api/firstlight/{param}/export/aavso',
+      'POST /api/firstlight/{param}/export/mpc',
+    };
+
+    test('every Living Sky NetworkBackend call is registered + advertised', () {
+      final clientSource = _networkBackendSource();
+      final clientRoutes = _networkBackendRoutes(clientSource);
+      final registered = _registeredApiRoutes();
+      final advertised = _advertisedApiRoutes();
+
+      for (final route in livingSkyClientRoutes) {
+        expect(
+          clientRoutes,
+          contains(route),
+          reason:
+              'NetworkBackend must keep a client method for $route so a slave '
+              'surfaces host Living Sky data instead of empty local state.',
+        );
+        expect(
+          registered,
+          contains(route),
+          reason: 'Living Sky route $route must be registered on the host.',
+        );
+        expect(
+          advertised,
+          contains(route),
+          reason:
+              'Living Sky route $route must be advertised in /api/info so the '
+              'slave can discover it.',
+        );
+      }
+    });
+
+    // Pillar C (Constellation) talks to a SEPARATE community hub via
+    // ConstellationClient, not the headless_api slave seam — so a slave/tablet
+    // has NO NetworkBackend Constellation method today (the documented
+    // "Constellation interactive on a slave but silently can't work" gap). Pin
+    // that host-only status: if someone later adds a NetworkBackend
+    // constellation/swarm/shared-target method, this guard forces them to also
+    // register + advertise its host route (closing the slave-blind class for C
+    // the way it is closed for A and B).
+    test('Constellation NetworkBackend calls (if any) map to host routes', () {
+      final clientSource = _networkBackendSource();
+      final clientRoutes = _networkBackendRoutes(clientSource);
+      final registered = _registeredApiRoutes()
+          .where((route) => !route.startsWith('WS '))
+          .toSet();
+      final advertised = _advertisedApiRoutes();
+
+      final constellationCalls = clientRoutes
+          .where(
+            (route) =>
+                route.contains('/constellation') ||
+                route.contains('/swarm') ||
+                route.contains('/shared-target') ||
+                route.contains('/sharedtarget'),
+          )
+          .toSet();
+
+      for (final route in constellationCalls) {
+        expect(
+          registered,
+          contains(route),
+          reason:
+              'A new Constellation slave method ($route) must register a host '
+              'route — a slave Constellation call with no route is the '
+              'slave-blind bug class.',
+        );
+        expect(
+          advertised,
+          contains(route),
+          reason: 'Constellation route $route must be advertised in /api/info.',
+        );
+      }
+    });
+  });
 }
 
 /// Scan all per-domain route files under `lib/headless_api/routes/` for

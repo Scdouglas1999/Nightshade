@@ -572,6 +572,10 @@ export 'src/services/color_calibration_service.dart';
 export 'src/services/master_annotation_service.dart';
 export 'src/database/daos/integrated_masters_dao.dart';
 export 'src/database/daos/flat_library_dao.dart';
+// Living Sky (Wave 3): per-pillar retention/prune bookkeeping.
+export 'src/database/daos/living_sky_retention_dao.dart';
+export 'src/database/tables/living_sky_retention.dart'
+    show LivingSkyRetentionScope;
 // Pillar A ("Your Sky"): personal sky-atlas persistence + tables + service.
 export 'src/database/daos/sky_atlas_dao.dart';
 export 'src/database/tables/sky_atlas_tables.dart' show skyAtlasHealpixOrder;

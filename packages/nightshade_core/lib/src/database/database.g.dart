@@ -32617,6 +32617,480 @@ class TransientDetectionsCompanion
   }
 }
 
+class $LivingSkyRetentionTable extends LivingSkyRetention
+    with TableInfo<$LivingSkyRetentionTable, LivingSkyRetentionRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LivingSkyRetentionTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _scopeMeta = const VerificationMeta('scope');
+  @override
+  late final GeneratedColumn<String> scope = GeneratedColumn<String>(
+    'scope',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastPrunedAtMeta = const VerificationMeta(
+    'lastPrunedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastPrunedAt = GeneratedColumn<DateTime>(
+    'last_pruned_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastPrunedIdMeta = const VerificationMeta(
+    'lastPrunedId',
+  );
+  @override
+  late final GeneratedColumn<int> lastPrunedId = GeneratedColumn<int>(
+    'last_pruned_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _prunedCountMeta = const VerificationMeta(
+    'prunedCount',
+  );
+  @override
+  late final GeneratedColumn<int> prunedCount = GeneratedColumn<int>(
+    'pruned_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    scope,
+    lastPrunedAt,
+    lastPrunedId,
+    prunedCount,
+    note,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'living_sky_retention';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LivingSkyRetentionRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('scope')) {
+      context.handle(
+        _scopeMeta,
+        scope.isAcceptableOrUnknown(data['scope']!, _scopeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scopeMeta);
+    }
+    if (data.containsKey('last_pruned_at')) {
+      context.handle(
+        _lastPrunedAtMeta,
+        lastPrunedAt.isAcceptableOrUnknown(
+          data['last_pruned_at']!,
+          _lastPrunedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_pruned_id')) {
+      context.handle(
+        _lastPrunedIdMeta,
+        lastPrunedId.isAcceptableOrUnknown(
+          data['last_pruned_id']!,
+          _lastPrunedIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('pruned_count')) {
+      context.handle(
+        _prunedCountMeta,
+        prunedCount.isAcceptableOrUnknown(
+          data['pruned_count']!,
+          _prunedCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  LivingSkyRetentionRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LivingSkyRetentionRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      scope: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope'],
+      )!,
+      lastPrunedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_pruned_at'],
+      ),
+      lastPrunedId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_pruned_id'],
+      ),
+      prunedCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}pruned_count'],
+      )!,
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $LivingSkyRetentionTable createAlias(String alias) {
+    return $LivingSkyRetentionTable(attachedDatabase, alias);
+  }
+}
+
+class LivingSkyRetentionRow extends DataClass
+    implements Insertable<LivingSkyRetentionRow> {
+  final int id;
+
+  /// Stable sweep key — one of [LivingSkyRetentionScope]'s constants.
+  final String scope;
+
+  /// Timestamp high-water the sweep has pruned up to (null = never run).
+  final DateTime? lastPrunedAt;
+
+  /// Monotonic id high-water the sweep has considered (null = never run).
+  final int? lastPrunedId;
+
+  /// Running count of records reclaimed across all runs of this sweep.
+  final int prunedCount;
+
+  /// Free-form note the sweep owns (e.g. bytes reclaimed, retention window).
+  final String? note;
+  final DateTime updatedAt;
+  const LivingSkyRetentionRow({
+    required this.id,
+    required this.scope,
+    this.lastPrunedAt,
+    this.lastPrunedId,
+    required this.prunedCount,
+    this.note,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['scope'] = Variable<String>(scope);
+    if (!nullToAbsent || lastPrunedAt != null) {
+      map['last_pruned_at'] = Variable<DateTime>(lastPrunedAt);
+    }
+    if (!nullToAbsent || lastPrunedId != null) {
+      map['last_pruned_id'] = Variable<int>(lastPrunedId);
+    }
+    map['pruned_count'] = Variable<int>(prunedCount);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  LivingSkyRetentionCompanion toCompanion(bool nullToAbsent) {
+    return LivingSkyRetentionCompanion(
+      id: Value(id),
+      scope: Value(scope),
+      lastPrunedAt: lastPrunedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastPrunedAt),
+      lastPrunedId: lastPrunedId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastPrunedId),
+      prunedCount: Value(prunedCount),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory LivingSkyRetentionRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LivingSkyRetentionRow(
+      id: serializer.fromJson<int>(json['id']),
+      scope: serializer.fromJson<String>(json['scope']),
+      lastPrunedAt: serializer.fromJson<DateTime?>(json['lastPrunedAt']),
+      lastPrunedId: serializer.fromJson<int?>(json['lastPrunedId']),
+      prunedCount: serializer.fromJson<int>(json['prunedCount']),
+      note: serializer.fromJson<String?>(json['note']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'scope': serializer.toJson<String>(scope),
+      'lastPrunedAt': serializer.toJson<DateTime?>(lastPrunedAt),
+      'lastPrunedId': serializer.toJson<int?>(lastPrunedId),
+      'prunedCount': serializer.toJson<int>(prunedCount),
+      'note': serializer.toJson<String?>(note),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  LivingSkyRetentionRow copyWith({
+    int? id,
+    String? scope,
+    Value<DateTime?> lastPrunedAt = const Value.absent(),
+    Value<int?> lastPrunedId = const Value.absent(),
+    int? prunedCount,
+    Value<String?> note = const Value.absent(),
+    DateTime? updatedAt,
+  }) => LivingSkyRetentionRow(
+    id: id ?? this.id,
+    scope: scope ?? this.scope,
+    lastPrunedAt: lastPrunedAt.present ? lastPrunedAt.value : this.lastPrunedAt,
+    lastPrunedId: lastPrunedId.present ? lastPrunedId.value : this.lastPrunedId,
+    prunedCount: prunedCount ?? this.prunedCount,
+    note: note.present ? note.value : this.note,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  LivingSkyRetentionRow copyWithCompanion(LivingSkyRetentionCompanion data) {
+    return LivingSkyRetentionRow(
+      id: data.id.present ? data.id.value : this.id,
+      scope: data.scope.present ? data.scope.value : this.scope,
+      lastPrunedAt: data.lastPrunedAt.present
+          ? data.lastPrunedAt.value
+          : this.lastPrunedAt,
+      lastPrunedId: data.lastPrunedId.present
+          ? data.lastPrunedId.value
+          : this.lastPrunedId,
+      prunedCount: data.prunedCount.present
+          ? data.prunedCount.value
+          : this.prunedCount,
+      note: data.note.present ? data.note.value : this.note,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LivingSkyRetentionRow(')
+          ..write('id: $id, ')
+          ..write('scope: $scope, ')
+          ..write('lastPrunedAt: $lastPrunedAt, ')
+          ..write('lastPrunedId: $lastPrunedId, ')
+          ..write('prunedCount: $prunedCount, ')
+          ..write('note: $note, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    scope,
+    lastPrunedAt,
+    lastPrunedId,
+    prunedCount,
+    note,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LivingSkyRetentionRow &&
+          other.id == this.id &&
+          other.scope == this.scope &&
+          other.lastPrunedAt == this.lastPrunedAt &&
+          other.lastPrunedId == this.lastPrunedId &&
+          other.prunedCount == this.prunedCount &&
+          other.note == this.note &&
+          other.updatedAt == this.updatedAt);
+}
+
+class LivingSkyRetentionCompanion
+    extends UpdateCompanion<LivingSkyRetentionRow> {
+  final Value<int> id;
+  final Value<String> scope;
+  final Value<DateTime?> lastPrunedAt;
+  final Value<int?> lastPrunedId;
+  final Value<int> prunedCount;
+  final Value<String?> note;
+  final Value<DateTime> updatedAt;
+  const LivingSkyRetentionCompanion({
+    this.id = const Value.absent(),
+    this.scope = const Value.absent(),
+    this.lastPrunedAt = const Value.absent(),
+    this.lastPrunedId = const Value.absent(),
+    this.prunedCount = const Value.absent(),
+    this.note = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  LivingSkyRetentionCompanion.insert({
+    this.id = const Value.absent(),
+    required String scope,
+    this.lastPrunedAt = const Value.absent(),
+    this.lastPrunedId = const Value.absent(),
+    this.prunedCount = const Value.absent(),
+    this.note = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  }) : scope = Value(scope);
+  static Insertable<LivingSkyRetentionRow> custom({
+    Expression<int>? id,
+    Expression<String>? scope,
+    Expression<DateTime>? lastPrunedAt,
+    Expression<int>? lastPrunedId,
+    Expression<int>? prunedCount,
+    Expression<String>? note,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (scope != null) 'scope': scope,
+      if (lastPrunedAt != null) 'last_pruned_at': lastPrunedAt,
+      if (lastPrunedId != null) 'last_pruned_id': lastPrunedId,
+      if (prunedCount != null) 'pruned_count': prunedCount,
+      if (note != null) 'note': note,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  LivingSkyRetentionCompanion copyWith({
+    Value<int>? id,
+    Value<String>? scope,
+    Value<DateTime?>? lastPrunedAt,
+    Value<int?>? lastPrunedId,
+    Value<int>? prunedCount,
+    Value<String?>? note,
+    Value<DateTime>? updatedAt,
+  }) {
+    return LivingSkyRetentionCompanion(
+      id: id ?? this.id,
+      scope: scope ?? this.scope,
+      lastPrunedAt: lastPrunedAt ?? this.lastPrunedAt,
+      lastPrunedId: lastPrunedId ?? this.lastPrunedId,
+      prunedCount: prunedCount ?? this.prunedCount,
+      note: note ?? this.note,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (scope.present) {
+      map['scope'] = Variable<String>(scope.value);
+    }
+    if (lastPrunedAt.present) {
+      map['last_pruned_at'] = Variable<DateTime>(lastPrunedAt.value);
+    }
+    if (lastPrunedId.present) {
+      map['last_pruned_id'] = Variable<int>(lastPrunedId.value);
+    }
+    if (prunedCount.present) {
+      map['pruned_count'] = Variable<int>(prunedCount.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LivingSkyRetentionCompanion(')
+          ..write('id: $id, ')
+          ..write('scope: $scope, ')
+          ..write('lastPrunedAt: $lastPrunedAt, ')
+          ..write('lastPrunedId: $lastPrunedId, ')
+          ..write('prunedCount: $prunedCount, ')
+          ..write('note: $note, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$NightshadeDatabase extends GeneratedDatabase {
   _$NightshadeDatabase(QueryExecutor e) : super(e);
   $NightshadeDatabaseManager get managers => $NightshadeDatabaseManager(this);
@@ -32691,6 +33165,8 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
       $ConstellationContributionsTable(this);
   late final $TransientDetectionsTable transientDetections =
       $TransientDetectionsTable(this);
+  late final $LivingSkyRetentionTable livingSkyRetention =
+      $LivingSkyRetentionTable(this);
   late final Index idxProfilesName = Index(
     'idx_profiles_name',
     'CREATE INDEX idx_profiles_name ON equipment_profiles (name)',
@@ -33115,6 +33591,10 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
     'idx_transient_detections_detected',
     'CREATE INDEX idx_transient_detections_detected ON transient_detections (detected_at)',
   );
+  late final Index idxLivingSkyRetentionScope = Index(
+    'idx_living_sky_retention_scope',
+    'CREATE UNIQUE INDEX idx_living_sky_retention_scope ON living_sky_retention (scope)',
+  );
   late final ImagesDao imagesDao = ImagesDao(this as NightshadeDatabase);
   late final EquipmentProfilesDao equipmentProfilesDao = EquipmentProfilesDao(
     this as NightshadeDatabase,
@@ -33167,6 +33647,8 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
       ConstellationContributionsDao(this as NightshadeDatabase);
   late final TransientDetectionsDao transientDetectionsDao =
       TransientDetectionsDao(this as NightshadeDatabase);
+  late final LivingSkyRetentionDao livingSkyRetentionDao =
+      LivingSkyRetentionDao(this as NightshadeDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -33212,6 +33694,7 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
     skyAtlasFolds,
     constellationContributions,
     transientDetections,
+    livingSkyRetention,
     idxProfilesName,
     idxProfilesActive,
     idxSessionsTarget,
@@ -33318,6 +33801,7 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
     idxTransientDetectionsSession,
     idxTransientDetectionsTile,
     idxTransientDetectionsDetected,
+    idxLivingSkyRetentionScope,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -58619,6 +59103,257 @@ typedef $$TransientDetectionsTableProcessedTableManager =
       TransientDetectionRow,
       PrefetchHooks Function({bool sessionId, bool capturedImageId})
     >;
+typedef $$LivingSkyRetentionTableCreateCompanionBuilder =
+    LivingSkyRetentionCompanion Function({
+      Value<int> id,
+      required String scope,
+      Value<DateTime?> lastPrunedAt,
+      Value<int?> lastPrunedId,
+      Value<int> prunedCount,
+      Value<String?> note,
+      Value<DateTime> updatedAt,
+    });
+typedef $$LivingSkyRetentionTableUpdateCompanionBuilder =
+    LivingSkyRetentionCompanion Function({
+      Value<int> id,
+      Value<String> scope,
+      Value<DateTime?> lastPrunedAt,
+      Value<int?> lastPrunedId,
+      Value<int> prunedCount,
+      Value<String?> note,
+      Value<DateTime> updatedAt,
+    });
+
+class $$LivingSkyRetentionTableFilterComposer
+    extends Composer<_$NightshadeDatabase, $LivingSkyRetentionTable> {
+  $$LivingSkyRetentionTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastPrunedAt => $composableBuilder(
+    column: $table.lastPrunedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastPrunedId => $composableBuilder(
+    column: $table.lastPrunedId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get prunedCount => $composableBuilder(
+    column: $table.prunedCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$LivingSkyRetentionTableOrderingComposer
+    extends Composer<_$NightshadeDatabase, $LivingSkyRetentionTable> {
+  $$LivingSkyRetentionTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastPrunedAt => $composableBuilder(
+    column: $table.lastPrunedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastPrunedId => $composableBuilder(
+    column: $table.lastPrunedId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get prunedCount => $composableBuilder(
+    column: $table.prunedCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$LivingSkyRetentionTableAnnotationComposer
+    extends Composer<_$NightshadeDatabase, $LivingSkyRetentionTable> {
+  $$LivingSkyRetentionTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get scope =>
+      $composableBuilder(column: $table.scope, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get lastPrunedAt => $composableBuilder(
+    column: $table.lastPrunedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastPrunedId => $composableBuilder(
+    column: $table.lastPrunedId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get prunedCount => $composableBuilder(
+    column: $table.prunedCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$LivingSkyRetentionTableTableManager
+    extends
+        RootTableManager<
+          _$NightshadeDatabase,
+          $LivingSkyRetentionTable,
+          LivingSkyRetentionRow,
+          $$LivingSkyRetentionTableFilterComposer,
+          $$LivingSkyRetentionTableOrderingComposer,
+          $$LivingSkyRetentionTableAnnotationComposer,
+          $$LivingSkyRetentionTableCreateCompanionBuilder,
+          $$LivingSkyRetentionTableUpdateCompanionBuilder,
+          (
+            LivingSkyRetentionRow,
+            BaseReferences<
+              _$NightshadeDatabase,
+              $LivingSkyRetentionTable,
+              LivingSkyRetentionRow
+            >,
+          ),
+          LivingSkyRetentionRow,
+          PrefetchHooks Function()
+        > {
+  $$LivingSkyRetentionTableTableManager(
+    _$NightshadeDatabase db,
+    $LivingSkyRetentionTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LivingSkyRetentionTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$LivingSkyRetentionTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$LivingSkyRetentionTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+                Value<DateTime?> lastPrunedAt = const Value.absent(),
+                Value<int?> lastPrunedId = const Value.absent(),
+                Value<int> prunedCount = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => LivingSkyRetentionCompanion(
+                id: id,
+                scope: scope,
+                lastPrunedAt: lastPrunedAt,
+                lastPrunedId: lastPrunedId,
+                prunedCount: prunedCount,
+                note: note,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String scope,
+                Value<DateTime?> lastPrunedAt = const Value.absent(),
+                Value<int?> lastPrunedId = const Value.absent(),
+                Value<int> prunedCount = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => LivingSkyRetentionCompanion.insert(
+                id: id,
+                scope: scope,
+                lastPrunedAt: lastPrunedAt,
+                lastPrunedId: lastPrunedId,
+                prunedCount: prunedCount,
+                note: note,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$LivingSkyRetentionTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NightshadeDatabase,
+      $LivingSkyRetentionTable,
+      LivingSkyRetentionRow,
+      $$LivingSkyRetentionTableFilterComposer,
+      $$LivingSkyRetentionTableOrderingComposer,
+      $$LivingSkyRetentionTableAnnotationComposer,
+      $$LivingSkyRetentionTableCreateCompanionBuilder,
+      $$LivingSkyRetentionTableUpdateCompanionBuilder,
+      (
+        LivingSkyRetentionRow,
+        BaseReferences<
+          _$NightshadeDatabase,
+          $LivingSkyRetentionTable,
+          LivingSkyRetentionRow
+        >,
+      ),
+      LivingSkyRetentionRow,
+      PrefetchHooks Function()
+    >;
 
 class $NightshadeDatabaseManager {
   final _$NightshadeDatabase _db;
@@ -58724,4 +59459,6 @@ class $NightshadeDatabaseManager {
       );
   $$TransientDetectionsTableTableManager get transientDetections =>
       $$TransientDetectionsTableTableManager(_db, _db.transientDetections);
+  $$LivingSkyRetentionTableTableManager get livingSkyRetention =>
+      $$LivingSkyRetentionTableTableManager(_db, _db.livingSkyRetention);
 }

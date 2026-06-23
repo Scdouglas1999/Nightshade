@@ -822,6 +822,11 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
       'CREATE INDEX IF NOT EXISTS idx_sequence_decisions_run_ts '
       'ON sequence_decisions (sequence_run_id, timestamp_unix_ms)',
     );
+
+    // Living Sky — Wave 3 (v55) scale indexes. Created here so fresh installs
+    // (onCreate path) get them; the v55 onUpgrade block covers in-place
+    // upgrades. Idempotent (IF NOT EXISTS), so re-running is safe.
+    await _createLivingSkyWave3Indexes();
   }
 
   Future<void> _dedupeScienceSessionConfigRows() async {
