@@ -46,6 +46,11 @@ class _SharedTargetDetailScreenState
     final colors = NightshadeColors.of(context);
     final yourSeconds =
         ref.watch(yourContributionSecondsProvider(_target)).valueOrNull ?? 0.0;
+    // Contribute / Pull / Retract all read the LOCAL atlas + LOCAL contribution
+    // receipts and write the hub — empty on a slave, so they are host-only.
+    // Browse/Join stay enabled everywhere.
+    final hostActionsEnabled =
+        ref.watch(isConstellationHostActionEnabledProvider);
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -69,19 +74,27 @@ class _SharedTargetDetailScreenState
               onToggle: _toggleJoin,
               targetName: _target.name,
             ),
+            if (!hostActionsEnabled) ...[
+              const SizedBox(height: NightshadeTokens.spaceMd),
+              const _HostOnlyNotice(),
+            ],
             const SizedBox(height: NightshadeTokens.spaceMd),
             _ContributeCard(
-              enabled: _joined,
+              enabled: _joined && hostActionsEnabled,
               yourSeconds: yourSeconds,
               onContribute: _contribute,
             ),
             const SizedBox(height: NightshadeTokens.spaceMd),
             _BlendCard(
-              enabled: _joined,
+              enabled: _joined && hostActionsEnabled,
               pulling: _pulling,
               blended: _blended,
               onPull: _pullAndBlend,
             ),
+            if (hostActionsEnabled) ...[
+              const SizedBox(height: NightshadeTokens.spaceMd),
+              _ContributionsCard(target: _target, onRetract: _retract),
+            ],
             if (_blended.isNotEmpty) ...[
               const SizedBox(height: NightshadeTokens.spaceMd),
               const _SwarmTrustCard(),
@@ -157,6 +170,35 @@ class _SharedTargetDetailScreenState
     } catch (error) {
       if (!mounted) return;
       setState(() => _pulling = false);
+      messenger.showSnackBar(
+        SnackBar(content: Text(describeConstellationError(error))),
+      );
+    }
+  }
+
+  Future<void> _retract(ContributionRecord record) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final receipt = await ref
+          .read(constellationServiceProvider)
+          .retractTile(record.tileId);
+      if (!mounted) return;
+      // The high-water reset means the contribution bar + swarm depth shift; the
+      // contributions list drops this tile.
+      ref.invalidate(myContributionsProvider);
+      ref.invalidate(sharedTargetsProvider);
+      ref.invalidate(yourContributionSecondsProvider(_target));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Retracted your contribution to tile ${record.tileId}. The fused '
+            'depth is now ${receipt.totalFramesAfter} frame'
+            '${receipt.totalFramesAfter == 1 ? '' : 's'}.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(content: Text(describeConstellationError(error))),
       );
@@ -408,6 +450,141 @@ class _BlendCard extends StatelessWidget {
               isLoading: pulling,
               onPressed: enabled && !pulling ? onPull : null,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Slave notice: the host-owned actions read the host's atlas + receipts, so we
+/// disable them here and say where they run rather than no-op silently.
+class _HostOnlyNotice extends StatelessWidget {
+  const _HostOnlyNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return const NightshadeAlert(
+      severity: NightshadeAlertSeverity.info,
+      compact: true,
+      message: 'Contributing, pulling, and retracting run on your imaging '
+          'host. Browse and join from here; open Constellation on the host to '
+          'share your light.',
+    );
+  }
+}
+
+/// "Your contributions" — the persisted retractable receipts for this hub.
+///
+/// Lists every tile this device has contributed (the Wave-0 receipts carrying a
+/// remote contributionId) with a per-row Retract that subtracts it back off the
+/// hub exactly. This is what makes the twice-printed "subtract your contribution
+/// exactly" promise true. Receipts are per-tile and hub-wide (a target's cone
+/// spans several tiles), so the list is scoped to the hub, not one target.
+class _ContributionsCard extends ConsumerWidget {
+  final SharedTarget target;
+  final ValueChanged<ContributionRecord> onRetract;
+
+  const _ContributionsCard({required this.target, required this.onRetract});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
+    final contributionsAsync = ref.watch(myContributionsProvider);
+    return contributionsAsync.when(
+      data: (records) {
+        if (records.isEmpty) return const SizedBox.shrink();
+        return NightshadeCard(
+          padding: NightshadeTokens.cardPadding,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    LucideIcons.shieldCheck,
+                    size: NightshadeTokens.iconMd,
+                    color: colors.accent,
+                  ),
+                  const SizedBox(width: NightshadeTokens.spaceMd),
+                  Expanded(
+                    child: Text(
+                      'Your contributions',
+                      style: NightshadeTypography.labelStrong.copyWith(
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: NightshadeTokens.spaceSm),
+              Text(
+                'You only shared additive co-add sums, so retracting a tile '
+                'subtracts your contribution exactly — the shared depth returns '
+                'to what it was before.',
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.textSecondary,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: NightshadeTokens.spaceMd),
+              for (final r in records)
+                _ContributionRow(record: r, onRetract: () => onRetract(r)),
+            ],
+          ),
+        );
+      },
+      loading: () => const SkeletonBox(
+        width: double.infinity,
+        height: 96,
+        borderRadius: NightshadeTokens.radiusLg,
+      ),
+      error: (_, __) => const SizedBox.shrink(),
+    );
+  }
+}
+
+class _ContributionRow extends StatelessWidget {
+  final ContributionRecord record;
+  final VoidCallback onRetract;
+
+  const _ContributionRow({required this.record, required this.onRetract});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: NightshadeTokens.spaceSm),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Tile ${record.tileId}',
+                  style: NightshadeTypography.label.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${record.contributedFrames} frame'
+                  '${record.contributedFrames == 1 ? '' : 's'} · '
+                  '${formatIntegration(record.contributedIntegrationSeconds)}',
+                  style: NightshadeTypography.captionSm.copyWith(
+                    color: colors.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: NightshadeTokens.spaceMd),
+          NightshadeButton(
+            label: 'Retract',
+            variant: ButtonVariant.outline,
+            size: ButtonSize.small,
+            onPressed: onRetract,
           ),
         ],
       ),

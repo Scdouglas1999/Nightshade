@@ -42,6 +42,13 @@ class HubInfo {
   final int tilePixels;
   final bool selfHosted;
 
+  /// Whether this hub accepts raw FITS subframes in addition to additive sums.
+  /// Drives whether the contribute sheet may offer the SUBS privacy option at
+  /// all — when false the option is disabled with an explanatory note, because
+  /// the hub has no endpoint to receive raw frames. Defaults false (older hubs
+  /// that don't advertise the flag are treated as sums-only).
+  final bool acceptsRawSubs;
+
   const HubInfo({
     required this.name,
     required this.fingerprint,
@@ -49,6 +56,7 @@ class HubInfo {
     required this.healpixOrder,
     required this.tilePixels,
     required this.selfHosted,
+    this.acceptsRawSubs = false,
   });
 
   factory HubInfo.fromJson(Map<String, dynamic> json) => HubInfo(
@@ -58,6 +66,7 @@ class HubInfo {
     healpixOrder: (json['healpixOrder'] as num?)?.toInt() ?? 0,
     tilePixels: (json['tilePixels'] as num?)?.toInt() ?? 0,
     selfHosted: json['selfHosted'] as bool? ?? true,
+    acceptsRawSubs: json['acceptsRawSubs'] as bool? ?? false,
   );
 }
 
@@ -104,6 +113,30 @@ class ContributionReceipt {
         totalFramesAfter: (json['totalFramesAfter'] as num?)?.toInt() ?? 0,
         integrationSecondsAfter:
             (json['integrationSecondsAfter'] as num?)?.toDouble() ?? 0.0,
+      );
+}
+
+/// `POST /v1/tiles/{id}/subframes` result — the hub's raw-subframe receipt.
+///
+/// Unlike a sums [ContributionReceipt], a raw subframe is stored as its own
+/// immutable file (not fused), so the receipt carries only the opaque
+/// [contributionId] (the handle a later delete acts on) and the stored size.
+class SubframeReceipt {
+  final String contributionId;
+  final bool accepted;
+  final int storedBytes;
+
+  const SubframeReceipt({
+    required this.contributionId,
+    required this.accepted,
+    required this.storedBytes,
+  });
+
+  factory SubframeReceipt.fromJson(Map<String, dynamic> json) =>
+      SubframeReceipt(
+        contributionId: json['contributionId'] as String? ?? '',
+        accepted: json['accepted'] as bool? ?? false,
+        storedBytes: (json['storedBytes'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -235,6 +268,54 @@ class SwarmTile {
     required this.integrationSeconds,
     required this.contributors,
     required this.pulledAt,
+  });
+}
+
+/// A local imageable target offered as a candidate to seed a shared target on
+/// the hub ("Share one of my targets"). Coordinates are in degrees.
+class ShareableLocalTarget {
+  final int targetId;
+  final String name;
+  final double raDeg;
+  final double decDeg;
+
+  const ShareableLocalTarget({
+    required this.targetId,
+    required this.name,
+    required this.raDeg,
+    required this.decDeg,
+  });
+}
+
+/// One tile this device has contributed to a hub — the retractable unit.
+///
+/// Sourced from the persisted `constellation_contributions` receipt table (the
+/// Wave-0 substrate): every row carrying a remote [contributionId] is a
+/// contribution the hub can subtract back off the fused co-add exactly. This is
+/// what the "Your contributions" list renders and the Retract action acts on.
+class ContributionRecord {
+  /// HEALPix NESTED tile id contributed.
+  final int tileId;
+
+  /// Remote receipt id the hub issued — the handle Retract subtracts.
+  final String contributionId;
+
+  /// Cumulative own-light frames shipped to the hub for this tile.
+  final int contributedFrames;
+
+  /// Cumulative own-light integration (seconds) shipped for this tile.
+  final double contributedIntegrationSeconds;
+
+  /// When this tile was last contributed (null if the receipt predates the
+  /// timestamp column).
+  final DateTime? lastContributedAt;
+
+  const ContributionRecord({
+    required this.tileId,
+    required this.contributionId,
+    required this.contributedFrames,
+    required this.contributedIntegrationSeconds,
+    required this.lastContributedAt,
   });
 }
 

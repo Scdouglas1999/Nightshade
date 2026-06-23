@@ -258,6 +258,120 @@ void main() {
     expect(regions.firstWhere((r) => r.id == id).name, 'Orion');
   });
 
+  test(
+    'autoFoldCapturedImage creates + attaches a region from the target',
+    () async {
+      // A captured-image solve carries a targetId; with a resolver wired the
+      // auto-fold must ensure ONE region named after the target and link the
+      // folded tile to it — the unlock that makes the region UX reachable.
+      seam.onDispatch = (args) {
+        if (args['action'] == 'fold') {
+          return {
+            'ok': true,
+            'tilesTouched': const [42],
+            'foldsByTile': [
+              {
+                'tileId': 42,
+                'channels': 1,
+                'centerRa': 83.6,
+                'centerDec': -5.39,
+                'coverageMean': 1.0,
+                'totalFrames': 1,
+                'integrationSeconds': 300.0,
+                'framesAdded': 1,
+                'weightAdded': 1.0,
+                'rejected': 0,
+              },
+            ],
+            'framesSkippedNoCoverage': 0,
+          };
+        }
+        return {'ok': true};
+      };
+
+      // The region FK references a real target row.
+      await db
+          .into(db.targets)
+          .insert(
+            TargetsCompanion.insert(
+              id: const Value(11),
+              name: 'Orion Nebula',
+              ra: 5.575,
+              dec: -5.39,
+            ),
+          );
+
+      var resolveCalls = 0;
+      final withResolver = SkyAtlasService(
+        dao: dao,
+        seam: seam,
+        logger: LoggingService(),
+        atlasRootResolver: () async => '/tmp/test_atlas',
+        targetResolver: (targetId) async {
+          resolveCalls++;
+          return const AtlasTargetRef(
+            name: 'Orion Nebula',
+            raDeg: 83.6,
+            decDeg: -5.39,
+          );
+        },
+      );
+
+      DbCapturedImage image(int id) => DbCapturedImage(
+        id: id,
+        filePath: '/tmp/light_$id.fits',
+        fileName: 'light_$id.fits',
+        fileFormat: 'fits',
+        frameType: 'light',
+        exposureDuration: 300.0,
+        binX: 1,
+        binY: 1,
+        targetId: 11,
+        isPlateSolved: true,
+        solvedRa: 5.575,
+        solvedDec: -5.39,
+        solvedPixelScale: 1.5,
+        capturedAt: DateTime.utc(2026, 6, 11, 22),
+        createdAt: DateTime.utc(2026, 6, 11, 22),
+        isAccepted: true,
+      );
+
+      final summary = await withResolver.autoFoldCapturedImage(
+        image: image(1),
+        imageWidth: 1000,
+        imageHeight: 800,
+      );
+      expect(summary, isNotNull);
+      expect(resolveCalls, 1);
+
+      final regions = await dao.getAllRegions();
+      expect(regions, hasLength(1));
+      final region = regions.single;
+      expect(region.name, 'Orion Nebula');
+      expect(region.kind, 'target');
+      expect(region.targetId, 11);
+      expect(region.centerRaDeg, closeTo(83.6, 1e-6));
+
+      // The folded tile is linked to the region + rollups reflect it.
+      final tile = await dao.getTile(42, healpixOrder: 9);
+      expect(tile!.regionId, region.id);
+      final refreshed = (await dao.getAllRegions()).firstWhere(
+        (r) => r.id == region.id,
+      );
+      expect(refreshed.tileCount, 1);
+      expect(refreshed.integrationSeconds, closeTo(300.0, 1e-6));
+
+      // A second night's fold of the SAME target reuses the ONE region
+      // (idempotent on targetId), never a duplicate.
+      await withResolver.autoFoldCapturedImage(
+        image: image(2),
+        imageWidth: 1000,
+        imageHeight: 800,
+      );
+      expect(await dao.getAllRegions(), hasLength(1));
+    },
+  );
+
   test('autoFoldCapturedImage skips non-light frames', () async {
     final image = DbCapturedImage(
       id: 1,

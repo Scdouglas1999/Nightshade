@@ -432,6 +432,48 @@ void main() {
     expect(first['contributors'], isA<int>());
   });
 
+  test(
+    'POST /v1/targets echoes the target in the client-facing browse shape',
+    () async {
+      final token =
+          (await jsonOf(
+                await req(
+                  'POST',
+                  '/v1/accounts',
+                  jsonBody: <String, Object?>{
+                    'publicKey': 'seed',
+                    'displayName': 'Seed',
+                  },
+                ),
+              ))['bearerToken']
+              as String;
+
+      final r = await req(
+        'POST',
+        '/v1/targets',
+        token: token,
+        jsonBody: <String, Object?>{
+          'name': 'NGC 7000',
+          'centerRaDeg': 314.7,
+          'centerDecDeg': 44.3,
+          'radiusDeg': 2.0,
+        },
+      );
+      expect(r.statusCode, 200);
+      final body = await jsonOf(r);
+      expect(body['targetId'], isA<int>());
+      // The echoed target must decode straight into the client SharedTarget shape
+      // (targetId/raDeg/decDeg/activeTileId), not the hub-internal id/centerRaDeg.
+      final target = body['target'] as Map;
+      expect(target['targetId'], body['targetId']);
+      expect(target['name'], 'NGC 7000');
+      expect(target['raDeg'], closeTo(314.7, 1e-6));
+      expect(target['decDeg'], closeTo(44.3, 1e-6));
+      expect(target['activeTileId'], isA<int>());
+      expect(target['contributors'], isA<int>());
+    },
+  );
+
   test('an unhandled error does not leak internal detail to the client', () async {
     final token =
         (await jsonOf(

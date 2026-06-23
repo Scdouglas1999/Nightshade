@@ -5,15 +5,15 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../sky_atlas_format.dart';
-import 'atlas_tile_preview.dart';
+import 'atlas_region_cutout.dart';
 
 /// One region in the Your Sky gallery: a deep co-added preview, the region name
 /// + kind, its centre, and the depth / growth rollups. Tapping opens the region
 /// detail (cutout + time-scrub).
 ///
-/// The preview renders the deepest tile of the region (the strongest single
-/// cutout we can show cheaply without a full reproject); the detail screen shows
-/// the full co-added cone.
+/// The preview renders the region's co-added cone via [AtlasRegionCutout], which
+/// is portable across backends (host file path / remote PNG bytes), so the
+/// gallery thumbnail renders on a slave instead of reading an empty local store.
 class AtlasRegionCard extends ConsumerWidget {
   final SkyAtlasRegionRow region;
   final VoidCallback onTap;
@@ -27,8 +27,8 @@ class AtlasRegionCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
-    final tilesAsync = ref.watch(_regionTilesProvider(region.id));
-    final timelineAsync = ref.watch(_regionTimelineProvider(region.id));
+    final tilesAsync = ref.watch(atlasRegionTilesProvider(region.id));
+    final timelineAsync = ref.watch(atlasRegionTimelineProvider(region.id));
 
     return NightshadeCard(
       onTap: onTap,
@@ -47,7 +47,7 @@ class AtlasRegionCard extends ConsumerWidget {
               child: tilesAsync.when(
                 data: (tiles) => tiles.isEmpty
                     ? _PreviewPlaceholder(colors: colors)
-                    : AtlasTilePreview(tileId: tiles.first.tileId),
+                    : AtlasRegionCutout(regionId: region.id),
                 loading: () =>
                     _PreviewPlaceholder(colors: colors, loading: true),
                 error: (_, __) => _PreviewPlaceholder(colors: colors),
@@ -169,20 +169,6 @@ class AtlasRegionCard extends ConsumerWidget {
     );
   }
 }
-
-/// Tiles of a region, deepest first — the card watches this for the preview.
-final _regionTilesProvider =
-    FutureProvider.family<List<SkyTileRow>, int>((ref, regionId) {
-  final dao = ref.watch(skyAtlasDaoProvider);
-  return dao.getTilesForRegion(regionId);
-});
-
-/// The region's fold timeline (oldest first) — backs the growth phrase.
-final _regionTimelineProvider =
-    StreamProvider.family<List<SkyAtlasFoldRow>, int>((ref, regionId) {
-  final dao = ref.watch(skyAtlasDaoProvider);
-  return dao.watchFoldsForRegionOverTime(regionId);
-});
 
 class _PreviewPlaceholder extends StatelessWidget {
   final NightshadeColors colors;

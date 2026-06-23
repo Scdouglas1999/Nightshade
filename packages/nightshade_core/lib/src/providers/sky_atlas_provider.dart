@@ -1,15 +1,18 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../backend/network_backend.dart';
 import '../database/daos/sky_atlas_dao.dart';
 import '../database/database.dart';
+import '../database/tables/sky_atlas_tables.dart' show skyAtlasHealpixOrder;
 import '../services/logging_service.dart';
 import '../services/sky_atlas/sky_atlas_models.dart';
 import '../services/sky_atlas/sky_atlas_service.dart';
 import '../services/sky_atlas/sky_atlas_seam.dart';
 import 'backend_provider.dart';
+import 'database_provider.dart';
 
 /// Riverpod surface for Pillar A ("Your Sky") — the personal sky atlas.
 ///
@@ -24,12 +27,28 @@ import 'backend_provider.dart';
 /// remote path — and fall back to the local DAO/seam in host mode.
 
 /// The sky-atlas orchestration service.
+///
+/// The [SkyAtlasService.targetResolver] is wired to the Targets DAO here so an
+/// auto-fold of a captured image can ensure + name a region from the frame's
+/// target (RA hours -> degrees). The core service stays DAO-agnostic; the
+/// resolver is host-only and a slave never folds, so region creation is a
+/// host-only write to the local atlas DB.
 final skyAtlasServiceProvider = Provider<SkyAtlasService>((ref) {
+  final targetsDao = ref.watch(targetsDaoProvider);
   return SkyAtlasService(
     dao: ref.watch(skyAtlasDaoProvider),
     seam: ref.watch(skyAtlasSeamProvider),
     logger: ref.watch(loggingServiceProvider),
     atlasRootResolver: defaultAtlasRoot,
+    targetResolver: (targetId) async {
+      final target = await targetsDao.getTargetById(targetId);
+      if (target == null) return null;
+      return AtlasTargetRef(
+        name: target.name,
+        raDeg: target.ra * 15.0,
+        decDeg: target.dec,
+      );
+    },
   );
 });
 
@@ -174,3 +193,170 @@ final skyAtlasGrowthProvider =
             radiusDeg: cone.radius,
           );
     });
+
+// ===========================================================================
+// Region detail — backend-aware families
+// ===========================================================================
+//
+// Hoisted here (out of `region_detail_screen.dart`) so the region-detail screen
+// renders on a slave instead of reading an empty local atlas DB. Each family
+// branches on the active backend: a [NetworkBackend] companion reads the host's
+// already-advertised `/api/atlas/region/<id>[/timeline]` routes; a host reads
+// the local DAO/seam.
+
+/// One region's row by id. Remote: from the host region-detail payload; host:
+/// the local DAO.
+final atlasRegionProvider = FutureProvider.family<SkyAtlasRegionRow?, int>((
+  ref,
+  regionId,
+) async {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    final json = await backend.getAtlasRegion(regionId);
+    final region = json['region'];
+    if (region is! Map<String, dynamic>) return null;
+    return skyAtlasRegionFromWireJson(region);
+  }
+  return ref.watch(skyAtlasServiceProvider).getRegion(regionId);
+});
+
+/// A region's tiles (deepest first). Remote has no per-tile route, so the host's
+/// region-detail payload carries a `tiles` array (added additively to
+/// `GET /api/atlas/region/<id>`); host reads the local DAO.
+final atlasRegionTilesProvider = FutureProvider.family<List<SkyTileRow>, int>((
+  ref,
+  regionId,
+) async {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    final json = await backend.getAtlasRegion(regionId);
+    final raw = json['tiles'];
+    if (raw is! List) return const [];
+    return raw
+        .whereType<Map<String, dynamic>>()
+        .map(skyTileRowFromWireJson)
+        .toList(growable: false);
+  }
+  return ref.watch(skyAtlasServiceProvider).tilesForRegion(regionId);
+});
+
+/// A region's fold timeline (oldest first). Remote: decode the host timeline
+/// payload's `folds` array; host: watch the local DAO live.
+final atlasRegionTimelineProvider =
+    StreamProvider.family<List<SkyAtlasFoldRow>, int>((ref, regionId) {
+      final backend = ref.watch(backendProvider);
+      if (backend is NetworkBackend) {
+        return _remoteAtlasSnapshotStream<SkyAtlasFoldRow>(
+          ref,
+          backend,
+          () async {
+            final json = await backend.getAtlasRegionTimeline(regionId);
+            final raw = json['folds'];
+            if (raw is! List) return const [];
+            return raw.whereType<Map<String, dynamic>>().toList(
+              growable: false,
+            );
+          },
+          skyAtlasFoldRowFromWireJson,
+        );
+      }
+      return ref.watch(skyAtlasServiceProvider).watchRegionTimeline(regionId);
+    });
+
+/// The portable co-added region cutout PNG. Remote: fetch host cutout bytes for
+/// `Image.memory`; host: render via the native cutout into a local cache file.
+/// Carries NO `asOf` — the cutout always renders at the LATEST depth; the
+/// time-scrub drives only the honestly-filtered frame list / growth panels.
+final atlasRegionCutoutProvider =
+    FutureProvider.family<AtlasRegionCutoutImage, int>((ref, regionId) async {
+      final backend = ref.watch(backendProvider);
+      if (backend is NetworkBackend) {
+        final bytes = await backend.getAtlasRegionCutout(regionId);
+        return AtlasRegionCutoutImage.bytes(bytes);
+      }
+      final region = await ref
+          .watch(skyAtlasServiceProvider)
+          .getRegion(regionId);
+      if (region == null) {
+        throw StateError('region $regionId not found');
+      }
+      final result = await ref
+          .watch(skyAtlasServiceProvider)
+          .cutout(
+            centerRaDeg: region.centerRaDeg,
+            centerDecDeg: region.centerDecDeg,
+            radiusDeg: region.radiusDeg,
+          );
+      final pngPath = result['pngPath'] as String?;
+      if (pngPath == null || pngPath.trim().isEmpty) {
+        throw StateError('cutout produced no PNG for region $regionId');
+      }
+      return AtlasRegionCutoutImage.file(pngPath);
+    });
+
+/// A portable region cutout: either a host-local PNG file path (FFI backend) or
+/// in-memory PNG bytes fetched over the wire (network backend). The UI renders
+/// `Image.file` or `Image.memory` accordingly — the host-local path is never
+/// shipped across the wire.
+class AtlasRegionCutoutImage {
+  /// Local PNG path when rendered on the host; null on a slave.
+  final String? filePath;
+
+  /// PNG bytes when fetched from the host; null on the host.
+  final Uint8List? bytes;
+
+  const AtlasRegionCutoutImage._({this.filePath, this.bytes});
+
+  factory AtlasRegionCutoutImage.file(String path) =>
+      AtlasRegionCutoutImage._(filePath: path);
+
+  factory AtlasRegionCutoutImage.bytes(Uint8List bytes) =>
+      AtlasRegionCutoutImage._(bytes: bytes);
+}
+
+/// Reconstruct a [SkyTileRow] from the host region-detail `tiles` wire JSON
+/// (see `AtlasHandlers._tileToJson`). Only the fields the detail screen reads
+/// are populated; the rest take sensible defaults.
+SkyTileRow skyTileRowFromWireJson(Map<String, dynamic> json) {
+  return SkyTileRow(
+    id: (json['id'] as num?)?.toInt() ?? 0,
+    tileId: (json['tileId'] as num).toInt(),
+    healpixOrder:
+        (json['healpixOrder'] as num?)?.toInt() ?? skyAtlasHealpixOrder,
+    channels: (json['channels'] as num?)?.toInt() ?? 1,
+    centerRaDeg: (json['centerRaDeg'] as num?)?.toDouble() ?? 0.0,
+    centerDecDeg: (json['centerDecDeg'] as num?)?.toDouble() ?? 0.0,
+    coverageMean: (json['coverageMean'] as num?)?.toDouble() ?? 0.0,
+    totalFrames: (json['totalFrames'] as num?)?.toInt() ?? 0,
+    integrationSeconds: (json['integrationSeconds'] as num?)?.toDouble() ?? 0.0,
+    swarmOverlayFrames: (json['swarmOverlayFrames'] as num?)?.toInt() ?? 0,
+    swarmOverlayIntegrationSeconds:
+        (json['swarmOverlayIntegrationSeconds'] as num?)?.toDouble() ?? 0.0,
+    sidecarPath: '',
+    regionId: (json['regionId'] as num?)?.toInt(),
+    createdAt: DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+  );
+}
+
+/// Reconstruct a [SkyAtlasFoldRow] from the host timeline wire JSON (mirrors
+/// `AtlasHandlers._foldToJson`). `foldedAt` is the ISO-8601 string the handler
+/// emits (not the Drift epoch-millis), so it is parsed explicitly.
+SkyAtlasFoldRow skyAtlasFoldRowFromWireJson(Map<String, dynamic> json) {
+  return SkyAtlasFoldRow(
+    id: (json['id'] as num?)?.toInt() ?? 0,
+    tileId: (json['tileId'] as num).toInt(),
+    healpixOrder:
+        (json['healpixOrder'] as num?)?.toInt() ?? skyAtlasHealpixOrder,
+    sessionId: (json['sessionId'] as num?)?.toInt(),
+    foldedAt:
+        DateTime.tryParse(json['foldedAt'] as String? ?? '') ??
+        DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+    framesAdded: (json['framesAdded'] as num?)?.toInt() ?? 0,
+    weightAdded: (json['weightAdded'] as num?)?.toDouble() ?? 0.0,
+    integrationSecondsAdded:
+        (json['integrationSecondsAdded'] as num?)?.toDouble() ?? 0.0,
+    rejected: (json['rejected'] as num?)?.toInt() ?? 0,
+    contributor: json['contributor'] as String? ?? '',
+    label: json['label'] as String? ?? '',
+  );
+}

@@ -45,6 +45,28 @@ final constellationServiceProvider = Provider<ConstellationService>((ref) {
     logger: ref.watch(loggingServiceProvider),
     contributionsDao: ref.watch(constellationContributionsDaoProvider),
     credentialsResolver: () => resolveConstellationCredentials(settings),
+    // HOST-ONLY raw-subframe resolver: the user's own accepted LIGHT frames for
+    // the target. Reads the LOCAL images table directly (never the remote-aware
+    // provider), so on a slave it yields nothing and the SUBS path no-ops —
+    // raw subs can only ever leak the host's own pixels, never a pulled frame.
+    rawSubframeResolver: (targetId) async {
+      final images = await ref
+          .read(imagesDaoProvider)
+          .getImagesForTarget(targetId);
+      return images
+          .where(
+            (i) =>
+                i.frameType == 'light' && i.isAccepted && i.filePath.isNotEmpty,
+          )
+          .map(
+            (i) => RawSubframe(
+              filePath: i.filePath,
+              capturedImageId: i.id,
+              exposureSeconds: i.exposureDuration,
+            ),
+          )
+          .toList(growable: false);
+    },
     localTargetsResolver: () async {
       // Resolve through the remote-aware targets provider so a slave maps the
       // MASTER's targets (its own local table is never populated); on the host
@@ -76,6 +98,31 @@ final constellationConfiguredProvider = FutureProvider<bool>((ref) async {
 /// The swarm's shared-target listing on the configured hub.
 final sharedTargetsProvider = FutureProvider<List<SharedTarget>>((ref) {
   return ref.watch(constellationServiceProvider).browseSharedTargets();
+});
+
+/// The user's local imageable targets, as candidates for "Share one of my
+/// targets" (seeding a shared target on the hub). Reuses the remote-aware
+/// targets provider and maps RA hours -> degrees at the boundary so the picker
+/// and `proposeTarget` agree on units.
+final shareableLocalTargetsProvider =
+    FutureProvider<List<ShareableLocalTarget>>((ref) async {
+      final targets = await ref.watch(allDbTargetsProvider.future);
+      return targets
+          .map(
+            (t) => ShareableLocalTarget(
+              targetId: t.id,
+              name: t.name,
+              raDeg: t.ra * 15.0,
+              decDeg: t.dec,
+            ),
+          )
+          .toList(growable: false);
+    });
+
+/// The tiles this device has contributed to the configured hub — the
+/// retractable units. Empty on a slave (the local receipt table is the host's).
+final myContributionsProvider = FutureProvider<List<ContributionRecord>>((ref) {
+  return ref.watch(constellationServiceProvider).myContributions();
 });
 
 /// Community tiles pulled and blended into "Your Sky" for one target.

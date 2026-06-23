@@ -27,8 +27,7 @@ part 'constellation_contributions_dao.g.dart';
 /// concern owns — so a pull does not clobber a contribution receipt and vice
 /// versa.
 @DriftAccessor(tables: [ConstellationContributions])
-class ConstellationContributionsDao
-    extends DatabaseAccessor<NightshadeDatabase>
+class ConstellationContributionsDao extends DatabaseAccessor<NightshadeDatabase>
     with _$ConstellationContributionsDaoMixin {
   ConstellationContributionsDao(super.db);
 
@@ -63,9 +62,29 @@ class ConstellationContributionsDao
   /// Every receipt at [hubKey] (used to rehydrate the federation view for a hub
   /// without a live round-trip).
   Future<List<ConstellationContributionRow>> getAllForHub(String hubKey) {
-    return (select(constellationContributions)
-          ..where((c) => c.hubKey.equals(hubKey)))
-        .get();
+    return (select(
+      constellationContributions,
+    )..where((c) => c.hubKey.equals(hubKey))).get();
+  }
+
+  /// The tiles this device has contributed to [hubKey] — i.e. rows carrying a
+  /// remote [ConstellationContributions.contributionId] receipt. These are the
+  /// exact units the privacy "Retract" action can subtract back off the hub
+  /// (newest contribution first). Rows with a null id (pull-only / join-only)
+  /// are excluded: there is nothing to retract.
+  Future<List<ConstellationContributionRow>> getContributedTilesForHub(
+    String hubKey,
+  ) async {
+    final rows = await getAllForHub(hubKey);
+    final contributed = rows
+        .where((r) => r.contributionId != null && r.contributionId!.isNotEmpty)
+        .toList();
+    contributed.sort((a, b) {
+      final at = a.lastContributedAt ?? a.updatedAt;
+      final bt = b.lastContributedAt ?? b.updatedAt;
+      return bt.compareTo(at);
+    });
+    return contributed;
   }
 
   /// Update-or-insert the CONTRIBUTION high-water after a successful push.
@@ -163,8 +182,10 @@ class ConstellationContributionsDao
         .go();
   }
 
-  SimpleSelectStatement<$ConstellationContributionsTable,
-      ConstellationContributionRow>
+  SimpleSelectStatement<
+    $ConstellationContributionsTable,
+    ConstellationContributionRow
+  >
   _byKey(String hubKey, int tileId, int healpixOrder) {
     return select(constellationContributions)
       ..where(
@@ -185,13 +206,16 @@ class ConstellationContributionsDao
     ConstellationContributionsCompanion patch,
   ) {
     return transaction(() async {
-      final existing = await _byKey(hubKey, tileId, healpixOrder)
-          .getSingleOrNull();
+      final existing = await _byKey(
+        hubKey,
+        tileId,
+        healpixOrder,
+      ).getSingleOrNull();
       final stamped = patch.copyWith(updatedAt: Value(DateTime.now()));
       if (existing != null) {
-        await (update(constellationContributions)
-              ..where((c) => c.id.equals(existing.id)))
-            .write(stamped);
+        await (update(
+          constellationContributions,
+        )..where((c) => c.id.equals(existing.id))).write(stamped);
         return;
       }
       await into(constellationContributions).insert(

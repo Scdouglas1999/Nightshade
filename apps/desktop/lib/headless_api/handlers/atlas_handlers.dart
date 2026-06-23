@@ -79,7 +79,16 @@ class AtlasHandlers {
       radiusDeg: region.radiusDeg,
     );
 
-    return jsonOk({'region': _regionToJson(region), 'coverage': coverage});
+    // The region's tiles (deepest first) so the companion's detail screen can
+    // pick a preview tile + render the depth/provenance rollups without a
+    // per-tile route. Additive to the same response — the contract is unchanged.
+    final tiles = await _service.tilesForRegion(regionId);
+
+    return jsonOk({
+      'region': _regionToJson(region),
+      'coverage': coverage,
+      'tiles': tiles.map(_tileToJson).toList(),
+    });
   }
 
   // ===========================================================================
@@ -202,6 +211,25 @@ class AtlasHandlers {
     'integrationSeconds': tile.integrationSeconds,
     'lastFoldIso': tile.lastFoldIso,
     'channels': tile.channels,
+  };
+
+  /// Serialize a tile row for the companion's region detail. Carries the
+  /// `(tileId, healpixOrder)` identity, centre + own-light totals, and the
+  /// blended swarm-overlay depth so the slave renders the same rollups the host
+  /// computes locally.
+  Map<String, dynamic> _tileToJson(SkyTileRow tile) => {
+    'id': tile.id,
+    'tileId': tile.tileId,
+    'healpixOrder': tile.healpixOrder,
+    'channels': tile.channels,
+    'centerRaDeg': tile.centerRaDeg,
+    'centerDecDeg': tile.centerDecDeg,
+    'coverageMean': tile.coverageMean,
+    'totalFrames': tile.totalFrames,
+    'integrationSeconds': tile.integrationSeconds,
+    'swarmOverlayFrames': tile.swarmOverlayFrames,
+    'swarmOverlayIntegrationSeconds': tile.swarmOverlayIntegrationSeconds,
+    'regionId': tile.regionId,
   };
 
   Map<String, dynamic> _regionToJson(SkyAtlasRegionRow region) => {

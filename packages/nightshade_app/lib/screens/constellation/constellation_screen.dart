@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -7,6 +9,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'constellation_format.dart';
 import 'constellation_sign_in_sheet.dart';
 import 'constellation_ui_providers.dart';
+import 'share_target_sheet.dart';
 import 'shared_target_detail_screen.dart';
 import 'widgets/follow_the_night_card.dart';
 import 'widgets/hub_status_card.dart';
@@ -233,12 +236,34 @@ class _ConnectedBody extends ConsumerWidget {
           const SizedBox(height: NightshadeTokens.spaceLg),
           _FollowTheNightSection(suggestionsAsync: suggestionsAsync),
           const SizedBox(height: NightshadeTokens.spaceLg),
-          const SectionHeader(
-            title: 'Shared targets',
-            subtitle: 'Community fields the swarm is deepening together',
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Expanded(
+                child: SectionHeader(
+                  title: 'Shared targets',
+                  subtitle: 'Community fields the swarm is deepening together',
+                ),
+              ),
+              if (ref.watch(isConstellationHostActionEnabledProvider)) ...[
+                const SizedBox(width: NightshadeTokens.spaceMd),
+                NightshadeButton(
+                  label: 'Share a target',
+                  icon: LucideIcons.globe2,
+                  variant: ButtonVariant.outline,
+                  size: ButtonSize.small,
+                  onPressed: () => _shareTarget(context, ref),
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: NightshadeTokens.spaceMd),
-          _SharedTargetsSection(targetsAsync: targetsAsync),
+          _SharedTargetsSection(
+            targetsAsync: targetsAsync,
+            onShare: ref.watch(isConstellationHostActionEnabledProvider)
+                ? () => _shareTarget(context, ref)
+                : null,
+          ),
           const SizedBox(height: NightshadeTokens.spaceLg),
         ],
       ),
@@ -251,6 +276,20 @@ class _ConnectedBody extends ConsumerWidget {
     await settings.setSetting(constellationHubTokenSettingKey, '');
     ref.invalidate(constellationConfiguredProvider);
     ref.invalidate(constellationHubInfoProvider);
+  }
+
+  Future<void> _shareTarget(BuildContext context, WidgetRef ref) async {
+    final navigator = Navigator.of(context);
+    final target = await showShareTargetSheet(context);
+    if (target == null) return;
+    ref.invalidate(sharedTargetsProvider);
+    unawaited(
+      navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) => SharedTargetDetailScreen(target: target),
+        ),
+      ),
+    );
   }
 }
 
@@ -347,17 +386,21 @@ class _FollowTheNightCardWiredState
 class _SharedTargetsSection extends StatelessWidget {
   final AsyncValue<List<SharedTarget>> targetsAsync;
 
-  const _SharedTargetsSection({required this.targetsAsync});
+  /// Opens the "Share one of my targets" flow; null on a slave (the action is
+  /// host-only), in which case the empty hint stays informational.
+  final VoidCallback? onShare;
+
+  const _SharedTargetsSection({required this.targetsAsync, this.onShare});
 
   @override
   Widget build(BuildContext context) {
     return targetsAsync.when(
       data: (targets) {
         if (targets.isEmpty) {
-          return const NightshadeCard(
+          return NightshadeCard(
             variant: CardVariant.subtle,
             padding: NightshadeTokens.cardPadding,
-            child: _EmptySwarmHint(),
+            child: _EmptySwarmHint(onShare: onShare),
           );
         }
         return LayoutBuilder(
@@ -398,26 +441,52 @@ class _SharedTargetsSection extends StatelessWidget {
 }
 
 class _EmptySwarmHint extends StatelessWidget {
-  const _EmptySwarmHint();
+  /// Opens the "Share one of my targets" flow; null on a slave where seeding is
+  /// host-only (the hint then just explains, with no dead button).
+  final VoidCallback? onShare;
+
+  const _EmptySwarmHint({this.onShare});
 
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(LucideIcons.globe2,
-            size: NightshadeTokens.iconMd, color: colors.info),
-        const SizedBox(width: NightshadeTokens.spaceMd),
-        Expanded(
-          child: Text(
-            'No shared targets on this hub yet. When you contribute one of your '
-            'imaged targets, it becomes a field the whole swarm can deepen.',
-            style: NightshadeTypography.caption.copyWith(
-              color: colors.textSecondary,
-              height: 1.4,
+        Row(
+          children: [
+            Icon(LucideIcons.globe2,
+                size: NightshadeTokens.iconMd, color: colors.info),
+            const SizedBox(width: NightshadeTokens.spaceMd),
+            Expanded(
+              child: Text(
+                onShare != null
+                    ? 'No shared targets on this hub yet. Share one of your '
+                        'imaged targets to seed the first field the whole swarm '
+                        'can deepen.'
+                    : 'No shared targets on this hub yet. Seeding a field runs '
+                        'on your imaging host — share a target from there to '
+                        'start the swarm.',
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.textSecondary,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (onShare != null) ...[
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: NightshadeButton(
+              label: 'Share one of my targets',
+              icon: LucideIcons.globe2,
+              size: ButtonSize.small,
+              onPressed: onShare,
             ),
           ),
-        ),
+        ],
       ],
     );
   }

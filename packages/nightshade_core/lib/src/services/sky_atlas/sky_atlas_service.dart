@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -29,17 +30,26 @@ class SkyAtlasService {
     required SkyAtlasSeam seam,
     required LoggingService logger,
     required Future<String> Function() atlasRootResolver,
+    Future<AtlasTargetRef?> Function(int targetId)? targetResolver,
     int order = skyAtlasHealpixOrder,
   }) : _dao = dao,
        _seam = seam,
        _logger = logger,
        _atlasRootResolver = atlasRootResolver,
+       _targetResolver = targetResolver,
        _order = order;
 
   final SkyAtlasDao _dao;
   final SkyAtlasSeam _seam;
   final LoggingService _logger;
   final Future<String> Function() _atlasRootResolver;
+
+  /// Resolves a target id to its name + sky coordinates so an auto-fold of a
+  /// captured image can attach (and name) a region without the core package
+  /// depending on the Targets DAO. Wired in `skyAtlasServiceProvider`; null on a
+  /// slave (which never folds), so auto-region-creation is silently skipped.
+  final Future<AtlasTargetRef?> Function(int targetId)? _targetResolver;
+
   final int _order;
 
   static const _logSource = 'SkyAtlasService';
@@ -84,6 +94,11 @@ class SkyAtlasService {
     AtlasInterp interp = AtlasInterp.lanczos3,
     String label = '',
     String contributor = '',
+    int? targetId,
+    String? regionName,
+    double? targetRaDeg,
+    double? targetDecDeg,
+    double regionRadiusDeg = 0.25,
   }) async {
     final usable = frames.where((f) => f.hasInvertibleWcs).toList();
     final dropped = frames.length - usable.length;
@@ -122,6 +137,11 @@ class SkyAtlasService {
         label: foldLabel,
         contributor: contributor,
         root: root,
+        targetId: targetId,
+        regionName: regionName,
+        targetRaDeg: targetRaDeg,
+        targetDecDeg: targetDecDeg,
+        regionRadiusDeg: regionRadiusDeg,
       );
       return folded;
     });
@@ -143,6 +163,11 @@ class SkyAtlasService {
     AtlasInterp interp = AtlasInterp.lanczos3,
     String label = '',
     String contributor = '',
+    int? targetId,
+    String? regionName,
+    double? targetRaDeg,
+    double? targetDecDeg,
+    double regionRadiusDeg = 0.25,
   }) {
     return foldSession(
       sessionId: sessionId ?? 0,
@@ -150,6 +175,11 @@ class SkyAtlasService {
       interp: interp,
       label: label,
       contributor: contributor,
+      targetId: targetId,
+      regionName: regionName,
+      targetRaDeg: targetRaDeg,
+      targetDecDeg: targetDecDeg,
+      regionRadiusDeg: regionRadiusDeg,
     );
   }
 
@@ -209,11 +239,50 @@ class SkyAtlasService {
     );
     if (!frame.hasInvertibleWcs) return null;
 
+    // Region attach (Pillar A reachability): a captured-image solve carries a
+    // [targetId], so resolve the target's name + sky coordinates and pass them
+    // through so `_persistFold` ensures/updates ONE region for the target and
+    // links every touched tile to it — making the whole region UX reachable
+    // without any manual step. The resolver is host-only (null on a slave, which
+    // never folds), and a resolve failure degrades to a plain fold.
+    int? regionTargetId;
+    String? regionName;
+    double? regionRaDeg;
+    double? regionDecDeg;
+    if (image.targetId != null && _targetResolver != null) {
+      try {
+        final ref = await _targetResolver(image.targetId!);
+        if (ref != null && ref.name.trim().isNotEmpty) {
+          regionTargetId = image.targetId;
+          regionName = ref.name.trim();
+          regionRaDeg = ref.raDeg;
+          regionDecDeg = ref.decDeg;
+        }
+      } catch (e) {
+        _logger.warning(
+          'autoFoldCapturedImage: target resolve failed for '
+          'targetId=${image.targetId} ($e); folding without a region.',
+          source: _logSource,
+        );
+      }
+    }
+    // Region radius: half the frame's diagonal field of view, floored at 0.25°
+    // so a single sub still describes a sensible cone.
+    final widthDeg = imageWidth * solvedWcs.pixelScaleArcsec / 3600.0;
+    final heightDeg = imageHeight * solvedWcs.pixelScaleArcsec / 3600.0;
+    final diagDeg = math.sqrt(widthDeg * widthDeg + heightDeg * heightDeg);
+    final regionRadiusDeg = math.max(diagDeg / 2.0, 0.25);
+
     return foldSession(
       sessionId: image.sessionId ?? 0,
       frames: [frame],
       interp: interp,
       label: _foldLabelFor(image),
+      targetId: regionTargetId,
+      regionName: regionName,
+      targetRaDeg: regionRaDeg,
+      targetDecDeg: regionDecDeg,
+      regionRadiusDeg: regionRadiusDeg,
     );
   }
 
@@ -380,6 +449,14 @@ class SkyAtlasService {
 
   /// All persisted regions (newest first).
   Future<List<SkyAtlasRegionRow>> regions() => _dao.getAllRegions();
+
+  /// One region by row id (null when absent).
+  Future<SkyAtlasRegionRow?> getRegion(int id) => _dao.getRegion(id);
+
+  /// The tiles belonging to a region, deepest first (host-local read; the slave
+  /// reads the same rows off the region-detail wire payload).
+  Future<List<SkyTileRow>> tilesForRegion(int regionId) =>
+      _dao.getTilesForRegion(regionId);
 
   /// Reactive region list for the atlas browser.
   Stream<List<SkyAtlasRegionRow>> watchRegions() => _dao.watchAllRegions();
@@ -551,10 +628,37 @@ class SkyAtlasService {
     required String label,
     required String contributor,
     required String root,
+    int? targetId,
+    String? regionName,
+    double? targetRaDeg,
+    double? targetDecDeg,
+    double regionRadiusDeg = 0.25,
   }) async {
     final foldedAt = DateTime.now();
     final tilesDir = _tilesDir(root);
     final linkedSession = sessionId > 0 ? sessionId : null;
+
+    // Region attach (Pillar A): when this fold came from a known target, ensure
+    // ONE region for it (idempotent on targetId — nightly re-folds reuse the
+    // same region) BEFORE the per-tile loop, then link every touched tile to it
+    // in the same upsert. ensureRegion refreshes rollups; we refresh once more
+    // after the loop so the new tile membership is reflected.
+    int? regionId;
+    if (targetId != null &&
+        regionName != null &&
+        regionName.trim().isNotEmpty &&
+        targetRaDeg != null &&
+        targetDecDeg != null) {
+      regionId = await ensureRegion(
+        name: regionName.trim(),
+        centerRaDeg: targetRaDeg,
+        centerDecDeg: targetDecDeg,
+        radiusDeg: math.max(regionRadiusDeg, 0.25),
+        kind: 'target',
+        targetId: targetId,
+      );
+    }
+
     for (final tile in summary.tiles) {
       final sidecarPath = p.join(tilesDir, '${tile.tileId}.nst');
       await _dao.upsertTile(
@@ -569,6 +673,7 @@ class SkyAtlasService {
         sidecarPath: sidecarPath,
         lastFoldSessionId: linkedSession,
         lastFoldAt: foldedAt,
+        regionId: regionId,
       );
       await _dao.recordFold(
         tileId: tile.tileId,
@@ -582,6 +687,13 @@ class SkyAtlasService {
         label: label,
         foldedAt: foldedAt,
       );
+    }
+
+    // The tiles just gained this region's id; recompute the denormalized
+    // tileCount / integrationSeconds rollups so the region card + detail render
+    // the true depth immediately.
+    if (regionId != null) {
+      await _dao.refreshRegionRollups(regionId);
     }
   }
 
@@ -639,6 +751,27 @@ class AtlasDeltaExport {
 
   /// Whether this export carries new own-light to contribute.
   bool get isEmpty => framesInDelta <= 0;
+}
+
+/// The slice of a target the atlas needs to ensure + name a region on fold:
+/// the human name and the sky coordinates (degrees) of its centre. Kept here so
+/// the core [SkyAtlasService] never depends on the Targets DAO directly — the
+/// provider injects a resolver that maps a `targetId` to one of these.
+class AtlasTargetRef {
+  /// Human-facing name to title the region with (e.g. "M31" / "NGC 7000").
+  final String name;
+
+  /// Target centre RA, degrees (J2000).
+  final double raDeg;
+
+  /// Target centre Dec, degrees (J2000).
+  final double decDeg;
+
+  const AtlasTargetRef({
+    required this.name,
+    required this.raDeg,
+    required this.decDeg,
+  });
 }
 
 /// Default atlas root: `<app support>/sky_atlas`. The native fold creates the

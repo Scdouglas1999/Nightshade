@@ -44,6 +44,10 @@ class _ConstellationContributeSheetState
     extends ConsumerState<_ConstellationContributeSheet> {
   ConstellationPrivacy _privacy = ConstellationPrivacy.sums;
   bool _consented = false;
+
+  /// Second, stronger consent required ONLY for SUBS: raw subframes reveal far
+  /// more than additive sums and cannot be cleanly un-shared.
+  bool _rawSubsConsented = false;
   bool _busy = false;
   String? _error;
   bool _loadedChoice = false;
@@ -73,6 +77,20 @@ class _ConstellationContributeSheetState
     );
     _seedPrivacy(ref.watch(constellationPrivacyProvider).valueOrNull);
 
+    // Whether THIS hub accepts raw subframes. When it doesn't (the default, and
+    // for any older hub), the SUBS option is rendered disabled with an
+    // explanation rather than letting the user consent and only then error.
+    final acceptsRawSubs =
+        ref.watch(constellationHubInfoProvider).valueOrNull?.acceptsRawSubs ??
+            false;
+    // A persisted SUBS preference on a hub that no longer accepts raw subframes
+    // must not leave the disabled option silently selected — coerce to sums.
+    final subsSelected =
+        _privacy == ConstellationPrivacy.subs && acceptsRawSubs;
+    // SUBS needs BOTH the base consent and the stronger raw-subs consent.
+    final canContribute =
+        _consented && (!subsSelected || _rawSubsConsented) && !_busy;
+
     return NightshadeDialog(
       title: 'Contribute to the swarm',
       icon: LucideIcons.upload,
@@ -88,7 +106,7 @@ class _ConstellationContributeSheetState
           label: 'Contribute',
           icon: LucideIcons.upload,
           isLoading: _busy,
-          onPressed: _consented && !_busy ? _contribute : null,
+          onPressed: canContribute ? _contribute : null,
         ),
       ],
       child: Column(
@@ -106,27 +124,65 @@ class _ConstellationContributeSheetState
           ),
           const SizedBox(height: NightshadeTokens.spaceLg),
           for (final option in ConstellationPrivacy.values) ...[
-            _PrivacyOption(
-              option: option,
-              selected: _privacy == option,
-              onSelect: _busy ? null : () => setState(() => _privacy = option),
+            Builder(
+              builder: (_) {
+                // SUBS is selectable only on a hub that accepts raw subframes.
+                final isSubs = option == ConstellationPrivacy.subs;
+                final disabled = isSubs && !acceptsRawSubs;
+                return _PrivacyOption(
+                  option: option,
+                  selected: _privacy == option,
+                  disabled: disabled,
+                  disabledNote: disabled
+                      ? 'This hub does not accept raw subframes.'
+                      : null,
+                  onSelect: (_busy || disabled)
+                      ? null
+                      : () => setState(() => _privacy = option),
+                );
+              },
             ),
             const SizedBox(height: NightshadeTokens.spaceSm),
           ],
           const SizedBox(height: NightshadeTokens.spaceSm),
-          const NightshadeAlert(
-            severity: NightshadeAlertSeverity.info,
-            compact: true,
-            message: 'You only share additive co-add sums, so a contribution '
-                'can be subtracted exactly hub-side — the shared depth returns '
-                'to what it was before.',
-          ),
+          // The reassurance banner is true ONLY for sums; showing it under a
+          // SUBS selection would contradict the choice, so it is conditional.
+          if (!subsSelected)
+            const NightshadeAlert(
+              severity: NightshadeAlertSeverity.info,
+              compact: true,
+              message: 'You only share additive co-add sums, so a contribution '
+                  'can be subtracted exactly hub-side — the shared depth returns '
+                  'to what it was before.',
+            )
+          else
+            const NightshadeAlert(
+              severity: NightshadeAlertSeverity.warning,
+              message:
+                  'Raw subframes reveal your exact pixels and pointing and '
+                  'cannot be subtracted as cleanly as sums — anyone with read '
+                  'access can download them. Removing one later is a file '
+                  'delete, not a clean subtraction.',
+            ),
           const SizedBox(height: NightshadeTokens.spaceMd),
           _ConsentRow(
             value: _consented,
             onChanged:
                 _busy ? null : (v) => setState(() => _consented = v ?? false),
           ),
+          // Second, stronger consent gate shown only for the SUBS choice.
+          if (subsSelected) ...[
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            _ConsentRow(
+              value: _rawSubsConsented,
+              label: 'I understand raw subframes expose my exact pixels and '
+                  'pointing, can be downloaded by anyone with read access, and '
+                  'cannot be cleanly un-shared.',
+              onChanged: _busy
+                  ? null
+                  : (v) => setState(() => _rawSubsConsented = v ?? false),
+            ),
+          ],
           if (_error != null) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
             NightshadeAlert(
@@ -140,6 +196,17 @@ class _ConstellationContributeSheetState
   }
 
   Future<void> _contribute() async {
+    // Only ship SUBS if the hub actually accepts it AND the stronger consent was
+    // given; otherwise fall back to sums (belt-and-suspenders for the gating in
+    // build, so a stale `_privacy` can never leak raw pixels).
+    final acceptsRawSubs =
+        ref.read(constellationHubInfoProvider).valueOrNull?.acceptsRawSubs ??
+            false;
+    final effective = (_privacy == ConstellationPrivacy.subs &&
+            acceptsRawSubs &&
+            _rawSubsConsented)
+        ? ConstellationPrivacy.subs
+        : ConstellationPrivacy.sums;
     setState(() {
       _busy = true;
       _error = null;
@@ -148,11 +215,11 @@ class _ConstellationContributeSheetState
     try {
       await settings.setSetting(
         constellationPrivacySettingKey,
-        _privacy.name,
+        effective.name,
       );
       final outcome = await ref
           .read(constellationServiceProvider)
-          .contributeTarget(widget.target.targetId, privacy: _privacy.wire);
+          .contributeTarget(widget.target.targetId, privacy: effective.wire);
       if (!mounted) return;
       ref.invalidate(constellationPrivacyProvider);
       Navigator.of(context).pop(outcome);
@@ -169,78 +236,97 @@ class _ConstellationContributeSheetState
 class _PrivacyOption extends StatelessWidget {
   final ConstellationPrivacy option;
   final bool selected;
+  final bool disabled;
+  final String? disabledNote;
   final VoidCallback? onSelect;
 
   const _PrivacyOption({
     required this.option,
     required this.selected,
     required this.onSelect,
+    this.disabled = false,
+    this.disabledNote,
   });
 
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final recommended = option == ConstellationPrivacy.sums;
-    return NightshadeCard(
-      variant: selected ? CardVariant.elevated : CardVariant.subtle,
-      isSelected: selected,
-      onTap: onSelect,
-      padding: NightshadeTokens.cardPadding,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            selected ? LucideIcons.checkCircle2 : LucideIcons.circle,
-            size: NightshadeTokens.iconMd,
-            color: selected ? colors.accent : colors.textMuted,
-          ),
-          const SizedBox(width: NightshadeTokens.spaceMd),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        option.label,
-                        style: NightshadeTypography.labelStrong.copyWith(
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                    ),
-                    if (recommended) ...[
-                      const SizedBox(width: NightshadeTokens.spaceSm),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: NightshadeTokens.spaceSm,
-                          vertical: 2,
-                        ),
-                        decoration: NightshadeDecorations.tintedBadge(
-                          colors.success,
-                        ),
+    final titleColor = disabled ? colors.textMuted : colors.textPrimary;
+    final blurbColor = disabled ? colors.textMuted : colors.textSecondary;
+    return Opacity(
+      opacity: disabled ? 0.6 : 1.0,
+      child: NightshadeCard(
+        variant: selected ? CardVariant.elevated : CardVariant.subtle,
+        isSelected: selected,
+        onTap: onSelect,
+        padding: NightshadeTokens.cardPadding,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              selected ? LucideIcons.checkCircle2 : LucideIcons.circle,
+              size: NightshadeTokens.iconMd,
+              color: selected ? colors.accent : colors.textMuted,
+            ),
+            const SizedBox(width: NightshadeTokens.spaceMd),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
                         child: Text(
-                          'DEFAULT',
-                          style: NightshadeTypography.captionSm.copyWith(
-                            color: colors.success,
+                          option.label,
+                          style: NightshadeTypography.labelStrong.copyWith(
+                            color: titleColor,
                           ),
                         ),
                       ),
+                      if (recommended) ...[
+                        const SizedBox(width: NightshadeTokens.spaceSm),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: NightshadeTokens.spaceSm,
+                            vertical: 2,
+                          ),
+                          decoration: NightshadeDecorations.tintedBadge(
+                            colors.success,
+                          ),
+                          child: Text(
+                            'DEFAULT',
+                            style: NightshadeTypography.captionSm.copyWith(
+                              color: colors.success,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
-                ),
-                const SizedBox(height: NightshadeTokens.spaceXs),
-                Text(
-                  option.blurb,
-                  style: NightshadeTypography.captionSm.copyWith(
-                    color: colors.textSecondary,
-                    height: 1.4,
                   ),
-                ),
-              ],
+                  const SizedBox(height: NightshadeTokens.spaceXs),
+                  Text(
+                    option.blurb,
+                    style: NightshadeTypography.captionSm.copyWith(
+                      color: blurbColor,
+                      height: 1.4,
+                    ),
+                  ),
+                  if (disabled && disabledNote != null) ...[
+                    const SizedBox(height: NightshadeTokens.spaceXs),
+                    Text(
+                      disabledNote!,
+                      style: NightshadeTypography.captionSm.copyWith(
+                        color: colors.warning,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -248,9 +334,14 @@ class _PrivacyOption extends StatelessWidget {
 
 class _ConsentRow extends StatelessWidget {
   final bool value;
+  final String? label;
   final ValueChanged<bool?>? onChanged;
 
-  const _ConsentRow({required this.value, required this.onChanged});
+  const _ConsentRow({
+    required this.value,
+    required this.onChanged,
+    this.label,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -267,8 +358,9 @@ class _ConsentRow extends StatelessWidget {
             const SizedBox(width: NightshadeTokens.spaceMd),
             Expanded(
               child: Text(
-                'I understand what is being shared and consent to contributing '
-                'it to this self-hosted hub.',
+                label ??
+                    'I understand what is being shared and consent to '
+                        'contributing it to this self-hosted hub.',
                 style: NightshadeTypography.caption.copyWith(
                   color: colors.textSecondary,
                   height: 1.4,

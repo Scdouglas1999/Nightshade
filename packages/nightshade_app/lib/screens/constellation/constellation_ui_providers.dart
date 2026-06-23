@@ -57,6 +57,23 @@ enum ConstellationPrivacy {
       : core.ConstellationPrivacy.subs;
 }
 
+/// Whether the host-owned Constellation actions (Contribute, Pull & Blend,
+/// Retract, Share-my-targets) are enabled on this device.
+///
+/// Those actions all read the LOCAL atlas + the LOCAL contribution receipts and
+/// write the hub. On a SLAVE (the backend is a [NetworkBackend]) the local atlas
+/// and receipt table are empty — the host owns them — so these buttons would
+/// silently no-op. We disable them on a slave and surface a host-only notice
+/// rather than presenting fake-functional controls. Browse/Join/Follow-the-night
+/// stay enabled everywhere (read-only is honest on a slave).
+///
+/// Gating lives in this ONE provider so the detail screen, the share CTA, and
+/// the contribute sheet all agree on slave detection.
+final isConstellationHostActionEnabledProvider = Provider<bool>((ref) {
+  final backend = ref.watch(backendProvider);
+  return backend is! NetworkBackend;
+});
+
 /// The hub identity once connectivity + tiling have been verified, or null when
 /// no hub is configured. Surfaces the order-mismatch refusal as an error state.
 final constellationHubInfoProvider = FutureProvider<HubInfo?>((ref) async {

@@ -48,15 +48,17 @@ class SkyAtlasDao extends DatabaseAccessor<NightshadeDatabase>
     return into(skyAtlasRegions).insert(region);
   }
 
-  /// Insert-or-update a region by [name].
+  /// Insert-or-update a region.
   ///
-  /// Regions are keyed by their human name in the UI, so re-folding the same
-  /// target/mosaic should update the existing region rather than create a
-  /// duplicate. When a row with [name] exists its geometry + (optional)
-  /// [targetId] are refreshed and its id returned; otherwise a new row is
-  /// inserted. Denormalized rollups ([SkyAtlasRegions.tileCount] /
-  /// [SkyAtlasRegions.integrationSeconds]) are left untouched here — they are
-  /// maintained by [refreshRegionRollups].
+  /// IDENTITY (load-bearing for nightly re-folds): when a [targetId] is given
+  /// the region is keyed on it, so each successive auto-fold of the same target
+  /// reuses ONE region rather than creating a duplicate per night (and a later
+  /// rename does not orphan the prior nights). When [targetId] is null (a custom
+  /// / mosaic / polar region named by hand) we fall back to matching on the
+  /// human [name]. The matched row's geometry + [targetId] are refreshed and its
+  /// id returned; otherwise a new row is inserted. Denormalized rollups
+  /// ([SkyAtlasRegions.tileCount] / [SkyAtlasRegions.integrationSeconds]) are
+  /// left untouched here — they are maintained by [refreshRegionRollups].
   Future<int> upsertRegion({
     required String name,
     required String kind,
@@ -66,20 +68,33 @@ class SkyAtlasDao extends DatabaseAccessor<NightshadeDatabase>
     int? targetId,
   }) {
     return transaction(() async {
-      final existing =
-          await (select(skyAtlasRegions)
-                ..where((r) => r.name.equals(name))
-                ..limit(1))
-              .getSingleOrNull();
+      final existing = targetId != null
+          ? await (select(skyAtlasRegions)
+                  ..where((r) => r.targetId.equals(targetId))
+                  ..limit(1))
+                .getSingleOrNull()
+          : await (select(skyAtlasRegions)
+                  ..where((r) => r.name.equals(name))
+                  ..limit(1))
+                .getSingleOrNull();
       if (existing != null) {
+        // Grow-only radius: a per-frame fold passes its own (small) cone, but a
+        // mosaic/dithered target legitimately spans wider than one sub, so never
+        // shrink an established region below the widest cone it has seen.
+        final mergedRadius = radiusDeg > existing.radiusDeg
+            ? radiusDeg
+            : existing.radiusDeg;
         await (update(
           skyAtlasRegions,
         )..where((r) => r.id.equals(existing.id))).write(
           SkyAtlasRegionsCompanion(
+            // Refresh the human name too (a target-keyed region follows a
+            // target rename); geometry centre tracks the latest known centre.
+            name: Value(name),
             kind: Value(kind),
             centerRaDeg: Value(centerRaDeg),
             centerDecDeg: Value(centerDecDeg),
-            radiusDeg: Value(radiusDeg),
+            radiusDeg: Value(mergedRadius),
             targetId: Value(targetId),
           ),
         );

@@ -2,13 +2,12 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
-/// Pins the fix for the "promises retraction the app can't deliver" gap: the
-/// Constellation contribute/detail copy must not tell the user a contribution
-/// "can be retracted" while no in-app retract path exists (the retract id is
-/// never persisted, so `ConstellationService.retract` has no app caller yet).
-///
-/// If a real, reachable retract action lands (a persisted contribution log + a
-/// button that calls `retract(...)`), relax this guard alongside it.
+/// Wave-2 update: a real, reachable Retract action now lands. The detail screen
+/// renders the persisted contribution receipts (`myContributionsProvider`) with
+/// a per-row Retract wired to `ConstellationService.retractTile`, so the
+/// twice-printed "subtract your contribution exactly" promise is now backed by a
+/// button. This test guards that the action — not just the copy — is present,
+/// and that the contribute consent still explains the additive-sums protection.
 void main() {
   const detailScreen =
       'lib/screens/constellation/shared_target_detail_screen.dart';
@@ -26,26 +25,21 @@ void main() {
     return file.readAsStringSync();
   }
 
-  test('user-facing constellation copy does not promise an in-app retraction',
-      () {
-    for (final path in const [detailScreen, contributeSheet]) {
-      final source = read(path).toLowerCase();
-      expect(
-        source.contains('retract'),
-        isFalse,
-        reason: '$path still tells the user a contribution can be retracted, '
-            'but no reachable retract action exists. Either wire a real '
-            'retract path or keep the copy describing the additive-sums '
-            'property without promising the action.',
-      );
-    }
+  test('detail screen wires a real retract action to the service', () {
+    final source = read(detailScreen);
+    // The promise is now backed by a reachable action, not just copy.
+    expect(
+      source.contains('retractTile'),
+      isTrue,
+      reason: 'the detail screen must call ConstellationService.retractTile so '
+          'the "subtract your contribution exactly" promise is reachable.',
+    );
+    expect(source.contains('myContributionsProvider'), isTrue);
+    expect(source.contains('Retract'), isTrue);
   });
 
   test('contribute consent copy still explains the additive-sums protection',
       () {
-    // The reassurance the user consents on must remain honest and present: only
-    // additive sums leave the device, so the depth is exactly reversible
-    // hub-side. We keep the property, drop the unbacked "you can retract" claim.
     final source = read(contributeSheet);
     expect(source, contains('additive co-add sums'));
     expect(source, contains('subtracted exactly'));

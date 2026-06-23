@@ -38,12 +38,10 @@ import 'constellation_models.dart';
 ///
 /// [sums] (the default) ships only the additive `.nst` accumulator the master
 /// integration already keeps — never the raw individual subframes. [subs] is a
-/// heavier, more-revealing opt-in for a hub that re-grades centrally.
-///
-/// NOTE: the subframe-upload path does not exist yet — there is no atlas export
-/// of raw subs and no hub endpoint to receive them — so [contributeTarget]
-/// refuses [subs] up front rather than silently shipping sums under a SUBS
-/// consent. Wire values mirror the app-side persisted setting (`sums` | `subs`).
+/// heavier, more-revealing opt-in: it streams the user's own light FITS to the
+/// hub ([ConstellationService.contributeRawSubs]), so it is only valid against
+/// a hub that advertises `acceptsRawSubs`. Wire values mirror the app-side
+/// persisted setting (`sums` | `subs`).
 enum ConstellationPrivacy { sums, subs }
 
 /// Resolved hub credentials for one Constellation hub.
@@ -68,6 +66,36 @@ typedef ConstellationClientFactory =
 /// production impl issues a `GET /v1/targets` read.
 typedef SharedTargetBrowser =
     Future<List<SharedTarget>> Function(ConstellationClient client);
+
+/// One user-captured light frame eligible for raw-subframe sharing.
+///
+/// [contributeRawSubs] streams exactly these FITS files. The resolver MUST
+/// return only ACCEPTED LIGHT frames the user captured on this host — never a
+/// community-pulled or calibration frame — so a SUBS contribution can only ever
+/// leak the user's own pixels.
+class RawSubframe {
+  /// Absolute path to the calibrated FITS light on the host.
+  final String filePath;
+
+  /// The local captured-image row id (provenance the hub records).
+  final int capturedImageId;
+
+  /// Exposure of this frame in seconds (provenance).
+  final double exposureSeconds;
+
+  const RawSubframe({
+    required this.filePath,
+    required this.capturedImageId,
+    required this.exposureSeconds,
+  });
+}
+
+/// Resolves the user's own accepted light frames for a target into raw
+/// subframes. Injected (the production wiring reads `ImagesDao
+/// .getImagesForTarget`, filtered to accepted lights) so the service stays
+/// DB-agnostic and testable. HOST-ONLY: a slave's local images table is empty,
+/// so this returns nothing there and the SUBS path is a no-op.
+typedef RawSubframeResolver = Future<List<RawSubframe>> Function(int targetId);
 
 /// Result of contributing one target's atlas tiles to the hub.
 class ContributionOutcome {
@@ -101,6 +129,7 @@ class ConstellationService {
     ConstellationContributionsDao? contributionsDao,
     ConstellationClientFactory? clientFactory,
     SharedTargetBrowser? browser,
+    RawSubframeResolver? rawSubframeResolver,
     int order = defaultHealpixOrder,
   }) : _atlas = atlas,
        _logger = logger,
@@ -109,6 +138,7 @@ class ConstellationService {
        _contributions = contributionsDao,
        _clientFactory = clientFactory ?? _defaultClientFactory,
        _browser = browser ?? _defaultBrowser,
+       _rawSubframeResolver = rawSubframeResolver,
        _order = order;
 
   /// The atlas HEALPix order this client federates at. Mirrors
@@ -129,7 +159,16 @@ class ConstellationService {
   final ConstellationContributionsDao? _contributions;
   final ConstellationClientFactory _clientFactory;
   final SharedTargetBrowser _browser;
+
+  /// Resolves the user's own light frames for raw-subframe sharing. Null in
+  /// wirings that predate the SUBS path (and on a slave, where there are no
+  /// local frames to share) — [contributeRawSubs] then ships nothing.
+  final RawSubframeResolver? _rawSubframeResolver;
   final int _order;
+
+  /// Cap on how many raw subframes one [contributeRawSubs] call will upload, so
+  /// a deep target cannot accidentally fire thousands of large FITS pushes.
+  static const int _maxRawSubframesPerContribute = 200;
 
   static const _logSource = 'ConstellationService';
 
@@ -262,6 +301,39 @@ class ConstellationService {
     );
   }
 
+  /// Create (or look up) a shared target on the configured hub from one of the
+  /// user's own imageable fields, so a freshly stood-up hub has a field to
+  /// deepen. The hub is idempotent on name/centre, so re-proposing the same
+  /// field returns the existing target rather than duplicating it.
+  ///
+  /// On success the new target is joined locally (so contribute/pull resolve its
+  /// geometry) and returned for the caller to route into the detail screen.
+  Future<SharedTarget> proposeTarget({
+    required String name,
+    required double raDeg,
+    required double decDeg,
+    double radiusDeg = 1.5,
+  }) async {
+    final client = await _requireClient();
+    try {
+      final target = await client.ensureTarget(
+        name: name,
+        centerRaDeg: raDeg,
+        centerDecDeg: decDeg,
+        radiusDeg: radiusDeg,
+      );
+      _logger.info(
+        'Proposed shared target "${target.name}" (#${target.targetId}) on the '
+        'hub from a local field.',
+        source: _logSource,
+      );
+      joinSharedTarget(target);
+      return target;
+    } finally {
+      client.close();
+    }
+  }
+
   /// Leave a previously-joined shared target.
   void leaveSharedTarget(int targetId) => _joined.remove(targetId);
 
@@ -278,10 +350,11 @@ class ConstellationService {
   /// geometry/order mismatch is collected into the outcome rather than aborting
   /// the whole batch, so one stray tile cannot block a good contribution.
   ///
-  /// [privacy] selects what leaves the device. Only [ConstellationPrivacy.sums]
-  /// is implemented; [ConstellationPrivacy.subs] (raw subframe upload) has no
-  /// export/push path yet, so it is refused here rather than silently shipping
-  /// sums under a SUBS consent — see [ConstellationPrivacy].
+  /// [privacy] selects what leaves the device. [ConstellationPrivacy.sums]
+  /// ships the additive accumulator delta (the default). [ConstellationPrivacy
+  /// .subs] routes to [contributeRawSubs], which streams the user's own light
+  /// FITS — only valid against a hub that advertises `acceptsRawSubs`, so it is
+  /// refused up front against a sums-only hub rather than failing per-frame.
   ///
   /// [since] defaults to the epoch (contribute the full accumulated tile).
   Future<ContributionOutcome> contributeTarget(
@@ -293,10 +366,10 @@ class ConstellationService {
     ConstellationPrivacy privacy = ConstellationPrivacy.sums,
   }) async {
     if (privacy == ConstellationPrivacy.subs) {
-      throw const ConstellationException(
-        'Sharing raw subframes is not available yet — only additive co-add '
-        'sums can be contributed. Choose "Share co-add sums" instead.',
-        kind: ConstellationErrorKind.conflict,
+      return contributeRawSubs(
+        targetId,
+        radiusDeg: radiusDeg,
+        instrumentFingerprint: instrumentFingerprint,
       );
     }
     final joined = _joined[targetId];
@@ -425,6 +498,147 @@ class ConstellationService {
     } finally {
       client.close();
     }
+  }
+
+  /// Share the user's own raw light FITS for a joined target to the hub.
+  ///
+  /// Unlike SUMS (which exports the additive `.nst` accumulator and bypasses raw
+  /// pixels), this streams each ACCEPTED LIGHT frame the user captured for the
+  /// target straight from disk to `POST /v1/tiles/<tile>/subframes`. The frames
+  /// are grouped under the target's representative hub tile (its advertised
+  /// active tile, else the deepest local tile in the cone). Every accepted frame
+  /// becomes one [ContributionReceipt] in the outcome (the per-frame
+  /// `contributionId` the privacy "Retract" / file-delete acts on); a per-frame
+  /// failure is collected into `rejected` rather than aborting the batch.
+  ///
+  /// HOST-ONLY: the resolver reads the host's local images table, so on a slave
+  /// (or any wiring without a resolver) this ships nothing.
+  ///
+  /// Refuses up front when the configured hub does not advertise
+  /// `acceptsRawSubs`, so the UI can keep the SUBS option disabled and a stray
+  /// call surfaces "this hub does not accept raw subframes" rather than failing
+  /// frame-by-frame.
+  Future<ContributionOutcome> contributeRawSubs(
+    int targetId, {
+    double radiusDeg = 1.5,
+    String? instrumentFingerprint,
+  }) async {
+    final resolver = _rawSubframeResolver;
+    if (resolver == null) {
+      throw const ConstellationException(
+        'Raw subframe sharing is not available on this device.',
+        kind: ConstellationErrorKind.conflict,
+      );
+    }
+    final joined = _joined[targetId];
+    final client = await _requireClient();
+    final accepted = <int, ContributionReceipt>{};
+    final rejected = <int, String>{};
+    try {
+      // Refuse against a sums-only hub up front (the UI also gates on this, but
+      // a host call must not stream pixels to a hub that will 405 every frame).
+      final info = await client.info();
+      if (!info.acceptsRawSubs) {
+        throw ConstellationException(
+          'Hub "${info.name}" does not accept raw subframes — only additive '
+          'co-add sums can be contributed here.',
+          kind: ConstellationErrorKind.conflict,
+        );
+      }
+
+      final center = await _targetCenter(targetId, joined);
+      final tileId = await _representativeTileId(
+        centerRaDeg: center.raDeg,
+        centerDecDeg: center.decDeg,
+        radiusDeg: radiusDeg,
+        joined: joined,
+      );
+      if (tileId == null) {
+        _logger.info(
+          'contributeRawSubs(#$targetId): no tile to attribute frames to.',
+          source: _logSource,
+        );
+        return const ContributionOutcome(accepted: {}, rejected: {});
+      }
+
+      final frames = await resolver(targetId);
+      if (frames.isEmpty) {
+        _logger.info(
+          'contributeRawSubs(#$targetId): no own light frames to share.',
+          source: _logSource,
+        );
+        return const ContributionOutcome(accepted: {}, rejected: {});
+      }
+
+      var shared = 0;
+      for (final frame in frames) {
+        if (shared >= _maxRawSubframesPerContribute) {
+          _logger.warning(
+            'contributeRawSubs(#$targetId): capped at '
+            '$_maxRawSubframesPerContribute frames; '
+            '${frames.length - shared} not shared.',
+            source: _logSource,
+          );
+          break;
+        }
+        try {
+          final receipt = await client.pushSubframe(
+            tileId: tileId,
+            order: _order,
+            fitsPath: frame.filePath,
+            capturedImageId: frame.capturedImageId,
+            exposureSeconds: frame.exposureSeconds,
+            instrument: instrumentFingerprint,
+          );
+          // Key by capturedImageId so the outcome maps a frame to its receipt.
+          accepted[frame.capturedImageId] = ContributionReceipt(
+            contributionId: receipt.contributionId,
+            accepted: receipt.accepted,
+            trustApplied: 1.0,
+            totalFramesAfter: 0,
+            integrationSecondsAfter: 0,
+          );
+          shared++;
+        } on ConstellationException catch (e) {
+          rejected[frame.capturedImageId] = e.message;
+          _logger.warning(
+            'contributeRawSubs(#$targetId): frame ${frame.capturedImageId} '
+            'rejected: ${e.message}',
+            source: _logSource,
+          );
+        }
+      }
+      _logger.info(
+        'contributeRawSubs(#$targetId): shared $shared raw frame(s) under tile '
+        '$tileId, ${rejected.length} rejected.',
+        source: _logSource,
+      );
+      return ContributionOutcome(accepted: accepted, rejected: rejected);
+    } finally {
+      client.close();
+    }
+  }
+
+  /// The hub tile a target's raw subframes should be attributed to: the deepest
+  /// local tile in the cone, else the joined target's advertised active tile.
+  Future<int?> _representativeTileId({
+    required double centerRaDeg,
+    required double centerDecDeg,
+    required double radiusDeg,
+    required SharedTarget? joined,
+  }) async {
+    final tiles = await _localTilesInCone(
+      centerRaDeg: centerRaDeg,
+      centerDecDeg: centerDecDeg,
+      radiusDeg: radiusDeg,
+    );
+    if (tiles.isNotEmpty) {
+      tiles.sort(
+        (a, b) => b.integrationSeconds.compareTo(a.integrationSeconds),
+      );
+      return tiles.first.tileId;
+    }
+    return joined?.activeTileId;
   }
 
   // --- Pull / blend -------------------------------------------------------
@@ -565,6 +779,98 @@ class ConstellationService {
     } finally {
       client.close();
     }
+  }
+
+  /// Delete a prior raw-subframe contribution from the hub.
+  ///
+  /// A raw subframe is stored as its own file, so this is a FILE-DELETE on the
+  /// hub — NOT the clean additive subtraction [retract] does for sums. The frame
+  /// is removed, but anyone who already pulled it keeps their copy.
+  Future<void> deleteSubframe(String remoteContributionId) async {
+    final client = await _requireClient();
+    try {
+      await client.deleteSubframe(remoteContributionId);
+      _logger.info(
+        'Deleted raw subframe $remoteContributionId from the hub.',
+        source: _logSource,
+      );
+    } finally {
+      client.close();
+    }
+  }
+
+  /// The tiles this device has contributed to the configured hub — every
+  /// persisted receipt that carries a remote `contributionId` (the Wave-0
+  /// substrate). These are exactly the units [retractTile] can subtract back off
+  /// the hub. Empty when no hub is configured or the receipt store is absent
+  /// (e.g. a slave, whose local receipt table is never written).
+  Future<List<ContributionRecord>> myContributions() async {
+    if (_contributions == null) return const [];
+    final creds = await _credentialsResolver();
+    if (creds == null) return const [];
+    final hubKey = _hubKey(creds.hubBaseUrl);
+    final rows = await _contributions.getContributedTilesForHub(hubKey);
+    return rows
+        .map(
+          (r) => ContributionRecord(
+            tileId: r.tileId,
+            contributionId: r.contributionId!,
+            contributedFrames: r.contributedFrames,
+            contributedIntegrationSeconds: r.contributedIntegrationSeconds,
+            lastContributedAt: r.lastContributedAt,
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  /// Retract this device's contribution for [tileId] from the configured hub.
+  ///
+  /// Looks up the persisted remote `contributionId` for `(hub, tile)`, asks the
+  /// hub to subtract it exactly, and — on success — deletes the local receipt so
+  /// the contribution high-water resets. A later re-contribute then re-anchors
+  /// from epoch and the hub does the exact subtraction, keeping the fused depth
+  /// honest. Throws when there is no recorded contribution to retract.
+  Future<RetractionReceipt> retractTile(int tileId) async {
+    if (_contributions == null) {
+      throw const ConstellationException(
+        'No contribution receipts are stored on this device to retract.',
+        kind: ConstellationErrorKind.notFound,
+      );
+    }
+    final creds = await _credentialsResolver();
+    if (creds == null) {
+      throw const ConstellationException(
+        'No Constellation hub is configured. Sign in to a hub first.',
+        kind: ConstellationErrorKind.auth,
+      );
+    }
+    final hubKey = _hubKey(creds.hubBaseUrl);
+    final row = await _contributions.getContribution(
+      hubKey,
+      tileId,
+      healpixOrder: _order,
+    );
+    final contributionId = row?.contributionId;
+    if (contributionId == null || contributionId.isEmpty) {
+      throw ConstellationException(
+        'No recorded contribution for tile $tileId on this hub to retract.',
+        kind: ConstellationErrorKind.notFound,
+      );
+    }
+    final receipt = await retract(contributionId);
+    if (receipt.retracted) {
+      await _contributions.deleteContribution(
+        hubKey,
+        tileId,
+        healpixOrder: _order,
+      );
+      _logger.info(
+        'Cleared local contribution receipt for tile $tileId on $hubKey; the '
+        'next contribute re-anchors from epoch.',
+        source: _logSource,
+      );
+    }
+    return receipt;
   }
 
   // --- Follow-the-night ---------------------------------------------------

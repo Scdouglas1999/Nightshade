@@ -1,0 +1,124 @@
+import 'dart:typed_data';
+
+import 'package:uuid/uuid.dart';
+
+import '../db/hub_database.dart';
+import 'subframe_store.dart';
+
+/// Ledger + storage orchestration for raw FITS subframes (the opt-in
+/// `acceptsRawSubs` path).
+///
+/// Mirrors [FusionService] for additive sums, but with one crucial difference:
+/// a raw subframe is **not** fused into anything. Each frame is stored as its
+/// own immutable FITS via [SubframeStore] and recorded as its own row in
+/// `raw_subframe_contributions`, so a retraction is an exact file-delete (raw
+/// pixels cannot be subtracted from a co-add the way sums can). This is why the
+/// hub gates the whole path behind `acceptsRawSubs` and the client surfaces a
+/// stronger consent: a raw frame, once shared, is re-derivable by anyone with
+/// read access and cannot be cleanly un-shared.
+class SubframeService {
+  SubframeService({required HubDatabase db, required SubframeStore store})
+    : _db = db,
+      _store = store;
+
+  final HubDatabase _db;
+  final SubframeStore _store;
+  final Uuid _uuid = const Uuid();
+
+  /// Store one raw FITS subframe for [accountId] under [tileId]/[order] and
+  /// record its ledger row. Returns the receipt the handler echoes back.
+  SubframeReceipt store({
+    required String accountId,
+    required int tileId,
+    required int order,
+    required Uint8List bytes,
+    int? capturedImageId,
+    String? instrument,
+    double? exposureSeconds,
+  }) {
+    final contributionId = _uuid.v4();
+    final path = _store.save(
+      accountId: accountId,
+      tileId: tileId,
+      order: order,
+      contributionId: contributionId,
+      bytes: bytes,
+    );
+    _db.db.execute(
+      'INSERT INTO raw_subframe_contributions '
+      '(contribution_id, account_id, tile_id, healpix_order, '
+      'captured_image_id, path, bytes, instrument, exposure_seconds, '
+      'received_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);',
+      <Object?>[
+        contributionId,
+        accountId,
+        tileId,
+        order,
+        capturedImageId,
+        path,
+        bytes.length,
+        instrument,
+        exposureSeconds,
+        DateTime.now().toUtc().toIso8601String(),
+      ],
+    );
+    return SubframeReceipt(
+      contributionId: contributionId,
+      accepted: true,
+      storedBytes: bytes.length,
+    );
+  }
+
+  /// Delete a stored subframe (file + ledger row). [requesterId] non-null scopes
+  /// the delete to the owner; null (admin) may delete anyone's. Throws
+  /// [SubframeNotFound] / [SubframeForbidden] for a clean handler mapping.
+  void delete(String contributionId, {String? requesterId}) {
+    final rows = _db.db.select(
+      'SELECT account_id, path FROM raw_subframe_contributions '
+      'WHERE contribution_id = ?;',
+      <Object?>[contributionId],
+    );
+    if (rows.isEmpty) throw SubframeNotFound(contributionId);
+    final accountId = rows.first['account_id'] as String;
+    if (requesterId != null && requesterId != accountId) {
+      throw SubframeForbidden(contributionId);
+    }
+    final path = rows.first['path'] as String;
+    _store.delete(path);
+    _db.db.execute(
+      'DELETE FROM raw_subframe_contributions WHERE contribution_id = ?;',
+      <Object?>[contributionId],
+    );
+  }
+}
+
+/// The receipt for a stored raw subframe.
+class SubframeReceipt {
+  const SubframeReceipt({
+    required this.contributionId,
+    required this.accepted,
+    required this.storedBytes,
+  });
+
+  final String contributionId;
+  final bool accepted;
+  final int storedBytes;
+
+  Map<String, Object?> toJson() => <String, Object?>{
+    'contributionId': contributionId,
+    'accepted': accepted,
+    'storedBytes': storedBytes,
+  };
+}
+
+/// No raw subframe with the given id exists.
+class SubframeNotFound implements Exception {
+  const SubframeNotFound(this.contributionId);
+  final String contributionId;
+}
+
+/// The requester does not own the raw subframe they tried to delete.
+class SubframeForbidden implements Exception {
+  const SubframeForbidden(this.contributionId);
+  final String contributionId;
+}

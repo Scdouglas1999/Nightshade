@@ -18,6 +18,8 @@ export 'src/hub_server.dart';
 export 'src/scheduler/follow_the_night.dart';
 export 'src/scheduler/handoff_service.dart';
 export 'src/tiles/fusion_service.dart';
+export 'src/tiles/subframe_service.dart';
+export 'src/tiles/subframe_store.dart';
 export 'src/tiles/tile_builder.dart';
 export 'src/tiles/tile_codec.dart';
 export 'src/tiles/tile_quality.dart';

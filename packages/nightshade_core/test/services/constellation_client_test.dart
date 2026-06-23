@@ -103,6 +103,49 @@ void main() {
       },
     );
 
+    test(
+      'ensureTarget POSTs /v1/targets and decodes the echoed target',
+      () async {
+        http.Request? seen;
+        final mock = MockClient((request) async {
+          seen = request;
+          return http.Response(
+            jsonEncode({
+              'targetId': 42,
+              'target': {
+                'targetId': 42,
+                'name': 'My Field',
+                'raDeg': 83.6,
+                'decDeg': -5.4,
+                'integrationSeconds': 0.0,
+                'contributors': 1,
+                'activeTileId': 1234,
+              },
+            }),
+            201,
+          );
+        });
+
+        final target = await clientWith(mock).ensureTarget(
+          name: 'My Field',
+          centerRaDeg: 83.6,
+          centerDecDeg: -5.4,
+          radiusDeg: 1.5,
+        );
+
+        expect(seen!.method, 'POST');
+        expect(seen!.url.toString(), 'https://hub.example.org/v1/targets');
+        final body = jsonDecode(seen!.body) as Map<String, dynamic>;
+        expect(body['name'], 'My Field');
+        expect(body['centerRaDeg'], 83.6);
+        expect(body['radiusDeg'], 1.5);
+        expect(target.targetId, 42);
+        expect(target.name, 'My Field');
+        expect(target.raDeg, 83.6);
+        expect(target.activeTileId, 1234);
+      },
+    );
+
     test('pullTile GETs the blob and writes it to disk', () async {
       final dir = await Directory.systemTemp.createTemp('nst_pull');
       final out = '${dir.path}/community_42.fits';
@@ -227,6 +270,101 @@ void main() {
           ),
         ),
       );
+    });
+  });
+
+  group('raw subframes', () {
+    test('pushSubframe streams the FITS to /tiles/<id>/subframes with '
+        'provenance query', () async {
+      final dir = await Directory.systemTemp.createTemp('cns_sub');
+      final fits = File('${dir.path}/light.fits')
+        ..writeAsBytesSync(utf8.encode('SIMPLE = T / a frame'));
+      http.BaseRequest? seen;
+      int? seenLen;
+      final mock = MockClient((request) async {
+        seen = request;
+        seenLen = request.bodyBytes.length;
+        return http.Response(
+          jsonEncode({
+            'contributionId': 'sub-1',
+            'accepted': true,
+            'storedBytes': request.bodyBytes.length,
+          }),
+          200,
+        );
+      });
+
+      final receipt = await clientWith(mock).pushSubframe(
+        tileId: 314,
+        order: 9,
+        fitsPath: fits.path,
+        capturedImageId: 42,
+        exposureSeconds: 120,
+        instrument: 'asi2600',
+      );
+
+      expect(receipt.contributionId, 'sub-1');
+      expect(receipt.storedBytes, fits.lengthSync());
+      expect(seen!.method, 'POST');
+      expect(seen!.url.path, endsWith('/v1/tiles/314/subframes'));
+      expect(seen!.url.queryParameters['order'], '9');
+      expect(seen!.url.queryParameters['capturedImageId'], '42');
+      expect(seen!.url.queryParameters['instrument'], 'asi2600');
+      expect(seen!.headers['Authorization'], 'Bearer tok-123');
+      expect(seenLen, fits.lengthSync());
+      await dir.delete(recursive: true);
+    });
+
+    test('pushSubframe throws notFound when the FITS is missing', () async {
+      final mock = MockClient((_) async => http.Response('', 200));
+      await expectLater(
+        clientWith(
+          mock,
+        ).pushSubframe(tileId: 1, order: 9, fitsPath: '/no/such.fits'),
+        throwsA(
+          isA<ConstellationException>().having(
+            (e) => e.kind,
+            'kind',
+            ConstellationErrorKind.notFound,
+          ),
+        ),
+      );
+    });
+
+    test(
+      'pushSubframe maps a 405 (hub does not accept subs) to conflict',
+      () async {
+        final dir = await Directory.systemTemp.createTemp('cns_sub405');
+        final fits = File('${dir.path}/l.fits')..writeAsBytesSync([1, 2, 3]);
+        final mock = MockClient(
+          (_) async =>
+              http.Response('this hub does not accept raw subframes', 405),
+        );
+        await expectLater(
+          clientWith(
+            mock,
+          ).pushSubframe(tileId: 1, order: 9, fitsPath: fits.path),
+          throwsA(
+            isA<ConstellationException>().having(
+              (e) => e.kind,
+              'kind',
+              ConstellationErrorKind.conflict,
+            ),
+          ),
+        );
+        await dir.delete(recursive: true);
+      },
+    );
+
+    test('deleteSubframe issues DELETE /v1/subframes/<id>', () async {
+      http.Request? seen;
+      final mock = MockClient((request) async {
+        seen = request;
+        return http.Response('{"deleted": true}', 200);
+      });
+      await clientWith(mock).deleteSubframe('sub-9');
+      expect(seen!.method, 'DELETE');
+      expect(seen!.url.path, endsWith('/v1/subframes/sub-9'));
     });
   });
 }

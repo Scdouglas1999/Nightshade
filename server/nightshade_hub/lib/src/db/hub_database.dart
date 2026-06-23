@@ -10,6 +10,8 @@ import 'package:sqlite3/sqlite3.dart';
 ///  - `shared_targets`  — cone-addressable shared targets ("follow-the-night")
 ///  - `contributions`   — per-contributor upload ledger (for retraction + audit)
 ///  - `tile_index`      — per-tile fused summary (frames, seconds, contributors)
+///  - `raw_subframe_contributions` — per-account raw FITS subframe ledger (the
+///    opt-in `acceptsRawSubs` path; one row per stored frame, file on disk)
 ///  - `handoff_claims`  — single-holder follow-the-night claim per target
 ///  - `audit_log`       — append-only request audit trail
 class HubDatabase {
@@ -111,6 +113,33 @@ class HubDatabase {
     db.execute(
       'CREATE INDEX IF NOT EXISTS idx_contrib_account '
       'ON contributions(account_id);',
+    );
+
+    // Raw subframe ledger (the opt-in `acceptsRawSubs` path). Unlike additive
+    // sums, each raw FITS lives as its own file on disk and its own row here so
+    // a single-frame DELETE is an exact file-delete. `contribution_id` is the
+    // opaque handle the client persists and later retracts on.
+    db.execute('''
+      CREATE TABLE IF NOT EXISTS raw_subframe_contributions (
+        contribution_id   TEXT PRIMARY KEY,
+        account_id        TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        tile_id           INTEGER NOT NULL,
+        healpix_order     INTEGER NOT NULL,
+        captured_image_id INTEGER,
+        path              TEXT NOT NULL,
+        bytes             INTEGER NOT NULL,
+        instrument        TEXT,
+        exposure_seconds  REAL,
+        received_at       TEXT NOT NULL
+      );
+    ''');
+    db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_raw_sub_tile '
+      'ON raw_subframe_contributions(tile_id, healpix_order);',
+    );
+    db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_raw_sub_account '
+      'ON raw_subframe_contributions(account_id);',
     );
 
     db.execute('''

@@ -48,6 +48,14 @@ Future<void> main(List<String> argv) async {
       help: 'Require an admin token to create accounts (invite-only hub).',
       defaultsTo: _env('NIGHTSHADE_HUB_CLOSED_SIGNUP', 'false') == 'true',
     )
+    ..addFlag(
+      'accepts-raw-subs',
+      help:
+          'Accept raw FITS subframes in addition to additive sums. Off by '
+          'default — raw subs expose exact pixels/pointing and cannot be '
+          'cleanly subtracted, so only enable on a hub the contributors trust.',
+      defaultsTo: _env('NIGHTSHADE_HUB_ACCEPTS_RAW_SUBS', 'false') == 'true',
+    )
     ..addFlag('help', abbr: 'h', negatable: false, help: 'Show usage.');
 
   final ArgResults args;
@@ -95,6 +103,7 @@ Future<void> main(List<String> argv) async {
     port: int.parse(args['port'] as String),
     bindAddress: args['bind'] as String,
     openSignup: !(args['closed-signup'] as bool),
+    acceptsRawSubs: args['accepts-raw-subs'] as bool,
   );
 
   final freshDb =

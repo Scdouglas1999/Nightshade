@@ -8,6 +8,7 @@ import 'region_detail_screen.dart';
 import 'sky_atlas_format.dart';
 import 'widgets/atlas_coverage_overlay.dart';
 import 'widgets/atlas_region_card.dart';
+import 'widgets/name_region_sheet.dart';
 
 /// Pillar A ("Your Sky") — the personal growing all-sky atlas.
 ///
@@ -45,6 +46,11 @@ class YourSkyView extends ConsumerWidget {
     final colors = NightshadeColors.of(context);
     final regionsAsync = ref.watch(skyAtlasRegionsProvider);
     final coverageAsync = ref.watch(skyAtlasCoverageProvider);
+    // HOST-ONLY: "Name a region" writes the local atlas DB. The atlas is owned
+    // by the host; a NetworkBackend companion only mirrors it, so the manual
+    // create control is hidden on a slave (auto-attach-on-fold also runs only
+    // on the host).
+    final canManageRegions = ref.watch(backendProvider) is! NetworkBackend;
 
     return Column(
       children: [
@@ -70,7 +76,13 @@ class YourSkyView extends ConsumerWidget {
         ),
         Expanded(
           child: regionsAsync.when(
-            data: (regions) => _buildBody(context, ref, regions, coverageAsync),
+            data: (regions) => _buildBody(
+              context,
+              ref,
+              regions,
+              coverageAsync,
+              canManageRegions,
+            ),
             loading: _buildLoading,
             error: (error, _) => _buildError(ref, error),
           ),
@@ -84,6 +96,7 @@ class YourSkyView extends ConsumerWidget {
     WidgetRef ref,
     List<SkyAtlasRegionRow> regions,
     AsyncValue<List<AtlasTileCoverage>> coverageAsync,
+    bool canManageRegions,
   ) {
     final coverage = coverageAsync.valueOrNull ?? const <AtlasTileCoverage>[];
 
@@ -121,10 +134,19 @@ class YourSkyView extends ConsumerWidget {
                 subtitle: regions.isEmpty
                     ? 'Tiles are accumulating — name a region to track its depth.'
                     : '${regions.length} region${regions.length == 1 ? '' : 's'} imaged',
+                trailing: canManageRegions
+                    ? NightshadeButton(
+                        label: 'Name a region',
+                        icon: LucideIcons.plus,
+                        variant: ButtonVariant.ghost,
+                        size: ButtonSize.small,
+                        onPressed: () => NameRegionSheet.show(context),
+                      )
+                    : null,
               ),
               const SizedBox(height: NightshadeTokens.spaceMd),
               if (regions.isEmpty)
-                _buildNoRegionsHint(context)
+                _buildNoRegionsHint(context, canManageRegions)
               else
                 _RegionGrid(
                   regions: regions,
@@ -147,31 +169,53 @@ class YourSkyView extends ConsumerWidget {
     );
   }
 
-  Widget _buildNoRegionsHint(BuildContext context) {
+  Widget _buildNoRegionsHint(BuildContext context, bool canManageRegions) {
     final colors = NightshadeColors.of(context);
     return NightshadeCard(
       variant: CardVariant.subtle,
       padding: NightshadeTokens.cardPadding,
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
-            decoration: NightshadeDecorations.tintedBadge(colors.info),
-            child: Icon(LucideIcons.info,
-                size: NightshadeTokens.iconSm, color: colors.info),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+                decoration: NightshadeDecorations.tintedBadge(colors.info),
+                child: Icon(LucideIcons.info,
+                    size: NightshadeTokens.iconSm, color: colors.info),
+              ),
+              const SizedBox(width: NightshadeTokens.spaceMd),
+              Expanded(
+                child: Text(
+                  canManageRegions
+                      ? 'Your atlas is filling in tile by tile. Image a target '
+                          'and it becomes a named region automatically — or '
+                          'name one yourself (a target, mosaic, or polar field) '
+                          'to track its depth and scrub it through time.'
+                      : 'Your atlas is filling in tile by tile. Regions appear '
+                          'here automatically as your host images targets.',
+                  style: NightshadeTypography.caption.copyWith(
+                    color: colors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: NightshadeTokens.spaceMd),
-          Expanded(
-            child: Text(
-              'Your atlas is filling in tile by tile. Group the tiles you have '
-              'shot into a named region (a target, mosaic, or polar field) to '
-              'track its depth and scrub it through time.',
-              style: NightshadeTypography.caption.copyWith(
-                color: colors.textSecondary,
-                height: 1.4,
+          if (canManageRegions) ...[
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: NightshadeButton(
+                label: 'Name a region',
+                icon: LucideIcons.plus,
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                onPressed: () => NameRegionSheet.show(context),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );

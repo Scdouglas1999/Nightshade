@@ -156,9 +156,22 @@ Stream<List<TransientDetectionRow>> _remoteFirstLightStream(
 final firstLightTriageProvider = Provider<FirstLightTriage>((ref) {
   final backend = ref.watch(backendProvider);
   if (backend is NetworkBackend) {
+    // Remote (slave) triage: the host applies the reviewed/dismissed flag, but
+    // the remote feed is a debounced REST snapshot that otherwise only re-fetches
+    // on an unrelated backend event — so the card's badge would stay stale until
+    // a capture tick arrived. Await the host POST THEN invalidate the feed to
+    // force an immediate re-fetch of /api/firstlight/candidates reflecting the
+    // host's just-applied flags (badge updates within one round-trip). Await
+    // before invalidating so a FAILED triage doesn't wipe the current state.
     return FirstLightTriage(
-      review: backend.reviewFirstLightCandidate,
-      dismiss: backend.dismissFirstLightCandidate,
+      review: (id) async {
+        await backend.reviewFirstLightCandidate(id);
+        ref.invalidate(firstLightCandidatesProvider);
+      },
+      dismiss: (id) async {
+        await backend.dismissFirstLightCandidate(id);
+        ref.invalidate(firstLightCandidatesProvider);
+      },
     );
   }
   final service = ref.watch(firstLightServiceProvider);

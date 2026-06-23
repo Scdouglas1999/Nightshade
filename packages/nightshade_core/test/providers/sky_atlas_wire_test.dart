@@ -39,12 +39,14 @@ void main() {
       expect(row.createdAt.toUtc(), DateTime.utc(2026, 6, 19, 22, 30));
     });
 
-    test('parses the ISO-8601 createdAt the handler emits (not epoch millis)',
-        () {
-      final row = skyAtlasRegionFromWireJson(wire());
-      // A faithful ISO parse — a millis-expecting decoder would have thrown.
-      expect(row.createdAt.toUtc(), DateTime.utc(2026, 6, 19, 22, 30));
-    });
+    test(
+      'parses the ISO-8601 createdAt the handler emits (not epoch millis)',
+      () {
+        final row = skyAtlasRegionFromWireJson(wire());
+        // A faithful ISO parse — a millis-expecting decoder would have thrown.
+        expect(row.createdAt.toUtc(), DateTime.utc(2026, 6, 19, 22, 30));
+      },
+    );
 
     test('null targetId stays null (freestanding / orphaned region)', () {
       expect(skyAtlasRegionFromWireJson(wire()).targetId, isNull);
@@ -60,6 +62,77 @@ void main() {
       expect(row.centerRaDeg, 84.0);
       expect(row.radiusDeg, 3.0);
       expect(row.integrationSeconds, 3600.0);
+    });
+  });
+
+  group('skyTileRowFromWireJson (host region-detail tiles[] row)', () {
+    // Mirrors AtlasHandlers._tileToJson — the additive `tiles` array the
+    // `GET /api/atlas/region/<id>` payload now carries so the slave's region
+    // detail renders the same tile rollups the host computes locally.
+    Map<String, dynamic> wire() => {
+      'id': 3,
+      'tileId': 42,
+      'healpixOrder': 9,
+      'channels': 3,
+      'centerRaDeg': 83.6,
+      'centerDecDeg': -5.39,
+      'coverageMean': 0.9,
+      'totalFrames': 30,
+      'integrationSeconds': 1800.0,
+      'swarmOverlayFrames': 12,
+      'swarmOverlayIntegrationSeconds': 720.0,
+      'regionId': 7,
+    };
+
+    test('reconstructs a tile row from the host region-detail wire shape', () {
+      final tile = skyTileRowFromWireJson(wire());
+      expect(tile.tileId, 42);
+      expect(tile.healpixOrder, 9);
+      expect(tile.channels, 3);
+      expect(tile.centerRaDeg, 83.6);
+      expect(tile.integrationSeconds, 1800.0);
+      expect(tile.swarmOverlayFrames, 12);
+      expect(tile.regionId, 7);
+    });
+
+    test('defaults a missing healpixOrder to the atlas order', () {
+      final json = wire()..remove('healpixOrder');
+      expect(skyTileRowFromWireJson(json).healpixOrder, skyAtlasHealpixOrder);
+    });
+  });
+
+  group('skyAtlasFoldRowFromWireJson (host /timeline folds[] row)', () {
+    // Mirrors AtlasHandlers._foldToJson — the timeline rows the slave's
+    // scrubber + contributing-frames list decode from `/region/<id>/timeline`.
+    Map<String, dynamic> wire() => {
+      'id': 5,
+      'tileId': 42,
+      'healpixOrder': 9,
+      'sessionId': 7,
+      'foldedAt': DateTime.utc(2026, 6, 19, 22, 30).toIso8601String(),
+      'framesAdded': 4,
+      'weightAdded': 4.0,
+      'integrationSecondsAdded': 1200.0,
+      'rejected': 1,
+      'contributor': '',
+      'label': '2026-06-19',
+    };
+
+    test('reconstructs a fold row, parsing the ISO foldedAt', () {
+      final fold = skyAtlasFoldRowFromWireJson(wire());
+      expect(fold.id, 5);
+      expect(fold.tileId, 42);
+      expect(fold.sessionId, 7);
+      expect(fold.framesAdded, 4);
+      expect(fold.integrationSecondsAdded, 1200.0);
+      expect(fold.rejected, 1);
+      expect(fold.label, '2026-06-19');
+      expect(fold.foldedAt.toUtc(), DateTime.utc(2026, 6, 19, 22, 30));
+    });
+
+    test('null sessionId stays null (sessionless / deleted-session fold)', () {
+      final json = wire()..['sessionId'] = null;
+      expect(skyAtlasFoldRowFromWireJson(json).sessionId, isNull);
     });
   });
 

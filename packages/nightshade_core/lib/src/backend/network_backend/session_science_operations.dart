@@ -387,6 +387,37 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
     return raw.whereType<Map<String, dynamic>>().toList(growable: false);
   }
 
+  /// Fetch one region's detail from the host: its row (`region`), live native
+  /// cone coverage (`coverage`) and the region's tiles (`tiles`). Backs the
+  /// companion's region-detail screen, which reads an empty local store on a
+  /// slave and so must branch here. Maps to the already-advertised
+  /// `GET /api/atlas/region/<id>` route (no catalog change).
+  Future<Map<String, dynamic>> getAtlasRegion(int regionId) async {
+    return _get('atlas/region/$regionId');
+  }
+
+  /// Fetch a region's fold timeline (`folds`) + deepening growth curve
+  /// (`growth`) from the host — the scrubber stops + contributing-frames list on
+  /// a slave. Maps to the advertised `GET /api/atlas/region/<id>/timeline`.
+  Future<Map<String, dynamic>> getAtlasRegionTimeline(int regionId) async {
+    return _get('atlas/region/$regionId/timeline');
+  }
+
+  /// Fetch the co-added region cone as PNG bytes (latest depth) so the companion
+  /// renders the cutout via `Image.memory` — the host-local file path the FFI
+  /// path uses is not portable over the wire. Maps to the advertised
+  /// `GET /api/atlas/region/<id>/cutout`.
+  Future<Uint8List> getAtlasRegionCutout(
+    int regionId, {
+    int outPixels = 2048,
+    String? interp,
+  }) {
+    return _downloadBytes('atlas/region/$regionId/cutout', {
+      'outPixels': outPixels.toString(),
+      if (interp != null) 'interp': interp,
+    });
+  }
+
   // =========================================================================
   // Target Suggestions
   // =========================================================================

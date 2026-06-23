@@ -106,6 +106,51 @@ class ConstellationClient {
     }
   }
 
+  /// Stream a file's bytes as the request body (used for raw FITS subframes,
+  /// which can be far larger than a sums delta). Mirrors [_send]'s error
+  /// mapping but never holds the whole file in memory twice.
+  Future<http.Response> _sendFile(
+    String method,
+    Uri uri,
+    File file, {
+    Map<String, String>? headers,
+  }) async {
+    final length = await file.length();
+    final request = http.StreamedRequest(method, uri);
+    request.headers.addAll(_authHeaders);
+    if (headers != null) request.headers.addAll(headers);
+    request.contentLength = length;
+    // Pump the file into the request sink, then close it so the request body
+    // terminates. Errors on the read side surface through the `send` future.
+    unawaited(
+      file
+          .openRead()
+          .forEach(request.sink.add)
+          .whenComplete(request.sink.close),
+    );
+    try {
+      final streamed = await _client.send(request).timeout(_timeout);
+      return await http.Response.fromStream(streamed);
+    } on ConstellationException {
+      rethrow;
+    } on SocketException catch (e) {
+      throw ConstellationException(
+        'Cannot reach ${uri.host}: ${e.message}',
+        kind: ConstellationErrorKind.network,
+      );
+    } on http.ClientException catch (e) {
+      throw ConstellationException(
+        'Request to ${uri.host} failed: ${e.message}',
+        kind: ConstellationErrorKind.network,
+      );
+    } on TimeoutException {
+      throw ConstellationException(
+        'Request to ${uri.host} timed out',
+        kind: ConstellationErrorKind.network,
+      );
+    }
+  }
+
   Never _throwForStatus(http.Response response, String operation) {
     final status = response.statusCode;
     final kind = switch (status) {
@@ -208,6 +253,50 @@ class ConstellationClient {
     return HubAccount.fromJson(_decodeJson(response, 'Create account'));
   }
 
+  /// `POST /v1/targets` — create (or look up by name) a shared target so the
+  /// swarm has a field to deepen. Idempotent on the hub side: an existing target
+  /// with the same name/centre is returned rather than duplicated. The hub echoes
+  /// the new target back in the client-facing browse shape (`targetId`/`raDeg`/…)
+  /// under a `target` key, which decodes straight into a [SharedTarget].
+  ///
+  /// Requires the `contribute` scope (seeding a field is a contribution-class
+  /// action on the hub).
+  Future<SharedTarget> ensureTarget({
+    required String name,
+    required double centerRaDeg,
+    required double centerDecDeg,
+    required double radiusDeg,
+    double priority = 0.5,
+  }) async {
+    final response = await _send(
+      'POST',
+      _v1('targets'),
+      headers: {'Content-Type': 'application/json'},
+      bodyBytes: utf8.encode(
+        jsonEncode({
+          'name': name,
+          'centerRaDeg': centerRaDeg,
+          'centerDecDeg': centerDecDeg,
+          'radiusDeg': radiusDeg,
+          'priority': priority,
+        }),
+      ),
+    );
+    final status = response.statusCode;
+    if (status != 200 && status != 201) {
+      _throwForStatus(response, 'Create shared target');
+    }
+    final body = _decodeJson(response, 'Create shared target');
+    final target = body['target'];
+    if (target is! Map<String, dynamic>) {
+      throw const ConstellationException(
+        'Create shared target returned no target object',
+        kind: ConstellationErrorKind.protocol,
+      );
+    }
+    return SharedTarget.fromJson(target);
+  }
+
   /// `POST /v1/tiles/{tileId}/contributions?order=…` — upload the additive
   /// `.nst` delta at [deltaPath]. Provenance hints (frame/integration deltas +
   /// instrument fingerprint, *not* PII) ride as headers per the contract.
@@ -288,6 +377,57 @@ class ConstellationClient {
     return RetractionReceipt.fromJson(
       _decodeJson(response, 'Retract $remoteContributionId'),
     );
+  }
+
+  /// `POST /v1/tiles/{tileId}/subframes?order=…` — upload one raw FITS subframe
+  /// at [fitsPath], streamed straight from disk. Provenance (capturedImageId,
+  /// instrument, exposure) rides as query params. The hub gates this on its
+  /// `acceptsRawSubs` flag and returns 405 (→ [ConstellationErrorKind.conflict])
+  /// when it does not accept raw subframes, which the service surfaces verbatim.
+  Future<SubframeReceipt> pushSubframe({
+    required int tileId,
+    required int order,
+    required String fitsPath,
+    int? capturedImageId,
+    double? exposureSeconds,
+    String? instrument,
+  }) async {
+    final file = File(fitsPath);
+    if (!file.existsSync()) {
+      throw ConstellationException(
+        'Subframe not found: $fitsPath',
+        kind: ConstellationErrorKind.notFound,
+      );
+    }
+    final response = await _sendFile(
+      'POST',
+      _v1('tiles/$tileId/subframes', {
+        'order': '$order',
+        if (capturedImageId != null) 'capturedImageId': '$capturedImageId',
+        if (exposureSeconds != null) 'exposureSeconds': '$exposureSeconds',
+        if (instrument != null && instrument.isNotEmpty)
+          'instrument': instrument,
+      }),
+      file,
+      headers: {'Content-Type': 'application/octet-stream'},
+    );
+    final status = response.statusCode;
+    if (status != 200 && status != 201) {
+      _throwForStatus(response, 'Push subframe for tile $tileId');
+    }
+    return SubframeReceipt.fromJson(
+      _decodeJson(response, 'Push subframe for tile $tileId'),
+    );
+  }
+
+  /// `DELETE /v1/subframes/{contributionId}` — delete a stored raw subframe.
+  /// A raw-sub deletion is a FILE-DELETE on the hub (the frame is removed), not
+  /// a clean subtraction from a co-add.
+  Future<void> deleteSubframe(String contributionId) async {
+    final response = await _send('DELETE', _v1('subframes/$contributionId'));
+    if (response.statusCode != 200) {
+      _throwForStatus(response, 'Delete subframe $contributionId');
+    }
   }
 
   // --- Follow-the-night handoff -------------------------------------------

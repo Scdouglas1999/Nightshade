@@ -17,6 +17,8 @@ import 'http/rate_limiter.dart';
 import 'scheduler/follow_the_night.dart';
 import 'scheduler/handoff_service.dart';
 import 'tiles/fusion_service.dart';
+import 'tiles/subframe_service.dart';
+import 'tiles/subframe_store.dart';
 import 'tiles/tile_builder.dart';
 import 'tiles/tile_codec.dart';
 import 'tiles/tile_store.dart';
@@ -31,7 +33,9 @@ class HubConfig {
     this.port = 8088,
     this.bindAddress = '0.0.0.0',
     this.openSignup = true,
+    this.acceptsRawSubs = false,
     this.maxContributionBytes = 64 * 1024 * 1024,
+    this.maxSubframeBytes = 256 * 1024 * 1024,
     this.healpixOrder = TileBuilder.atlasHealpixOrder,
     this.tilePixels = TileBuilder.tilePixels,
   });
@@ -57,6 +61,19 @@ class HubConfig {
   /// Upload size cap for a single contribution body.
   final int maxContributionBytes;
 
+  /// When true, the hub accepts raw FITS subframes (the
+  /// `POST /v1/tiles/.../subframes` route) in addition to additive sums,
+  /// advertised via `/v1/info` so a
+  /// client can offer the SUBS privacy option. Default FALSE — raw subframes
+  /// reveal far more than additive sums (exact pixels/pointing, re-derivable by
+  /// anyone with read access), so a hub must opt in explicitly. When false the
+  /// subframe routes return 405 so the client can say "this hub does not accept
+  /// raw subframes".
+  final bool acceptsRawSubs;
+
+  /// Upload size cap for a single raw subframe body (larger than a sums delta).
+  final int maxSubframeBytes;
+
   final int healpixOrder;
   final int tilePixels;
 }
@@ -70,9 +87,11 @@ class HubConfig {
 class HubServer {
   HubServer(this.config)
     : _db = HubDatabase.open(config.databasePath),
-      _store = TileStore(config.atlasRoot) {
+      _store = TileStore(config.atlasRoot),
+      _subframeStore = SubframeStore(config.atlasRoot) {
     _tokens = TokenService(_db);
     _accounts = AccountService(_db, _tokens);
+    _subframes = SubframeService(db: _db, store: _subframeStore);
     _fusion = FusionService(
       db: _db,
       store: _store,
@@ -91,9 +110,11 @@ class HubServer {
   final HubConfig config;
   final HubDatabase _db;
   final TileStore _store;
+  final SubframeStore _subframeStore;
   late final TokenService _tokens;
   late final AccountService _accounts;
   late final FusionService _fusion;
+  late final SubframeService _subframes;
   late final FollowTheNightScheduler _scheduler;
   late final HandoffService _handoff;
   late final AuditLog _audit;
@@ -120,6 +141,7 @@ class HubServer {
   HandoffService get handoff => _handoff;
   TokenService get tokens => _tokens;
   TileStore get store => _store;
+  SubframeService get subframes => _subframes;
 
   /// Start listening. Returns the bound address:port for logging.
   Future<String> start() async {
@@ -167,6 +189,13 @@ class HubServer {
       '/v1/contributions/<contributionId>',
       _retractContributionHandler,
     );
+
+    // Raw subframe (opt-in) path — gated inside the handlers on
+    // [HubConfig.acceptsRawSubs] (405 when off) rather than at the router so a
+    // client gets the explanatory "this hub does not accept raw subframes"
+    // status instead of a bare 404.
+    router.post('/v1/tiles/<tileId>/subframes', _contributeSubframeHandler);
+    router.delete('/v1/subframes/<contributionId>', _deleteSubframeHandler);
 
     router.get('/v1/targets', _listTargetsHandler);
     router.post('/v1/targets', _ensureTargetHandler);
@@ -320,6 +349,7 @@ class HubServer {
       'tilePixels': config.tilePixels,
       'selfHosted': true,
       'openSignup': config.openSignup,
+      'acceptsRawSubs': config.acceptsRawSubs,
     });
   }
 
@@ -572,6 +602,112 @@ class HubServer {
     }
   }
 
+  /// `POST /v1/tiles/<tileId>/subframes?order=…` — store one raw FITS subframe.
+  ///
+  /// Gated on [HubConfig.acceptsRawSubs]: when the hub has not opted in, return
+  /// 405 so the client surfaces "this hub does not accept raw subframes" rather
+  /// than appearing to accept it. Provenance (capturedImageId, instrument,
+  /// exposure) rides as query params, mirroring the sums contribution headers.
+  Future<Response> _contributeSubframeHandler(Request request) async {
+    final requestId = request.context['requestId'] as String?;
+    final auth = _authorize(request, HubScope.contribute);
+    if (auth.error != null) return auth.error!;
+    if (!config.acceptsRawSubs) {
+      return HubError(
+        405,
+        'rawSubsDisabled',
+        'this hub does not accept raw subframes',
+      ).toResponse(requestId: requestId);
+    }
+    final identity = auth.identity!;
+    final tileId = int.tryParse(request.params['tileId'] ?? '');
+    if (tileId == null) {
+      return HubError.badRequest(
+        'tileId must be an integer',
+      ).toResponse(requestId: requestId);
+    }
+    final order = _orderQuery(request);
+    final q = request.url.queryParameters;
+    final capturedImageId = int.tryParse(q['capturedImageId'] ?? '');
+    final exposureSeconds = double.tryParse(q['exposureSeconds'] ?? '');
+    final instrument = q['instrument'];
+
+    final bytes = await _readBinary(request, config.maxSubframeBytes);
+    if (bytes == null) {
+      return HubError.payloadTooLarge(
+        'subframe exceeds ${config.maxSubframeBytes} bytes',
+      ).toResponse(requestId: requestId);
+    }
+    if (bytes.isEmpty) {
+      return HubError.badRequest(
+        'empty subframe body',
+      ).toResponse(requestId: requestId);
+    }
+
+    final receipt = _subframes.store(
+      accountId: identity.accountId,
+      tileId: tileId,
+      order: order,
+      bytes: bytes,
+      capturedImageId: capturedImageId,
+      instrument: instrument,
+      exposureSeconds: exposureSeconds,
+    );
+    _audit.record(
+      method: 'POST',
+      path: '/v1/tiles/$tileId/subframes',
+      status: 200,
+      accountId: identity.accountId,
+      detail: 'raw subframe ${receipt.storedBytes}B',
+    );
+    return hubJson(receipt.toJson());
+  }
+
+  /// `DELETE /v1/subframes/<contributionId>` — delete a stored raw subframe.
+  /// A raw-sub deletion is a FILE-DELETE (the frame is removed), not a clean
+  /// subtraction from a co-add — the client copy makes that distinction.
+  Future<Response> _deleteSubframeHandler(Request request) async {
+    final requestId = request.context['requestId'] as String?;
+    final auth = _authorize(request, HubScope.contribute);
+    if (auth.error != null) return auth.error!;
+    if (!config.acceptsRawSubs) {
+      return HubError(
+        405,
+        'rawSubsDisabled',
+        'this hub does not accept raw subframes',
+      ).toResponse(requestId: requestId);
+    }
+    final identity = auth.identity!;
+    final contributionId = request.params['contributionId'];
+    if (contributionId == null || contributionId.isEmpty) {
+      return HubError.badRequest(
+        'contributionId is required',
+      ).toResponse(requestId: requestId);
+    }
+    try {
+      final requesterId = identity.scope == HubScope.admin
+          ? null
+          : identity.accountId;
+      _subframes.delete(contributionId, requesterId: requesterId);
+      _audit.record(
+        method: 'DELETE',
+        path: '/v1/subframes/$contributionId',
+        status: 200,
+        accountId: identity.accountId,
+        detail: 'raw subframe deleted',
+      );
+      return hubJson(<String, Object?>{'deleted': true});
+    } on SubframeNotFound {
+      return HubError.notFound(
+        'no such subframe',
+      ).toResponse(requestId: requestId);
+    } on SubframeForbidden {
+      return HubError.forbidden(
+        'not your subframe',
+      ).toResponse(requestId: requestId);
+    }
+  }
+
   /// `GET /v1/targets` — browse the swarm's shared targets (the entry point to
   /// join / contribute / pull). Emits the client-facing shape
   /// (`SharedTarget.fromJson`): `targetId`, `name`, `raDeg`, `decDeg`,
@@ -635,9 +771,24 @@ class HubServer {
       priority: priority is num ? priority.toDouble() : 0.5,
     );
     final target = _scheduler.getTarget(id)!;
+    final activeTileId = FollowTheNightScheduler.activeTileFor(
+      target,
+      config.healpixOrder,
+    );
     return hubJson(<String, Object?>{
       'targetId': id,
-      'target': target.toJson(),
+      // Echo the target back in the SAME client-facing browse shape
+      // `GET /v1/targets` uses (`targetId`/`raDeg`/`decDeg`/`activeTileId`) so
+      // the client's `SharedTarget.fromJson` decodes it without a second fetch.
+      'target': <String, Object?>{
+        'targetId': id,
+        'name': target.name,
+        'raDeg': target.centerRaDeg,
+        'decDeg': target.centerDecDeg,
+        'integrationSeconds': target.integrationSeconds,
+        'contributors': _contributorsForTile(activeTileId, config.healpixOrder),
+        'activeTileId': activeTileId,
+      },
     });
   }
 
