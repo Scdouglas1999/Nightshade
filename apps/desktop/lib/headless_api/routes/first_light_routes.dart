@@ -18,6 +18,9 @@ List<HeadlessRoute> buildFirstLightRoutes(
     '/api/firstlight/candidates',
     h.handleGetCandidates,
   ),
+  // Cross-night history of one transient (light-curve detail view). Single
+  // static segment so it never shadows the `<id>/<action>` triage routes.
+  HeadlessRoute(HttpMethod.get, '/api/firstlight/near', h.handleGetNear),
   HeadlessRoute(HttpMethod.post, '/api/firstlight/<id>/review', h.handleReview),
   HeadlessRoute(
     HttpMethod.post,

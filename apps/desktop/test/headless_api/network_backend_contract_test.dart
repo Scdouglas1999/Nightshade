@@ -96,6 +96,7 @@ void main() {
       'GET /api/atlas/region/{param}/cutout',
       // Pillar B — First Light (transient discovery)
       'GET /api/firstlight/candidates',
+      'GET /api/firstlight/near',
       'POST /api/firstlight/{param}/review',
       'POST /api/firstlight/{param}/dismiss',
       'POST /api/firstlight/{param}/submit/tns',

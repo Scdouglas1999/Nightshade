@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
@@ -162,6 +163,83 @@ Stream<List<TransientDetectionRow>> _remoteFirstLightStream(
     unawaited(controller.close());
   });
   return controller.stream;
+}
+
+/// A sky position to group a transient's cross-night history around. Carries
+/// the match radius so the provider key is value-equal (a record) and two
+/// lookups of the same source share one fetch.
+typedef FirstLightHistoryQuery = ({
+  double raDeg,
+  double decDeg,
+  double radiusDeg,
+});
+
+/// Backend-aware cross-night history for one transient: every persisted
+/// detection within [FirstLightHistoryQuery.radiusDeg] of the position,
+/// oldest-first. Local: a DB query refined to true angular separation. Remote
+/// (companion): the host's `/api/firstlight/near` snapshot. Backs the
+/// multi-night light-curve detail view so the same source seen over several
+/// nights reads as one Δmag-vs-time history on desktop and mobile alike.
+final firstLightHistoryProvider = FutureProvider.autoDispose
+    .family<List<TransientDetectionRow>, FirstLightHistoryQuery>((
+      ref,
+      query,
+    ) async {
+      final backend = ref.watch(backendProvider);
+      final List<TransientDetectionRow> rows;
+      if (backend is NetworkBackend) {
+        final raw = await backend.getFirstLightHistory(
+          raDeg: query.raDeg,
+          decDeg: query.decDeg,
+          radiusDeg: query.radiusDeg,
+        );
+        rows = raw.map(transientDetectionFromWireJson).toList(growable: false);
+      } else {
+        rows = await ref
+            .watch(transientDetectionsDaoProvider)
+            .detectionsNear(
+              query.raDeg,
+              query.decDeg,
+              radiusDeg: query.radiusDeg,
+            );
+      }
+      // Refine the coarse bounding box to a true angular separation so a
+      // detection in the box corner but outside the cone does not group in.
+      final kept = rows
+          .where(
+            (r) =>
+                _angularSeparationDeg(
+                  query.raDeg,
+                  query.decDeg,
+                  r.raDeg,
+                  r.decDeg,
+                ) <=
+                query.radiusDeg,
+          )
+          .toList(growable: false);
+      kept.sort((a, b) => a.detectedAt.compareTo(b.detectedAt));
+      return kept;
+    });
+
+/// Great-circle angular separation between two equatorial points, in degrees.
+/// Uses the haversine form so it stays accurate for the small separations the
+/// cross-night grouping cares about.
+double _angularSeparationDeg(
+  double ra1Deg,
+  double dec1Deg,
+  double ra2Deg,
+  double dec2Deg,
+) {
+  const deg2rad = math.pi / 180.0;
+  final dRa = (ra2Deg - ra1Deg) * deg2rad;
+  final dDec = (dec2Deg - dec1Deg) * deg2rad;
+  final lat1 = dec1Deg * deg2rad;
+  final lat2 = dec2Deg * deg2rad;
+  final a =
+      math.sin(dDec / 2) * math.sin(dDec / 2) +
+      math.cos(lat1) * math.cos(lat2) * math.sin(dRa / 2) * math.sin(dRa / 2);
+  final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+  return c / deg2rad;
 }
 
 /// Triage a First Light candidate (mark reviewed/confirmed, or dismiss as an

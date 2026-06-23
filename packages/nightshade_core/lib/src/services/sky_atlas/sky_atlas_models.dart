@@ -457,3 +457,77 @@ class TileProvenanceView {
     'folds': folds.map((f) => f.toJson()).toList(growable: false),
   };
 }
+
+/// One point on a region's deepening growth curve: a single night (fold label)
+/// with the frames / integration it added and the cumulative running totals.
+class AtlasGrowthPoint {
+  /// Fold label (an ISO date for an auto-fold, else a session id).
+  final String label;
+  final int framesAdded;
+  final double secondsAdded;
+  final int cumulativeFrames;
+  final double cumulativeSeconds;
+  final String contributor;
+
+  const AtlasGrowthPoint({
+    required this.label,
+    required this.framesAdded,
+    required this.secondsAdded,
+    required this.cumulativeFrames,
+    required this.cumulativeSeconds,
+    required this.contributor,
+  });
+
+  factory AtlasGrowthPoint.fromJson(Map<String, dynamic> json) =>
+      AtlasGrowthPoint(
+        label: json['label'] as String? ?? '',
+        framesAdded: (json['framesAdded'] as num?)?.toInt() ?? 0,
+        secondsAdded: (json['secondsAdded'] as num?)?.toDouble() ?? 0.0,
+        cumulativeFrames: (json['cumulativeFrames'] as num?)?.toInt() ?? 0,
+        cumulativeSeconds:
+            (json['cumulativeSeconds'] as num?)?.toDouble() ?? 0.0,
+        contributor: json['contributor'] as String? ?? '',
+      );
+
+  /// Parse the fold label as a calendar day when it is an ISO date; null for a
+  /// non-dated (session-id) label, so the chart can fall back to point index.
+  DateTime? get date => DateTime.tryParse(label);
+}
+
+/// A region's deepening growth curve — the cumulative-integration-vs-night
+/// series the bridge `growth` action returns (and the host's
+/// `/api/atlas/region/<id>/timeline` payload mirrors under `growth`), decoded
+/// once for the region-detail chart. Points are chronological (one per fold
+/// label / night), totals are the region cone's lifetime sums.
+class AtlasGrowthCurve {
+  final List<AtlasGrowthPoint> points;
+  final int totalFrames;
+  final double totalSeconds;
+
+  const AtlasGrowthCurve({
+    required this.points,
+    required this.totalFrames,
+    required this.totalSeconds,
+  });
+
+  static const AtlasGrowthCurve empty = AtlasGrowthCurve(
+    points: [],
+    totalFrames: 0,
+    totalSeconds: 0.0,
+  );
+
+  factory AtlasGrowthCurve.fromJson(Map<String, dynamic> json) {
+    final raw = json['points'];
+    final points = raw is List
+        ? raw
+              .whereType<Map<String, dynamic>>()
+              .map(AtlasGrowthPoint.fromJson)
+              .toList(growable: false)
+        : const <AtlasGrowthPoint>[];
+    return AtlasGrowthCurve(
+      points: points,
+      totalFrames: (json['totalFrames'] as num?)?.toInt() ?? 0,
+      totalSeconds: (json['totalSeconds'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+}

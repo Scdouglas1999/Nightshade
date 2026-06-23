@@ -136,6 +136,91 @@ void main() {
     });
   });
 
+  group('AtlasGrowthCurve.fromJson (bridge growth / host /timeline growth)', () {
+    // Mirrors the bridge `growth` action result (see api_sky_atlas_growth):
+    // a chronological `points` series + region cone lifetime totals. The host's
+    // /api/atlas/region/<id>/timeline payload nests this same map under `growth`.
+    Map<String, dynamic> wire() => {
+      'ok': true,
+      'points': [
+        {
+          'label': '2026-06-01',
+          'framesAdded': 30,
+          'secondsAdded': 9000.0,
+          'cumulativeFrames': 30,
+          'cumulativeSeconds': 9000.0,
+          'contributor': '',
+        },
+        {
+          'label': '2026-06-05',
+          'framesAdded': 20,
+          'secondsAdded': 6000.0,
+          'cumulativeFrames': 50,
+          'cumulativeSeconds': 15000.0,
+          'contributor': 'alice',
+        },
+      ],
+      'totalFrames': 50,
+      'totalSeconds': 15000.0,
+    };
+
+    test('decodes the chronological cumulative series + totals', () {
+      final curve = AtlasGrowthCurve.fromJson(wire());
+      expect(curve.points, hasLength(2));
+      expect(curve.totalFrames, 50);
+      expect(curve.totalSeconds, 15000.0);
+
+      expect(curve.points.first.label, '2026-06-01');
+      expect(curve.points.first.cumulativeFrames, 30);
+      expect(curve.points.last.cumulativeSeconds, 15000.0);
+      expect(curve.points.last.contributor, 'alice');
+      // Cumulative must be monotonically non-decreasing (deepening, never shallower).
+      expect(
+        curve.points.last.cumulativeSeconds >=
+            curve.points.first.cumulativeSeconds,
+        isTrue,
+      );
+    });
+
+    test('parses an ISO date label, leaving a session-id label undated', () {
+      final curve = AtlasGrowthCurve.fromJson(wire());
+      final date = curve.points.first.date;
+      expect(date, isNotNull);
+      expect(date!.year, 2026);
+      expect(date.month, 6);
+      expect(date.day, 1);
+
+      final sessionLabelled = AtlasGrowthCurve.fromJson({
+        'points': [
+          {'label': 'session-42', 'cumulativeSeconds': 100.0},
+        ],
+      });
+      expect(sessionLabelled.points.single.date, isNull);
+    });
+
+    test('a missing / empty points block decodes to the empty curve', () {
+      expect(AtlasGrowthCurve.fromJson(const {}).points, isEmpty);
+      expect(AtlasGrowthCurve.fromJson(const {'points': null}).points, isEmpty);
+      expect(AtlasGrowthCurve.empty.points, isEmpty);
+      expect(AtlasGrowthCurve.empty.totalSeconds, 0.0);
+    });
+
+    test('integer JSON numbers decode to the double second fields', () {
+      final curve = AtlasGrowthCurve.fromJson({
+        'points': [
+          {
+            'label': '2026-06-01',
+            'secondsAdded': 9000,
+            'cumulativeSeconds': 9000,
+          },
+        ],
+        'totalSeconds': 9000,
+      });
+      expect(curve.points.single.cumulativeSeconds, 9000.0);
+      expect(curve.totalSeconds, 9000.0);
+    });
+  });
+
   group('AtlasTileCoverage.fromJson (host /api/atlas/coverage row)', () {
     // Mirrors AtlasHandlers._coverageToJson, which emits the bridge-native
     // key names AtlasTileCoverage.fromJson already consumes.

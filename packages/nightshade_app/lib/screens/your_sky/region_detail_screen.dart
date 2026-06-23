@@ -5,6 +5,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'sky_atlas_format.dart';
+import 'widgets/atlas_growth_curve.dart';
 import 'widgets/atlas_region_cutout.dart';
 import 'widgets/atlas_timescrub.dart';
 
@@ -116,6 +117,8 @@ class _RegionDetailBody extends ConsumerWidget {
             ),
             const SizedBox(height: NightshadeTokens.spaceLg),
             _ChangedPanel(folds: folds, anchor: anchor),
+            const SizedBox(height: NightshadeTokens.spaceLg),
+            _GrowthPanel(regionId: region.id),
             const SizedBox(height: NightshadeTokens.spaceLg),
             _ProvenancePanel(region: region, tiles: tiles, folds: folds),
             const SizedBox(height: NightshadeTokens.spaceLg),
@@ -400,9 +403,29 @@ class _FoldRow extends StatelessWidget {
   }
 }
 
-/// Provenance rollup — depth, contributors, and the running totals for the
-/// region across its tiles.
-class _ProvenancePanel extends StatelessWidget {
+/// The region's deepening growth curve (cumulative integration vs. night),
+/// driven by the native [atlasRegionGrowthProvider] (host) or the host's
+/// timeline `growth` payload (slave). Surfaces the per-cone deepening curve the
+/// native bridge computes — previously built + wired but never displayed.
+class _GrowthPanel extends ConsumerWidget {
+  final int regionId;
+
+  const _GrowthPanel({required this.regionId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final growthAsync = ref.watch(atlasRegionGrowthProvider(regionId));
+    final curve = growthAsync.valueOrNull ?? AtlasGrowthCurve.empty;
+    return AtlasGrowthCurvePanel(curve: curve);
+  }
+}
+
+/// Provenance trail — the native per-tile [TileProvenanceView] (coverage mean,
+/// deduplicated contributor list, per-fold log) for the region's deepest tile,
+/// driven by [atlasRegionProvenanceProvider]. Falls back to the region-level
+/// rollup while the native view loads (or when the region has no tiles yet) so
+/// the panel never blanks.
+class _ProvenancePanel extends ConsumerWidget {
   final SkyAtlasRegionRow region;
   final List<SkyTileRow> tiles;
   final List<SkyAtlasFoldRow> folds;
@@ -414,23 +437,34 @@ class _ProvenancePanel extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
-    final totalFrames = folds.fold<int>(0, (s, f) => s + f.framesAdded);
-    final contributors = <String>{
-      for (final f in folds)
-        if (f.contributor.trim().isNotEmpty) f.contributor.trim(),
-    };
+    final provenanceAsync = ref.watch(atlasRegionProvenanceProvider(region.id));
+    final provenance = provenanceAsync.valueOrNull;
+
+    // Region-level rollups (always available from the rows already fetched);
+    // the native tile-provenance view augments the contributors + per-fold log.
     final maxDepth = tiles.isEmpty
         ? 0.0
         : tiles
             .map((t) => t.integrationSeconds)
             .reduce((a, b) => a > b ? a : b);
+    final contributors = provenance != null
+        ? provenance.contributors
+        : <String>{
+            for (final f in folds)
+              if (f.contributor.trim().isNotEmpty) f.contributor.trim(),
+          }.toList(growable: false);
+    final totalFrames = folds.fold<int>(0, (s, f) => s + f.framesAdded);
+    final provFolds = provenance?.folds ?? const <TileFoldView>[];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionHeader(title: 'Depth & provenance'),
+        const SectionHeader(
+          title: 'Depth & provenance',
+          subtitle: 'How this region was built, tile by tile.',
+        ),
         const SizedBox(height: NightshadeTokens.spaceSm),
         NightshadeCard(
           padding: NightshadeTokens.cardPadding,
@@ -448,6 +482,14 @@ class _ProvenancePanel extends StatelessWidget {
                 value: formatIntegration(maxDepth),
                 colors: colors,
               ),
+              if (provenance != null)
+                _StatLine(
+                  icon: LucideIcons.target,
+                  label: 'Deepest-tile coverage',
+                  value:
+                      '${(provenance.coverageMean * 100).toStringAsFixed(0)}%',
+                  colors: colors,
+                ),
               _StatLine(
                 icon: LucideIcons.layoutGrid,
                 label: 'Tiles',
@@ -463,15 +505,97 @@ class _ProvenancePanel extends StatelessWidget {
               _StatLine(
                 icon: LucideIcons.users,
                 label: 'Contributors',
-                value: contributors.isEmpty ? 'You' : '${contributors.length}',
+                value: contributors.isEmpty
+                    ? 'You'
+                    : (contributors.length == 1 &&
+                            contributors.first.trim().isEmpty)
+                        ? 'You'
+                        : '${contributors.length}',
                 colors: colors,
-                isLast: true,
+                isLast: provFolds.isEmpty,
               ),
             ],
           ),
         ),
+        if (provFolds.isNotEmpty) ...[
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          _ProvenanceTrail(folds: provFolds),
+        ],
       ],
     );
+  }
+}
+
+/// The per-fold provenance trail for the region's deepest tile (newest first):
+/// the native fold log every contribution left behind. Reads the native
+/// [TileFoldView] list straight from [TileProvenanceView].
+class _ProvenanceTrail extends StatelessWidget {
+  final List<TileFoldView> folds;
+
+  const _ProvenanceTrail({required this.folds});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final ordered = [...folds]..sort((a, b) => b.label.compareTo(a.label));
+
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      padding: NightshadeTokens.cardPadding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Provenance trail · deepest tile',
+            style: NightshadeTypography.labelQuiet
+                .copyWith(color: colors.textSecondary),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          for (var i = 0; i < ordered.length; i++)
+            Padding(
+              padding: EdgeInsets.only(
+                bottom: i == ordered.length - 1 ? 0 : NightshadeTokens.spaceSm,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    ordered[i].contributor.trim().isNotEmpty
+                        ? LucideIcons.users
+                        : LucideIcons.image,
+                    size: NightshadeTokens.iconSm,
+                    color: ordered[i].contributor.trim().isNotEmpty
+                        ? colors.info
+                        : colors.primary,
+                  ),
+                  const SizedBox(width: NightshadeTokens.spaceMd),
+                  Expanded(
+                    child: Text(
+                      _trailLabel(ordered[i]),
+                      style: NightshadeTypography.bodySm
+                          .copyWith(color: colors.textPrimary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(
+                    '${ordered[i].framesAdded}f · '
+                    '+${formatIntegration(ordered[i].integrationSecondsAdded)}',
+                    style: NightshadeTypography.captionSm
+                        .copyWith(color: colors.textMuted),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static String _trailLabel(TileFoldView fold) {
+    final label = fold.label.trim();
+    if (label.isEmpty) return 'Fold';
+    final contributor = fold.contributor.trim();
+    return contributor.isEmpty ? label : '$label · $contributor';
   }
 }
 

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -158,6 +160,42 @@ class TransientDetectionsDao extends DatabaseAccessor<NightshadeDatabase>
           return aged & reclaimable;
         }))
         .go();
+  }
+
+  /// All detections whose sky position falls within [radiusDeg] of
+  /// ([raDeg], [decDeg]), oldest-first — the cross-night history of a single
+  /// physical transient. The same source re-detected on three nights produces
+  /// three rows (one per frame); grouping them by position is what turns three
+  /// unrelated cards into one Δmag-vs-time light curve and makes
+  /// "Confirmed (seen 3 nights)" meaningful.
+  ///
+  /// A coarse RA/Dec bounding box (cheap, index-friendly on
+  /// `idx_transient_detections_tile` / the lat band) prefilters in SQL; the
+  /// caller refines to a true angular separation. The RA box is widened by
+  /// `1/cos(dec)` so it stays correct away from the equator (skipped near the
+  /// poles where the term blows up — the box just degrades to all-RA there,
+  /// still correct, just less selective).
+  Future<List<TransientDetectionRow>> detectionsNear(
+    double raDeg,
+    double decDeg, {
+    double radiusDeg = 0.02,
+  }) {
+    final cosDec = math.cos(decDeg * math.pi / 180.0);
+    final raPad = cosDec.abs() < 1e-3 ? 180.0 : radiusDeg / cosDec.abs();
+    final raLo = raDeg - raPad;
+    final raHi = raDeg + raPad;
+    final decLo = decDeg - radiusDeg;
+    final decHi = decDeg + radiusDeg;
+    return (select(transientDetections)
+          ..where(
+            (t) =>
+                t.decDeg.isBiggerOrEqualValue(decLo) &
+                t.decDeg.isSmallerOrEqualValue(decHi) &
+                t.raDeg.isBiggerOrEqualValue(raLo) &
+                t.raDeg.isSmallerOrEqualValue(raHi),
+          )
+          ..orderBy([(t) => OrderingTerm.asc(t.detectedAt)]))
+        .get();
   }
 
   /// Mark a detection reviewed; [dismissed] flags it as a triaged artefact.

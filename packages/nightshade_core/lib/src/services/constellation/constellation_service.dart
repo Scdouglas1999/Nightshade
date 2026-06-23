@@ -308,6 +308,11 @@ class ConstellationService {
 
   /// Join a shared target: records it locally so contribute/pull/handoff can
   /// resolve its hub geometry without re-browsing. Idempotent.
+  ///
+  /// Also persists the join (best-effort, fire-and-forget) so the membership —
+  /// and therefore the follow-the-night sweep, which iterates only joined
+  /// targets — survives an app restart instead of silently re-locking
+  /// Contribute/Pull and emptying the baton feed on every relaunch.
   void joinSharedTarget(SharedTarget target) {
     _joined[target.targetId] = target;
     _logger.info(
@@ -316,6 +321,7 @@ class ConstellationService {
       '${(target.integrationSeconds / 3600).toStringAsFixed(1)}h fused.',
       source: _logSource,
     );
+    unawaited(_persistJoin(target, joined: true));
   }
 
   /// Create (or look up) a shared target on the configured hub from one of the
@@ -351,11 +357,92 @@ class ConstellationService {
     }
   }
 
-  /// Leave a previously-joined shared target.
-  void leaveSharedTarget(int targetId) => _joined.remove(targetId);
+  /// Leave a previously-joined shared target. Clears the persisted join row too
+  /// so the membership does not resurrect on the next [rehydrateJoined].
+  void leaveSharedTarget(int targetId) {
+    final target = _joined.remove(targetId);
+    if (target != null) {
+      unawaited(_persistJoin(target, joined: false));
+    }
+  }
 
   /// Targets joined on the hub (read-only snapshot).
   List<SharedTarget> get joinedTargets => List.unmodifiable(_joined.values);
+
+  /// Re-populate [_joined] from the persisted join rows for the configured hub,
+  /// so a relaunched host (or a companion that never browsed) re-renders its
+  /// federation membership without a live hub round-trip. Idempotent and
+  /// best-effort: a persisted row never clobbers a richer live-joined row
+  /// already in memory (a fresh browse-join carries contributor/depth the row
+  /// does not), and a missing DAO / read failure simply leaves [_joined] as-is.
+  ///
+  /// Join rows are keyed in the contributions table at a disjoint NEGATIVE
+  /// `tileId` ([_joinRowKey]) so they can never collide with a real (non-negative
+  /// HEALPix) tile receipt under the unique `(hubKey, tileId, healpixOrder)`
+  /// index.
+  Future<void> rehydrateJoined() async {
+    final dao = _contributions;
+    if (dao == null) return;
+    final creds = await _credentialsResolver();
+    if (creds == null) return;
+    try {
+      final rows = await dao.getAllForHub(_hubKey(creds.hubBaseUrl));
+      for (final row in rows) {
+        if (!row.joined) continue;
+        if (row.tileId >= 0) continue; // not a join row
+        final targetId = _targetIdFromJoinRow(row.tileId);
+        if (_joined.containsKey(targetId)) continue; // keep richer live row
+        _joined[targetId] = SharedTarget(
+          targetId: targetId,
+          name: row.targetName ?? 'Target #$targetId',
+          raDeg: row.targetRaDeg ?? 0.0,
+          decDeg: row.targetDecDeg ?? 0.0,
+          integrationSeconds: 0.0,
+          contributors: 0,
+          activeTileId: null,
+        );
+      }
+    } catch (e, st) {
+      _logger.debug(
+        'rehydrateJoined failed (non-fatal): $e\n$st',
+        source: _logSource,
+      );
+    }
+  }
+
+  /// Persist (or clear) the join-rehydration row for [target] on the configured
+  /// hub. Best-effort: a missing DAO / no-hub / write failure is swallowed (the
+  /// in-memory join already took effect; only restart-survival is lost).
+  Future<void> _persistJoin(SharedTarget target, {required bool joined}) async {
+    final dao = _contributions;
+    if (dao == null) return;
+    try {
+      final creds = await _credentialsResolver();
+      if (creds == null) return;
+      await dao.upsertJoined(
+        _hubKey(creds.hubBaseUrl),
+        _joinRowKey(target.targetId),
+        joined: joined,
+        targetName: target.name,
+        targetRaDeg: target.raDeg,
+        targetDecDeg: target.decDeg,
+      );
+    } catch (e, st) {
+      _logger.debug(
+        'persistJoin(#${target.targetId}, joined:$joined) failed '
+        '(non-fatal): $e\n$st',
+        source: _logSource,
+      );
+    }
+  }
+
+  /// Map a hub target id to the NEGATIVE `tileId` its join-rehydration row uses,
+  /// keeping join rows in a key space disjoint from real (non-negative HEALPix)
+  /// tile receipts. The `-1` offset keeps target id 0 strictly negative.
+  static int _joinRowKey(int targetId) => -targetId - 1;
+
+  /// Inverse of [_joinRowKey].
+  static int _targetIdFromJoinRow(int rowTileId) => -rowTileId - 1;
 
   // --- Contribute ---------------------------------------------------------
 
@@ -905,15 +992,35 @@ class ConstellationService {
   Future<List<FollowTheNightSuggestion>> followTheNight() async {
     final client = await _client();
     if (client == null) return const [];
+    // Re-populate joined membership after a restart so the sweep is not empty
+    // until the user manually re-joins (the sweep iterates only joined targets).
+    await rehydrateJoined();
     try {
       final locals = await _localTargetsResolver();
-      final byId = {for (final t in locals) t.targetId: t};
+      // Index locals by NAME (case-folded), never by id: a local `Target.id` is
+      // a private autoincrement that is NOT a hub `shared_targets.id`. Unioning
+      // local ids into the hub-id query set (the old behaviour) let a local id
+      // collide with a DIFFERENT hub target's id and take/query the baton for
+      // the WRONG sky — the exact double-collect this feature exists to prevent.
+      // Names line up by construction: `proposeTarget` seeds the hub target from
+      // a local field's name, and the hub is idempotent on name/centre.
+      final byName =
+          <
+            String,
+            ({int targetId, String name, double raDeg, double decDeg})
+          >{};
+      for (final t in locals) {
+        byName.putIfAbsent(t.name.trim().toLowerCase(), () => t);
+      }
       final suggestions = <FollowTheNightSuggestion>[];
 
-      // Consider both joined targets and any local target that maps to a hub
-      // target id, so a freshly-imported plan still gets handoff signals.
-      final candidateIds = <int>{..._joined.keys, ...byId.keys};
-      for (final id in candidateIds) {
+      // Candidates are ONLY true hub target ids (the joined `SharedTarget.targetId`
+      // values). A local plan with no joined hub target has no hub id to query;
+      // surfacing it here would be meaningless at best and a wrong-target baton at
+      // worst, so it is correctly excluded until the user joins/proposes it.
+      for (final entry in _joined.entries) {
+        final id = entry.key;
+        final shared = entry.value;
         final HandoffClaim? handoff;
         try {
           handoff = await client.queryHandoff(id);
@@ -928,18 +1035,19 @@ class ConstellationService {
         }
         if (handoff == null) continue;
 
-        final local = byId[id];
-        final shared = _joined[id];
-        final raDeg = local?.raDeg ?? shared?.raDeg ?? 0.0;
-        final decDeg = local?.decDeg ?? shared?.decDeg ?? 0.0;
+        // Enrich the display name from a NAME-matched local target only; the
+        // authoritative sky geometry is always the hub's own row.
+        final local = byName[shared.name.trim().toLowerCase()];
         suggestions.add(
           FollowTheNightSuggestion(
             targetId: id,
-            targetName: local?.name ?? shared?.name ?? 'Target #$id',
-            raDeg: raDeg,
-            decDeg: decDeg,
+            targetName: shared.name.isNotEmpty
+                ? shared.name
+                : local?.name ?? 'Target #$id',
+            raDeg: shared.raDeg != 0.0 ? shared.raDeg : local?.raDeg ?? 0.0,
+            decDeg: shared.decDeg != 0.0 ? shared.decDeg : local?.decDeg ?? 0.0,
             handoff: handoff,
-            swarmIntegrationSeconds: shared?.integrationSeconds ?? 0.0,
+            swarmIntegrationSeconds: shared.integrationSeconds,
           ),
         );
       }

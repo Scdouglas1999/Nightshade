@@ -8,14 +8,19 @@ import '../backend/network_backend.dart';
 import '../database/daos/images_dao.dart';
 import '../database/daos/sessions_dao.dart';
 import '../database/database.dart' as db;
+import '../models/backend/event_types.dart' show EventSeverity;
+import '../models/notification/notification_categories.dart';
 import '../providers/backend_provider.dart';
 import '../providers/database_provider.dart';
 import '../providers/narrator_provider.dart' show narratorServiceProvider;
+import '../providers/notification_router_provider.dart'
+    show notificationRouterProvider;
 import '../providers/sky_atlas_provider.dart';
 import '../providers/transient_detections_provider.dart';
 import '../services/logging_service.dart';
 import '../services/sky_atlas/sky_atlas_models.dart';
 import '../services/transients/transient_candidate.dart';
+import '../utils/coordinate_format.dart';
 import '../services/wcs/gnomonic_projection.dart' show SolvedWcs;
 import '../services/wcs/wcs_sip_codec.dart';
 
@@ -799,9 +804,57 @@ Future<void> _runFirstLightScan({
     ref
         .read(narratorServiceProvider)
         .ingestTransientCandidates(candidates, capturedImageId: image.id);
+    // Bridge a genuinely-new discovery to the push router so a sleeping
+    // operator is paged while the chase window is still open. The in-app
+    // Narrator banner alone is invisible at night.
+    _pushTransientDiscoveries(ref, logger, rows);
   } catch (e, st) {
     logger.warning(
       'First Light scan for image ${image.id} failed: $e\n$st',
+      source: 'FirstLightService',
+    );
+  }
+}
+
+/// Minimum confidence for a transient to escalate to a phone push. High enough
+/// that the operator is only paged for a genuinely promising candidate (the
+/// chase costs telescope time), not every marginal residual.
+const double _kTransientPushConfidence = 0.7;
+
+/// Route any high-confidence, unnamed, brand-new point source from a scan to the
+/// notification router so it pushes to the operator's phone (the
+/// `transientDiscovered` category is critical / systemPush-by-default). Only a
+/// `newSource` with no catalog match qualifies as a possible-discovery worth a
+/// page; a brightening of a known star, a mover, or a dipole artefact stays
+/// in-app. Best-effort — a router failure must never disturb the solve path.
+void _pushTransientDiscoveries(
+  Ref ref,
+  LoggingService logger,
+  List<db.TransientDetectionRow> rows,
+) {
+  final discoveries = rows
+      .where((r) {
+        if (r.catalogMatch != null) return false;
+        if (r.confidence < _kTransientPushConfidence) return false;
+        return TransientKind.fromWire(r.kind) == TransientKind.newSource;
+      })
+      .toList(growable: false);
+  if (discoveries.isEmpty) return;
+
+  try {
+    final router = ref.read(notificationRouterProvider);
+    for (final r in discoveries) {
+      final coords =
+          '${CoordinateFormat.ra(r.raDeg / 15.0)} ${CoordinateFormat.dec(r.decDeg)}';
+      router.route(NotificationCategory.transientDiscovered, {
+        'transient.coords': coords,
+        'transient.snr': r.snr.toStringAsFixed(1),
+        'transient.confidence': (r.confidence * 100).round().toString(),
+      }, severity: EventSeverity.critical);
+    }
+  } catch (e, st) {
+    logger.warning(
+      'First Light push routing failed: $e\n$st',
       source: 'FirstLightService',
     );
   }

@@ -225,6 +225,39 @@ class FirstLightHandlers {
     });
   }
 
+  /// Largest cross-night match radius a client may request, in degrees. Bounds
+  /// the bounding-box scan and keeps an unrelated source from grouping in.
+  static const double _maxNearRadiusDeg = 0.5;
+
+  /// GET `/api/firstlight/near?ra=&dec=&radius=` — the cross-night history of a
+  /// single transient: every persisted detection within `radius` degrees of
+  /// (`ra`, `dec`), oldest-first. Backs the multi-night light-curve detail view
+  /// so a slave groups the same source across nights instead of showing N
+  /// unrelated cards. `ra`/`dec` are decimal degrees; `radius` defaults to
+  /// 0.02° (~72") and is capped at [_maxNearRadiusDeg].
+  Future<Response> handleGetNear(Request request) async {
+    final params = request.url.queryParameters;
+    final ra = double.tryParse(params['ra'] ?? '');
+    final dec = double.tryParse(params['dec'] ?? '');
+    if (ra == null || dec == null) {
+      throw BadRequestError(
+        field: 'ra,dec',
+        expected: 'decimal degrees',
+        message: 'ra and dec query parameters are required (decimal degrees)',
+      );
+    }
+    var radius = double.tryParse(params['radius'] ?? '') ?? 0.02;
+    if (!radius.isFinite || radius <= 0) radius = 0.02;
+    if (radius > _maxNearRadiusDeg) radius = _maxNearRadiusDeg;
+    _logInfo('[API] GET /api/firstlight/near?ra=$ra&dec=$dec&radius=$radius');
+
+    final rows = await _dao.detectionsNear(ra, dec, radiusDeg: radius);
+    return jsonOk({
+      'detections': rows.map(_rowToWireJson).toList(),
+      'count': rows.length,
+    });
+  }
+
   /// Parse + clamp the `limit` query param to `[1, _maxCandidateLimit]`,
   /// defaulting to [_defaultCandidateLimit] when absent or unparseable.
   int _boundedLimit(String? raw) {

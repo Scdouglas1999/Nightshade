@@ -171,6 +171,27 @@ void main() {
       expect(find.text('Untriaged source'), findsNothing);
     });
 
+    testWidgets('offers a Chase action that warns when no mount is connected', (
+      tester,
+    ) async {
+      // GAP #5: the card must offer a slew/re-image action (the "chase before
+      // it fades" loop), not just Submit/Confirm/Dismiss. With no mount
+      // connected, tapping Chase surfaces a clear warning rather than no-oping.
+      await _pump(tester, candidates: [_detection()]);
+      await tester.pumpAndSettle();
+
+      final chase = find.text('Chase');
+      expect(chase, findsOneWidget);
+
+      await tester.tap(chase);
+      await tester.pump();
+
+      expect(
+        find.textContaining('No mount connected'),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('shows the empty state when there are no candidates', (
       tester,
     ) async {

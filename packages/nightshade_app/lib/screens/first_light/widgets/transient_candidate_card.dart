@@ -4,6 +4,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../services/mount_command_service.dart';
+import '../first_light_detail_screen.dart';
 import 'cutout_strip.dart';
 import 'transient_submit_dialog.dart';
 
@@ -28,6 +30,14 @@ class TransientCandidateCard extends ConsumerWidget {
       variant: CardVariant.subtle,
       borderRadius: NightshadeTokens.radiusLg,
       padding: NightshadeTokens.cardPadding,
+      // Tap opens the multi-night detail / light-curve view: the same source
+      // seen across nights groups into one Δmag-vs-time history so the core
+      // question — "is it real and changing?" — becomes answerable.
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => FirstLightDetailScreen(detection: detection),
+        ),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -310,6 +320,64 @@ class _ActionsRow extends StatelessWidget {
     }
   }
 
+  /// Slew the mount to the candidate so the user can grab confirmation frames
+  /// before it fades — the "Re-image to confirm" loop the Narrator copy promises.
+  /// Routes through [mountCommandServiceProvider], which is backend-routed: on a
+  /// companion tablet (slave) the slew is forwarded to the imaging host. Confirms
+  /// first because moving the mount mid-session is consequential.
+  Future<void> _chase(BuildContext context) async {
+    final mount = ref.read(mountCommandServiceProvider);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (!mount.isConnected) {
+      messenger?.showSnackBar(
+        const SnackBar(
+          content: Text('No mount connected — connect a mount to chase.'),
+        ),
+      );
+      return;
+    }
+
+    final coords = '${CoordinateFormat.ra(detection.raDeg / 15.0)}  '
+        '${CoordinateFormat.dec(detection.decDeg)}';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => NightshadeDialog(
+        title: 'Chase this candidate?',
+        icon: NightshadeIcons.crosshair,
+        width: 420,
+        actions: [
+          NightshadeButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            label: 'Cancel',
+            variant: ButtonVariant.outline,
+            size: ButtonSize.small,
+          ),
+          NightshadeButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            label: 'Slew',
+            icon: NightshadeIcons.crosshair,
+            size: ButtonSize.small,
+          ),
+        ],
+        child: Text(
+          'Slew the mount to $coords to re-image and confirm it before it '
+          'fades. This interrupts the current pointing.',
+        ),
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    // RA stored in degrees on the row; slewTo expects hours.
+    final result = await mount.slewTo(
+      detection.raDeg / 15.0,
+      detection.decDeg,
+    );
+    if (!context.mounted) return;
+    messenger?.showSnackBar(
+      SnackBar(content: Text(result.message ?? 'Slewing to candidate...')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // A low-confidence dipole / unreviewed candidate must not one-tap a TNS
@@ -383,6 +451,16 @@ class _ActionsRow extends StatelessWidget {
       ),
     );
 
+    // "Chase" closes the discovery loop: slew there now and re-image before the
+    // candidate fades, instead of hand-copying sexagesimal coords in the dark.
+    final chaseAction = NightshadeButton(
+      label: 'Chase',
+      icon: NightshadeIcons.crosshair,
+      size: ButtonSize.small,
+      variant: ButtonVariant.outline,
+      onPressed: () => _chase(context),
+    );
+
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < NightshadeTokens.breakpointMobile) {
@@ -391,13 +469,21 @@ class _ActionsRow extends StatelessWidget {
             children: [
               primary,
               const SizedBox(height: NightshadeTokens.spaceSm),
-              Align(alignment: Alignment.centerRight, child: dismissAction),
+              Row(
+                children: [
+                  Expanded(child: chaseAction),
+                  const SizedBox(width: NightshadeTokens.spaceSm),
+                  dismissAction,
+                ],
+              ),
             ],
           );
         }
         return Row(
           children: [
             Expanded(child: primary),
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            chaseAction,
             const SizedBox(width: NightshadeTokens.spaceSm),
             dismissAction,
           ],

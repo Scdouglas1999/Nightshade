@@ -385,6 +385,7 @@ List<String> availableHeadlessEndpoints() {
     'POST /api/transients/refresh',
     // First Light (Pillar B — difference-imaging transient discovery)
     'GET /api/firstlight/candidates',
+    'GET /api/firstlight/near',
     'POST /api/firstlight/<id>/review',
     'POST /api/firstlight/<id>/dismiss',
     'POST /api/firstlight/<id>/submit/tns',

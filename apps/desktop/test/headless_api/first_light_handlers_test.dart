@@ -88,6 +88,83 @@ void main() {
       },
     );
 
+    test('GET near returns the cross-night history at a position', () async {
+      // Same source over two nights at ~(120, 25), plus a far-away source that
+      // must NOT group in — backs the slave light-curve detail view.
+      await dao.insertDetection(
+        TransientDetectionsCompanion.insert(
+          tileId: 42,
+          raDeg: 120.001,
+          decDeg: 25.001,
+          residualFlux: 1500.0,
+          snr: 18.0,
+          fwhm: 2.1,
+          eccentricity: 0.1,
+          kind: 'newSource',
+          confidence: 0.8,
+          detectedAt: Value(DateTime.utc(2026, 6, 1)),
+        ),
+      );
+      await dao.insertDetection(
+        TransientDetectionsCompanion.insert(
+          tileId: 42,
+          raDeg: 119.999,
+          decDeg: 24.999,
+          residualFlux: 1500.0,
+          snr: 18.0,
+          fwhm: 2.1,
+          eccentricity: 0.1,
+          kind: 'newSource',
+          confidence: 0.8,
+          detectedAt: Value(DateTime.utc(2026, 6, 3)),
+        ),
+      );
+      await dao.insertDetection(
+        TransientDetectionsCompanion.insert(
+          tileId: 99,
+          raDeg: 121.0,
+          decDeg: 25.0,
+          residualFlux: 1500.0,
+          snr: 18.0,
+          fwhm: 2.1,
+          eccentricity: 0.1,
+          kind: 'newSource',
+          confidence: 0.8,
+          detectedAt: Value(DateTime.utc(2026, 6, 2)),
+        ),
+      );
+
+      final response = await translateHandlerErrors(
+        handlers.handleGetNear(
+          Request(
+            'GET',
+            Uri.parse(
+              'http://localhost/api/firstlight/near?ra=120&dec=25&radius=0.02',
+            ),
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.ok);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      final detections = body['detections'] as List;
+      // The bounding box keeps the two near rows and excludes the 1-deg source.
+      expect(detections, hasLength(2));
+      expect(body['count'], 2);
+    });
+
+    test('GET near rejects a missing ra/dec', () async {
+      final response = await translateHandlerErrors(
+        handlers.handleGetNear(
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/firstlight/near?dec=25'),
+          ),
+        ),
+      );
+      expect(response.statusCode, HttpStatus.badRequest);
+    });
+
     test('GET candidates scoped to a session filters by sessionId', () async {
       // Detections reference imaging_sessions (FKs are enforced), so seed the
       // sessions first.

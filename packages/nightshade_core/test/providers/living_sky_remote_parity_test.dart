@@ -14,6 +14,8 @@
 //     * atlasRegionTilesProvider     -> host region-detail `tiles`
 //     * atlasRegionTimelineProvider  -> host GET /api/atlas/region/<id>/timeline
 //     * atlasRegionCutoutProvider    -> host GET /api/atlas/region/<id>/cutout (bytes)
+//     * atlasRegionGrowthProvider    -> host /timeline `growth` block
+//     * atlasRegionProvenanceProvider-> host region `tiles` + timeline `folds`
 //   Pillar B (First Light):
 //     * firstLightCandidatesProvider -> host GET /api/firstlight/candidates
 //
@@ -171,9 +173,9 @@ void main() {
 
     test('skyAtlasRegionsProvider returns the host region list', () async {
       final backend = slaveBackend();
-      when(() => backend.getAtlasRegions()).thenAnswer(
-        (_) async => [_regionJson(id: 1, name: 'M31')],
-      );
+      when(
+        () => backend.getAtlasRegions(),
+      ).thenAnswer((_) async => [_regionJson(id: 1, name: 'M31')]);
       final container = containerFor(backend);
 
       final regions = await container.read(skyAtlasRegionsProvider.future);
@@ -185,9 +187,9 @@ void main() {
 
     test('atlasRegionProvider reads host region detail (not empty)', () async {
       final backend = slaveBackend();
-      when(() => backend.getAtlasRegion(1)).thenAnswer(
-        (_) async => {'region': _regionJson(id: 1, name: 'M31')},
-      );
+      when(
+        () => backend.getAtlasRegion(1),
+      ).thenAnswer((_) async => {'region': _regionJson(id: 1, name: 'M31')});
       final container = containerFor(backend);
 
       final region = await container.read(atlasRegionProvider(1).future);
@@ -198,21 +200,24 @@ void main() {
       verify(() => backend.getAtlasRegion(1)).called(1);
     });
 
-    test('atlasRegionTilesProvider reads the host region-detail tiles', () async {
-      final backend = slaveBackend();
-      when(() => backend.getAtlasRegion(1)).thenAnswer(
-        (_) async => {
-          'region': _regionJson(id: 1, name: 'M31'),
-          'tiles': [_tileJson(tileId: 7), _tileJson(tileId: 8)],
-        },
-      );
-      final container = containerFor(backend);
+    test(
+      'atlasRegionTilesProvider reads the host region-detail tiles',
+      () async {
+        final backend = slaveBackend();
+        when(() => backend.getAtlasRegion(1)).thenAnswer(
+          (_) async => {
+            'region': _regionJson(id: 1, name: 'M31'),
+            'tiles': [_tileJson(tileId: 7), _tileJson(tileId: 8)],
+          },
+        );
+        final container = containerFor(backend);
 
-      final tiles = await container.read(atlasRegionTilesProvider(1).future);
+        final tiles = await container.read(atlasRegionTilesProvider(1).future);
 
-      expect(tiles.map((t) => t.tileId), [7, 8]);
-      verify(() => backend.getAtlasRegion(1)).called(1);
-    });
+        expect(tiles.map((t) => t.tileId), [7, 8]);
+        verify(() => backend.getAtlasRegion(1)).called(1);
+      },
+    );
 
     test('atlasRegionTimelineProvider reads the host fold timeline', () async {
       final backend = slaveBackend();
@@ -229,12 +234,98 @@ void main() {
       verify(() => backend.getAtlasRegionTimeline(1)).called(1);
     });
 
+    test(
+      'atlasRegionGrowthProvider reads the host /timeline growth block',
+      () async {
+        final backend = slaveBackend();
+        when(() => backend.getAtlasRegionTimeline(1)).thenAnswer(
+          (_) async => {
+            'folds': [_foldJson(id: 11)],
+            'growth': {
+              'ok': true,
+              'points': [
+                {
+                  'label': '2026-06-20',
+                  'framesAdded': 10,
+                  'secondsAdded': 3000.0,
+                  'cumulativeFrames': 10,
+                  'cumulativeSeconds': 3000.0,
+                  'contributor': '',
+                },
+                {
+                  'label': '2026-06-22',
+                  'framesAdded': 8,
+                  'secondsAdded': 2400.0,
+                  'cumulativeFrames': 18,
+                  'cumulativeSeconds': 5400.0,
+                  'contributor': '',
+                },
+              ],
+              'totalFrames': 18,
+              'totalSeconds': 5400.0,
+            },
+          },
+        );
+        final container = containerFor(backend);
+
+        final curve = await container.read(atlasRegionGrowthProvider(1).future);
+
+        // The slave plots the host's deepening curve, not an empty local one.
+        expect(curve.points, hasLength(2));
+        expect(curve.points.last.cumulativeSeconds, 5400.0);
+        expect(curve.totalFrames, 18);
+        verify(() => backend.getAtlasRegionTimeline(1)).called(1);
+      },
+    );
+
+    test(
+      'atlasRegionProvenanceProvider builds the deepest-tile view from the wire',
+      () async {
+        final backend = slaveBackend();
+        // Two tiles; tile 8 is deepest (more integration), so its fold log drives
+        // the provenance trail.
+        when(() => backend.getAtlasRegion(1)).thenAnswer(
+          (_) async => {
+            'region': _regionJson(id: 1, name: 'M31'),
+            'tiles': [
+              {..._tileJson(tileId: 7), 'integrationSeconds': 1800.0},
+              {
+                ..._tileJson(tileId: 8),
+                'integrationSeconds': 7200.0,
+                'coverageMean': 0.95,
+              },
+            ],
+          },
+        );
+        when(() => backend.getAtlasRegionTimeline(1)).thenAnswer(
+          (_) async => {
+            'folds': [
+              {..._foldJson(id: 11), 'tileId': 7, 'contributor': 'bob'},
+              {..._foldJson(id: 12), 'tileId': 8, 'contributor': 'alice'},
+              {..._foldJson(id: 13), 'tileId': 8, 'contributor': ''},
+            ],
+          },
+        );
+        final container = containerFor(backend);
+
+        final view = await container.read(
+          atlasRegionProvenanceProvider(1).future,
+        );
+
+        expect(view, isNotNull);
+        // Deepest tile is 8 — its two folds become the trail; tile-7 fold excluded.
+        expect(view!.tileId, 8);
+        expect(view.coverageMean, 0.95);
+        expect(view.folds, hasLength(2));
+        expect(view.contributors, contains('alice'));
+        expect(view.contributors, isNot(contains('bob')));
+      },
+    );
+
     test('atlasRegionCutoutProvider returns portable host PNG bytes', () async {
       final backend = slaveBackend();
       final png = Uint8List.fromList([137, 80, 78, 71, 13, 10, 26, 10]);
-      when(
-        () => backend.getAtlasRegionCutout(1),
-      ).thenAnswer((_) async => png);
+      when(() => backend.getAtlasRegionCutout(1)).thenAnswer((_) async => png);
       final container = containerFor(backend);
 
       final cutout = await container.read(atlasRegionCutoutProvider(1).future);
@@ -247,23 +338,26 @@ void main() {
     });
   });
 
-  group('Pillar B (First Light) — slave reads host candidates, not empty DB', () {
-    test('firstLightCandidatesProvider returns the host feed', () async {
-      final backend = slaveBackend();
-      when(() => backend.getFirstLightCandidates()).thenAnswer(
-        (_) async => [
-          _candidate(id: 7, reviewed: false),
-          _candidate(id: 8, reviewed: true),
-        ],
-      );
-      final container = containerFor(backend);
+  group(
+    'Pillar B (First Light) — slave reads host candidates, not empty DB',
+    () {
+      test('firstLightCandidatesProvider returns the host feed', () async {
+        final backend = slaveBackend();
+        when(() => backend.getFirstLightCandidates()).thenAnswer(
+          (_) async => [
+            _candidate(id: 7, reviewed: false),
+            _candidate(id: 8, reviewed: true),
+          ],
+        );
+        final container = containerFor(backend);
 
-      // Keep an active listener so the snapshot stream resolves like the UI.
-      container.listen(firstLightCandidatesProvider, (_, _) {});
-      final rows = await container.read(firstLightCandidatesProvider.future);
+        // Keep an active listener so the snapshot stream resolves like the UI.
+        container.listen(firstLightCandidatesProvider, (_, _) {});
+        final rows = await container.read(firstLightCandidatesProvider.future);
 
-      expect(rows.map((r) => r.id), [7, 8]);
-      verify(() => backend.getFirstLightCandidates()).called(1);
-    });
-  });
+        expect(rows.map((r) => r.id), [7, 8]);
+        verify(() => backend.getFirstLightCandidates()).called(1);
+      });
+    },
+  );
 }

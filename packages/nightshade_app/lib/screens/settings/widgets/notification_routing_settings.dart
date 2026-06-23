@@ -185,6 +185,8 @@ class NotificationRoutingSettings extends ConsumerWidget {
         return LucideIcons.unplug;
       case NotificationCategory.triggerFired:
         return LucideIcons.zap;
+      case NotificationCategory.transientDiscovered:
+        return LucideIcons.sparkles;
       case NotificationCategory.custom:
         return LucideIcons.bell;
     }

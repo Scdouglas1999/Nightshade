@@ -175,29 +175,6 @@ final skyTileProvider = FutureProvider.family<String, SkyTileQuery>((
       .finalizeTilePng(query.tileId, asOf: query.asOf);
 });
 
-/// Provenance (contributors + fold log) for one tile.
-final skyTileInfoProvider = FutureProvider.family<TileProvenanceView, int>((
-  ref,
-  tileId,
-) {
-  return ref.watch(skyAtlasServiceProvider).tileInfo(tileId);
-});
-
-/// Deepening growth curve for a region cone (raw bridge map).
-final skyAtlasGrowthProvider =
-    FutureProvider.family<
-      Map<String, dynamic>,
-      ({double ra, double dec, double radius})
-    >((ref, cone) {
-      return ref
-          .watch(skyAtlasServiceProvider)
-          .growth(
-            centerRaDeg: cone.ra,
-            centerDecDeg: cone.dec,
-            radiusDeg: cone.radius,
-          );
-    });
-
 // ===========================================================================
 // Region detail — backend-aware families
 // ===========================================================================
@@ -265,6 +242,101 @@ final atlasRegionTimelineProvider =
         );
       }
       return ref.watch(skyAtlasServiceProvider).watchRegionTimeline(regionId);
+    });
+
+/// A region's deepening growth curve (cumulative integration vs. night).
+///
+/// Host: the native bridge `growth` action over the region cone. Remote: the
+/// `growth` block the host already ships inside the
+/// `/api/atlas/region/<id>/timeline` payload (no extra round-trip, no new
+/// route) — so the curve plots identically on a slave companion.
+final atlasRegionGrowthProvider = FutureProvider.family<AtlasGrowthCurve, int>((
+  ref,
+  regionId,
+) async {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    final json = await backend.getAtlasRegionTimeline(regionId);
+    final growth = json['growth'];
+    if (growth is! Map<String, dynamic>) return AtlasGrowthCurve.empty;
+    return AtlasGrowthCurve.fromJson(growth);
+  }
+  final region = await ref.watch(skyAtlasServiceProvider).getRegion(regionId);
+  if (region == null) return AtlasGrowthCurve.empty;
+  final raw = await ref
+      .watch(skyAtlasServiceProvider)
+      .growth(
+        centerRaDeg: region.centerRaDeg,
+        centerDecDeg: region.centerDecDeg,
+        radiusDeg: region.radiusDeg,
+      );
+  return AtlasGrowthCurve.fromJson(raw);
+});
+
+/// Native per-tile provenance ([TileProvenanceView]: coverage mean, contributor
+/// list, per-fold log) for a region's DEEPEST tile — the provenance trail the
+/// region-detail panel renders.
+///
+/// Host: the native bridge `info` action on the deepest tile. Remote: there is
+/// no per-tile info route, so the view is reconstructed from data already on
+/// the wire — the deepest tile's `coverageMean` from the region payload's
+/// `tiles`, plus the per-fold log + contributor list from the region timeline's
+/// `folds` — yielding the same [TileProvenanceView] shape on a slave companion.
+final atlasRegionProvenanceProvider =
+    FutureProvider.family<TileProvenanceView?, int>((ref, regionId) async {
+      final backend = ref.watch(backendProvider);
+      if (backend is NetworkBackend) {
+        final detail = await backend.getAtlasRegion(regionId);
+        final tilesRaw = detail['tiles'];
+        if (tilesRaw is! List || tilesRaw.isEmpty) return null;
+        final tiles = tilesRaw
+            .whereType<Map<String, dynamic>>()
+            .map(skyTileRowFromWireJson)
+            .toList(growable: false);
+        if (tiles.isEmpty) return null;
+        final deepest = tiles.reduce(
+          (a, b) => a.integrationSeconds >= b.integrationSeconds ? a : b,
+        );
+        final timeline = await backend.getAtlasRegionTimeline(regionId);
+        final foldsRaw = timeline['folds'];
+        final folds = foldsRaw is List
+            ? foldsRaw
+                  .whereType<Map<String, dynamic>>()
+                  .map(skyAtlasFoldRowFromWireJson)
+                  .where((f) => f.tileId == deepest.tileId)
+                  .toList(growable: false)
+            : const <SkyAtlasFoldRow>[];
+        final contributors = <String>{
+          for (final f in folds)
+            if (f.contributor.trim().isNotEmpty) f.contributor.trim(),
+        }.toList(growable: false);
+        return TileProvenanceView(
+          tileId: deepest.tileId,
+          centerRaDeg: deepest.centerRaDeg,
+          centerDecDeg: deepest.centerDecDeg,
+          channels: deepest.channels,
+          coverageMean: deepest.coverageMean,
+          totalFrames: deepest.totalFrames,
+          totalIntegrationSeconds: deepest.integrationSeconds,
+          contributors: contributors,
+          folds: [
+            for (final f in folds)
+              TileFoldView(
+                framesAdded: f.framesAdded,
+                weightAdded: f.weightAdded,
+                integrationSecondsAdded: f.integrationSecondsAdded,
+                rejected: f.rejected,
+                label: f.label,
+                contributor: f.contributor,
+              ),
+          ],
+        );
+      }
+      final service = ref.watch(skyAtlasServiceProvider);
+      final tiles = await service.tilesForRegion(regionId);
+      if (tiles.isEmpty) return null;
+      // tilesForRegion is deepest-first, so the head is the deepest tile.
+      return service.tileInfo(tiles.first.tileId);
     });
 
 /// The portable co-added region cutout PNG. Remote: fetch host cutout bytes for

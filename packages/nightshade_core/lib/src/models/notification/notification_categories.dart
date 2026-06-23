@@ -60,6 +60,9 @@ enum NotificationCategory {
   cloudArriving('Cloud Arriving'),
   cloudOpening('Cloud Clearing'),
 
+  // ----- Astronomical discovery (First Light / Pillar B) -------------------
+  transientDiscovered('Transient Discovered'),
+
   // ----- System / operational ----------------------------------------------
   diskSpaceLow('Disk Space Low'),
   equipmentDisconnected('Equipment Disconnected'),
@@ -109,6 +112,10 @@ enum NotificationCategory {
       case NotificationCategory.diskSpaceLow:
       case NotificationCategory.equipmentDisconnected:
         return EventSeverity.error;
+      // A possible new transient is a time-critical, must-not-miss event: the
+      // chase window closes by morning. Severity `critical` so it clears the
+      // default min-severity bar on the systemPush transport.
+      case NotificationCategory.transientDiscovered:
       case NotificationCategory.recoveryGaveUp:
         return EventSeverity.critical;
     }
@@ -131,6 +138,9 @@ enum NotificationCategory {
       case NotificationCategory.equipmentDisconnected:
       case NotificationCategory.autofocusFailed:
       case NotificationCategory.exposureFailed:
+      // A possible new transient is operationally critical for a discovery
+      // imager: it pushes to the phone by default so the chase happens tonight.
+      case NotificationCategory.transientDiscovered:
         return true;
       default:
         return false;

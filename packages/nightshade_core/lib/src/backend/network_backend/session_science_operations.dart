@@ -319,6 +319,25 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
     return raw.whereType<Map<String, dynamic>>().toList(growable: false);
   }
 
+  /// Fetch the host's cross-night history for one transient: every persisted
+  /// detection within [radiusDeg] of ([raDeg], [decDeg]), oldest-first. Backs
+  /// the multi-night light-curve detail view so the same source seen over
+  /// several nights groups into one Δmag-vs-time history on a slave too.
+  Future<List<Map<String, dynamic>>> getFirstLightHistory({
+    required double raDeg,
+    required double decDeg,
+    double radiusDeg = 0.02,
+  }) async {
+    final json = await _get('firstlight/near', {
+      'ra': raDeg.toString(),
+      'dec': decDeg.toString(),
+      'radius': radiusDeg.toString(),
+    });
+    final raw = json['detections'];
+    if (raw is! List) return const [];
+    return raw.whereType<Map<String, dynamic>>().toList(growable: false);
+  }
+
   /// Mark a First Light detection reviewed (confirmed) on the host.
   Future<void> reviewFirstLightCandidate(int id) async {
     await _post('firstlight/$id/review');
