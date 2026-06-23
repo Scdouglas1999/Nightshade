@@ -52,6 +52,63 @@ class _FakeSkyAtlasSeam implements SkyAtlasSeam {
   }
 }
 
+/// A seam that models a single tile's running frame total as a non-atomic
+/// load -> (async gap) -> store, so an interleaving fold would lose a frame.
+/// Used to prove [SkyAtlasService]'s single-flight chain serializes folds.
+class _AccumulatingSkyAtlasSeam implements SkyAtlasSeam {
+  int tileFrames = 0;
+
+  @override
+  Future<Map<String, dynamic>> dispatch(Map<String, dynamic> args) async {
+    if (args['action'] != 'fold') return {'ok': true};
+    // Read-modify-write with an awaited gap in the middle: without
+    // serialization, two concurrent folds both read the same prior total and
+    // one increment is lost.
+    final prior = tileFrames;
+    await Future<void>.delayed(Duration.zero);
+    tileFrames = prior + 1;
+    return {
+      'ok': true,
+      'tilesTouched': const [42],
+      'foldsByTile': [
+        {
+          'tileId': 42,
+          'channels': 1,
+          'centerRa': 83.6,
+          'centerDec': -5.39,
+          'coverageMean': 1.0,
+          'totalFrames': tileFrames,
+          'integrationSeconds': 300.0 * tileFrames,
+          'framesAdded': 1,
+          'weightAdded': 1.0,
+          'rejected': 0,
+        },
+      ],
+      'framesSkippedNoCoverage': 0,
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>> queryCutout(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
+
+  @override
+  Future<Map<String, dynamic>> regionInfo(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
+
+  @override
+  Future<Map<String, dynamic>> growth(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
+
+  @override
+  Future<Map<String, dynamic>> mergeDelta(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
+}
+
 void main() {
   late NightshadeDatabase db;
   late SkyAtlasDao dao;
@@ -228,10 +285,10 @@ void main() {
   });
 
   test(
-    'mergeSwarmDelta blends a pulled delta and refreshes the index row',
+    'mergeSwarmDelta writes the swarm overlay tree, not the own-light base',
     () async {
-      // tileInfo (the `info` dispatch) supplies the centre/channels for the
-      // index refresh after the merge.
+      // The `info` dispatch (read against the overlay root) supplies the
+      // centre/channels used to seed a base index row for a never-imaged tile.
       seam.onDispatch = (args) {
         if (args['action'] == 'info') {
           return {
@@ -251,25 +308,124 @@ void main() {
         return {'ok': true};
       };
 
-      final frames = await service.mergeSwarmDelta(
+      final overlayFrames = await service.mergeSwarmDelta(
         tileId: 99,
         deltaPath: '/tmp/atlas/swarm/9/tile_99_9.nst',
       );
 
-      // The merge was dispatched with the local base + pulled delta paths.
+      // The merge targets the OVERLAY sidecar tree (separate from tiles/9), so
+      // exportDelta — which only ever reads tiles/<order> — never sees it.
       expect(seam.merged, hasLength(1));
       expect(
         seam.merged.single['deltaPath'],
         '/tmp/atlas/swarm/9/tile_99_9.nst',
       );
-      expect(seam.merged.single['basePath'], contains('tiles/9/99.nst'));
-      expect(frames, 42);
+      expect(
+        seam.merged.single['basePath'],
+        contains('swarm_overlay/tiles/9/99.nst'),
+      );
+      // The returned total is the overlay's own (community) depth.
+      expect(overlayFrames, 42);
 
-      // The index row now reflects the blended depth so "Your Sky" reads it.
+      // The base index row keeps own-light totals at zero (the user never
+      // imaged this tile); the blended community depth lands in the overlay
+      // columns so the contribution bar stays honest after a pull.
       final tile = await dao.getTile(99, healpixOrder: 9);
       expect(tile, isNotNull);
-      expect(tile!.totalFrames, 42);
-      expect(tile.coverageMean, closeTo(12.5, 1e-9));
+      expect(tile!.totalFrames, 0);
+      expect(tile.integrationSeconds, 0);
+      expect(tile.swarmOverlayFrames, 42);
+      expect(tile.swarmOverlayIntegrationSeconds, closeTo(1200.0, 1e-9));
+    },
+  );
+
+  test(
+    'mergeSwarmDelta keeps own-light totals when a base row already exists',
+    () async {
+      // Seed a base row with own-light depth via a fold.
+      seam.onDispatch = (args) {
+        if (args['action'] == 'fold') {
+          return {
+            'ok': true,
+            'tilesTouched': const [99],
+            'foldsByTile': [
+              {
+                'tileId': 99,
+                'channels': 1,
+                'centerRa': 83.6,
+                'centerDec': -5.39,
+                'coverageMean': 4.0,
+                'totalFrames': 5,
+                'integrationSeconds': 1500.0,
+                'framesAdded': 5,
+                'weightAdded': 5.0,
+                'rejected': 0,
+              },
+            ],
+            'framesSkippedNoCoverage': 0,
+          };
+        }
+        return {'ok': true};
+      };
+      await service.foldFrame(sessionId: 7, frame: frame());
+
+      final before = await dao.getTile(99, healpixOrder: 9);
+      expect(before!.totalFrames, 5);
+
+      await service.mergeSwarmDelta(
+        tileId: 99,
+        deltaPath: '/tmp/atlas/swarm/9/tile_99_9.nst',
+      );
+
+      // Own-light totals + base sidecar pointer are untouched; only the overlay
+      // columns gained the community depth — no `info` seed dispatch needed.
+      final after = await dao.getTile(99, healpixOrder: 9);
+      expect(after!.totalFrames, 5);
+      expect(after.integrationSeconds, closeTo(1500.0, 1e-9));
+      expect(after.sidecarPath, contains('tiles/9/99.nst'));
+      expect(after.sidecarPath, isNot(contains('swarm_overlay')));
+      expect(after.swarmOverlayFrames, 42);
+    },
+  );
+
+  test(
+    'single-flight chain serializes concurrent folds with no lost frames',
+    () async {
+      // A-concurrent-fold-no-loss: fire N folds at the same tile concurrently.
+      // The accumulating seam models a non-atomic read-modify-write; only the
+      // SkyAtlasService _serialized chain prevents interleaving from dropping a
+      // frame. The persisted base total must equal the number of folds.
+      final accSeam = _AccumulatingSkyAtlasSeam();
+      final accService = SkyAtlasService(
+        dao: dao,
+        seam: accSeam,
+        logger: LoggingService(),
+        atlasRootResolver: () async => '/tmp/test_atlas',
+      );
+
+      const n = 8;
+      await Future.wait(
+        List.generate(
+          n,
+          (i) => accService.foldFrame(
+            sessionId: 7,
+            frame: frame(path: '/tmp/light_$i.fits'),
+          ),
+        ),
+      );
+
+      expect(
+        accSeam.tileFrames,
+        n,
+        reason: 'serialized read-modify-write loses no fold',
+      );
+      final tile = await dao.getTile(42, healpixOrder: 9);
+      expect(tile, isNotNull);
+      expect(
+        tile!.totalFrames,
+        n,
+        reason: 'every concurrent fold lands in the base tile total',
+      );
     },
   );
 }

@@ -655,38 +655,57 @@ fn export_delta_impl(args: ExportDeltaArgs) -> Result<ExportDeltaResult, String>
         .map_err(|e| describe_atlas_error(&e))?
         .ok_or_else(|| format!("tile {} has not been folded into yet", args.tile_id))?;
 
-    // The delta is the accumulator state attributable to folds after `sinceIso`.
-    // With the per-fold scalar log (not per-fold pixel deltas) we can compute the
-    // delta exactly only when the post-anchor folds are separable — which they are
-    // not at pixel granularity from a single merged state. The honest, exact
-    // export the federation layer actually consumes is therefore the **whole tile
-    // accumulator** when every fold is post-anchor (the common "share my new
-    // night" case), tagged with the post-anchor frame/second tallies. When older
-    // folds are mixed in, exporting the whole state would over-share; we surface
-    // that and direct the caller to export at fold time instead.
-    // Fail closed: a fold is treated as pre-anchor (and therefore BLOCKS a
-    // whole-tile export) unless its label is a recognizable date that is strictly
-    // after `sinceIso`. An undatable free-form label (e.g. the literal "fold"
-    // substituted for an empty label, or an arbitrary session id) is NOT proof
-    // that the fold is recent, so it must not be allowed to bypass the over-share
-    // guard — otherwise a tile carrying genuinely-old non-date folds would be
-    // exported in full and double-counted on the next hub merge_tiles.
-    let pre_anchor = tile
-        .provenance
-        .folds
-        .iter()
-        .any(|f| !(looks_dated(&f.label) && iso_is_after(&f.label, &args.since_iso)));
-    if pre_anchor {
+    // The delta is the accumulator state attributable to LOCAL folds after
+    // `sinceIso`. With the per-fold scalar log (not per-fold pixel deltas) a
+    // pixel-exact post-anchor subset cannot be carved from a single merged state.
+    // So we classify every fold into one of three buckets:
+    //   * post-anchor LOCAL  (contributor == "", dated, strictly after sinceIso)
+    //       — the new own-light the caller legitimately wants to ship;
+    //   * foreign            (contributor != "")
+    //       — pulled community photons that must NEVER re-upload as ours (the
+    //         belt-and-suspenders that holds even if the overlay-tree split is
+    //         bypassed);
+    //   * pre-anchor LOCAL   (own folds older than / undatable relative to the
+    //       anchor) — already shipped on a prior contribution.
+    //
+    // The exported `frames_in_delta` / `integration_seconds` are the post-anchor
+    // LOCAL tally ONLY — this is the true delta the high-water flow pushes, never
+    // the whole accumulator and never foreign depth. The serialized accumulator
+    // bytes are still the whole tile state (the hub re-grades on the tally, and
+    // merge_tiles is idempotent against an unchanged accumulator), but we fail
+    // closed when pre-anchor LOCAL folds are present AND there is post-anchor
+    // LOCAL depth to ship, because then the whole-tile bytes would over-share the
+    // already-contributed own-light. The all-post-anchor "share my first/new
+    // night" case (frames == post-anchor tally) exports cleanly.
+    let mut post_anchor_local_frames = 0usize;
+    let mut post_anchor_local_seconds = 0.0f64;
+    let mut has_pre_anchor_local = false;
+    for f in &tile.provenance.folds {
+        if !f.contributor.is_empty() {
+            // Foreign (pulled) fold — never counted toward our contribution.
+            continue;
+        }
+        if looks_dated(&f.label) && iso_is_after(&f.label, &args.since_iso) {
+            post_anchor_local_frames += f.frames_added;
+            post_anchor_local_seconds += f.integration_seconds_added;
+        } else {
+            // Own fold that is not provably after the anchor: already shipped (or
+            // an undatable label we cannot prove is new).
+            has_pre_anchor_local = true;
+        }
+    }
+
+    if has_pre_anchor_local && post_anchor_local_frames > 0 {
         return Err(format!(
-            "tile {} has folds that are not provably after {} (older or undatable labels): a \
-             pixel-exact delta cannot be carved from the merged accumulator (export each night's \
-             delta at fold time)",
+            "tile {} mixes pre-anchor own folds with new own folds after {}: a pixel-exact \
+             delta cannot be carved from the merged accumulator (export each night's delta at \
+             fold time)",
             args.tile_id, args.since_iso
         ));
     }
 
-    let frames_in_delta = tile.provenance.total_frames;
-    let integration_seconds = tile.provenance.total_integration_seconds;
+    let frames_in_delta = post_anchor_local_frames;
+    let integration_seconds = post_anchor_local_seconds;
     let path = Path::new(&args.out_path);
     ensure_parent_dir(path)?;
     std::fs::write(path, tile.serialize()).map_err(|e| format!("failed to write delta: {e}"))?;
@@ -1627,22 +1646,36 @@ mod tests {
     }
 
     #[test]
-    fn export_delta_blocks_undatable_fold_labels() {
-        // A fold with a non-date label (here the empty-label default "fold") must
-        // be treated as pre-anchor and BLOCK a whole-tile export, so an old or
-        // undatable fold can never be re-shared in full and double-counted.
-        let dir = temp_dir("export_undated");
+    fn export_delta_blocks_mixed_pre_and_post_anchor_own_folds() {
+        // A tile that carries a pre-anchor OWN fold (contributor "") together with
+        // a new post-anchor OWN fold cannot be carved into a pixel-exact delta, so
+        // it must BLOCK rather than over-share the already-contributed depth.
+        let dir = temp_dir("export_mixed");
         let order = ATLAS_HEALPIX_ORDER;
         let tid = radec_to_tile(120.0, 25.0, order);
-        let (frame, wcs) = write_frame_on_tile(&dir, "u.fits", tid, order, 1000.0);
-        // Fold with an empty label -> the bridge substitutes the literal "fold".
-        let add = serde_json::json!({
-            "atlasRoot": dir.to_string_lossy(), "order": order, "label": "",
-            "contributor": "me", "framePath": frame.to_string_lossy(),
-            "weight": 1.0, "exposureSec": 100.0, "wcs": sip_to_json(&wcs)
-        })
-        .to_string();
-        api_sky_atlas_add_frame(add).unwrap();
+
+        // Old own night (pre-anchor).
+        let (f0, w0) = write_frame_on_tile(&dir, "old.fits", tid, order, 1000.0);
+        api_sky_atlas_add_frame(
+            serde_json::json!({
+                "atlasRoot": dir.to_string_lossy(), "order": order, "label": "2026-05-20",
+                "contributor": "", "framePath": f0.to_string_lossy(),
+                "weight": 1.0, "exposureSec": 100.0, "wcs": sip_to_json(&w0)
+            })
+            .to_string(),
+        )
+        .unwrap();
+        // New own night (post-anchor).
+        let (f1, w1) = write_frame_on_tile(&dir, "new.fits", tid, order, 1000.0);
+        api_sky_atlas_add_frame(
+            serde_json::json!({
+                "atlasRoot": dir.to_string_lossy(), "order": order, "label": "2026-06-10",
+                "contributor": "", "framePath": f1.to_string_lossy(),
+                "weight": 1.0, "exposureSec": 100.0, "wcs": sip_to_json(&w1)
+            })
+            .to_string(),
+        )
+        .unwrap();
 
         let out = dir.join("delta.nst");
         let export = serde_json::json!({
@@ -1654,8 +1687,8 @@ mod tests {
         .to_string();
         let err = api_sky_atlas(export).unwrap_err();
         assert!(
-            err.contains("not provably after"),
-            "undatable fold must block whole-tile export, got: {err}"
+            err.contains("mixes pre-anchor own folds"),
+            "mixed own folds must block, got: {err}"
         );
         assert!(!out.exists(), "no delta must be written when blocked");
         std::fs::remove_dir_all(&dir).ok();
@@ -1669,7 +1702,7 @@ mod tests {
         let (frame, wcs) = write_frame_on_tile(&dir, "d.fits", tid, order, 1000.0);
         let add = serde_json::json!({
             "atlasRoot": dir.to_string_lossy(), "order": order, "label": "2026-06-10",
-            "contributor": "me", "framePath": frame.to_string_lossy(),
+            "contributor": "", "framePath": frame.to_string_lossy(),
             "weight": 1.0, "exposureSec": 100.0, "wcs": sip_to_json(&wcs)
         })
         .to_string();
@@ -1685,7 +1718,68 @@ mod tests {
         .to_string();
         let res = api_sky_atlas(export).unwrap();
         assert!(res.contains("\"ok\":true"), "got: {res}");
+        assert!(
+            res.contains("\"framesInDelta\":1"),
+            "post-anchor own tally must be 1, got: {res}"
+        );
         assert!(out.exists(), "a fully post-anchor tile must export");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn export_delta_only_post_anchor_local() {
+        // A tile mixing: an OLD own fold (pre-anchor), a NEW own fold
+        // (post-anchor), and a FOREIGN fold (pulled community, contributor
+        // "bob"). Anchoring between the two own nights, the exported tally must be
+        // 1 (the new own night ONLY) — the old own fold and the foreign fold are
+        // both excluded, so neither already-contributed nor community photons can
+        // leak into the contribution.
+        //
+        // (The old own fold lands strictly before the anchor; the new own fold
+        // strictly after — so the two own folds are not mixed across the anchor on
+        // the blocking side, only the foreign fold and the in-window own fold
+        // coexist, which is the legitimate pull-then-image case.)
+        let dir = temp_dir("export_post_local");
+        let order = ATLAS_HEALPIX_ORDER;
+        let tid = radec_to_tile(120.0, 25.0, order);
+
+        // Foreign (pulled) fold — community depth, must never re-upload.
+        let (ff, fw) = write_frame_on_tile(&dir, "bob.fits", tid, order, 1000.0);
+        api_sky_atlas_add_frame(
+            serde_json::json!({
+                "atlasRoot": dir.to_string_lossy(), "order": order, "label": "2026-06-08",
+                "contributor": "bob", "framePath": ff.to_string_lossy(),
+                "weight": 1.0, "exposureSec": 100.0, "wcs": sip_to_json(&fw)
+            })
+            .to_string(),
+        )
+        .unwrap();
+        // New own night (post-anchor) — the only thing we should ship.
+        let (nf, nw) = write_frame_on_tile(&dir, "mine.fits", tid, order, 1000.0);
+        api_sky_atlas_add_frame(
+            serde_json::json!({
+                "atlasRoot": dir.to_string_lossy(), "order": order, "label": "2026-06-10",
+                "contributor": "", "framePath": nf.to_string_lossy(),
+                "weight": 1.0, "exposureSec": 100.0, "wcs": sip_to_json(&nw)
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let out = dir.join("delta.nst");
+        let export = serde_json::json!({
+            "action": "exportDelta",
+            "atlasRoot": dir.to_string_lossy(), "order": order,
+            "tileId": tid, "sinceIso": "2026-06-09",
+            "outPath": out.to_string_lossy()
+        })
+        .to_string();
+        let res = api_sky_atlas(export).unwrap();
+        assert!(res.contains("\"ok\":true"), "got: {res}");
+        assert!(
+            res.contains("\"framesInDelta\":1"),
+            "only the post-anchor OWN night counts (foreign + old excluded), got: {res}"
+        );
         std::fs::remove_dir_all(&dir).ok();
     }
 

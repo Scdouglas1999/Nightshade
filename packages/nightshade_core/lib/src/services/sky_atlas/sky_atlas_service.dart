@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -44,6 +45,21 @@ class SkyAtlasService {
   static const _logSource = 'SkyAtlasService';
 
   String? _cachedAtlasRoot;
+
+  /// Serializes every writer that touches a base/overlay `.nst` sidecar so two
+  /// folds (or a fold and a swarm merge) never interleave on the same tile file.
+  /// In-process is sufficient: the host is the single atlas authority — remote
+  /// companions mirror but do not fold.
+  Future<void> _foldChain = Future<void>.value();
+
+  /// Run [body] after the prior queued sidecar writer completes, restoring the
+  /// chain even when [body] throws so one failed fold cannot wedge the queue.
+  Future<T> _serialized<T>(Future<T> Function() body) {
+    final prior = _foldChain;
+    final completer = Completer<void>();
+    _foldChain = completer.future;
+    return prior.then((_) => body()).whenComplete(completer.complete);
+  }
 
   /// The on-disk atlas root, resolved (and the directory created) lazily once.
   Future<String> atlasRoot() async {
@@ -97,16 +113,18 @@ class SkyAtlasService {
       'frames': usable.map((f) => f.toFoldFrameJson()).toList(),
     };
 
-    final result = await _seam.dispatch(args);
-    final summary = AtlasFoldSummary.fromJson(result);
-
-    await _persistFold(
-      summary: summary,
-      sessionId: sessionId,
-      label: foldLabel,
-      contributor: contributor,
-      root: root,
-    );
+    final summary = await _serialized(() async {
+      final result = await _seam.dispatch(args);
+      final folded = AtlasFoldSummary.fromJson(result);
+      await _persistFold(
+        summary: folded,
+        sessionId: sessionId,
+        label: foldLabel,
+        contributor: contributor,
+        root: root,
+      );
+      return folded;
+    });
 
     _logger.info(
       'foldSession($sessionId): folded ${summary.totalFramesFolded} frame(s) '
@@ -234,6 +252,7 @@ class SkyAtlasService {
     int outPixels = 2048,
     AtlasInterp interp = AtlasInterp.lanczos3,
     bool withPng = true,
+    bool includeSwarm = false,
   }) async {
     final root = await atlasRoot();
     final stem =
@@ -252,17 +271,25 @@ class SkyAtlasService {
       'interp': interp.wire,
       'fitsPath': fitsPath,
       if (withPng) 'pngPath': pngPath,
+      // VIEW co-add: composite the swarm overlay on top of own-light for DISPLAY
+      // only. Never set by the contribute/export path — exportDelta never reads
+      // the overlay tree at all, so a community photon cannot leak into a push.
+      'includeOverlay': includeSwarm,
     };
     return _seam.queryCutout(args);
   }
 
   /// Per-tile coverage rows for the heat overlay / gallery, deepest first.
-  Future<List<AtlasTileCoverage>> coverage() async {
+  ///
+  /// [includeSwarm] composites the pulled community overlay depth for DISPLAY
+  /// only (threaded as `includeOverlay`); it never affects the export path.
+  Future<List<AtlasTileCoverage>> coverage({bool includeSwarm = false}) async {
     final root = await atlasRoot();
     final result = await _seam.dispatch({
       'action': 'coverage',
       'atlasRoot': root,
       'order': _order,
+      'includeOverlay': includeSwarm,
     });
     final tiles =
         (result['tiles'] as List? ?? const [])
@@ -286,10 +313,19 @@ class SkyAtlasService {
     return TileProvenanceView.fromJson(tileId, result);
   }
 
-  /// Export the accumulator state for the folds since [since] to a `.nst` delta
-  /// under the atlas cache and return its path (the federation contribution
-  /// payload). The native side rejects a tile that mixes pre/post-anchor folds.
-  Future<String> exportDelta(int tileId, {required DateTime since}) async {
+  /// Export the accumulator state for the LOCAL folds since [since] to a `.nst`
+  /// delta under the atlas cache (the federation contribution payload).
+  ///
+  /// Returns the delta path together with the post-anchor own-light tally the
+  /// native side carved out ([AtlasDeltaExport.framesInDelta] /
+  /// [AtlasDeltaExport.integrationSeconds]) — these are the TRUE delta the
+  /// high-water contribute flow ships, never the whole accumulator and never
+  /// pulled (foreign) community depth. The native side rejects a tile that mixes
+  /// pre-anchor own folds with new own folds (an inseparable pixel-exact delta).
+  Future<AtlasDeltaExport> exportDelta(
+    int tileId, {
+    required DateTime since,
+  }) async {
     final root = await atlasRoot();
     final outPath = p.join(_cacheDir(root), 'delta_$tileId.nst');
     final result = await _seam.dispatch({
@@ -300,7 +336,12 @@ class SkyAtlasService {
       'sinceIso': since.toUtc().toIso8601String(),
       'outPath': outPath,
     });
-    return result['outPath'] as String? ?? outPath;
+    return AtlasDeltaExport(
+      path: result['outPath'] as String? ?? outPath,
+      framesInDelta: (result['framesInDelta'] as num?)?.toInt() ?? 0,
+      integrationSeconds:
+          (result['integrationSeconds'] as num?)?.toDouble() ?? 0.0,
+    );
   }
 
   /// The deepening growth curve for a region cone (raw bridge result map).
@@ -382,55 +423,126 @@ class SkyAtlasService {
   /// [SkyAtlasFolds] timeline row carrying what that tile gained. The
   /// region a tile already belongs to is preserved by the DAO upsert; folds
   /// link back to [sessionId] so the timeline replays per session.
-  /// Blend a pulled community `.nst` delta into the local atlas tile so the
-  /// swarm's depth shows up in "Your Sky". Merges the delta into the local base
-  /// tile sidecar (additive, trust-scaled) and refreshes the [SkyTiles] index row
-  /// from the merge result so the read path (coverage / cutout / tileInfo)
-  /// reflects the deeper stack. Returns the post-merge frame total for the tile.
+  /// Blend a pulled community `.nst` accumulator into the swarm OVERLAY tree so
+  /// its depth can surface in "Your Sky" — without ever touching the user's
+  /// contributable base tile.
+  ///
+  /// The overlay is a SEPARATE sidecar tree (`swarm_overlay/<order>/<tileId>.nst`)
+  /// that [exportDelta] never reads, so pulled community photons can never be
+  /// re-shipped as the user's own contribution. Each pull is a fresh full-tile
+  /// community snapshot, so the merge is REPLACE-not-add: the existing overlay
+  /// sidecar is removed first and the snapshot merged into an empty accumulator,
+  /// leaving the overlay equal to exactly one copy of the current community
+  /// depth (N pulls == 1 pull). The base [SkyTiles] index row keeps its
+  /// own-light `totalFrames`/`integrationSeconds`; the blended community depth is
+  /// written to the dedicated overlay columns so the contribution bar stays
+  /// honest after a pull.
+  ///
+  /// Returns the overlay's (community) frame total for the tile.
   Future<int> mergeSwarmDelta({
     required int tileId,
     required String deltaPath,
     double trust = 1.0,
-  }) async {
-    final root = await atlasRoot();
-    final basePath = p.join(_tilesDir(root), '$tileId.nst');
-    final result = await _seam.mergeDelta({
-      'basePath': basePath,
-      'deltaPath': deltaPath,
-      'trust': trust,
-      'subtract': false,
-      'outPath': basePath,
-    });
-    final totalFrames = (result['totalFramesAfter'] as num?)?.toInt() ?? 0;
-    final integrationSeconds =
-        (result['integrationSecondsAfter'] as num?)?.toDouble() ?? 0.0;
-    final contributors = (result['contributorsAfter'] as num?)?.toInt() ?? 0;
+  }) {
+    return _serialized(() async {
+      final root = await atlasRoot();
+      final basePath = p.join(_tilesDir(root), '$tileId.nst');
+      final overlayPath = p.join(_overlayDir(root), '$tileId.nst');
 
-    // Refresh the index row so the read path sees the blended depth. The tile's
-    // centre + channels come from the freshly-merged tile via tileInfo.
-    try {
-      final info = await tileInfo(tileId);
-      await _dao.upsertTile(
-        tileId: tileId,
-        healpixOrder: _order,
-        channels: info.channels,
-        centerRaDeg: info.centerRaDeg,
-        centerDecDeg: info.centerDecDeg,
-        coverageMean: info.coverageMean,
-        totalFrames: totalFrames,
-        integrationSeconds: integrationSeconds,
-        sidecarPath: basePath,
-        lastFoldSessionId: null,
-        lastFoldAt: DateTime.now(),
-      );
-    } catch (e) {
-      _logger.warning(
-        'mergeSwarmDelta(tile $tileId): index refresh after merge failed: $e '
-        '(blend persisted, $contributors contributor(s)).',
-        source: _logSource,
-      );
-    }
-    return totalFrames;
+      // REPLACE-not-add: drop any prior overlay so the merge folds the freshly
+      // pulled community snapshot into a zeroed accumulator — the overlay always
+      // equals exactly one copy of the current community depth.
+      final overlayFile = File(overlayPath);
+      if (overlayFile.existsSync()) {
+        try {
+          overlayFile.deleteSync();
+        } on FileSystemException catch (e) {
+          _logger.warning(
+            'mergeSwarmDelta(tile $tileId): could not clear prior overlay '
+            '($e); blend may double-count this pull.',
+            source: _logSource,
+          );
+        }
+      }
+
+      final result = await _seam.mergeDelta({
+        'basePath': overlayPath,
+        'deltaPath': deltaPath,
+        'trust': trust,
+        'subtract': false,
+        'outPath': overlayPath,
+      });
+      final overlayFrames = (result['totalFramesAfter'] as num?)?.toInt() ?? 0;
+      final overlaySeconds =
+          (result['integrationSecondsAfter'] as num?)?.toDouble() ?? 0.0;
+      final contributors = (result['contributorsAfter'] as num?)?.toInt() ?? 0;
+
+      // Refresh ONLY the overlay columns on the base index row; own-light
+      // totals + the base sidecar pointer are preserved. If the user has never
+      // imaged this tile there is no base row yet, so we seed one from the
+      // overlay's geometry (centre/channels via tileInfo on the overlay), but
+      // still with zero own-light totals.
+      try {
+        final existing = await _dao.getTile(tileId, healpixOrder: _order);
+        if (existing != null) {
+          await _dao.upsertTile(
+            tileId: tileId,
+            healpixOrder: _order,
+            channels: existing.channels,
+            centerRaDeg: existing.centerRaDeg,
+            centerDecDeg: existing.centerDecDeg,
+            coverageMean: existing.coverageMean,
+            totalFrames: existing.totalFrames,
+            integrationSeconds: existing.integrationSeconds,
+            sidecarPath: existing.sidecarPath,
+            lastFoldSessionId: existing.lastFoldSessionId,
+            lastFoldAt: existing.lastFoldAt,
+            regionId: existing.regionId,
+            swarmOverlayFrames: overlayFrames,
+            swarmOverlayIntegrationSeconds: overlaySeconds,
+          );
+        } else {
+          final info = await _overlayTileInfo(tileId);
+          await _dao.upsertTile(
+            tileId: tileId,
+            healpixOrder: _order,
+            channels: info.channels,
+            centerRaDeg: info.centerRaDeg,
+            centerDecDeg: info.centerDecDeg,
+            coverageMean: info.coverageMean,
+            // No own-light yet — keep base totals at zero so the contribution
+            // bar reads "nothing to contribute" until the user images here.
+            totalFrames: 0,
+            integrationSeconds: 0,
+            sidecarPath: basePath,
+            lastFoldSessionId: null,
+            lastFoldAt: null,
+            swarmOverlayFrames: overlayFrames,
+            swarmOverlayIntegrationSeconds: overlaySeconds,
+          );
+        }
+      } catch (e) {
+        _logger.warning(
+          'mergeSwarmDelta(tile $tileId): overlay index refresh failed: $e '
+          '(overlay persisted, $contributors contributor(s)).',
+          source: _logSource,
+        );
+      }
+      return overlayFrames;
+    });
+  }
+
+  /// Provenance for the overlay sidecar at [overlayPath] (geometry/coverage only,
+  /// used to seed a base index row for a never-imaged-locally pulled tile).
+  Future<TileProvenanceView> _overlayTileInfo(int tileId) async {
+    final root = await atlasRoot();
+    final result = await _seam.dispatch({
+      'action': 'info',
+      'atlasRoot': _overlayRoot(root),
+      'order': _order,
+      'tileId': tileId,
+    });
+    return TileProvenanceView.fromJson(tileId, result);
   }
 
   Future<void> _persistFold({
@@ -491,7 +603,42 @@ class SkyAtlasService {
 
   String _tilesDir(String root) => p.join(root, 'tiles', '$_order');
 
+  /// The swarm OVERLAY sidecar directory. A SEPARATE tree from the own-light
+  /// base ([_tilesDir]) that [exportDelta] never reads, so pulled community
+  /// depth can never re-upload as the user's contribution. It mirrors the base
+  /// `tiles/<order>` layout under a `swarm_overlay` root so the native
+  /// `open_atlas` read path (`info`) resolves an overlay sidecar when handed
+  /// `<root>/swarm_overlay` as its atlas root.
+  String _overlayDir(String root) =>
+      p.join(_overlayRoot(root), 'tiles', '$_order');
+
+  /// The atlas root the overlay tree presents to the native `open_atlas`.
+  String _overlayRoot(String root) => p.join(root, 'swarm_overlay');
+
   String _cacheDir(String root) => p.join(root, 'cache');
+}
+
+/// The result of [SkyAtlasService.exportDelta]: the written `.nst` delta path
+/// plus the post-anchor own-light tally carved out for the federation push.
+class AtlasDeltaExport {
+  /// On-disk path of the exported `.nst` delta accumulator.
+  final String path;
+
+  /// Frames attributable to LOCAL folds strictly after the export anchor — the
+  /// true delta to advertise to the hub (0 when nothing new has been imaged).
+  final int framesInDelta;
+
+  /// Integration seconds attributable to those same post-anchor own folds.
+  final double integrationSeconds;
+
+  const AtlasDeltaExport({
+    required this.path,
+    required this.framesInDelta,
+    required this.integrationSeconds,
+  });
+
+  /// Whether this export carries new own-light to contribute.
+  bool get isEmpty => framesInDelta <= 0;
 }
 
 /// Default atlas root: `<app support>/sky_atlas`. The native fold creates the

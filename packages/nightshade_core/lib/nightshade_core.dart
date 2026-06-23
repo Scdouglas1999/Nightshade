@@ -580,6 +580,7 @@ export 'src/services/sky_atlas/sky_atlas_seam.dart';
 export 'src/services/sky_atlas/sky_atlas_service.dart';
 export 'src/providers/sky_atlas_provider.dart';
 // Pillar C ("Constellation"): community hub client + orchestration + providers.
+export 'src/database/daos/constellation_contributions_dao.dart';
 export 'src/services/constellation/constellation_models.dart';
 export 'src/services/constellation/constellation_client.dart';
 export 'src/services/constellation/constellation_service.dart';

@@ -46,8 +46,15 @@
 //! once during a fold.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::{Deserialize, Serialize};
+
+/// Per-write nonce so each [`SkyAtlas::store_tile`] temp sidecar is unique even
+/// when two folds for the SAME tile race (or two processes share the atlas):
+/// the shared `nst.tmp` name let one fold's temp clobber another mid-write. The
+/// final write-then-rename onto the real path stays atomic on the same fs.
+static STORE_TILE_NONCE: AtomicU64 = AtomicU64::new(0);
 
 use crate::master_accumulation::{AccumulationMode, NormalizationReference, PerPixelAccumulator};
 use crate::registration::{sample_interleaved, Interpolator};
@@ -1251,7 +1258,14 @@ impl SkyAtlas {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent).map_err(|e| AtlasError::Io(e.to_string()))?;
         }
-        let tmp = path.with_extension("nst.tmp");
+        // Per-write-unique temp (pid + monotonic nonce) so a concurrent fold for
+        // the same tile can't collide on a shared `nst.tmp`; the rename onto the
+        // real path is still atomic on the same filesystem.
+        let tmp = path.with_extension(format!(
+            "nst.tmp.{}.{}",
+            std::process::id(),
+            STORE_TILE_NONCE.fetch_add(1, Ordering::Relaxed)
+        ));
         std::fs::write(&tmp, tile.serialize()).map_err(|e| AtlasError::Io(e.to_string()))?;
         std::fs::rename(&tmp, &path).map_err(|e| AtlasError::Io(e.to_string()))?;
         Ok(())
@@ -2111,6 +2125,60 @@ mod tests {
             cov_f[cmid] > 0.0,
             "query must report coverage at the centre"
         );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn store_tile_unique_temp_no_collision_under_concurrency() {
+        // Many concurrent store_tile calls for the SAME tile must not collide on
+        // a shared `.nst.tmp` path; each write uses a pid+nonce-unique temp and a
+        // final atomic rename, so the on-disk sidecar is always a complete,
+        // deserializable accumulator after the storm settles.
+        use std::sync::Arc;
+        let dir = std::env::temp_dir().join(format!(
+            "ns_atlas_store_tmp_{}_{}",
+            std::process::id(),
+            STORE_TILE_NONCE.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        let atlas = Arc::new(SkyAtlas::open(&dir, ATLAS_HEALPIX_ORDER, 256 * 1024 * 1024));
+
+        let tid = radec_to_tile(120.0, 30.0, ATLAS_HEALPIX_ORDER);
+        let (frame, wcs) = frame_on_tile(tid, ATLAS_HEALPIX_ORDER, 777.0, 1);
+        // A populated accumulator to serialize on every write.
+        let mut seed = SkyTileAccumulator::create(tid, ATLAS_HEALPIX_ORDER, 1, no_clip());
+        seed.fold_frame(&frame, &wcs, 1.0, 100.0, Interpolator::Bilinear, "seed", "")
+            .unwrap();
+        let seed = Arc::new(seed);
+
+        let handles: Vec<_> = (0..16)
+            .map(|_| {
+                let atlas = Arc::clone(&atlas);
+                let seed = Arc::clone(&seed);
+                std::thread::spawn(move || atlas.store_tile(&seed))
+            })
+            .collect();
+        for h in handles {
+            h.join().expect("store_tile thread panicked").expect("store_tile must not error");
+        }
+
+        // The final sidecar deserializes cleanly (no half-written / clobbered temp
+        // got renamed into place).
+        let reloaded = atlas.load_tile(tid).unwrap().expect("tile on disk");
+        assert_eq!(reloaded.tile_id, tid);
+        // No stray `.nst.tmp.*` temp files survived the storm.
+        let tiles_dir = atlas.tile_path(tid).parent().unwrap().to_path_buf();
+        let leftover_tmp = std::fs::read_dir(&tiles_dir)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| {
+                e.file_name()
+                    .to_string_lossy()
+                    .contains(".nst.tmp.")
+            })
+            .count();
+        assert_eq!(leftover_tmp, 0, "no temp files should remain after renames");
 
         let _ = std::fs::remove_dir_all(&dir);
     }

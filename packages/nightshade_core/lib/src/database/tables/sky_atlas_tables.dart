@@ -71,6 +71,16 @@ class SkyTiles extends Table {
   IntColumn get totalFrames => integer().withDefault(const Constant(0))();
   RealColumn get integrationSeconds => real().withDefault(const Constant(0))();
 
+  /// Blended community ("swarm") depth pulled into the separate overlay sidecar
+  /// for DISPLAY only — kept OUT of [totalFrames]/[integrationSeconds] so the
+  /// own-light contribution math (and the "your contribution" bar) stays honest
+  /// after a pull. `mergeSwarmDelta` writes these from the overlay tree; the
+  /// Your Sky co-add view adds them on top of own-light for display.
+  IntColumn get swarmOverlayFrames =>
+      integer().withDefault(const Constant(0))();
+  RealColumn get swarmOverlayIntegrationSeconds =>
+      real().withDefault(const Constant(0))();
+
   /// Path to the on-disk `.nst` streaming accumulator sidecar.
   TextColumn get sidecarPath => text()();
 

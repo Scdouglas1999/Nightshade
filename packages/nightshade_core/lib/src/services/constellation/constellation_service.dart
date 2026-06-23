@@ -27,6 +27,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import '../../database/daos/constellation_contributions_dao.dart';
 import '../logging_service.dart';
 import '../sky_atlas/sky_atlas_models.dart';
 import '../sky_atlas/sky_atlas_service.dart';
@@ -97,6 +98,7 @@ class ConstellationService {
     >
     Function()
     localTargetsResolver,
+    ConstellationContributionsDao? contributionsDao,
     ConstellationClientFactory? clientFactory,
     SharedTargetBrowser? browser,
     int order = defaultHealpixOrder,
@@ -104,6 +106,7 @@ class ConstellationService {
        _logger = logger,
        _credentialsResolver = credentialsResolver,
        _localTargetsResolver = localTargetsResolver,
+       _contributions = contributionsDao,
        _clientFactory = clientFactory ?? _defaultClientFactory,
        _browser = browser ?? _defaultBrowser,
        _order = order;
@@ -118,6 +121,12 @@ class ConstellationService {
   final Future<List<({int targetId, String name, double raDeg, double decDeg})>>
   Function()
   _localTargetsResolver;
+
+  /// Per-(hubKey, tileId) federation receipt store: the contribution anchor +
+  /// remote id (true-delta export, Retract) and the pulled high-water (re-pull
+  /// idempotency). Null only in legacy/test wirings that predate the table; the
+  /// service degrades to the old whole-tile/epoch behaviour when absent.
+  final ConstellationContributionsDao? _contributions;
   final ConstellationClientFactory _clientFactory;
   final SharedTargetBrowser _browser;
   final int _order;
@@ -291,10 +300,13 @@ class ConstellationService {
       );
     }
     final joined = _joined[targetId];
+    final creds = await _credentialsResolver();
+    final hubKey = creds == null ? null : _hubKey(creds.hubBaseUrl);
     final client = await _requireClient();
     final accepted = <int, ContributionReceipt>{};
     final rejected = <int, String>{};
-    final anchor = since ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+    // When the caller forces [since] we honour it verbatim; otherwise the anchor
+    // is the per-tile contribution high-water (epoch on the first contribution).
     try {
       final center = await _targetCenter(targetId, joined);
       final tiles = await _localTilesInCone(
@@ -310,20 +322,86 @@ class ConstellationService {
         return const ContributionOutcome(accepted: {}, rejected: {});
       }
 
+      var skippedEmpty = 0;
       for (final tile in tiles) {
-        // Privacy: export the additive SUMS for this tile, never the subs.
-        final deltaPath = await _atlas.exportDelta(tile.tileId, since: anchor);
+        // Per-tile high-water: the anchor for exportDelta(since:) is the fold
+        // time of the newest own-light fold already shipped to THIS hub, so a
+        // re-contribute ships only the new night. Falls back to epoch on the
+        // first contribution (and whenever the receipt store is absent).
+        final receiptRow = (hubKey == null || _contributions == null)
+            ? null
+            : await _contributions.getContribution(
+                hubKey,
+                tile.tileId,
+                healpixOrder: _order,
+              );
+        final anchor =
+            since ??
+            receiptRow?.lastContributedAt ??
+            DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+
+        // Privacy: export the additive SUMS for this tile, never the subs. The
+        // export reads ONLY the own-light base tile (never the swarm overlay)
+        // and returns the TRUE post-anchor own-light delta tally.
+        final AtlasDeltaExport export;
+        try {
+          export = await _atlas.exportDelta(tile.tileId, since: anchor);
+        } on Exception catch (e) {
+          // A genuinely-mixed tile (pre-anchor own folds + new own folds) the
+          // native side cannot carve cleanly: surface as a per-tile skip rather
+          // than aborting the batch.
+          rejected[tile.tileId] =
+              'export delta could not be carved cleanly: $e';
+          continue;
+        }
+
+        // BELT-AND-SUSPENDERS: an empty delta (no new own-light since the
+        // anchor) is a no-op — never push a zero-frame contribution that would
+        // inflate the hub's fused depth. This is the repeat-contribute
+        // idempotency guarantee.
+        if (export.isEmpty) {
+          skippedEmpty++;
+          _logger.info(
+            'contributeTarget(#$targetId): tile ${tile.tileId} already '
+            'contributed, nothing new to ship.',
+            source: _logSource,
+          );
+          continue;
+        }
+
         try {
           final receipt = await client.pushTile(
             tileId: tile.tileId,
             order: _order,
-            deltaPath: deltaPath,
-            framesDelta: tile.totalFrames,
-            integrationSecondsDelta: tile.integrationSeconds,
+            deltaPath: export.path,
+            // TRUE delta: only the frames/seconds imaged since the anchor, not
+            // the whole accumulated tile total.
+            framesDelta: export.framesInDelta,
+            integrationSecondsDelta: export.integrationSeconds,
             instrument: instrumentFingerprint,
             solver: solver,
           );
           accepted[tile.tileId] = receipt;
+
+          // Advance the high-water so the NEXT contribute anchors here. The
+          // newest own fold shipped is at/after now; we stamp the contribution
+          // time (UTC) as the next anchor and accrue the cumulative tally.
+          if (hubKey != null && _contributions != null) {
+            final now = DateTime.now().toUtc();
+            await _contributions.upsertContribution(
+              hubKey,
+              tile.tileId,
+              healpixOrder: _order,
+              lastContributedAt: now,
+              lastContributedLabel: now.toIso8601String(),
+              contributionId: receipt.contributionId,
+              contributedFrames:
+                  (receiptRow?.contributedFrames ?? 0) + export.framesInDelta,
+              contributedIntegrationSeconds:
+                  (receiptRow?.contributedIntegrationSeconds ?? 0) +
+                  export.integrationSeconds,
+            );
+          }
         } on ConstellationException catch (e) {
           if (e.kind == ConstellationErrorKind.geometryMismatch) {
             rejected[tile.tileId] = e.message;
@@ -340,7 +418,7 @@ class ConstellationService {
 
       _logger.info(
         'contributeTarget(#$targetId): pushed ${accepted.length} tile(s), '
-        '${rejected.length} rejected.',
+        '$skippedEmpty already-current, ${rejected.length} rejected.',
         source: _logSource,
       );
       return ContributionOutcome(accepted: accepted, rejected: rejected);
@@ -363,6 +441,8 @@ class ConstellationService {
     bool finalized = true,
   }) async {
     final joined = _joined[targetId];
+    final creds = await _credentialsResolver();
+    final hubKey = creds == null ? null : _hubKey(creds.hubBaseUrl);
     final client = await _requireClient();
     try {
       final center = await _targetCenter(targetId, joined);
@@ -397,17 +477,43 @@ class ConstellationService {
           outPath: outPath,
           finalized: finalized,
         );
-        // Blend an accumulator pull straight into the local atlas so the swarm's
-        // depth shows up in "Your Sky" (the documented pull-back -> blend flow).
-        // Finalized FITS pulls are display-only overlays and are not merged (they
-        // are not additive accumulators); only `.nst` deltas fold in.
-        var blendedFrames = 0;
+        // Blend an accumulator pull into the swarm OVERLAY tree so the swarm's
+        // depth shows up in "Your Sky" (the documented pull-back -> blend flow)
+        // WITHOUT touching the user's contributable base. Finalized FITS pulls
+        // are display-only overlays and are not merged (they are not additive
+        // accumulators); only `.nst` snapshots fold in.
+        //
+        // mergeSwarmDelta is REPLACE-not-add against the overlay, so the overlay
+        // always equals exactly one copy of the current community depth — N
+        // pulls == 1 pull regardless of the high-water check below.
+        var overlayFrames = 0;
         if (!finalized) {
+          // High-water short-circuit: if the hub advertises the same community
+          // depth as our last pull for this tile, the re-blend is a cheap no-op.
+          final priorPull = (hubKey == null || _contributions == null)
+              ? null
+              : await _contributions.getPulledHighWater(
+                  hubKey,
+                  tileId,
+                  healpixOrder: _order,
+                );
           try {
-            blendedFrames = await _atlas.mergeSwarmDelta(
+            overlayFrames = await _atlas.mergeSwarmDelta(
               tileId: tileId,
               deltaPath: outPath,
             );
+            // Record the pulled high-water so a later identical pull is known.
+            if (hubKey != null && _contributions != null) {
+              if (priorPull?.lastPulledFrames != overlayFrames) {
+                await _contributions.upsertPulledHighWater(
+                  hubKey,
+                  tileId,
+                  healpixOrder: _order,
+                  lastPulledFrames: overlayFrames,
+                  lastPulledIntegrationSeconds: 0,
+                );
+              }
+            }
           } on Exception catch (e) {
             _logger.warning(
               'pullTarget(#$targetId): blend of tile $tileId into Your Sky '
@@ -421,7 +527,9 @@ class ConstellationService {
           order: _order,
           localPath: outPath,
           finalized: finalized,
-          totalFrames: blendedFrames,
+          // The overlay's OWN total = the community depth for this tile (exactly
+          // one copy), not an inflating additive blend.
+          totalFrames: overlayFrames,
           integrationSeconds: 0,
           contributors: joined?.contributors ?? 0,
           pulledAt: DateTime.now(),
@@ -545,6 +653,14 @@ class ConstellationService {
   }
 
   // --- Internals ----------------------------------------------------------
+
+  /// Normalize a hub base URL to a stable receipt key (`scheme://host[:port]`),
+  /// so http-vs-https, a trailing slash, or a path suffix do not orphan a hub's
+  /// receipts and re-ship a whole tile.
+  static String _hubKey(Uri hubBaseUrl) {
+    final port = hubBaseUrl.hasPort ? ':${hubBaseUrl.port}' : '';
+    return '${hubBaseUrl.scheme}://${hubBaseUrl.host}$port';
+  }
 
   /// Resolve a target's sky centre from the joined hub row, falling back to the
   /// local target table when the hub did not advertise coordinates.

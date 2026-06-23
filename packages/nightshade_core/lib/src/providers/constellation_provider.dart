@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../database/daos/constellation_contributions_dao.dart';
 import '../database/daos/settings_dao.dart';
 import '../services/constellation/constellation_models.dart';
 import '../services/constellation/constellation_service.dart';
@@ -42,6 +43,7 @@ final constellationServiceProvider = Provider<ConstellationService>((ref) {
   return ConstellationService(
     atlas: ref.watch(skyAtlasServiceProvider),
     logger: ref.watch(loggingServiceProvider),
+    contributionsDao: ref.watch(constellationContributionsDaoProvider),
     credentialsResolver: () => resolveConstellationCredentials(settings),
     localTargetsResolver: () async {
       // Resolve through the remote-aware targets provider so a slave maps the

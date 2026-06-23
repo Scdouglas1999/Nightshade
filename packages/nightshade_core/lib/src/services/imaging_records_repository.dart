@@ -680,14 +680,29 @@ final imagingRecordsRepositoryProvider = Provider<ImagingRecordsRepository>((
           apCoeffs: sip?.apCoeffs ?? const [],
           bpCoeffs: sip?.bpCoeffs ?? const [],
         );
-        await ref
-            .read(skyAtlasServiceProvider)
-            .autoFoldCapturedImage(
-              image: image,
-              imageWidth: fits.width,
-              imageHeight: fits.height,
-              distortion: distortion,
-            );
+
+        // Fold dedup (Wave 0): a re-solved frame fires this hook again with the
+        // same captured-image id. If the row was already folded into the atlas
+        // (marker stamped), skip ONLY the fold so its photons are not
+        // double-counted. First Light below still runs — its self-subtraction
+        // dedup is Wave 1. The marker is stamped after a successful fold, so a
+        // fold that throws leaves it unset and a retry can still fold.
+        if (image.atlasFoldedAt == null) {
+          final summary = await ref
+              .read(skyAtlasServiceProvider)
+              .autoFoldCapturedImage(
+                image: image,
+                imageWidth: fits.width,
+                imageHeight: fits.height,
+                distortion: distortion,
+              );
+          // Only stamp when a fold actually ran (null = not a foldable light /
+          // no invertible WCS); leaving the marker unset lets a later, better
+          // solve of the same row fold it then.
+          if (summary != null) {
+            await imagesDao.stampAtlasFolded(capturedImageId);
+          }
+        }
 
         // Pillar B ("First Light"): the SAME solve-persist event that folds the
         // light into the atlas also differences it against the now-deepened

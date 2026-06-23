@@ -7081,6 +7081,18 @@ class $CapturedImagesTable extends CapturedImages
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _atlasFoldedAtMeta = const VerificationMeta(
+    'atlasFoldedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> atlasFoldedAt =
+      GeneratedColumn<DateTime>(
+        'atlas_folded_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _isAcceptedMeta = const VerificationMeta(
     'isAccepted',
   );
@@ -7148,6 +7160,7 @@ class $CapturedImagesTable extends CapturedImages
     solvedPixelScale,
     capturedAt,
     createdAt,
+    atlasFoldedAt,
     isAccepted,
     rejectionReason,
   ];
@@ -7444,6 +7457,15 @@ class $CapturedImagesTable extends CapturedImages
         createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
       );
     }
+    if (data.containsKey('atlas_folded_at')) {
+      context.handle(
+        _atlasFoldedAtMeta,
+        atlasFoldedAt.isAcceptableOrUnknown(
+          data['atlas_folded_at']!,
+          _atlasFoldedAtMeta,
+        ),
+      );
+    }
     if (data.containsKey('is_accepted')) {
       context.handle(
         _isAcceptedMeta,
@@ -7624,6 +7646,10 @@ class $CapturedImagesTable extends CapturedImages
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
       )!,
+      atlasFoldedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}atlas_folded_at'],
+      ),
       isAccepted: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_accepted'],
@@ -7681,6 +7707,13 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
   final double? solvedPixelScale;
   final DateTime capturedAt;
   final DateTime createdAt;
+
+  /// When this frame was folded into the personal sky atlas (Pillar A), or null
+  /// if it has not been folded. The solved-frame fold hook stamps this after a
+  /// successful fold and skips re-folding when it is already set, so a duplicate
+  /// inbound `updateCapturedImage{isPlateSolved:true}` (plausible in the
+  /// master/slave sync architecture) cannot double-count photons.
+  final DateTime? atlasFoldedAt;
   final bool isAccepted;
   final String? rejectionReason;
   const CapturedImage({
@@ -7723,6 +7756,7 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
     this.solvedPixelScale,
     required this.capturedAt,
     required this.createdAt,
+    this.atlasFoldedAt,
     required this.isAccepted,
     this.rejectionReason,
   });
@@ -7824,6 +7858,9 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
     }
     map['captured_at'] = Variable<DateTime>(capturedAt);
     map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || atlasFoldedAt != null) {
+      map['atlas_folded_at'] = Variable<DateTime>(atlasFoldedAt);
+    }
     map['is_accepted'] = Variable<bool>(isAccepted);
     if (!nullToAbsent || rejectionReason != null) {
       map['rejection_reason'] = Variable<String>(rejectionReason);
@@ -7924,6 +7961,9 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
           : Value(solvedPixelScale),
       capturedAt: Value(capturedAt),
       createdAt: Value(createdAt),
+      atlasFoldedAt: atlasFoldedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(atlasFoldedAt),
       isAccepted: Value(isAccepted),
       rejectionReason: rejectionReason == null && nullToAbsent
           ? const Value.absent()
@@ -7976,6 +8016,7 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
       solvedPixelScale: serializer.fromJson<double?>(json['solvedPixelScale']),
       capturedAt: serializer.fromJson<DateTime>(json['capturedAt']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      atlasFoldedAt: serializer.fromJson<DateTime?>(json['atlasFoldedAt']),
       isAccepted: serializer.fromJson<bool>(json['isAccepted']),
       rejectionReason: serializer.fromJson<String?>(json['rejectionReason']),
     );
@@ -8023,6 +8064,7 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
       'solvedPixelScale': serializer.toJson<double?>(solvedPixelScale),
       'capturedAt': serializer.toJson<DateTime>(capturedAt),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'atlasFoldedAt': serializer.toJson<DateTime?>(atlasFoldedAt),
       'isAccepted': serializer.toJson<bool>(isAccepted),
       'rejectionReason': serializer.toJson<String?>(rejectionReason),
     };
@@ -8068,6 +8110,7 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
     Value<double?> solvedPixelScale = const Value.absent(),
     DateTime? capturedAt,
     DateTime? createdAt,
+    Value<DateTime?> atlasFoldedAt = const Value.absent(),
     bool? isAccepted,
     Value<String?> rejectionReason = const Value.absent(),
   }) => CapturedImage(
@@ -8122,6 +8165,9 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
         : this.solvedPixelScale,
     capturedAt: capturedAt ?? this.capturedAt,
     createdAt: createdAt ?? this.createdAt,
+    atlasFoldedAt: atlasFoldedAt.present
+        ? atlasFoldedAt.value
+        : this.atlasFoldedAt,
     isAccepted: isAccepted ?? this.isAccepted,
     rejectionReason: rejectionReason.present
         ? rejectionReason.value
@@ -8204,6 +8250,9 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
           ? data.capturedAt.value
           : this.capturedAt,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      atlasFoldedAt: data.atlasFoldedAt.present
+          ? data.atlasFoldedAt.value
+          : this.atlasFoldedAt,
       isAccepted: data.isAccepted.present
           ? data.isAccepted.value
           : this.isAccepted,
@@ -8255,6 +8304,7 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
           ..write('solvedPixelScale: $solvedPixelScale, ')
           ..write('capturedAt: $capturedAt, ')
           ..write('createdAt: $createdAt, ')
+          ..write('atlasFoldedAt: $atlasFoldedAt, ')
           ..write('isAccepted: $isAccepted, ')
           ..write('rejectionReason: $rejectionReason')
           ..write(')'))
@@ -8302,6 +8352,7 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
     solvedPixelScale,
     capturedAt,
     createdAt,
+    atlasFoldedAt,
     isAccepted,
     rejectionReason,
   ]);
@@ -8348,6 +8399,7 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
           other.solvedPixelScale == this.solvedPixelScale &&
           other.capturedAt == this.capturedAt &&
           other.createdAt == this.createdAt &&
+          other.atlasFoldedAt == this.atlasFoldedAt &&
           other.isAccepted == this.isAccepted &&
           other.rejectionReason == this.rejectionReason);
 }
@@ -8392,6 +8444,7 @@ class CapturedImagesCompanion extends UpdateCompanion<CapturedImage> {
   final Value<double?> solvedPixelScale;
   final Value<DateTime> capturedAt;
   final Value<DateTime> createdAt;
+  final Value<DateTime?> atlasFoldedAt;
   final Value<bool> isAccepted;
   final Value<String?> rejectionReason;
   const CapturedImagesCompanion({
@@ -8434,6 +8487,7 @@ class CapturedImagesCompanion extends UpdateCompanion<CapturedImage> {
     this.solvedPixelScale = const Value.absent(),
     this.capturedAt = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.atlasFoldedAt = const Value.absent(),
     this.isAccepted = const Value.absent(),
     this.rejectionReason = const Value.absent(),
   });
@@ -8477,6 +8531,7 @@ class CapturedImagesCompanion extends UpdateCompanion<CapturedImage> {
     this.solvedPixelScale = const Value.absent(),
     required DateTime capturedAt,
     this.createdAt = const Value.absent(),
+    this.atlasFoldedAt = const Value.absent(),
     this.isAccepted = const Value.absent(),
     this.rejectionReason = const Value.absent(),
   }) : filePath = Value(filePath),
@@ -8523,6 +8578,7 @@ class CapturedImagesCompanion extends UpdateCompanion<CapturedImage> {
     Expression<double>? solvedPixelScale,
     Expression<DateTime>? capturedAt,
     Expression<DateTime>? createdAt,
+    Expression<DateTime>? atlasFoldedAt,
     Expression<bool>? isAccepted,
     Expression<String>? rejectionReason,
   }) {
@@ -8566,6 +8622,7 @@ class CapturedImagesCompanion extends UpdateCompanion<CapturedImage> {
       if (solvedPixelScale != null) 'solved_pixel_scale': solvedPixelScale,
       if (capturedAt != null) 'captured_at': capturedAt,
       if (createdAt != null) 'created_at': createdAt,
+      if (atlasFoldedAt != null) 'atlas_folded_at': atlasFoldedAt,
       if (isAccepted != null) 'is_accepted': isAccepted,
       if (rejectionReason != null) 'rejection_reason': rejectionReason,
     });
@@ -8611,6 +8668,7 @@ class CapturedImagesCompanion extends UpdateCompanion<CapturedImage> {
     Value<double?>? solvedPixelScale,
     Value<DateTime>? capturedAt,
     Value<DateTime>? createdAt,
+    Value<DateTime?>? atlasFoldedAt,
     Value<bool>? isAccepted,
     Value<String?>? rejectionReason,
   }) {
@@ -8654,6 +8712,7 @@ class CapturedImagesCompanion extends UpdateCompanion<CapturedImage> {
       solvedPixelScale: solvedPixelScale ?? this.solvedPixelScale,
       capturedAt: capturedAt ?? this.capturedAt,
       createdAt: createdAt ?? this.createdAt,
+      atlasFoldedAt: atlasFoldedAt ?? this.atlasFoldedAt,
       isAccepted: isAccepted ?? this.isAccepted,
       rejectionReason: rejectionReason ?? this.rejectionReason,
     );
@@ -8779,6 +8838,9 @@ class CapturedImagesCompanion extends UpdateCompanion<CapturedImage> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (atlasFoldedAt.present) {
+      map['atlas_folded_at'] = Variable<DateTime>(atlasFoldedAt.value);
+    }
     if (isAccepted.present) {
       map['is_accepted'] = Variable<bool>(isAccepted.value);
     }
@@ -8830,6 +8892,7 @@ class CapturedImagesCompanion extends UpdateCompanion<CapturedImage> {
           ..write('solvedPixelScale: $solvedPixelScale, ')
           ..write('capturedAt: $capturedAt, ')
           ..write('createdAt: $createdAt, ')
+          ..write('atlasFoldedAt: $atlasFoldedAt, ')
           ..write('isAccepted: $isAccepted, ')
           ..write('rejectionReason: $rejectionReason')
           ..write(')'))
@@ -28867,6 +28930,29 @@ class $SkyTilesTable extends SkyTiles
         requiredDuringInsert: false,
         defaultValue: const Constant(0),
       );
+  static const VerificationMeta _swarmOverlayFramesMeta =
+      const VerificationMeta('swarmOverlayFrames');
+  @override
+  late final GeneratedColumn<int> swarmOverlayFrames = GeneratedColumn<int>(
+    'swarm_overlay_frames',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _swarmOverlayIntegrationSecondsMeta =
+      const VerificationMeta('swarmOverlayIntegrationSeconds');
+  @override
+  late final GeneratedColumn<double> swarmOverlayIntegrationSeconds =
+      GeneratedColumn<double>(
+        'swarm_overlay_integration_seconds',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0),
+      );
   static const VerificationMeta _sidecarPathMeta = const VerificationMeta(
     'sidecarPath',
   );
@@ -28940,6 +29026,8 @@ class $SkyTilesTable extends SkyTiles
     coverageMean,
     totalFrames,
     integrationSeconds,
+    swarmOverlayFrames,
+    swarmOverlayIntegrationSeconds,
     sidecarPath,
     lastFoldSessionId,
     lastFoldAt,
@@ -29037,6 +29125,24 @@ class $SkyTilesTable extends SkyTiles
         ),
       );
     }
+    if (data.containsKey('swarm_overlay_frames')) {
+      context.handle(
+        _swarmOverlayFramesMeta,
+        swarmOverlayFrames.isAcceptableOrUnknown(
+          data['swarm_overlay_frames']!,
+          _swarmOverlayFramesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('swarm_overlay_integration_seconds')) {
+      context.handle(
+        _swarmOverlayIntegrationSecondsMeta,
+        swarmOverlayIntegrationSeconds.isAcceptableOrUnknown(
+          data['swarm_overlay_integration_seconds']!,
+          _swarmOverlayIntegrationSecondsMeta,
+        ),
+      );
+    }
     if (data.containsKey('sidecar_path')) {
       context.handle(
         _sidecarPathMeta,
@@ -29123,6 +29229,14 @@ class $SkyTilesTable extends SkyTiles
         DriftSqlType.double,
         data['${effectivePrefix}integration_seconds'],
       )!,
+      swarmOverlayFrames: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}swarm_overlay_frames'],
+      )!,
+      swarmOverlayIntegrationSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}swarm_overlay_integration_seconds'],
+      )!,
       sidecarPath: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}sidecar_path'],
@@ -29178,6 +29292,14 @@ class SkyTileRow extends DataClass implements Insertable<SkyTileRow> {
   final int totalFrames;
   final double integrationSeconds;
 
+  /// Blended community ("swarm") depth pulled into the separate overlay sidecar
+  /// for DISPLAY only — kept OUT of [totalFrames]/[integrationSeconds] so the
+  /// own-light contribution math (and the "your contribution" bar) stays honest
+  /// after a pull. `mergeSwarmDelta` writes these from the overlay tree; the
+  /// Your Sky co-add view adds them on top of own-light for display.
+  final int swarmOverlayFrames;
+  final double swarmOverlayIntegrationSeconds;
+
   /// Path to the on-disk `.nst` streaming accumulator sidecar.
   final String sidecarPath;
 
@@ -29199,6 +29321,8 @@ class SkyTileRow extends DataClass implements Insertable<SkyTileRow> {
     required this.coverageMean,
     required this.totalFrames,
     required this.integrationSeconds,
+    required this.swarmOverlayFrames,
+    required this.swarmOverlayIntegrationSeconds,
     required this.sidecarPath,
     this.lastFoldSessionId,
     this.lastFoldAt,
@@ -29217,6 +29341,10 @@ class SkyTileRow extends DataClass implements Insertable<SkyTileRow> {
     map['coverage_mean'] = Variable<double>(coverageMean);
     map['total_frames'] = Variable<int>(totalFrames);
     map['integration_seconds'] = Variable<double>(integrationSeconds);
+    map['swarm_overlay_frames'] = Variable<int>(swarmOverlayFrames);
+    map['swarm_overlay_integration_seconds'] = Variable<double>(
+      swarmOverlayIntegrationSeconds,
+    );
     map['sidecar_path'] = Variable<String>(sidecarPath);
     if (!nullToAbsent || lastFoldSessionId != null) {
       map['last_fold_session_id'] = Variable<int>(lastFoldSessionId);
@@ -29242,6 +29370,8 @@ class SkyTileRow extends DataClass implements Insertable<SkyTileRow> {
       coverageMean: Value(coverageMean),
       totalFrames: Value(totalFrames),
       integrationSeconds: Value(integrationSeconds),
+      swarmOverlayFrames: Value(swarmOverlayFrames),
+      swarmOverlayIntegrationSeconds: Value(swarmOverlayIntegrationSeconds),
       sidecarPath: Value(sidecarPath),
       lastFoldSessionId: lastFoldSessionId == null && nullToAbsent
           ? const Value.absent()
@@ -29273,6 +29403,10 @@ class SkyTileRow extends DataClass implements Insertable<SkyTileRow> {
       integrationSeconds: serializer.fromJson<double>(
         json['integrationSeconds'],
       ),
+      swarmOverlayFrames: serializer.fromJson<int>(json['swarmOverlayFrames']),
+      swarmOverlayIntegrationSeconds: serializer.fromJson<double>(
+        json['swarmOverlayIntegrationSeconds'],
+      ),
       sidecarPath: serializer.fromJson<String>(json['sidecarPath']),
       lastFoldSessionId: serializer.fromJson<int?>(json['lastFoldSessionId']),
       lastFoldAt: serializer.fromJson<DateTime?>(json['lastFoldAt']),
@@ -29293,6 +29427,10 @@ class SkyTileRow extends DataClass implements Insertable<SkyTileRow> {
       'coverageMean': serializer.toJson<double>(coverageMean),
       'totalFrames': serializer.toJson<int>(totalFrames),
       'integrationSeconds': serializer.toJson<double>(integrationSeconds),
+      'swarmOverlayFrames': serializer.toJson<int>(swarmOverlayFrames),
+      'swarmOverlayIntegrationSeconds': serializer.toJson<double>(
+        swarmOverlayIntegrationSeconds,
+      ),
       'sidecarPath': serializer.toJson<String>(sidecarPath),
       'lastFoldSessionId': serializer.toJson<int?>(lastFoldSessionId),
       'lastFoldAt': serializer.toJson<DateTime?>(lastFoldAt),
@@ -29311,6 +29449,8 @@ class SkyTileRow extends DataClass implements Insertable<SkyTileRow> {
     double? coverageMean,
     int? totalFrames,
     double? integrationSeconds,
+    int? swarmOverlayFrames,
+    double? swarmOverlayIntegrationSeconds,
     String? sidecarPath,
     Value<int?> lastFoldSessionId = const Value.absent(),
     Value<DateTime?> lastFoldAt = const Value.absent(),
@@ -29326,6 +29466,9 @@ class SkyTileRow extends DataClass implements Insertable<SkyTileRow> {
     coverageMean: coverageMean ?? this.coverageMean,
     totalFrames: totalFrames ?? this.totalFrames,
     integrationSeconds: integrationSeconds ?? this.integrationSeconds,
+    swarmOverlayFrames: swarmOverlayFrames ?? this.swarmOverlayFrames,
+    swarmOverlayIntegrationSeconds:
+        swarmOverlayIntegrationSeconds ?? this.swarmOverlayIntegrationSeconds,
     sidecarPath: sidecarPath ?? this.sidecarPath,
     lastFoldSessionId: lastFoldSessionId.present
         ? lastFoldSessionId.value
@@ -29357,6 +29500,13 @@ class SkyTileRow extends DataClass implements Insertable<SkyTileRow> {
       integrationSeconds: data.integrationSeconds.present
           ? data.integrationSeconds.value
           : this.integrationSeconds,
+      swarmOverlayFrames: data.swarmOverlayFrames.present
+          ? data.swarmOverlayFrames.value
+          : this.swarmOverlayFrames,
+      swarmOverlayIntegrationSeconds:
+          data.swarmOverlayIntegrationSeconds.present
+          ? data.swarmOverlayIntegrationSeconds.value
+          : this.swarmOverlayIntegrationSeconds,
       sidecarPath: data.sidecarPath.present
           ? data.sidecarPath.value
           : this.sidecarPath,
@@ -29383,6 +29533,10 @@ class SkyTileRow extends DataClass implements Insertable<SkyTileRow> {
           ..write('coverageMean: $coverageMean, ')
           ..write('totalFrames: $totalFrames, ')
           ..write('integrationSeconds: $integrationSeconds, ')
+          ..write('swarmOverlayFrames: $swarmOverlayFrames, ')
+          ..write(
+            'swarmOverlayIntegrationSeconds: $swarmOverlayIntegrationSeconds, ',
+          )
           ..write('sidecarPath: $sidecarPath, ')
           ..write('lastFoldSessionId: $lastFoldSessionId, ')
           ..write('lastFoldAt: $lastFoldAt, ')
@@ -29403,6 +29557,8 @@ class SkyTileRow extends DataClass implements Insertable<SkyTileRow> {
     coverageMean,
     totalFrames,
     integrationSeconds,
+    swarmOverlayFrames,
+    swarmOverlayIntegrationSeconds,
     sidecarPath,
     lastFoldSessionId,
     lastFoldAt,
@@ -29422,6 +29578,9 @@ class SkyTileRow extends DataClass implements Insertable<SkyTileRow> {
           other.coverageMean == this.coverageMean &&
           other.totalFrames == this.totalFrames &&
           other.integrationSeconds == this.integrationSeconds &&
+          other.swarmOverlayFrames == this.swarmOverlayFrames &&
+          other.swarmOverlayIntegrationSeconds ==
+              this.swarmOverlayIntegrationSeconds &&
           other.sidecarPath == this.sidecarPath &&
           other.lastFoldSessionId == this.lastFoldSessionId &&
           other.lastFoldAt == this.lastFoldAt &&
@@ -29439,6 +29598,8 @@ class SkyTilesCompanion extends UpdateCompanion<SkyTileRow> {
   final Value<double> coverageMean;
   final Value<int> totalFrames;
   final Value<double> integrationSeconds;
+  final Value<int> swarmOverlayFrames;
+  final Value<double> swarmOverlayIntegrationSeconds;
   final Value<String> sidecarPath;
   final Value<int?> lastFoldSessionId;
   final Value<DateTime?> lastFoldAt;
@@ -29454,6 +29615,8 @@ class SkyTilesCompanion extends UpdateCompanion<SkyTileRow> {
     this.coverageMean = const Value.absent(),
     this.totalFrames = const Value.absent(),
     this.integrationSeconds = const Value.absent(),
+    this.swarmOverlayFrames = const Value.absent(),
+    this.swarmOverlayIntegrationSeconds = const Value.absent(),
     this.sidecarPath = const Value.absent(),
     this.lastFoldSessionId = const Value.absent(),
     this.lastFoldAt = const Value.absent(),
@@ -29470,6 +29633,8 @@ class SkyTilesCompanion extends UpdateCompanion<SkyTileRow> {
     this.coverageMean = const Value.absent(),
     this.totalFrames = const Value.absent(),
     this.integrationSeconds = const Value.absent(),
+    this.swarmOverlayFrames = const Value.absent(),
+    this.swarmOverlayIntegrationSeconds = const Value.absent(),
     required String sidecarPath,
     this.lastFoldSessionId = const Value.absent(),
     this.lastFoldAt = const Value.absent(),
@@ -29491,6 +29656,8 @@ class SkyTilesCompanion extends UpdateCompanion<SkyTileRow> {
     Expression<double>? coverageMean,
     Expression<int>? totalFrames,
     Expression<double>? integrationSeconds,
+    Expression<int>? swarmOverlayFrames,
+    Expression<double>? swarmOverlayIntegrationSeconds,
     Expression<String>? sidecarPath,
     Expression<int>? lastFoldSessionId,
     Expression<DateTime>? lastFoldAt,
@@ -29507,6 +29674,10 @@ class SkyTilesCompanion extends UpdateCompanion<SkyTileRow> {
       if (coverageMean != null) 'coverage_mean': coverageMean,
       if (totalFrames != null) 'total_frames': totalFrames,
       if (integrationSeconds != null) 'integration_seconds': integrationSeconds,
+      if (swarmOverlayFrames != null)
+        'swarm_overlay_frames': swarmOverlayFrames,
+      if (swarmOverlayIntegrationSeconds != null)
+        'swarm_overlay_integration_seconds': swarmOverlayIntegrationSeconds,
       if (sidecarPath != null) 'sidecar_path': sidecarPath,
       if (lastFoldSessionId != null) 'last_fold_session_id': lastFoldSessionId,
       if (lastFoldAt != null) 'last_fold_at': lastFoldAt,
@@ -29525,6 +29696,8 @@ class SkyTilesCompanion extends UpdateCompanion<SkyTileRow> {
     Value<double>? coverageMean,
     Value<int>? totalFrames,
     Value<double>? integrationSeconds,
+    Value<int>? swarmOverlayFrames,
+    Value<double>? swarmOverlayIntegrationSeconds,
     Value<String>? sidecarPath,
     Value<int?>? lastFoldSessionId,
     Value<DateTime?>? lastFoldAt,
@@ -29541,6 +29714,9 @@ class SkyTilesCompanion extends UpdateCompanion<SkyTileRow> {
       coverageMean: coverageMean ?? this.coverageMean,
       totalFrames: totalFrames ?? this.totalFrames,
       integrationSeconds: integrationSeconds ?? this.integrationSeconds,
+      swarmOverlayFrames: swarmOverlayFrames ?? this.swarmOverlayFrames,
+      swarmOverlayIntegrationSeconds:
+          swarmOverlayIntegrationSeconds ?? this.swarmOverlayIntegrationSeconds,
       sidecarPath: sidecarPath ?? this.sidecarPath,
       lastFoldSessionId: lastFoldSessionId ?? this.lastFoldSessionId,
       lastFoldAt: lastFoldAt ?? this.lastFoldAt,
@@ -29579,6 +29755,14 @@ class SkyTilesCompanion extends UpdateCompanion<SkyTileRow> {
     if (integrationSeconds.present) {
       map['integration_seconds'] = Variable<double>(integrationSeconds.value);
     }
+    if (swarmOverlayFrames.present) {
+      map['swarm_overlay_frames'] = Variable<int>(swarmOverlayFrames.value);
+    }
+    if (swarmOverlayIntegrationSeconds.present) {
+      map['swarm_overlay_integration_seconds'] = Variable<double>(
+        swarmOverlayIntegrationSeconds.value,
+      );
+    }
     if (sidecarPath.present) {
       map['sidecar_path'] = Variable<String>(sidecarPath.value);
     }
@@ -29609,6 +29793,10 @@ class SkyTilesCompanion extends UpdateCompanion<SkyTileRow> {
           ..write('coverageMean: $coverageMean, ')
           ..write('totalFrames: $totalFrames, ')
           ..write('integrationSeconds: $integrationSeconds, ')
+          ..write('swarmOverlayFrames: $swarmOverlayFrames, ')
+          ..write(
+            'swarmOverlayIntegrationSeconds: $swarmOverlayIntegrationSeconds, ',
+          )
           ..write('sidecarPath: $sidecarPath, ')
           ..write('lastFoldSessionId: $lastFoldSessionId, ')
           ..write('lastFoldAt: $lastFoldAt, ')
@@ -30305,6 +30493,1085 @@ class SkyAtlasFoldsCompanion extends UpdateCompanion<SkyAtlasFoldRow> {
           ..write('rejected: $rejected, ')
           ..write('contributor: $contributor, ')
           ..write('label: $label')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ConstellationContributionsTable extends ConstellationContributions
+    with
+        TableInfo<
+          $ConstellationContributionsTable,
+          ConstellationContributionRow
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ConstellationContributionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _hubKeyMeta = const VerificationMeta('hubKey');
+  @override
+  late final GeneratedColumn<String> hubKey = GeneratedColumn<String>(
+    'hub_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _tileIdMeta = const VerificationMeta('tileId');
+  @override
+  late final GeneratedColumn<int> tileId = GeneratedColumn<int>(
+    'tile_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _healpixOrderMeta = const VerificationMeta(
+    'healpixOrder',
+  );
+  @override
+  late final GeneratedColumn<int> healpixOrder = GeneratedColumn<int>(
+    'healpix_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastContributedAtMeta = const VerificationMeta(
+    'lastContributedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastContributedAt =
+      GeneratedColumn<DateTime>(
+        'last_contributed_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastContributedLabelMeta =
+      const VerificationMeta('lastContributedLabel');
+  @override
+  late final GeneratedColumn<String> lastContributedLabel =
+      GeneratedColumn<String>(
+        'last_contributed_label',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _contributionIdMeta = const VerificationMeta(
+    'contributionId',
+  );
+  @override
+  late final GeneratedColumn<String> contributionId = GeneratedColumn<String>(
+    'contribution_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _contributedFramesMeta = const VerificationMeta(
+    'contributedFrames',
+  );
+  @override
+  late final GeneratedColumn<int> contributedFrames = GeneratedColumn<int>(
+    'contributed_frames',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _contributedIntegrationSecondsMeta =
+      const VerificationMeta('contributedIntegrationSeconds');
+  @override
+  late final GeneratedColumn<double> contributedIntegrationSeconds =
+      GeneratedColumn<double>(
+        'contributed_integration_seconds',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0),
+      );
+  static const VerificationMeta _lastPulledFramesMeta = const VerificationMeta(
+    'lastPulledFrames',
+  );
+  @override
+  late final GeneratedColumn<int> lastPulledFrames = GeneratedColumn<int>(
+    'last_pulled_frames',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastPulledIntegrationSecondsMeta =
+      const VerificationMeta('lastPulledIntegrationSeconds');
+  @override
+  late final GeneratedColumn<double> lastPulledIntegrationSeconds =
+      GeneratedColumn<double>(
+        'last_pulled_integration_seconds',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastPulledAtMeta = const VerificationMeta(
+    'lastPulledAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastPulledAt = GeneratedColumn<DateTime>(
+    'last_pulled_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _joinedMeta = const VerificationMeta('joined');
+  @override
+  late final GeneratedColumn<bool> joined = GeneratedColumn<bool>(
+    'joined',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("joined" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _targetNameMeta = const VerificationMeta(
+    'targetName',
+  );
+  @override
+  late final GeneratedColumn<String> targetName = GeneratedColumn<String>(
+    'target_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _targetRaDegMeta = const VerificationMeta(
+    'targetRaDeg',
+  );
+  @override
+  late final GeneratedColumn<double> targetRaDeg = GeneratedColumn<double>(
+    'target_ra_deg',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _targetDecDegMeta = const VerificationMeta(
+    'targetDecDeg',
+  );
+  @override
+  late final GeneratedColumn<double> targetDecDeg = GeneratedColumn<double>(
+    'target_dec_deg',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    hubKey,
+    tileId,
+    healpixOrder,
+    lastContributedAt,
+    lastContributedLabel,
+    contributionId,
+    contributedFrames,
+    contributedIntegrationSeconds,
+    lastPulledFrames,
+    lastPulledIntegrationSeconds,
+    lastPulledAt,
+    joined,
+    targetName,
+    targetRaDeg,
+    targetDecDeg,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'constellation_contributions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ConstellationContributionRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('hub_key')) {
+      context.handle(
+        _hubKeyMeta,
+        hubKey.isAcceptableOrUnknown(data['hub_key']!, _hubKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_hubKeyMeta);
+    }
+    if (data.containsKey('tile_id')) {
+      context.handle(
+        _tileIdMeta,
+        tileId.isAcceptableOrUnknown(data['tile_id']!, _tileIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_tileIdMeta);
+    }
+    if (data.containsKey('healpix_order')) {
+      context.handle(
+        _healpixOrderMeta,
+        healpixOrder.isAcceptableOrUnknown(
+          data['healpix_order']!,
+          _healpixOrderMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_healpixOrderMeta);
+    }
+    if (data.containsKey('last_contributed_at')) {
+      context.handle(
+        _lastContributedAtMeta,
+        lastContributedAt.isAcceptableOrUnknown(
+          data['last_contributed_at']!,
+          _lastContributedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_contributed_label')) {
+      context.handle(
+        _lastContributedLabelMeta,
+        lastContributedLabel.isAcceptableOrUnknown(
+          data['last_contributed_label']!,
+          _lastContributedLabelMeta,
+        ),
+      );
+    }
+    if (data.containsKey('contribution_id')) {
+      context.handle(
+        _contributionIdMeta,
+        contributionId.isAcceptableOrUnknown(
+          data['contribution_id']!,
+          _contributionIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('contributed_frames')) {
+      context.handle(
+        _contributedFramesMeta,
+        contributedFrames.isAcceptableOrUnknown(
+          data['contributed_frames']!,
+          _contributedFramesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('contributed_integration_seconds')) {
+      context.handle(
+        _contributedIntegrationSecondsMeta,
+        contributedIntegrationSeconds.isAcceptableOrUnknown(
+          data['contributed_integration_seconds']!,
+          _contributedIntegrationSecondsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_pulled_frames')) {
+      context.handle(
+        _lastPulledFramesMeta,
+        lastPulledFrames.isAcceptableOrUnknown(
+          data['last_pulled_frames']!,
+          _lastPulledFramesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_pulled_integration_seconds')) {
+      context.handle(
+        _lastPulledIntegrationSecondsMeta,
+        lastPulledIntegrationSeconds.isAcceptableOrUnknown(
+          data['last_pulled_integration_seconds']!,
+          _lastPulledIntegrationSecondsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_pulled_at')) {
+      context.handle(
+        _lastPulledAtMeta,
+        lastPulledAt.isAcceptableOrUnknown(
+          data['last_pulled_at']!,
+          _lastPulledAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('joined')) {
+      context.handle(
+        _joinedMeta,
+        joined.isAcceptableOrUnknown(data['joined']!, _joinedMeta),
+      );
+    }
+    if (data.containsKey('target_name')) {
+      context.handle(
+        _targetNameMeta,
+        targetName.isAcceptableOrUnknown(data['target_name']!, _targetNameMeta),
+      );
+    }
+    if (data.containsKey('target_ra_deg')) {
+      context.handle(
+        _targetRaDegMeta,
+        targetRaDeg.isAcceptableOrUnknown(
+          data['target_ra_deg']!,
+          _targetRaDegMeta,
+        ),
+      );
+    }
+    if (data.containsKey('target_dec_deg')) {
+      context.handle(
+        _targetDecDegMeta,
+        targetDecDeg.isAcceptableOrUnknown(
+          data['target_dec_deg']!,
+          _targetDecDegMeta,
+        ),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ConstellationContributionRow map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ConstellationContributionRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      hubKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}hub_key'],
+      )!,
+      tileId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}tile_id'],
+      )!,
+      healpixOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}healpix_order'],
+      )!,
+      lastContributedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_contributed_at'],
+      ),
+      lastContributedLabel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_contributed_label'],
+      ),
+      contributionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}contribution_id'],
+      ),
+      contributedFrames: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}contributed_frames'],
+      )!,
+      contributedIntegrationSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}contributed_integration_seconds'],
+      )!,
+      lastPulledFrames: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_pulled_frames'],
+      ),
+      lastPulledIntegrationSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}last_pulled_integration_seconds'],
+      ),
+      lastPulledAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_pulled_at'],
+      ),
+      joined: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}joined'],
+      )!,
+      targetName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_name'],
+      ),
+      targetRaDeg: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}target_ra_deg'],
+      ),
+      targetDecDeg: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}target_dec_deg'],
+      ),
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ConstellationContributionsTable createAlias(String alias) {
+    return $ConstellationContributionsTable(attachedDatabase, alias);
+  }
+}
+
+class ConstellationContributionRow extends DataClass
+    implements Insertable<ConstellationContributionRow> {
+  final int id;
+
+  /// Federation endpoint identity — the normalized hub base URL.
+  final String hubKey;
+
+  /// HEALPix NESTED pixel id this receipt is for.
+  final int tileId;
+
+  /// HEALPix order [tileId] was computed at (mirrors the atlas tables so a
+  /// future order change is detectable rather than silently mis-addressing).
+  final int healpixOrder;
+
+  /// Anchor timestamp for the next `exportDelta(since:)` — the fold time of the
+  /// newest own-light fold already shipped to this hub. Null = nothing shipped
+  /// yet (anchor falls back to epoch, i.e. the first contribution ships all
+  /// post-epoch own-light folds).
+  final DateTime? lastContributedAt;
+
+  /// ISO fold label of the newest fold shipped (mirrors the fold-label scheme
+  /// `capturedAt.toIso8601String()` used at fold time) — the human-readable
+  /// twin of [lastContributedAt], retained so the export anchor can be matched
+  /// against per-fold labels without re-deriving it from a timestamp.
+  final String? lastContributedLabel;
+
+  /// Remote receipt id returned by the hub for this tile's contribution.
+  /// Unblocks the privacy "Retract" action (subtract exactly what was shipped).
+  final String? contributionId;
+
+  /// Running tally of own-light frames / integration shipped to this hub for
+  /// this tile (cumulative across contributions).
+  final int contributedFrames;
+  final double contributedIntegrationSeconds;
+
+  /// Community depth last pulled for this tile, as advertised by the hub. A
+  /// re-pull whose advertised frames equal this is a no-op (the overlay already
+  /// holds exactly that snapshot). Null = never pulled.
+  final int? lastPulledFrames;
+  final double? lastPulledIntegrationSeconds;
+  final DateTime? lastPulledAt;
+
+  /// Whether the user has joined the target this tile belongs to on this hub.
+  final bool joined;
+  final String? targetName;
+  final double? targetRaDeg;
+  final double? targetDecDeg;
+  final DateTime updatedAt;
+  const ConstellationContributionRow({
+    required this.id,
+    required this.hubKey,
+    required this.tileId,
+    required this.healpixOrder,
+    this.lastContributedAt,
+    this.lastContributedLabel,
+    this.contributionId,
+    required this.contributedFrames,
+    required this.contributedIntegrationSeconds,
+    this.lastPulledFrames,
+    this.lastPulledIntegrationSeconds,
+    this.lastPulledAt,
+    required this.joined,
+    this.targetName,
+    this.targetRaDeg,
+    this.targetDecDeg,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['hub_key'] = Variable<String>(hubKey);
+    map['tile_id'] = Variable<int>(tileId);
+    map['healpix_order'] = Variable<int>(healpixOrder);
+    if (!nullToAbsent || lastContributedAt != null) {
+      map['last_contributed_at'] = Variable<DateTime>(lastContributedAt);
+    }
+    if (!nullToAbsent || lastContributedLabel != null) {
+      map['last_contributed_label'] = Variable<String>(lastContributedLabel);
+    }
+    if (!nullToAbsent || contributionId != null) {
+      map['contribution_id'] = Variable<String>(contributionId);
+    }
+    map['contributed_frames'] = Variable<int>(contributedFrames);
+    map['contributed_integration_seconds'] = Variable<double>(
+      contributedIntegrationSeconds,
+    );
+    if (!nullToAbsent || lastPulledFrames != null) {
+      map['last_pulled_frames'] = Variable<int>(lastPulledFrames);
+    }
+    if (!nullToAbsent || lastPulledIntegrationSeconds != null) {
+      map['last_pulled_integration_seconds'] = Variable<double>(
+        lastPulledIntegrationSeconds,
+      );
+    }
+    if (!nullToAbsent || lastPulledAt != null) {
+      map['last_pulled_at'] = Variable<DateTime>(lastPulledAt);
+    }
+    map['joined'] = Variable<bool>(joined);
+    if (!nullToAbsent || targetName != null) {
+      map['target_name'] = Variable<String>(targetName);
+    }
+    if (!nullToAbsent || targetRaDeg != null) {
+      map['target_ra_deg'] = Variable<double>(targetRaDeg);
+    }
+    if (!nullToAbsent || targetDecDeg != null) {
+      map['target_dec_deg'] = Variable<double>(targetDecDeg);
+    }
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  ConstellationContributionsCompanion toCompanion(bool nullToAbsent) {
+    return ConstellationContributionsCompanion(
+      id: Value(id),
+      hubKey: Value(hubKey),
+      tileId: Value(tileId),
+      healpixOrder: Value(healpixOrder),
+      lastContributedAt: lastContributedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastContributedAt),
+      lastContributedLabel: lastContributedLabel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastContributedLabel),
+      contributionId: contributionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(contributionId),
+      contributedFrames: Value(contributedFrames),
+      contributedIntegrationSeconds: Value(contributedIntegrationSeconds),
+      lastPulledFrames: lastPulledFrames == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastPulledFrames),
+      lastPulledIntegrationSeconds:
+          lastPulledIntegrationSeconds == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastPulledIntegrationSeconds),
+      lastPulledAt: lastPulledAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastPulledAt),
+      joined: Value(joined),
+      targetName: targetName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetName),
+      targetRaDeg: targetRaDeg == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetRaDeg),
+      targetDecDeg: targetDecDeg == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetDecDeg),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory ConstellationContributionRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ConstellationContributionRow(
+      id: serializer.fromJson<int>(json['id']),
+      hubKey: serializer.fromJson<String>(json['hubKey']),
+      tileId: serializer.fromJson<int>(json['tileId']),
+      healpixOrder: serializer.fromJson<int>(json['healpixOrder']),
+      lastContributedAt: serializer.fromJson<DateTime?>(
+        json['lastContributedAt'],
+      ),
+      lastContributedLabel: serializer.fromJson<String?>(
+        json['lastContributedLabel'],
+      ),
+      contributionId: serializer.fromJson<String?>(json['contributionId']),
+      contributedFrames: serializer.fromJson<int>(json['contributedFrames']),
+      contributedIntegrationSeconds: serializer.fromJson<double>(
+        json['contributedIntegrationSeconds'],
+      ),
+      lastPulledFrames: serializer.fromJson<int?>(json['lastPulledFrames']),
+      lastPulledIntegrationSeconds: serializer.fromJson<double?>(
+        json['lastPulledIntegrationSeconds'],
+      ),
+      lastPulledAt: serializer.fromJson<DateTime?>(json['lastPulledAt']),
+      joined: serializer.fromJson<bool>(json['joined']),
+      targetName: serializer.fromJson<String?>(json['targetName']),
+      targetRaDeg: serializer.fromJson<double?>(json['targetRaDeg']),
+      targetDecDeg: serializer.fromJson<double?>(json['targetDecDeg']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'hubKey': serializer.toJson<String>(hubKey),
+      'tileId': serializer.toJson<int>(tileId),
+      'healpixOrder': serializer.toJson<int>(healpixOrder),
+      'lastContributedAt': serializer.toJson<DateTime?>(lastContributedAt),
+      'lastContributedLabel': serializer.toJson<String?>(lastContributedLabel),
+      'contributionId': serializer.toJson<String?>(contributionId),
+      'contributedFrames': serializer.toJson<int>(contributedFrames),
+      'contributedIntegrationSeconds': serializer.toJson<double>(
+        contributedIntegrationSeconds,
+      ),
+      'lastPulledFrames': serializer.toJson<int?>(lastPulledFrames),
+      'lastPulledIntegrationSeconds': serializer.toJson<double?>(
+        lastPulledIntegrationSeconds,
+      ),
+      'lastPulledAt': serializer.toJson<DateTime?>(lastPulledAt),
+      'joined': serializer.toJson<bool>(joined),
+      'targetName': serializer.toJson<String?>(targetName),
+      'targetRaDeg': serializer.toJson<double?>(targetRaDeg),
+      'targetDecDeg': serializer.toJson<double?>(targetDecDeg),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  ConstellationContributionRow copyWith({
+    int? id,
+    String? hubKey,
+    int? tileId,
+    int? healpixOrder,
+    Value<DateTime?> lastContributedAt = const Value.absent(),
+    Value<String?> lastContributedLabel = const Value.absent(),
+    Value<String?> contributionId = const Value.absent(),
+    int? contributedFrames,
+    double? contributedIntegrationSeconds,
+    Value<int?> lastPulledFrames = const Value.absent(),
+    Value<double?> lastPulledIntegrationSeconds = const Value.absent(),
+    Value<DateTime?> lastPulledAt = const Value.absent(),
+    bool? joined,
+    Value<String?> targetName = const Value.absent(),
+    Value<double?> targetRaDeg = const Value.absent(),
+    Value<double?> targetDecDeg = const Value.absent(),
+    DateTime? updatedAt,
+  }) => ConstellationContributionRow(
+    id: id ?? this.id,
+    hubKey: hubKey ?? this.hubKey,
+    tileId: tileId ?? this.tileId,
+    healpixOrder: healpixOrder ?? this.healpixOrder,
+    lastContributedAt: lastContributedAt.present
+        ? lastContributedAt.value
+        : this.lastContributedAt,
+    lastContributedLabel: lastContributedLabel.present
+        ? lastContributedLabel.value
+        : this.lastContributedLabel,
+    contributionId: contributionId.present
+        ? contributionId.value
+        : this.contributionId,
+    contributedFrames: contributedFrames ?? this.contributedFrames,
+    contributedIntegrationSeconds:
+        contributedIntegrationSeconds ?? this.contributedIntegrationSeconds,
+    lastPulledFrames: lastPulledFrames.present
+        ? lastPulledFrames.value
+        : this.lastPulledFrames,
+    lastPulledIntegrationSeconds: lastPulledIntegrationSeconds.present
+        ? lastPulledIntegrationSeconds.value
+        : this.lastPulledIntegrationSeconds,
+    lastPulledAt: lastPulledAt.present ? lastPulledAt.value : this.lastPulledAt,
+    joined: joined ?? this.joined,
+    targetName: targetName.present ? targetName.value : this.targetName,
+    targetRaDeg: targetRaDeg.present ? targetRaDeg.value : this.targetRaDeg,
+    targetDecDeg: targetDecDeg.present ? targetDecDeg.value : this.targetDecDeg,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  ConstellationContributionRow copyWithCompanion(
+    ConstellationContributionsCompanion data,
+  ) {
+    return ConstellationContributionRow(
+      id: data.id.present ? data.id.value : this.id,
+      hubKey: data.hubKey.present ? data.hubKey.value : this.hubKey,
+      tileId: data.tileId.present ? data.tileId.value : this.tileId,
+      healpixOrder: data.healpixOrder.present
+          ? data.healpixOrder.value
+          : this.healpixOrder,
+      lastContributedAt: data.lastContributedAt.present
+          ? data.lastContributedAt.value
+          : this.lastContributedAt,
+      lastContributedLabel: data.lastContributedLabel.present
+          ? data.lastContributedLabel.value
+          : this.lastContributedLabel,
+      contributionId: data.contributionId.present
+          ? data.contributionId.value
+          : this.contributionId,
+      contributedFrames: data.contributedFrames.present
+          ? data.contributedFrames.value
+          : this.contributedFrames,
+      contributedIntegrationSeconds: data.contributedIntegrationSeconds.present
+          ? data.contributedIntegrationSeconds.value
+          : this.contributedIntegrationSeconds,
+      lastPulledFrames: data.lastPulledFrames.present
+          ? data.lastPulledFrames.value
+          : this.lastPulledFrames,
+      lastPulledIntegrationSeconds: data.lastPulledIntegrationSeconds.present
+          ? data.lastPulledIntegrationSeconds.value
+          : this.lastPulledIntegrationSeconds,
+      lastPulledAt: data.lastPulledAt.present
+          ? data.lastPulledAt.value
+          : this.lastPulledAt,
+      joined: data.joined.present ? data.joined.value : this.joined,
+      targetName: data.targetName.present
+          ? data.targetName.value
+          : this.targetName,
+      targetRaDeg: data.targetRaDeg.present
+          ? data.targetRaDeg.value
+          : this.targetRaDeg,
+      targetDecDeg: data.targetDecDeg.present
+          ? data.targetDecDeg.value
+          : this.targetDecDeg,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ConstellationContributionRow(')
+          ..write('id: $id, ')
+          ..write('hubKey: $hubKey, ')
+          ..write('tileId: $tileId, ')
+          ..write('healpixOrder: $healpixOrder, ')
+          ..write('lastContributedAt: $lastContributedAt, ')
+          ..write('lastContributedLabel: $lastContributedLabel, ')
+          ..write('contributionId: $contributionId, ')
+          ..write('contributedFrames: $contributedFrames, ')
+          ..write(
+            'contributedIntegrationSeconds: $contributedIntegrationSeconds, ',
+          )
+          ..write('lastPulledFrames: $lastPulledFrames, ')
+          ..write(
+            'lastPulledIntegrationSeconds: $lastPulledIntegrationSeconds, ',
+          )
+          ..write('lastPulledAt: $lastPulledAt, ')
+          ..write('joined: $joined, ')
+          ..write('targetName: $targetName, ')
+          ..write('targetRaDeg: $targetRaDeg, ')
+          ..write('targetDecDeg: $targetDecDeg, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    hubKey,
+    tileId,
+    healpixOrder,
+    lastContributedAt,
+    lastContributedLabel,
+    contributionId,
+    contributedFrames,
+    contributedIntegrationSeconds,
+    lastPulledFrames,
+    lastPulledIntegrationSeconds,
+    lastPulledAt,
+    joined,
+    targetName,
+    targetRaDeg,
+    targetDecDeg,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ConstellationContributionRow &&
+          other.id == this.id &&
+          other.hubKey == this.hubKey &&
+          other.tileId == this.tileId &&
+          other.healpixOrder == this.healpixOrder &&
+          other.lastContributedAt == this.lastContributedAt &&
+          other.lastContributedLabel == this.lastContributedLabel &&
+          other.contributionId == this.contributionId &&
+          other.contributedFrames == this.contributedFrames &&
+          other.contributedIntegrationSeconds ==
+              this.contributedIntegrationSeconds &&
+          other.lastPulledFrames == this.lastPulledFrames &&
+          other.lastPulledIntegrationSeconds ==
+              this.lastPulledIntegrationSeconds &&
+          other.lastPulledAt == this.lastPulledAt &&
+          other.joined == this.joined &&
+          other.targetName == this.targetName &&
+          other.targetRaDeg == this.targetRaDeg &&
+          other.targetDecDeg == this.targetDecDeg &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ConstellationContributionsCompanion
+    extends UpdateCompanion<ConstellationContributionRow> {
+  final Value<int> id;
+  final Value<String> hubKey;
+  final Value<int> tileId;
+  final Value<int> healpixOrder;
+  final Value<DateTime?> lastContributedAt;
+  final Value<String?> lastContributedLabel;
+  final Value<String?> contributionId;
+  final Value<int> contributedFrames;
+  final Value<double> contributedIntegrationSeconds;
+  final Value<int?> lastPulledFrames;
+  final Value<double?> lastPulledIntegrationSeconds;
+  final Value<DateTime?> lastPulledAt;
+  final Value<bool> joined;
+  final Value<String?> targetName;
+  final Value<double?> targetRaDeg;
+  final Value<double?> targetDecDeg;
+  final Value<DateTime> updatedAt;
+  const ConstellationContributionsCompanion({
+    this.id = const Value.absent(),
+    this.hubKey = const Value.absent(),
+    this.tileId = const Value.absent(),
+    this.healpixOrder = const Value.absent(),
+    this.lastContributedAt = const Value.absent(),
+    this.lastContributedLabel = const Value.absent(),
+    this.contributionId = const Value.absent(),
+    this.contributedFrames = const Value.absent(),
+    this.contributedIntegrationSeconds = const Value.absent(),
+    this.lastPulledFrames = const Value.absent(),
+    this.lastPulledIntegrationSeconds = const Value.absent(),
+    this.lastPulledAt = const Value.absent(),
+    this.joined = const Value.absent(),
+    this.targetName = const Value.absent(),
+    this.targetRaDeg = const Value.absent(),
+    this.targetDecDeg = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  ConstellationContributionsCompanion.insert({
+    this.id = const Value.absent(),
+    required String hubKey,
+    required int tileId,
+    required int healpixOrder,
+    this.lastContributedAt = const Value.absent(),
+    this.lastContributedLabel = const Value.absent(),
+    this.contributionId = const Value.absent(),
+    this.contributedFrames = const Value.absent(),
+    this.contributedIntegrationSeconds = const Value.absent(),
+    this.lastPulledFrames = const Value.absent(),
+    this.lastPulledIntegrationSeconds = const Value.absent(),
+    this.lastPulledAt = const Value.absent(),
+    this.joined = const Value.absent(),
+    this.targetName = const Value.absent(),
+    this.targetRaDeg = const Value.absent(),
+    this.targetDecDeg = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  }) : hubKey = Value(hubKey),
+       tileId = Value(tileId),
+       healpixOrder = Value(healpixOrder);
+  static Insertable<ConstellationContributionRow> custom({
+    Expression<int>? id,
+    Expression<String>? hubKey,
+    Expression<int>? tileId,
+    Expression<int>? healpixOrder,
+    Expression<DateTime>? lastContributedAt,
+    Expression<String>? lastContributedLabel,
+    Expression<String>? contributionId,
+    Expression<int>? contributedFrames,
+    Expression<double>? contributedIntegrationSeconds,
+    Expression<int>? lastPulledFrames,
+    Expression<double>? lastPulledIntegrationSeconds,
+    Expression<DateTime>? lastPulledAt,
+    Expression<bool>? joined,
+    Expression<String>? targetName,
+    Expression<double>? targetRaDeg,
+    Expression<double>? targetDecDeg,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (hubKey != null) 'hub_key': hubKey,
+      if (tileId != null) 'tile_id': tileId,
+      if (healpixOrder != null) 'healpix_order': healpixOrder,
+      if (lastContributedAt != null) 'last_contributed_at': lastContributedAt,
+      if (lastContributedLabel != null)
+        'last_contributed_label': lastContributedLabel,
+      if (contributionId != null) 'contribution_id': contributionId,
+      if (contributedFrames != null) 'contributed_frames': contributedFrames,
+      if (contributedIntegrationSeconds != null)
+        'contributed_integration_seconds': contributedIntegrationSeconds,
+      if (lastPulledFrames != null) 'last_pulled_frames': lastPulledFrames,
+      if (lastPulledIntegrationSeconds != null)
+        'last_pulled_integration_seconds': lastPulledIntegrationSeconds,
+      if (lastPulledAt != null) 'last_pulled_at': lastPulledAt,
+      if (joined != null) 'joined': joined,
+      if (targetName != null) 'target_name': targetName,
+      if (targetRaDeg != null) 'target_ra_deg': targetRaDeg,
+      if (targetDecDeg != null) 'target_dec_deg': targetDecDeg,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  ConstellationContributionsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? hubKey,
+    Value<int>? tileId,
+    Value<int>? healpixOrder,
+    Value<DateTime?>? lastContributedAt,
+    Value<String?>? lastContributedLabel,
+    Value<String?>? contributionId,
+    Value<int>? contributedFrames,
+    Value<double>? contributedIntegrationSeconds,
+    Value<int?>? lastPulledFrames,
+    Value<double?>? lastPulledIntegrationSeconds,
+    Value<DateTime?>? lastPulledAt,
+    Value<bool>? joined,
+    Value<String?>? targetName,
+    Value<double?>? targetRaDeg,
+    Value<double?>? targetDecDeg,
+    Value<DateTime>? updatedAt,
+  }) {
+    return ConstellationContributionsCompanion(
+      id: id ?? this.id,
+      hubKey: hubKey ?? this.hubKey,
+      tileId: tileId ?? this.tileId,
+      healpixOrder: healpixOrder ?? this.healpixOrder,
+      lastContributedAt: lastContributedAt ?? this.lastContributedAt,
+      lastContributedLabel: lastContributedLabel ?? this.lastContributedLabel,
+      contributionId: contributionId ?? this.contributionId,
+      contributedFrames: contributedFrames ?? this.contributedFrames,
+      contributedIntegrationSeconds:
+          contributedIntegrationSeconds ?? this.contributedIntegrationSeconds,
+      lastPulledFrames: lastPulledFrames ?? this.lastPulledFrames,
+      lastPulledIntegrationSeconds:
+          lastPulledIntegrationSeconds ?? this.lastPulledIntegrationSeconds,
+      lastPulledAt: lastPulledAt ?? this.lastPulledAt,
+      joined: joined ?? this.joined,
+      targetName: targetName ?? this.targetName,
+      targetRaDeg: targetRaDeg ?? this.targetRaDeg,
+      targetDecDeg: targetDecDeg ?? this.targetDecDeg,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (hubKey.present) {
+      map['hub_key'] = Variable<String>(hubKey.value);
+    }
+    if (tileId.present) {
+      map['tile_id'] = Variable<int>(tileId.value);
+    }
+    if (healpixOrder.present) {
+      map['healpix_order'] = Variable<int>(healpixOrder.value);
+    }
+    if (lastContributedAt.present) {
+      map['last_contributed_at'] = Variable<DateTime>(lastContributedAt.value);
+    }
+    if (lastContributedLabel.present) {
+      map['last_contributed_label'] = Variable<String>(
+        lastContributedLabel.value,
+      );
+    }
+    if (contributionId.present) {
+      map['contribution_id'] = Variable<String>(contributionId.value);
+    }
+    if (contributedFrames.present) {
+      map['contributed_frames'] = Variable<int>(contributedFrames.value);
+    }
+    if (contributedIntegrationSeconds.present) {
+      map['contributed_integration_seconds'] = Variable<double>(
+        contributedIntegrationSeconds.value,
+      );
+    }
+    if (lastPulledFrames.present) {
+      map['last_pulled_frames'] = Variable<int>(lastPulledFrames.value);
+    }
+    if (lastPulledIntegrationSeconds.present) {
+      map['last_pulled_integration_seconds'] = Variable<double>(
+        lastPulledIntegrationSeconds.value,
+      );
+    }
+    if (lastPulledAt.present) {
+      map['last_pulled_at'] = Variable<DateTime>(lastPulledAt.value);
+    }
+    if (joined.present) {
+      map['joined'] = Variable<bool>(joined.value);
+    }
+    if (targetName.present) {
+      map['target_name'] = Variable<String>(targetName.value);
+    }
+    if (targetRaDeg.present) {
+      map['target_ra_deg'] = Variable<double>(targetRaDeg.value);
+    }
+    if (targetDecDeg.present) {
+      map['target_dec_deg'] = Variable<double>(targetDecDeg.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ConstellationContributionsCompanion(')
+          ..write('id: $id, ')
+          ..write('hubKey: $hubKey, ')
+          ..write('tileId: $tileId, ')
+          ..write('healpixOrder: $healpixOrder, ')
+          ..write('lastContributedAt: $lastContributedAt, ')
+          ..write('lastContributedLabel: $lastContributedLabel, ')
+          ..write('contributionId: $contributionId, ')
+          ..write('contributedFrames: $contributedFrames, ')
+          ..write(
+            'contributedIntegrationSeconds: $contributedIntegrationSeconds, ',
+          )
+          ..write('lastPulledFrames: $lastPulledFrames, ')
+          ..write(
+            'lastPulledIntegrationSeconds: $lastPulledIntegrationSeconds, ',
+          )
+          ..write('lastPulledAt: $lastPulledAt, ')
+          ..write('joined: $joined, ')
+          ..write('targetName: $targetName, ')
+          ..write('targetRaDeg: $targetRaDeg, ')
+          ..write('targetDecDeg: $targetDecDeg, ')
+          ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
   }
@@ -31420,6 +32687,8 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
   );
   late final $SkyTilesTable skyTiles = $SkyTilesTable(this);
   late final $SkyAtlasFoldsTable skyAtlasFolds = $SkyAtlasFoldsTable(this);
+  late final $ConstellationContributionsTable constellationContributions =
+      $ConstellationContributionsTable(this);
   late final $TransientDetectionsTable transientDetections =
       $TransientDetectionsTable(this);
   late final Index idxProfilesName = Index(
@@ -31830,6 +33099,10 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
     'idx_sky_atlas_folds_session',
     'CREATE INDEX idx_sky_atlas_folds_session ON sky_atlas_folds (session_id)',
   );
+  late final Index idxConstellationContributionsKey = Index(
+    'idx_constellation_contributions_key',
+    'CREATE UNIQUE INDEX idx_constellation_contributions_key ON constellation_contributions (hub_key, tile_id, healpix_order)',
+  );
   late final Index idxTransientDetectionsSession = Index(
     'idx_transient_detections_session',
     'CREATE INDEX idx_transient_detections_session ON transient_detections (session_id)',
@@ -31890,6 +33163,8 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
     this as NightshadeDatabase,
   );
   late final SkyAtlasDao skyAtlasDao = SkyAtlasDao(this as NightshadeDatabase);
+  late final ConstellationContributionsDao constellationContributionsDao =
+      ConstellationContributionsDao(this as NightshadeDatabase);
   late final TransientDetectionsDao transientDetectionsDao =
       TransientDetectionsDao(this as NightshadeDatabase);
   @override
@@ -31935,6 +33210,7 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
     skyAtlasRegions,
     skyTiles,
     skyAtlasFolds,
+    constellationContributions,
     transientDetections,
     idxProfilesName,
     idxProfilesActive,
@@ -32038,6 +33314,7 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
     idxSkyAtlasRegionsTarget,
     idxSkyAtlasFoldsTileTime,
     idxSkyAtlasFoldsSession,
+    idxConstellationContributionsKey,
     idxTransientDetectionsSession,
     idxTransientDetectionsTile,
     idxTransientDetectionsDetected,
@@ -39231,6 +40508,7 @@ typedef $$CapturedImagesTableCreateCompanionBuilder =
       Value<double?> solvedPixelScale,
       required DateTime capturedAt,
       Value<DateTime> createdAt,
+      Value<DateTime?> atlasFoldedAt,
       Value<bool> isAccepted,
       Value<String?> rejectionReason,
     });
@@ -39275,6 +40553,7 @@ typedef $$CapturedImagesTableUpdateCompanionBuilder =
       Value<double?> solvedPixelScale,
       Value<DateTime> capturedAt,
       Value<DateTime> createdAt,
+      Value<DateTime?> atlasFoldedAt,
       Value<bool> isAccepted,
       Value<String?> rejectionReason,
     });
@@ -39815,6 +41094,11 @@ class $$CapturedImagesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<DateTime> get atlasFoldedAt => $composableBuilder(
+    column: $table.atlasFoldedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<bool> get isAccepted => $composableBuilder(
     column: $table.isAccepted,
     builder: (column) => ColumnFilters(column),
@@ -40351,6 +41635,11 @@ class $$CapturedImagesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get atlasFoldedAt => $composableBuilder(
+    column: $table.atlasFoldedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isAccepted => $composableBuilder(
     column: $table.isAccepted,
     builder: (column) => ColumnOrderings(column),
@@ -40563,6 +41852,11 @@ class $$CapturedImagesTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get atlasFoldedAt => $composableBuilder(
+    column: $table.atlasFoldedAt,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<bool> get isAccepted => $composableBuilder(
     column: $table.isAccepted,
@@ -40994,6 +42288,7 @@ class $$CapturedImagesTableTableManager
                 Value<double?> solvedPixelScale = const Value.absent(),
                 Value<DateTime> capturedAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> atlasFoldedAt = const Value.absent(),
                 Value<bool> isAccepted = const Value.absent(),
                 Value<String?> rejectionReason = const Value.absent(),
               }) => CapturedImagesCompanion(
@@ -41036,6 +42331,7 @@ class $$CapturedImagesTableTableManager
                 solvedPixelScale: solvedPixelScale,
                 capturedAt: capturedAt,
                 createdAt: createdAt,
+                atlasFoldedAt: atlasFoldedAt,
                 isAccepted: isAccepted,
                 rejectionReason: rejectionReason,
               ),
@@ -41080,6 +42376,7 @@ class $$CapturedImagesTableTableManager
                 Value<double?> solvedPixelScale = const Value.absent(),
                 required DateTime capturedAt,
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> atlasFoldedAt = const Value.absent(),
                 Value<bool> isAccepted = const Value.absent(),
                 Value<String?> rejectionReason = const Value.absent(),
               }) => CapturedImagesCompanion.insert(
@@ -41122,6 +42419,7 @@ class $$CapturedImagesTableTableManager
                 solvedPixelScale: solvedPixelScale,
                 capturedAt: capturedAt,
                 createdAt: createdAt,
+                atlasFoldedAt: atlasFoldedAt,
                 isAccepted: isAccepted,
                 rejectionReason: rejectionReason,
               ),
@@ -55086,6 +56384,8 @@ typedef $$SkyTilesTableCreateCompanionBuilder =
       Value<double> coverageMean,
       Value<int> totalFrames,
       Value<double> integrationSeconds,
+      Value<int> swarmOverlayFrames,
+      Value<double> swarmOverlayIntegrationSeconds,
       required String sidecarPath,
       Value<int?> lastFoldSessionId,
       Value<DateTime?> lastFoldAt,
@@ -55103,6 +56403,8 @@ typedef $$SkyTilesTableUpdateCompanionBuilder =
       Value<double> coverageMean,
       Value<int> totalFrames,
       Value<double> integrationSeconds,
+      Value<int> swarmOverlayFrames,
+      Value<double> swarmOverlayIntegrationSeconds,
       Value<String> sidecarPath,
       Value<int?> lastFoldSessionId,
       Value<DateTime?> lastFoldAt,
@@ -55207,6 +56509,17 @@ class $$SkyTilesTableFilterComposer
     column: $table.integrationSeconds,
     builder: (column) => ColumnFilters(column),
   );
+
+  ColumnFilters<int> get swarmOverlayFrames => $composableBuilder(
+    column: $table.swarmOverlayFrames,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get swarmOverlayIntegrationSeconds =>
+      $composableBuilder(
+        column: $table.swarmOverlayIntegrationSeconds,
+        builder: (column) => ColumnFilters(column),
+      );
 
   ColumnFilters<String> get sidecarPath => $composableBuilder(
     column: $table.sidecarPath,
@@ -55324,6 +56637,17 @@ class $$SkyTilesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get swarmOverlayFrames => $composableBuilder(
+    column: $table.swarmOverlayFrames,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get swarmOverlayIntegrationSeconds =>
+      $composableBuilder(
+        column: $table.swarmOverlayIntegrationSeconds,
+        builder: (column) => ColumnOrderings(column),
+      );
+
   ColumnOrderings<String> get sidecarPath => $composableBuilder(
     column: $table.sidecarPath,
     builder: (column) => ColumnOrderings(column),
@@ -55434,6 +56758,17 @@ class $$SkyTilesTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get swarmOverlayFrames => $composableBuilder(
+    column: $table.swarmOverlayFrames,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get swarmOverlayIntegrationSeconds =>
+      $composableBuilder(
+        column: $table.swarmOverlayIntegrationSeconds,
+        builder: (column) => column,
+      );
+
   GeneratedColumn<String> get sidecarPath => $composableBuilder(
     column: $table.sidecarPath,
     builder: (column) => column,
@@ -55531,6 +56866,9 @@ class $$SkyTilesTableTableManager
                 Value<double> coverageMean = const Value.absent(),
                 Value<int> totalFrames = const Value.absent(),
                 Value<double> integrationSeconds = const Value.absent(),
+                Value<int> swarmOverlayFrames = const Value.absent(),
+                Value<double> swarmOverlayIntegrationSeconds =
+                    const Value.absent(),
                 Value<String> sidecarPath = const Value.absent(),
                 Value<int?> lastFoldSessionId = const Value.absent(),
                 Value<DateTime?> lastFoldAt = const Value.absent(),
@@ -55546,6 +56884,8 @@ class $$SkyTilesTableTableManager
                 coverageMean: coverageMean,
                 totalFrames: totalFrames,
                 integrationSeconds: integrationSeconds,
+                swarmOverlayFrames: swarmOverlayFrames,
+                swarmOverlayIntegrationSeconds: swarmOverlayIntegrationSeconds,
                 sidecarPath: sidecarPath,
                 lastFoldSessionId: lastFoldSessionId,
                 lastFoldAt: lastFoldAt,
@@ -55563,6 +56903,9 @@ class $$SkyTilesTableTableManager
                 Value<double> coverageMean = const Value.absent(),
                 Value<int> totalFrames = const Value.absent(),
                 Value<double> integrationSeconds = const Value.absent(),
+                Value<int> swarmOverlayFrames = const Value.absent(),
+                Value<double> swarmOverlayIntegrationSeconds =
+                    const Value.absent(),
                 required String sidecarPath,
                 Value<int?> lastFoldSessionId = const Value.absent(),
                 Value<DateTime?> lastFoldAt = const Value.absent(),
@@ -55578,6 +56921,8 @@ class $$SkyTilesTableTableManager
                 coverageMean: coverageMean,
                 totalFrames: totalFrames,
                 integrationSeconds: integrationSeconds,
+                swarmOverlayFrames: swarmOverlayFrames,
+                swarmOverlayIntegrationSeconds: swarmOverlayIntegrationSeconds,
                 sidecarPath: sidecarPath,
                 lastFoldSessionId: lastFoldSessionId,
                 lastFoldAt: lastFoldAt,
@@ -56112,6 +57457,479 @@ typedef $$SkyAtlasFoldsTableProcessedTableManager =
       (SkyAtlasFoldRow, $$SkyAtlasFoldsTableReferences),
       SkyAtlasFoldRow,
       PrefetchHooks Function({bool sessionId})
+    >;
+typedef $$ConstellationContributionsTableCreateCompanionBuilder =
+    ConstellationContributionsCompanion Function({
+      Value<int> id,
+      required String hubKey,
+      required int tileId,
+      required int healpixOrder,
+      Value<DateTime?> lastContributedAt,
+      Value<String?> lastContributedLabel,
+      Value<String?> contributionId,
+      Value<int> contributedFrames,
+      Value<double> contributedIntegrationSeconds,
+      Value<int?> lastPulledFrames,
+      Value<double?> lastPulledIntegrationSeconds,
+      Value<DateTime?> lastPulledAt,
+      Value<bool> joined,
+      Value<String?> targetName,
+      Value<double?> targetRaDeg,
+      Value<double?> targetDecDeg,
+      Value<DateTime> updatedAt,
+    });
+typedef $$ConstellationContributionsTableUpdateCompanionBuilder =
+    ConstellationContributionsCompanion Function({
+      Value<int> id,
+      Value<String> hubKey,
+      Value<int> tileId,
+      Value<int> healpixOrder,
+      Value<DateTime?> lastContributedAt,
+      Value<String?> lastContributedLabel,
+      Value<String?> contributionId,
+      Value<int> contributedFrames,
+      Value<double> contributedIntegrationSeconds,
+      Value<int?> lastPulledFrames,
+      Value<double?> lastPulledIntegrationSeconds,
+      Value<DateTime?> lastPulledAt,
+      Value<bool> joined,
+      Value<String?> targetName,
+      Value<double?> targetRaDeg,
+      Value<double?> targetDecDeg,
+      Value<DateTime> updatedAt,
+    });
+
+class $$ConstellationContributionsTableFilterComposer
+    extends Composer<_$NightshadeDatabase, $ConstellationContributionsTable> {
+  $$ConstellationContributionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get hubKey => $composableBuilder(
+    column: $table.hubKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get tileId => $composableBuilder(
+    column: $table.tileId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get healpixOrder => $composableBuilder(
+    column: $table.healpixOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastContributedAt => $composableBuilder(
+    column: $table.lastContributedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastContributedLabel => $composableBuilder(
+    column: $table.lastContributedLabel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contributionId => $composableBuilder(
+    column: $table.contributionId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get contributedFrames => $composableBuilder(
+    column: $table.contributedFrames,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get contributedIntegrationSeconds => $composableBuilder(
+    column: $table.contributedIntegrationSeconds,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastPulledFrames => $composableBuilder(
+    column: $table.lastPulledFrames,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get lastPulledIntegrationSeconds => $composableBuilder(
+    column: $table.lastPulledIntegrationSeconds,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastPulledAt => $composableBuilder(
+    column: $table.lastPulledAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get joined => $composableBuilder(
+    column: $table.joined,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get targetName => $composableBuilder(
+    column: $table.targetName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get targetRaDeg => $composableBuilder(
+    column: $table.targetRaDeg,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get targetDecDeg => $composableBuilder(
+    column: $table.targetDecDeg,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ConstellationContributionsTableOrderingComposer
+    extends Composer<_$NightshadeDatabase, $ConstellationContributionsTable> {
+  $$ConstellationContributionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get hubKey => $composableBuilder(
+    column: $table.hubKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get tileId => $composableBuilder(
+    column: $table.tileId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get healpixOrder => $composableBuilder(
+    column: $table.healpixOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastContributedAt => $composableBuilder(
+    column: $table.lastContributedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastContributedLabel => $composableBuilder(
+    column: $table.lastContributedLabel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contributionId => $composableBuilder(
+    column: $table.contributionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get contributedFrames => $composableBuilder(
+    column: $table.contributedFrames,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get contributedIntegrationSeconds =>
+      $composableBuilder(
+        column: $table.contributedIntegrationSeconds,
+        builder: (column) => ColumnOrderings(column),
+      );
+
+  ColumnOrderings<int> get lastPulledFrames => $composableBuilder(
+    column: $table.lastPulledFrames,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get lastPulledIntegrationSeconds =>
+      $composableBuilder(
+        column: $table.lastPulledIntegrationSeconds,
+        builder: (column) => ColumnOrderings(column),
+      );
+
+  ColumnOrderings<DateTime> get lastPulledAt => $composableBuilder(
+    column: $table.lastPulledAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get joined => $composableBuilder(
+    column: $table.joined,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get targetName => $composableBuilder(
+    column: $table.targetName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get targetRaDeg => $composableBuilder(
+    column: $table.targetRaDeg,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get targetDecDeg => $composableBuilder(
+    column: $table.targetDecDeg,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ConstellationContributionsTableAnnotationComposer
+    extends Composer<_$NightshadeDatabase, $ConstellationContributionsTable> {
+  $$ConstellationContributionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get hubKey =>
+      $composableBuilder(column: $table.hubKey, builder: (column) => column);
+
+  GeneratedColumn<int> get tileId =>
+      $composableBuilder(column: $table.tileId, builder: (column) => column);
+
+  GeneratedColumn<int> get healpixOrder => $composableBuilder(
+    column: $table.healpixOrder,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastContributedAt => $composableBuilder(
+    column: $table.lastContributedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastContributedLabel => $composableBuilder(
+    column: $table.lastContributedLabel,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get contributionId => $composableBuilder(
+    column: $table.contributionId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get contributedFrames => $composableBuilder(
+    column: $table.contributedFrames,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get contributedIntegrationSeconds =>
+      $composableBuilder(
+        column: $table.contributedIntegrationSeconds,
+        builder: (column) => column,
+      );
+
+  GeneratedColumn<int> get lastPulledFrames => $composableBuilder(
+    column: $table.lastPulledFrames,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get lastPulledIntegrationSeconds =>
+      $composableBuilder(
+        column: $table.lastPulledIntegrationSeconds,
+        builder: (column) => column,
+      );
+
+  GeneratedColumn<DateTime> get lastPulledAt => $composableBuilder(
+    column: $table.lastPulledAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get joined =>
+      $composableBuilder(column: $table.joined, builder: (column) => column);
+
+  GeneratedColumn<String> get targetName => $composableBuilder(
+    column: $table.targetName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get targetRaDeg => $composableBuilder(
+    column: $table.targetRaDeg,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get targetDecDeg => $composableBuilder(
+    column: $table.targetDecDeg,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$ConstellationContributionsTableTableManager
+    extends
+        RootTableManager<
+          _$NightshadeDatabase,
+          $ConstellationContributionsTable,
+          ConstellationContributionRow,
+          $$ConstellationContributionsTableFilterComposer,
+          $$ConstellationContributionsTableOrderingComposer,
+          $$ConstellationContributionsTableAnnotationComposer,
+          $$ConstellationContributionsTableCreateCompanionBuilder,
+          $$ConstellationContributionsTableUpdateCompanionBuilder,
+          (
+            ConstellationContributionRow,
+            BaseReferences<
+              _$NightshadeDatabase,
+              $ConstellationContributionsTable,
+              ConstellationContributionRow
+            >,
+          ),
+          ConstellationContributionRow,
+          PrefetchHooks Function()
+        > {
+  $$ConstellationContributionsTableTableManager(
+    _$NightshadeDatabase db,
+    $ConstellationContributionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ConstellationContributionsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$ConstellationContributionsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ConstellationContributionsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> hubKey = const Value.absent(),
+                Value<int> tileId = const Value.absent(),
+                Value<int> healpixOrder = const Value.absent(),
+                Value<DateTime?> lastContributedAt = const Value.absent(),
+                Value<String?> lastContributedLabel = const Value.absent(),
+                Value<String?> contributionId = const Value.absent(),
+                Value<int> contributedFrames = const Value.absent(),
+                Value<double> contributedIntegrationSeconds =
+                    const Value.absent(),
+                Value<int?> lastPulledFrames = const Value.absent(),
+                Value<double?> lastPulledIntegrationSeconds =
+                    const Value.absent(),
+                Value<DateTime?> lastPulledAt = const Value.absent(),
+                Value<bool> joined = const Value.absent(),
+                Value<String?> targetName = const Value.absent(),
+                Value<double?> targetRaDeg = const Value.absent(),
+                Value<double?> targetDecDeg = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => ConstellationContributionsCompanion(
+                id: id,
+                hubKey: hubKey,
+                tileId: tileId,
+                healpixOrder: healpixOrder,
+                lastContributedAt: lastContributedAt,
+                lastContributedLabel: lastContributedLabel,
+                contributionId: contributionId,
+                contributedFrames: contributedFrames,
+                contributedIntegrationSeconds: contributedIntegrationSeconds,
+                lastPulledFrames: lastPulledFrames,
+                lastPulledIntegrationSeconds: lastPulledIntegrationSeconds,
+                lastPulledAt: lastPulledAt,
+                joined: joined,
+                targetName: targetName,
+                targetRaDeg: targetRaDeg,
+                targetDecDeg: targetDecDeg,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String hubKey,
+                required int tileId,
+                required int healpixOrder,
+                Value<DateTime?> lastContributedAt = const Value.absent(),
+                Value<String?> lastContributedLabel = const Value.absent(),
+                Value<String?> contributionId = const Value.absent(),
+                Value<int> contributedFrames = const Value.absent(),
+                Value<double> contributedIntegrationSeconds =
+                    const Value.absent(),
+                Value<int?> lastPulledFrames = const Value.absent(),
+                Value<double?> lastPulledIntegrationSeconds =
+                    const Value.absent(),
+                Value<DateTime?> lastPulledAt = const Value.absent(),
+                Value<bool> joined = const Value.absent(),
+                Value<String?> targetName = const Value.absent(),
+                Value<double?> targetRaDeg = const Value.absent(),
+                Value<double?> targetDecDeg = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => ConstellationContributionsCompanion.insert(
+                id: id,
+                hubKey: hubKey,
+                tileId: tileId,
+                healpixOrder: healpixOrder,
+                lastContributedAt: lastContributedAt,
+                lastContributedLabel: lastContributedLabel,
+                contributionId: contributionId,
+                contributedFrames: contributedFrames,
+                contributedIntegrationSeconds: contributedIntegrationSeconds,
+                lastPulledFrames: lastPulledFrames,
+                lastPulledIntegrationSeconds: lastPulledIntegrationSeconds,
+                lastPulledAt: lastPulledAt,
+                joined: joined,
+                targetName: targetName,
+                targetRaDeg: targetRaDeg,
+                targetDecDeg: targetDecDeg,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ConstellationContributionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NightshadeDatabase,
+      $ConstellationContributionsTable,
+      ConstellationContributionRow,
+      $$ConstellationContributionsTableFilterComposer,
+      $$ConstellationContributionsTableOrderingComposer,
+      $$ConstellationContributionsTableAnnotationComposer,
+      $$ConstellationContributionsTableCreateCompanionBuilder,
+      $$ConstellationContributionsTableUpdateCompanionBuilder,
+      (
+        ConstellationContributionRow,
+        BaseReferences<
+          _$NightshadeDatabase,
+          $ConstellationContributionsTable,
+          ConstellationContributionRow
+        >,
+      ),
+      ConstellationContributionRow,
+      PrefetchHooks Function()
     >;
 typedef $$TransientDetectionsTableCreateCompanionBuilder =
     TransientDetectionsCompanion Function({
@@ -56898,6 +58716,12 @@ class $NightshadeDatabaseManager {
       $$SkyTilesTableTableManager(_db, _db.skyTiles);
   $$SkyAtlasFoldsTableTableManager get skyAtlasFolds =>
       $$SkyAtlasFoldsTableTableManager(_db, _db.skyAtlasFolds);
+  $$ConstellationContributionsTableTableManager
+  get constellationContributions =>
+      $$ConstellationContributionsTableTableManager(
+        _db,
+        _db.constellationContributions,
+      );
   $$TransientDetectionsTableTableManager get transientDetections =>
       $$TransientDetectionsTableTableManager(_db, _db.transientDetections);
 }

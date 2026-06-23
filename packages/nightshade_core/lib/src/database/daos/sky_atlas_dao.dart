@@ -214,6 +214,8 @@ class SkyAtlasDao extends DatabaseAccessor<NightshadeDatabase>
     int? lastFoldSessionId,
     DateTime? lastFoldAt,
     int? regionId,
+    int? swarmOverlayFrames,
+    double? swarmOverlayIntegrationSeconds,
   }) {
     return transaction(() async {
       final existing = await getTile(tileId, healpixOrder: healpixOrder);
@@ -230,6 +232,15 @@ class SkyAtlasDao extends DatabaseAccessor<NightshadeDatabase>
             lastFoldSessionId: Value(lastFoldSessionId),
             lastFoldAt: Value(lastFoldAt),
             regionId: Value(regionId ?? existing.regionId),
+            // Overlay totals are owned by the swarm merge path; a plain fold
+            // passes null and must not clobber them, and vice versa.
+            swarmOverlayFrames: swarmOverlayFrames == null
+                ? const Value.absent()
+                : Value(swarmOverlayFrames),
+            swarmOverlayIntegrationSeconds:
+                swarmOverlayIntegrationSeconds == null
+                ? const Value.absent()
+                : Value(swarmOverlayIntegrationSeconds),
           ),
         );
         return existing.id;
@@ -248,6 +259,12 @@ class SkyAtlasDao extends DatabaseAccessor<NightshadeDatabase>
           lastFoldSessionId: Value(lastFoldSessionId),
           lastFoldAt: Value(lastFoldAt),
           regionId: Value(regionId),
+          swarmOverlayFrames: swarmOverlayFrames == null
+              ? const Value.absent()
+              : Value(swarmOverlayFrames),
+          swarmOverlayIntegrationSeconds: swarmOverlayIntegrationSeconds == null
+              ? const Value.absent()
+              : Value(swarmOverlayIntegrationSeconds),
         ),
       );
     });
