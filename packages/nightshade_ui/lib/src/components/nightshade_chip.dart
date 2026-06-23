@@ -62,12 +62,24 @@ class NightshadeChip extends StatelessWidget {
       ),
     );
 
-    if (onTap == null) return chip;
+    if (onTap == null) {
+      // A non-interactive chip is a status label; expose its text, but not a
+      // button/selected role it cannot honour.
+      return chip;
+    }
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-      child: chip,
+    // Announce the interactive chip as a toggle button and carry its
+    // selected-state so a screen reader says e.g. "Confirmed, selected, button"
+    // on the active filter — the `selected` flag drove only color before.
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+        child: ExcludeSemantics(child: chip),
+      ),
     );
   }
 }

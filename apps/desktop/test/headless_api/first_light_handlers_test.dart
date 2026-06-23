@@ -3,15 +3,18 @@ import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_desktop/headless_api/handlers/first_light_handlers.dart';
+import 'package:path/path.dart' as p;
 import 'package:shelf/shelf.dart';
 
 import 'handler_test_helpers.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   group('FirstLightHandlers', () {
     late NightshadeDatabase db;
     late TransientDetectionsDao dao;
@@ -356,6 +359,120 @@ void main() {
             Uri.parse('http://localhost/api/firstlight/nope/review'),
           ),
           'nope',
+        ),
+      );
+      expect(response.statusCode, HttpStatus.badRequest);
+    });
+  });
+
+  group('FirstLightHandlers crops', () {
+    const pathProviderChannel = MethodChannel(
+      'plugins.flutter.io/path_provider',
+    );
+    late Directory tempDir;
+    late NightshadeDatabase db;
+    late TransientDetectionsDao dao;
+    late ProviderContainer container;
+    late FirstLightHandlers handlers;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('first-light-crops-test');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(pathProviderChannel, (call) async {
+            if (call.method == 'getApplicationSupportDirectory') {
+              return tempDir.path;
+            }
+            return null;
+          });
+      db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+      dao = TransientDetectionsDao(db);
+      container = ProviderContainer(
+        overrides: [databaseProvider.overrideWithValue(db)],
+      );
+      handlers = FirstLightHandlers(container);
+    });
+
+    tearDown(() async {
+      container.dispose();
+      await db.close();
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(pathProviderChannel, null);
+      if (await tempDir.exists()) await tempDir.delete(recursive: true);
+    });
+
+    Future<int> seedDetection() => dao.insertDetection(
+      TransientDetectionsCompanion.insert(
+        tileId: 42,
+        raDeg: 120.0,
+        decDeg: 25.0,
+        residualFlux: 1500.0,
+        snr: 18.0,
+        fwhm: 2.1,
+        eccentricity: 0.1,
+        kind: 'newSource',
+        confidence: 0.8,
+      ),
+    );
+
+    test(
+      'GET crops streams the real-pixel stamp the difference pass wrote',
+      () async {
+        final id = await seedDetection();
+        // Write the deterministically-named stamp the bridge would have produced.
+        final atlasRoot = p.join(tempDir.path, 'sky_atlas');
+        final cropDir = Directory(firstLightCropDir(atlasRoot));
+        await cropDir.create(recursive: true);
+        final name = firstLightCropName(
+          tileId: 42,
+          raDeg: 120.0,
+          decDeg: 25.0,
+          stage: 'residual',
+        );
+        final pngBytes = <int>[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+        await File(p.join(cropDir.path, name)).writeAsBytes(pngBytes);
+
+        final response = await translateHandlerErrors(
+          handlers.handleGetCrop(
+            Request(
+              'GET',
+              Uri.parse('http://localhost/api/firstlight/$id/crops/residual'),
+            ),
+            '$id',
+            'residual',
+          ),
+        );
+
+        expect(response.statusCode, HttpStatus.ok);
+        expect(response.headers['content-type'], 'image/png');
+        expect(await response.read().expand((b) => b).toList(), pngBytes);
+      },
+    );
+
+    test('GET crops 404s when no stamp was captured', () async {
+      final id = await seedDetection();
+      final response = await translateHandlerErrors(
+        handlers.handleGetCrop(
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/firstlight/$id/crops/template'),
+          ),
+          '$id',
+          'template',
+        ),
+      );
+      expect(response.statusCode, HttpStatus.notFound);
+    });
+
+    test('GET crops rejects an unknown stage', () async {
+      final id = await seedDetection();
+      final response = await translateHandlerErrors(
+        handlers.handleGetCrop(
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/firstlight/$id/crops/bogus'),
+          ),
+          '$id',
+          'bogus',
         ),
       );
       expect(response.statusCode, HttpStatus.badRequest);

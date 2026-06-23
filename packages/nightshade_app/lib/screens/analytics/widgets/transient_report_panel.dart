@@ -79,34 +79,32 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
 
     return NightshadeCard(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Transient Discovery Report',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
+              style: NightshadeTypography.h6.copyWith(
                 color: colors.textPrimary,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: NightshadeTokens.spaceXs),
             Text(
               'Submit a confirmed detection to the TNS live with your bot key, '
               'or export an ingestible AAVSO / MPC report to upload manually.',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
+              style: NightshadeTypography.caption.copyWith(
                 color: colors.textMuted,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: NightshadeTokens.spaceMd),
             Text(
               'Detection',
               style: NightshadeTypography.h6.copyWith(
                 color: colors.textSecondary,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: NightshadeTokens.spaceSm),
             ...sorted.map(
               (d) => _DetectionTile(
                 colors: colors,
@@ -118,14 +116,14 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
                 }),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: NightshadeTokens.spaceMd),
             Text(
               'Network',
               style: NightshadeTypography.h6.copyWith(
                 color: colors.textSecondary,
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: NightshadeTokens.spaceSm),
             Wrap(
               spacing: NightshadeTokens.spaceSm,
               children: TransientReportFormat.values.map((fmt) {
@@ -143,20 +141,19 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
               }).toList(),
             ),
             if (!_formatEnabled(_format, selected, scienceSettings)) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: NightshadeTokens.spaceSm),
               Text(
                 _disabledReason(_format, selected, scienceSettings),
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
+                style: NightshadeTypography.labelQuiet.copyWith(
                   color: colors.warning,
                 ),
               ),
             ],
-            const SizedBox(height: 12),
+            const SizedBox(height: NightshadeTokens.spaceMd),
             if (_preview != null) ...[
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt,
                   borderRadius:
@@ -170,33 +167,30 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: NightshadeTokens.spaceSm),
             ],
             _buildActionRow(selected, scienceSettings, colors),
-            const SizedBox(height: 6),
+            const SizedBox(height: NightshadeTokens.spaceSm),
             Text(
               _actionNote(_format),
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize10,
+              style: NightshadeTypography.labelQuiet.copyWith(
                 color: colors.textMuted,
               ),
             ),
             if (_lastAtName != null) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: NightshadeTokens.spaceSm),
               Text(
                 'Submitted as $_lastAtName',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
+                style: NightshadeTypography.labelQuiet.copyWith(
                   color: colors.success,
                 ),
               ),
             ],
             if (_lastExportPath != null) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: NightshadeTokens.spaceSm),
               Text(
                 'Exported: $_lastExportPath',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
+                style: NightshadeTypography.labelQuiet.copyWith(
                   color: colors.textMuted,
                 ),
                 maxLines: 1,
@@ -250,7 +244,7 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
                 : null,
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: NightshadeTokens.spaceSm),
         if (canPreviewLocally) ...[
           Expanded(
             child: NightshadeButton(
@@ -263,7 +257,7 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
                   : null,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: NightshadeTokens.spaceSm),
         ],
         Expanded(child: primary),
       ],
@@ -582,8 +576,11 @@ class _DetectionTile extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
       child: Container(
-        margin: const EdgeInsets.only(bottom: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        margin: const EdgeInsets.only(bottom: NightshadeTokens.spaceXs),
+        padding: const EdgeInsets.symmetric(
+          horizontal: NightshadeTokens.spaceSm,
+          vertical: NightshadeTokens.spaceSm,
+        ),
         decoration: BoxDecoration(
           color: selected ? colors.primary.withValues(alpha: 0.08) : null,
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
@@ -593,19 +590,17 @@ class _DetectionTile extends StatelessWidget {
           children: [
             Icon(
               selected ? LucideIcons.checkCircle : LucideIcons.circle,
-              size: 14,
+              size: NightshadeTokens.iconXs,
               color: selected ? colors.primary : colors.textMuted,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: NightshadeTokens.spaceSm),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     name,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      fontWeight: FontWeight.w500,
+                    style: NightshadeTypography.labelStrongSm.copyWith(
                       color: colors.textPrimary,
                     ),
                     overflow: TextOverflow.ellipsis,
@@ -613,8 +608,7 @@ class _DetectionTile extends StatelessWidget {
                   Text(
                     '$kindLabel · SNR ${detection.snr.toStringAsFixed(1)}'
                     '${detection.reviewed ? ' · confirmed' : ''}',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize9,
+                    style: NightshadeTypography.labelQuiet.copyWith(
                       color: colors.textMuted,
                     ),
                   ),

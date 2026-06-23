@@ -139,6 +139,15 @@ pub struct DifferenceResult {
     /// The signed residual `(matched_frame − template)` as an `F32` image on the
     /// tile grid. Pixels with no frame-or-template coverage are `0.0`.
     pub residual: ImageData,
+    /// The fresh frame reprojected + photometrically matched onto the tile grid
+    /// (the "science" plane the residual was differenced from). Pixels the frame
+    /// did not cover are `0.0`. Surfaced so the FFI layer can crop a real
+    /// per-detection science postage stamp alongside the template + residual ones,
+    /// instead of the UI painting a schematic.
+    pub science: ImageData,
+    /// The finalized template raster on the tile grid (the deep co-add the frame
+    /// was differenced against), for the per-detection template crop.
+    pub template_image: ImageData,
     /// Multiplicative photometric scale applied to the reprojected frame.
     pub matched_scale: f64,
     /// Additive photometric offset applied to the reprojected frame.
@@ -408,6 +417,22 @@ pub fn difference_against_template(
     // Brightest (highest SNR) first — the order the UI / narrator surfaces.
     candidates.sort_by(|a, b| b.snr.total_cmp(&a.snr));
 
+    // The matched science plane on the tile grid: the reprojected, PSF+photo-
+    // metrically matched frame the residual was differenced from. Non-overlap
+    // (or non-finite) pixels become 0.0 so the crop is defined everywhere.
+    let mut science = vec![0.0f32; npix * ch];
+    for p in 0..npix {
+        if !overlap[p] {
+            continue;
+        }
+        for c in 0..ch {
+            let v = frame_match[p * ch + c];
+            if v.is_finite() {
+                science[p * ch + c] = v as f32;
+            }
+        }
+    }
+
     Ok(DifferenceResult {
         candidates,
         residual: ImageData::from_f32(
@@ -416,6 +441,8 @@ pub fn difference_against_template(
             template.channels,
             &residual,
         ),
+        science: ImageData::from_f32(template.width, template.height, template.channels, &science),
+        template_image: tmpl_img,
         matched_scale: report_scale,
         matched_offset: report_offset,
         template_coverage_min,

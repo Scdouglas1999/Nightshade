@@ -331,6 +331,11 @@ class FollowTheNightSuggestion {
   /// Community integration depth so far (seconds), for ranking dark targets.
   final double swarmIntegrationSeconds;
 
+  /// True when *this* user currently holds the baton for the target (the hub's
+  /// `holder` account id matches the registered account). Drives the Release
+  /// affordance: a held card offers "Release" rather than "Take the baton".
+  final bool heldByMe;
+
   const FollowTheNightSuggestion({
     required this.targetId,
     required this.targetName,
@@ -338,6 +343,7 @@ class FollowTheNightSuggestion {
     required this.decDeg,
     required this.handoff,
     required this.swarmIntegrationSeconds,
+    this.heldByMe = false,
   });
 
   /// True when the baton is free and the target is up for this user now.

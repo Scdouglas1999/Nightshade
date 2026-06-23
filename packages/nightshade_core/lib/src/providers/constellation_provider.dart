@@ -23,6 +23,18 @@ import 'sky_atlas_provider.dart';
 const String constellationHubUrlSettingKey = 'constellation.hub_url';
 const String constellationHubTokenSettingKey = 'constellation.hub_token';
 
+/// Settings key the hub-issued account id persists under. Recorded at
+/// registration so follow-the-night can tell whether the baton's `holder`
+/// account id is *this* user (drives the "Release" affordance on held cards).
+const String constellationAccountIdSettingKey = 'constellation.account_id';
+
+/// Resolve the persisted hub account id (the id the hub records the baton
+/// `holder` against), or null when the user has not registered yet.
+Future<String?> resolveConstellationAccountId(SettingsDao settings) async {
+  final id = await settings.getSetting(constellationAccountIdSettingKey);
+  return (id == null || id.isEmpty) ? null : id;
+}
+
 /// Resolve the configured hub credentials from settings, or null when the user
 /// has not signed in to any hub yet.
 Future<ConstellationCredentials?> resolveConstellationCredentials(
@@ -47,6 +59,7 @@ final constellationServiceProvider = Provider<ConstellationService>((ref) {
     contributionsDao: ref.watch(constellationContributionsDaoProvider),
     retentionDao: ref.watch(livingSkyRetentionDaoProvider),
     credentialsResolver: () => resolveConstellationCredentials(settings),
+    accountIdResolver: () => resolveConstellationAccountId(settings),
     // HOST-ONLY raw-subframe resolver: the user's own accepted LIGHT frames for
     // the target. Reads the LOCAL images table directly (never the remote-aware
     // provider), so on a slave it yields nothing and the SUBS path no-ops —

@@ -231,9 +231,9 @@ class YourSkyView extends ConsumerWidget {
         EmptyState(
           icon: LucideIcons.orbit,
           title: 'Your sky is dark — for now',
-          body: 'Image and plate-solve a target, then fold the session into '
-              'Your Sky. Each frame deepens a permanent tile you can revisit '
-              'and scrub through time.',
+          body: 'Image and plate-solve a target and it folds into Your Sky '
+              'automatically. Each frame deepens a permanent tile you can '
+              'revisit and scrub through time.',
         ),
       ],
     );

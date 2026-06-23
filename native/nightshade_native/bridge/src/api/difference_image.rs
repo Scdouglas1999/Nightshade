@@ -90,6 +90,18 @@ struct DifferenceArgs {
     /// Optional directory; when set, a residual PNG is written per checked tile.
     #[serde(default)]
     residual_out_dir: Option<String>,
+    /// Optional directory; when set, three **real-pixel** postage-stamp PNGs
+    /// (template / science / residual) are written per surviving candidate,
+    /// auto-stretched, named deterministically by tile id + sky position so the
+    /// UI (and the `/api/firstlight/<id>/crops` host endpoint) can find them from
+    /// the persisted detection row alone. Replaces the schematic cutout strip with
+    /// the actual pixels around the detection.
+    #[serde(default)]
+    crop_out_dir: Option<String>,
+    /// Half-width (px) of each square crop stamp on the tile grid (default 24 → a
+    /// 49×49 stamp). Clamped to a sane range so a request can't allocate wildly.
+    #[serde(default = "default_crop_half")]
+    crop_half: u32,
     /// Optional star-detection overrides for the residual source extractor; the
     /// detector default is used for any field left out.
     #[serde(default)]
@@ -108,6 +120,64 @@ fn default_order() -> u32 {
 
 fn default_min_coverage() -> u32 {
     5
+}
+
+fn default_crop_half() -> u32 {
+    24
+}
+
+/// Deterministic crop-stamp basename for a candidate, keyed by tile id + sky
+/// position quantized to micro-degrees. The Dart host endpoint derives the exact
+/// same key from the persisted detection row (`tileId`, `raDeg`, `decDeg`) so it
+/// can serve the right stamp without storing a path in the DB. `stage` is
+/// `template` | `science` | `residual`.
+fn crop_basename(tile_id: TileId, ra: f64, dec: f64, stage: &str) -> String {
+    // round-half-away-from-zero to micro-degree integers (stable across the wire).
+    let ra_u = (ra * 1_000_000.0).round() as i64;
+    let dec_u = (dec * 1_000_000.0).round() as i64;
+    format!("crop_{tile_id}_{ra_u}_{dec_u}_{stage}.png")
+}
+
+/// Crop a square `2·half+1` stamp centred on `(cx, cy)` (tile-grid pixels) out of
+/// an interleaved [`ImageData`], clamping the window to the image bounds (a
+/// detection near a tile edge yields a smaller stamp rather than failing).
+fn crop_stamp(img: &ImageData, cx: f64, cy: f64, half: i64) -> Option<ImageData> {
+    let w = img.width as i64;
+    let h = img.height as i64;
+    let ch = img.channels as usize;
+    if w <= 0 || h <= 0 || ch == 0 {
+        return None;
+    }
+    let px = cx.round() as i64;
+    let py = cy.round() as i64;
+    let x0 = (px - half).clamp(0, w - 1);
+    let x1 = (px + half).clamp(0, w - 1);
+    let y0 = (py - half).clamp(0, h - 1);
+    let y1 = (py + half).clamp(0, h - 1);
+    let cw = (x1 - x0 + 1) as usize;
+    let crh = (y1 - y0 + 1) as usize;
+    if cw == 0 || crh == 0 {
+        return None;
+    }
+    let src = img.as_f32()?;
+    let stride = (w as usize) * ch;
+    let mut out = vec![0.0f32; cw * crh * ch];
+    for ry in 0..crh {
+        let sy = (y0 as usize + ry) * stride;
+        let dy = ry * cw * ch;
+        for rx in 0..cw {
+            let sx = (x0 as usize + rx) * ch;
+            for c in 0..ch {
+                out[dy + rx * ch + c] = src[sy + sx + c];
+            }
+        }
+    }
+    Some(ImageData::from_f32(
+        cw as u32,
+        crh as u32,
+        img.channels,
+        &out,
+    ))
 }
 
 /// One residual candidate in the FFI result. `catalogMatch` is always `null` here;
@@ -202,6 +272,18 @@ fn difference_impl(args: DifferenceArgs) -> Result<DifferenceResultJson, String>
             .map_err(|e| format!("failed to create residual dir '{dir}': {e}"))?;
     }
 
+    // Prepare the per-detection crop directory once if requested.
+    let crop_dir = args
+        .crop_out_dir
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty());
+    if let Some(dir) = crop_dir {
+        std::fs::create_dir_all(dir)
+            .map_err(|e| format!("failed to create crop dir '{dir}': {e}"))?;
+    }
+    let crop_half = (args.crop_half as i64).clamp(4, 128);
+
     let mut candidates: Vec<CandidateJson> = Vec::new();
     let mut tiles_checked: Vec<TileId> = Vec::new();
     let mut tiles_skipped_thin: Vec<TileId> = Vec::new();
@@ -245,6 +327,25 @@ fn difference_impl(args: DifferenceArgs) -> Result<DifferenceResultJson, String>
 
         for c in &result.candidates {
             candidates.push(candidate_json(tid, c));
+            // Real-pixel postage stamps around the detection: template / science /
+            // residual, auto-stretched, named deterministically so the Dart layer
+            // resolves them from the persisted row alone.
+            if let Some(dir) = crop_dir {
+                for (stage, plane) in [
+                    ("template", &result.template_image),
+                    ("science", &result.science),
+                    ("residual", &result.residual),
+                ] {
+                    if let Some(stamp) = crop_stamp(plane, c.tile_x, c.tile_y, crop_half) {
+                        let path =
+                            Path::new(dir).join(crop_basename(tid, c.ra, c.dec, stage));
+                        // A crop write failure is non-fatal: the UI falls back to the
+                        // schematic. Log-free here (the bridge has no logger); the
+                        // absence of the file is the signal.
+                        let _ = write_preview_png(&stamp, &path);
+                    }
+                }
+            }
         }
 
         // Optional per-tile residual PNG for the UI.
@@ -484,6 +585,88 @@ mod tests {
         assert_eq!(new_src["kind"], "newSource");
         assert!(new_src["deltaMag"].is_null());
         assert!(new_src["catalogMatch"].is_null());
+    }
+
+    #[test]
+    fn crop_out_dir_writes_real_pixel_stamps_per_detection() {
+        let dir = temp_dir("crops");
+        let order = ATLAS_HEALPIX_ORDER;
+        let tid = radec_to_tile(120.0, 25.0, order);
+        let w = TILE_PIXELS as usize;
+        let wcs = tile_wcs(tid, order);
+
+        // Template: 6 folds with two stable stars.
+        let bg = 100.0f32;
+        let mut tmpl_frame = vec![bg; w * w];
+        render_star(&mut tmpl_frame, w, 300.0, 320.0, 5000.0);
+        render_star(&mut tmpl_frame, w, 700.0, 250.0, 6000.0);
+        let tmpl_img = ImageData::from_f32(w as u32, w as u32, 1, &tmpl_frame);
+        let mut acc = SkyTileAccumulator::create(
+            tid,
+            order,
+            1,
+            AccumulationMode::RunningWeightedMean { clip: None },
+        );
+        for i in 0..6 {
+            acc.fold_frame(
+                &tmpl_img,
+                &wcs,
+                1.0,
+                300.0,
+                Interpolator::Bilinear,
+                &format!("2026-06-0{}", i + 1),
+                "",
+            )
+            .unwrap();
+        }
+        let atlas = SkyAtlas::open(&dir, order, DEFAULT_MEMORY_BUDGET_BYTES);
+        atlas.store_tile(&acc).unwrap();
+
+        // Tonight: the two stable stars + a new source.
+        let mut frame = vec![bg; w * w];
+        render_star(&mut frame, w, 300.0, 320.0, 5000.0);
+        render_star(&mut frame, w, 700.0, 250.0, 6000.0);
+        render_star(&mut frame, w, 512.0, 600.0, 7000.0);
+        let frame_img = ImageData::from_f32(w as u32, w as u32, 1, &frame);
+        let frame_path = dir.join("light.fits");
+        let mut header = FitsHeader::new();
+        header.set_string("IMAGETYP", "LIGHT");
+        write_fits(&frame_path, &frame_img, &header).unwrap();
+
+        let crop_dir = dir.join("stamps");
+        let args = serde_json::json!({
+            "atlasRoot": dir.to_string_lossy(),
+            "order": order,
+            "framePath": frame_path.to_string_lossy(),
+            "wcs": serde_json::to_value(&wcs).unwrap(),
+            "interp": "bilinear",
+            "minTemplateCoverage": 3,
+            "minSnr": 4.0,
+            "minArea": 4,
+            "cropOutDir": crop_dir.to_string_lossy(),
+            "cropHalf": 20
+        });
+        let out = api_difference_image(args.to_string()).expect("difference ok");
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let cands = parsed["candidates"].as_array().unwrap();
+        let c = cands
+            .iter()
+            .find(|c| {
+                (c["tileX"].as_f64().unwrap() - 512.0).abs() < 3.0
+                    && (c["tileY"].as_f64().unwrap() - 600.0).abs() < 3.0
+            })
+            .expect("new source detected");
+        // The three deterministic stamps for the detection's tile + position exist.
+        let ra = c["ra"].as_f64().unwrap();
+        let dec = c["dec"].as_f64().unwrap();
+        for stage in ["template", "science", "residual"] {
+            let p = crop_dir.join(crop_basename(tid, ra, dec, stage));
+            assert!(p.exists(), "missing {stage} stamp at {p:?}");
+            let bytes = std::fs::read(&p).unwrap();
+            assert!(bytes.len() > 8, "{stage} stamp is empty");
+            // PNG magic.
+            assert_eq!(&bytes[1..4], b"PNG", "{stage} stamp is not a PNG");
+        }
     }
 
     #[test]

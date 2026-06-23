@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../your_sky/region_detail_screen.dart';
 import '../your_sky/sky_atlas_format.dart';
 import 'constellation_contribute_sheet.dart';
 import 'constellation_format.dart';
@@ -29,6 +30,10 @@ class _SharedTargetDetailScreenState
   bool _joined = false;
   bool _pulling = false;
   List<SwarmTile> _blended = const [];
+
+  /// Own integration (seconds) at the moment of the last successful pull — the
+  /// "before" half of the Pull & Blend payoff card.
+  double _ownSecondsBeforeBlend = 0.0;
 
   SharedTarget get _target => widget.target;
 
@@ -91,6 +96,14 @@ class _SharedTargetDetailScreenState
               blended: _blended,
               onPull: _pullAndBlend,
             ),
+            if (_blended.isNotEmpty) ...[
+              const SizedBox(height: NightshadeTokens.spaceMd),
+              _BlendPayoffCard(
+                ownSecondsBefore: _ownSecondsBeforeBlend,
+                swarmSeconds: _target.integrationSeconds,
+                onOpenInYourSky: _openBlendedRegion,
+              ),
+            ],
             if (hostActionsEnabled) ...[
               const SizedBox(height: NightshadeTokens.spaceMd),
               _ContributionsCard(target: _target, onRetract: _retract),
@@ -139,6 +152,10 @@ class _SharedTargetDetailScreenState
   Future<void> _pullAndBlend() async {
     setState(() => _pulling = true);
     final messenger = ScaffoldMessenger.of(context);
+    // Snapshot the user's own depth on this field BEFORE the blend so the payoff
+    // card can honestly show "yours -> yours + swarm".
+    final ownBefore =
+        ref.read(yourContributionSecondsProvider(_target)).valueOrNull ?? 0.0;
     try {
       // Pull the additive `.nst` accumulator (finalized: false) so the service
       // actually folds it into the local atlas — that merge is what makes the
@@ -151,6 +168,7 @@ class _SharedTargetDetailScreenState
       if (!mounted) return;
       setState(() {
         _blended = tiles;
+        _ownSecondsBeforeBlend = ownBefore;
         _pulling = false;
       });
       // The pull already merged each delta into the local atlas tiles; refresh
@@ -174,6 +192,36 @@ class _SharedTargetDetailScreenState
         SnackBar(content: Text(describeConstellationError(error))),
       );
     }
+  }
+
+  /// Deep-link into the Your Sky region the blend deepened, so the payoff lands
+  /// on-screen instead of telling the user to "go look elsewhere". Resolves the
+  /// tightest region covering the target centre (the pull blended its tiles into
+  /// the same atlas region) and pushes RegionDetail. Falls back to a snackbar
+  /// when no region covers the field yet.
+  Future<void> _openBlendedRegion() async {
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+    final region = await ref
+        .read(skyAtlasServiceProvider)
+        .getRegionForPoint(_target.raDeg, _target.decDeg);
+    if (!mounted) return;
+    if (region == null) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Open Your Sky to scrub the blended depth — name this field as a '
+            'region to track it night over night.',
+          ),
+        ),
+      );
+      return;
+    }
+    await navigator.push(
+      MaterialPageRoute<void>(
+        builder: (_) => RegionDetailScreen(regionId: region.id),
+      ),
+    );
   }
 
   Future<void> _retract(ContributionRecord record) async {
@@ -432,7 +480,7 @@ class _BlendCard extends StatelessWidget {
           Text(
             blendedCount > 0
                 ? 'The swarm co-add is cached locally and blended into Your Sky '
-                    'for this field. Open Your Sky to scrub the combined depth.'
+                    'for this field — see the depth gained below.'
                 : 'Download the swarm\'s combined co-add for this field and blend '
                     'it into Your Sky alongside your own integration.',
             style: NightshadeTypography.caption.copyWith(
@@ -449,6 +497,108 @@ class _BlendCard extends StatelessWidget {
               size: ButtonSize.small,
               isLoading: pulling,
               onPressed: enabled && !pulling ? onPull : null,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Pull & Blend payoff: the before/after depth the swarm's photons added to this
+/// field, plus a deep link into the Your Sky region so the deeper sky lands
+/// on-screen instead of a dead-end "go look elsewhere". "Before" is the user's
+/// own integration at pull time; "after" adds the fused community depth the
+/// blend folded into the local atlas.
+class _BlendPayoffCard extends StatelessWidget {
+  final double ownSecondsBefore;
+  final double swarmSeconds;
+  final VoidCallback onOpenInYourSky;
+
+  const _BlendPayoffCard({
+    required this.ownSecondsBefore,
+    required this.swarmSeconds,
+    required this.onOpenInYourSky,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final after = ownSecondsBefore + swarmSeconds;
+    return NightshadeCard(
+      variant: CardVariant.standard,
+      padding: NightshadeTokens.cardPadding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                LucideIcons.trendingUp,
+                size: NightshadeTokens.iconMd,
+                color: colors.success,
+              ),
+              const SizedBox(width: NightshadeTokens.spaceMd),
+              Expanded(
+                child: Text(
+                  'Depth gained',
+                  style: NightshadeTypography.labelStrong.copyWith(
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          Row(
+            children: [
+              Text(
+                formatIntegration(ownSecondsBefore),
+                style: NightshadeTypography.h5.copyWith(
+                  color: colors.textSecondary,
+                ),
+              ),
+              const SizedBox(width: NightshadeTokens.spaceSm),
+              Icon(
+                LucideIcons.arrowRight,
+                size: NightshadeTokens.iconSm,
+                color: colors.textMuted,
+              ),
+              const SizedBox(width: NightshadeTokens.spaceSm),
+              Text(
+                formatIntegration(after),
+                style: NightshadeTypography.h5.copyWith(
+                  color: colors.accent,
+                ),
+              ),
+              const SizedBox(width: NightshadeTokens.spaceSm),
+              Text(
+                'fused',
+                style: NightshadeTypography.caption.copyWith(
+                  color: colors.textMuted,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: NightshadeTokens.spaceXs),
+          Text(
+            'The swarm added ${formatIntegration(swarmSeconds)} of community '
+            'integration to your ${formatIntegration(ownSecondsBefore)} on this '
+            'field.',
+            style: NightshadeTypography.caption.copyWith(
+              color: colors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          Align(
+            alignment: Alignment.centerRight,
+            child: NightshadeButton(
+              label: 'Open in Your Sky',
+              icon: LucideIcons.sparkles,
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+              onPressed: onOpenInYourSky,
             ),
           ),
         ],

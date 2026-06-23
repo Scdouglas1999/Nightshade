@@ -358,6 +358,31 @@ void main() {
         expect(rows.map((r) => r.id), [7, 8]);
         verify(() => backend.getFirstLightCandidates()).called(1);
       });
+
+      test(
+        'firstLightCropProvider returns the host real-pixel stamp',
+        () async {
+          final backend = slaveBackend();
+          final png = Uint8List.fromList([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4]);
+          when(
+            () => backend.getFirstLightCrop(7, 'residual'),
+          ).thenAnswer((_) async => png);
+          final container = containerFor(backend);
+
+          final bytes = await container.read(
+            firstLightCropProvider((
+              detectionId: 7,
+              tileId: 42,
+              raDeg: 120.0,
+              decDeg: 25.0,
+              stage: 'residual',
+            )).future,
+          );
+
+          expect(bytes, png);
+          verify(() => backend.getFirstLightCrop(7, 'residual')).called(1);
+        },
+      );
     },
   );
 }

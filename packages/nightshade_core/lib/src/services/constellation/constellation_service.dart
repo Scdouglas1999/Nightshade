@@ -130,6 +130,7 @@ class ConstellationService {
     >
     Function()
     localTargetsResolver,
+    Future<String?> Function()? accountIdResolver,
     ConstellationContributionsDao? contributionsDao,
     LivingSkyRetentionDao? retentionDao,
     ConstellationClientFactory? clientFactory,
@@ -140,6 +141,7 @@ class ConstellationService {
        _logger = logger,
        _credentialsResolver = credentialsResolver,
        _localTargetsResolver = localTargetsResolver,
+       _accountIdResolver = accountIdResolver,
        _contributions = contributionsDao,
        _retention = retentionDao,
        _clientFactory = clientFactory ?? _defaultClientFactory,
@@ -157,6 +159,12 @@ class ConstellationService {
   final Future<List<({int targetId, String name, double raDeg, double decDeg})>>
   Function()
   _localTargetsResolver;
+
+  /// Resolves the hub-issued account id for this user (the id the hub records a
+  /// baton `holder` against), or null when not yet registered. Lets
+  /// follow-the-night flag a suggestion whose baton this user already holds so
+  /// the card can offer Release instead of Claim.
+  final Future<String?> Function()? _accountIdResolver;
 
   /// Per-(hubKey, tileId) federation receipt store: the contribution anchor +
   /// remote id (true-delta export, Retract) and the pulled high-water (re-pull
@@ -559,6 +567,11 @@ class ConstellationService {
             solver: solver,
           );
           accepted[tile.tileId] = receipt;
+
+          // The exported `.nst` delta has served its purpose — it is now on the
+          // hub. Reclaim it immediately rather than leaving it to accrue in the
+          // cache until the next sweep (best-effort; a failure is non-fatal).
+          await _atlas.deleteExportedDelta(tile.tileId);
 
           // Advance the high-water so the NEXT contribute anchors here. The
           // newest own fold shipped is at/after now; we stamp the contribution
@@ -995,6 +1008,18 @@ class ConstellationService {
     // Re-populate joined membership after a restart so the sweep is not empty
     // until the user manually re-joins (the sweep iterates only joined targets).
     await rehydrateJoined();
+    // The registered account id, so a baton this user already holds surfaces a
+    // Release control instead of a (futile) Claim. Null when unregistered or
+    // resolution fails — then every card is simply "not held by me".
+    String? myAccountId;
+    try {
+      myAccountId = await _accountIdResolver?.call();
+    } on Object catch (e) {
+      _logger.debug(
+        'followTheNight: account-id resolve failed: $e',
+        source: _logSource,
+      );
+    }
     try {
       final locals = await _localTargetsResolver();
       // Index locals by NAME (case-folded), never by id: a local `Target.id` is
@@ -1048,12 +1073,18 @@ class ConstellationService {
             decDeg: shared.decDeg != 0.0 ? shared.decDeg : local?.decDeg ?? 0.0,
             handoff: handoff,
             swarmIntegrationSeconds: shared.integrationSeconds,
+            heldByMe:
+                myAccountId != null &&
+                handoff.holder != null &&
+                handoff.holder == myAccountId,
           ),
         );
       }
 
-      // Ready-now first, then the shallowest swarm depth (deepen the thinnest).
+      // Targets I already hold first (so Release is easy to find), then ready-now
+      // free targets, then the shallowest swarm depth (deepen the thinnest).
       suggestions.sort((a, b) {
+        if (a.heldByMe != b.heldByMe) return a.heldByMe ? -1 : 1;
         if (a.isReadyNow != b.isReadyNow) return a.isReadyNow ? -1 : 1;
         return a.swarmIntegrationSeconds.compareTo(b.swarmIntegrationSeconds);
       });

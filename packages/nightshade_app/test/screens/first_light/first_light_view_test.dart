@@ -67,10 +67,15 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Possible unknown transient'), findsOneWidget);
-      // The three side-by-side cutout panels.
+      // The three side-by-side cutout panels (template / science / residual).
       expect(find.text('Template'), findsOneWidget);
-      expect(find.text('This frame'), findsOneWidget);
+      expect(find.text('Science'), findsOneWidget);
       expect(find.text('Residual'), findsOneWidget);
+      // No real-pixel crops in a unit test → the honest schematic caption shows.
+      expect(
+        find.textContaining('Schematic'),
+        findsOneWidget,
+      );
       // The metrics + actions.
       expect(find.textContaining('SNR 18.3'), findsOneWidget);
       expect(find.text('Submit'), findsOneWidget);

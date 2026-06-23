@@ -575,10 +575,40 @@ class SkyAtlasService {
   /// One region by row id (null when absent).
   Future<SkyAtlasRegionRow?> getRegion(int id) => _dao.getRegion(id);
 
+  /// The tightest region whose cone covers the given sky point (null when none).
+  /// Backs the Constellation "open this deepened field in Your Sky" deep link
+  /// after a Pull & Blend. RA/Dec in degrees.
+  Future<SkyAtlasRegionRow?> getRegionForPoint(double raDeg, double decDeg) =>
+      _dao.getRegionForPoint(raDeg, decDeg);
+
   /// The tiles belonging to a region, deepest first (host-local read; the slave
   /// reads the same rows off the region-detail wire payload).
   Future<List<SkyTileRow>> tilesForRegion(int regionId) =>
       _dao.getTilesForRegion(regionId);
+
+  /// Co-add a region's cone into a shareable cutout and return its on-disk
+  /// paths — the host-side seam behind the RegionDetail "Export / Use as
+  /// reference frame" affordance. The PNG path backs Share/Export; the FITS path
+  /// is the photometric co-add a follow-up session can stack against as a
+  /// reference frame ([LiveStackingService.startFromFile]). Returns null when
+  /// the region is unknown or the engine produced no co-add (e.g. zero folds).
+  Future<RegionCutoutExport?> exportRegionCutout(int regionId) async {
+    final region = await _dao.getRegion(regionId);
+    if (region == null) return null;
+    final result = await cutout(
+      centerRaDeg: region.centerRaDeg,
+      centerDecDeg: region.centerDecDeg,
+      radiusDeg: region.radiusDeg,
+    );
+    final fitsPath = (result['fitsPath'] as String?)?.trim();
+    final pngPath = (result['pngPath'] as String?)?.trim();
+    if (fitsPath == null || fitsPath.isEmpty) return null;
+    return RegionCutoutExport(
+      regionName: region.name,
+      fitsPath: fitsPath,
+      pngPath: (pngPath == null || pngPath.isEmpty) ? null : pngPath,
+    );
+  }
 
   /// Reactive region list for the atlas browser.
   Stream<List<SkyAtlasRegionRow>> watchRegions() => _dao.watchAllRegions();
@@ -782,6 +812,12 @@ class SkyAtlasService {
     }
 
     for (final tile in summary.tiles) {
+      // Phantom guard: a cone that overlaps a tile's footprint but contributes
+      // no accepted frames (e.g. an over-coverage edge tile) reports framesAdded
+      // == 0. Upserting it would seed an empty 0-frame SkyTiles row + a dangling
+      // sidecarPath to a never-written `.nst`, and recordFold would inject a
+      // "+0 frames" entry into the timeline. Skip those entirely.
+      if (tile.framesAdded <= 0) continue;
       final sidecarPath = p.join(tilesDir, '${tile.tileId}.nst');
       await _dao.upsertTile(
         tileId: tile.tileId,
@@ -819,6 +855,107 @@ class SkyAtlasService {
     }
   }
 
+  /// Default age budget for the cutout/delta cache sweep — a cutout the user
+  /// browsed two weeks ago is cheap to regenerate on demand from the durable
+  /// `.nst` accumulators, so it need not occupy disk indefinitely.
+  static const _defaultCacheMaxAge = Duration(days: 14);
+
+  /// Reclaim the cutout/delta cache (`<atlasRoot>/cache`). Unlike the durable
+  /// tile accumulators, everything here is a derived artefact the engine can
+  /// rebuild on demand: `tile_<id>.png` renders, `cutout_*.fits`/`.png`
+  /// co-adds, and spent `delta_<id>.nst` federation payloads. Left unmanaged it
+  /// grows without bound (a 2048² PNG+FITS pair per distinct region browse),
+  /// silently filling a long-running host or a constrained appliance.
+  ///
+  /// Two-pass LRU mirroring the swarm-blob sweep: first evict anything older
+  /// than [maxAge], then — if [maxBytes] is set and the survivors still overflow
+  /// it — evict oldest-first by mtime until the working set fits. Returns the
+  /// number of files reclaimed. Cheap to call on startup / the maintenance
+  /// schedule; a vanished file mid-sweep is swallowed so one race cannot sink
+  /// the pass.
+  Future<int> sweepCache({
+    Duration maxAge = _defaultCacheMaxAge,
+    int? maxBytes,
+  }) async {
+    final root = await atlasRoot();
+    final dir = Directory(_cacheDir(root));
+    if (!dir.existsSync()) return 0;
+
+    final now = DateTime.now();
+    final cutoff = now.subtract(maxAge);
+
+    final entries = <({File file, DateTime modified, int size})>[];
+    await for (final entity in dir.list(followLinks: false)) {
+      if (entity is! File) continue;
+      final ext = p.extension(entity.path).toLowerCase();
+      if (ext != '.png' && ext != '.fits' && ext != '.nst') continue;
+      final stat = entity.statSync();
+      entries.add((file: entity, modified: stat.modified, size: stat.size));
+    }
+
+    var deleted = 0;
+    var reclaimedBytes = 0;
+    final survivors = <({File file, DateTime modified, int size})>[];
+
+    for (final entry in entries) {
+      if (entry.modified.isBefore(cutoff)) {
+        if (await _deleteCacheFile(entry.file)) {
+          deleted++;
+          reclaimedBytes += entry.size;
+        }
+      } else {
+        survivors.add(entry);
+      }
+    }
+
+    if (maxBytes != null) {
+      var remainingBytes = survivors.fold<int>(0, (s, e) => s + e.size);
+      if (remainingBytes > maxBytes) {
+        survivors.sort((a, b) => a.modified.compareTo(b.modified));
+        for (final entry in survivors) {
+          if (remainingBytes <= maxBytes) break;
+          if (await _deleteCacheFile(entry.file)) {
+            deleted++;
+            reclaimedBytes += entry.size;
+            remainingBytes -= entry.size;
+          }
+        }
+      }
+    }
+
+    if (deleted > 0) {
+      _logger.info(
+        'sweepCache: reclaimed $deleted cache file(s) ($reclaimedBytes bytes).',
+        source: _logSource,
+      );
+    }
+    return deleted;
+  }
+
+  /// Delete a spent federation delta after a successful contribution upload, so
+  /// the `delta_<tileId>.nst` payload does not linger in the cache until the
+  /// next [sweepCache]. A vanished/locked file is swallowed (best-effort).
+  Future<bool> deleteExportedDelta(int tileId) async {
+    final root = await atlasRoot();
+    return _deleteCacheFile(File(p.join(_cacheDir(root), 'delta_$tileId.nst')));
+  }
+
+  /// Delete one cache file, swallowing the race where it vanished mid-sweep so
+  /// one unlucky file cannot sink the whole pass. Returns whether it was removed.
+  Future<bool> _deleteCacheFile(File file) async {
+    try {
+      if (!file.existsSync()) return false;
+      await file.delete();
+      return true;
+    } on FileSystemException catch (e) {
+      _logger.warning(
+        'sweepCache: could not delete ${file.path}: ${e.message}',
+        source: _logSource,
+      );
+      return false;
+    }
+  }
+
   /// Per-fold integration delta. The bridge's per-tile summary reports the
   /// post-fold cumulative `integrationSeconds`; the timeline wants the increment
   /// this fold added. We derive it from the prior tile total when available,
@@ -850,6 +987,25 @@ class SkyAtlasService {
   String _overlayRoot(String root) => p.join(root, 'swarm_overlay');
 
   String _cacheDir(String root) => p.join(root, 'cache');
+}
+
+/// The on-disk co-add a region exports: a sharable PNG (when rendered) and the
+/// photometric FITS that can seed a follow-up live-stack as a reference frame.
+class RegionCutoutExport {
+  /// The region's display name (for the share caption / snackbars).
+  final String regionName;
+
+  /// The co-added FITS path — the reference-frame candidate.
+  final String fitsPath;
+
+  /// The co-added PNG path for Share/Export, or null when PNG was not rendered.
+  final String? pngPath;
+
+  const RegionCutoutExport({
+    required this.regionName,
+    required this.fitsPath,
+    required this.pngPath,
+  });
 }
 
 /// The result of [SkyAtlasService.exportDelta]: the written `.nst` delta path

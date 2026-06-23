@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
@@ -29,6 +31,16 @@ import 'backend_provider.dart';
 /// sorted on every DB tick. Deeper history pages via the REST `offset`.
 const int kFirstLightFeedLimit = 200;
 
+/// The most-recent First Light scan coverage envelope (deep / thin / empty tile
+/// counts for the last frame differenced), or null before any scan has run.
+/// Surfaces "atlas not deep enough here yet" on the discovery view so a
+/// thin-atlas no-op is distinguishable from a genuinely clean-sky night. Host
+/// only — the scan runs where solved frames land; a slave reads detections, not
+/// this local-scan signal.
+final firstLightCoverageProvider = StateProvider<FirstLightCoverage?>(
+  (ref) => null,
+);
+
 /// The First Light scan service.
 final firstLightServiceProvider = Provider<FirstLightService>((ref) {
   return FirstLightService(
@@ -40,6 +52,16 @@ final firstLightServiceProvider = Provider<FirstLightService>((ref) {
     logger: ref.watch(loggingServiceProvider),
     atlasRootResolver: defaultAtlasRoot,
     retention: ref.watch(livingSkyRetentionDaoProvider),
+    // Publish each scan's coverage so the discovery surface can explain a
+    // thin-atlas quiet night. Guard the read: the container may be mid-dispose
+    // when a late scan completes.
+    onCoverage: (coverage) {
+      try {
+        ref.read(firstLightCoverageProvider.notifier).state = coverage;
+      } catch (_) {
+        // Container disposed between scan kickoff and completion — drop it.
+      }
+    },
   );
 });
 
@@ -164,6 +186,51 @@ Stream<List<TransientDetectionRow>> _remoteFirstLightStream(
   });
   return controller.stream;
 }
+
+/// Key for a real-pixel per-detection crop request: the detection id (for the
+/// remote endpoint) plus the deterministic name inputs (tile id + sky position,
+/// for the local file) and the [stage]. A value-record so two reads of the same
+/// stamp share one fetch.
+typedef FirstLightCropQuery = ({
+  int detectionId,
+  int tileId,
+  double raDeg,
+  double decDeg,
+  String stage,
+});
+
+/// Backend-aware REAL per-detection pixel crop (PNG bytes) for one stage
+/// (`template` | `science` | `residual`). Local: read the stamp the difference
+/// pass wrote into [firstLightCropDir] by its deterministic name. Remote
+/// (companion): fetch `/api/firstlight/<id>/crops/<stage>` from the host. Returns
+/// null when the stamp is absent (an older detection from before crops were
+/// captured, or a scan that produced none) so the UI falls back to the schematic.
+final firstLightCropProvider = FutureProvider.autoDispose
+    .family<Uint8List?, FirstLightCropQuery>((ref, query) async {
+      final backend = ref.watch(backendProvider);
+      if (backend is NetworkBackend) {
+        try {
+          final bytes = await backend.getFirstLightCrop(
+            query.detectionId,
+            query.stage,
+          );
+          return bytes.isEmpty ? null : bytes;
+        } catch (_) {
+          // 404 (no crop captured) or a transient reach failure → schematic.
+          return null;
+        }
+      }
+      final atlasRoot = await defaultAtlasRoot();
+      final name = firstLightCropName(
+        tileId: query.tileId,
+        raDeg: query.raDeg,
+        decDeg: query.decDeg,
+        stage: query.stage,
+      );
+      final file = File('${firstLightCropDir(atlasRoot)}/$name');
+      if (!await file.exists()) return null;
+      return file.readAsBytes();
+    });
 
 /// A sky position to group a transient's cross-night history around. Carries
 /// the match radius so the provider key is value-equal (a record) and two

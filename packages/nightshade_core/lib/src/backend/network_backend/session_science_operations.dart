@@ -349,6 +349,16 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
     await _post('firstlight/$id/dismiss');
   }
 
+  /// Fetch a REAL per-detection pixel postage stamp (PNG bytes) for detection
+  /// [id], [stage] = `template` | `science` | `residual`. The host re-derives the
+  /// deterministic crop filename from the persisted detection row and streams the
+  /// PNG the difference pass wrote, so a companion tablet sees the actual pixels
+  /// around the candidate — not a host-local file path. Maps to the advertised
+  /// `GET /api/firstlight/<id>/crops/<stage>`.
+  Future<Uint8List> getFirstLightCrop(int id, String stage) {
+    return _downloadBytes('firstlight/$id/crops/$stage');
+  }
+
   /// Trigger a REAL TNS submission for detection [id] ON THE HOST. The host
   /// holds the bot credentials + api key (the api key never crosses the wire);
   /// the slave only triggers and surfaces the result. Returns the host's

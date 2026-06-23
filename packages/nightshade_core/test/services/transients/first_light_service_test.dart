@@ -93,6 +93,7 @@ void main() {
     List<PhotometricCatalogStar> stars = const [],
     bool catalogThrows = false,
     LivingSkyRetentionDao? retention,
+    void Function(FirstLightCoverage)? onCoverage,
   }) {
     return FirstLightService(
       dao: dao,
@@ -101,6 +102,7 @@ void main() {
       logger: LoggingService(),
       atlasRootResolver: () async => '/tmp/test_atlas',
       retention: retention,
+      onCoverage: onCoverage,
     );
   }
 
@@ -394,5 +396,82 @@ void main() {
       ),
       throwsArgumentError,
     );
+  });
+
+  test(
+    'passes minSnr + a crop output dir to the difference call (single source '
+    'of truth, real-pixel stamps)',
+    () async {
+      final seam = _FakeDifferenceSeam({
+        'ok': true,
+        'candidates': [_candidateJson()],
+        'tilesChecked': [42],
+      });
+      final service = FirstLightService(
+        dao: dao,
+        seam: seam,
+        catalog: _FakeCatalogMatcher(const []),
+        logger: LoggingService(),
+        atlasRootResolver: () async => '/tmp/test_atlas',
+      );
+
+      await service.scanFrame(framePath: '/tmp/light_777.fits', wcs: _wcs);
+
+      final args = seam.dispatched.single;
+      // SNR floor passed explicitly so Dart + native share one constant.
+      expect(args['minSnr'], 5.0);
+      // Crops written under the atlas root so the endpoint/UI resolve them.
+      expect(args['cropOutDir'], firstLightCropDir('/tmp/test_atlas'));
+    },
+  );
+
+  test('publishes the coverage envelope; a thin atlas is flagged distinctly '
+      'from a clean sky', () async {
+    // Atlas-too-thin: the frame covered tiles but none were deep enough.
+    FirstLightCoverage? thin;
+    final thinService = build(
+      diffResult: {
+        'ok': true,
+        'candidates': const [],
+        'tilesChecked': const [],
+        'tilesSkippedThin': [10, 11],
+        'tilesNoTemplate': [12],
+      },
+      onCoverage: (c) => thin = c,
+    );
+    final thinRows = await thinService.scanFrame(
+      framePath: '/tmp/thin.fits',
+      wcs: _wcs,
+    );
+    expect(thinRows, isEmpty);
+    expect(thin, isNotNull);
+    expect(thin!.tilesChecked, 0);
+    expect(thin!.tilesCovered, 3);
+    expect(thin!.isAtlasTooThin, isTrue);
+
+    // Clean sky: tiles were deep enough, nothing found — NOT atlas-too-thin.
+    FirstLightCoverage? clean;
+    final cleanService = build(
+      diffResult: {
+        'ok': true,
+        'candidates': const [],
+        'tilesChecked': [10, 11],
+      },
+      onCoverage: (c) => clean = c,
+    );
+    await cleanService.scanFrame(framePath: '/tmp/clean.fits', wcs: _wcs);
+    expect(clean!.tilesChecked, 2);
+    expect(clean!.isAtlasTooThin, isFalse);
+  });
+
+  test('crop filename is deterministic and mirrors the native key', () {
+    final name = firstLightCropName(
+      tileId: 42,
+      raDeg: 120.5,
+      decDeg: -10.25,
+      stage: 'residual',
+    );
+    // tileId _ ra*1e6 _ dec*1e6 _ stage.png
+    expect(name, 'crop_42_120500000_-10250000_residual.png');
   });
 }

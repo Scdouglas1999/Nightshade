@@ -7,8 +7,9 @@ import '../../your_sky/sky_atlas_format.dart';
 import '../constellation_format.dart';
 
 /// A follow-the-night nudge: "M31 is dark for you now and the swarm needs more
-/// depth." Ready-now suggestions get the accent treatment and a Claim button;
-/// the rest read as muted context (below horizon / already held).
+/// depth." Ready-now suggestions get the accent treatment and a Claim button; a
+/// target this user already holds the baton for offers Release instead; the rest
+/// read as muted context (below horizon / already held by someone else).
 class FollowTheNightCard extends StatelessWidget {
   final FollowTheNightSuggestion suggestion;
 
@@ -17,21 +18,37 @@ class FollowTheNightCard extends StatelessWidget {
   final VoidCallback? onClaim;
   final bool claiming;
 
+  /// Release the baton back to the swarm. Non-null only when this user holds it
+  /// ([FollowTheNightSuggestion.heldByMe]); disabled while [releasing] is true.
+  final VoidCallback? onRelease;
+  final bool releasing;
+
+  /// Queue this target into the planner/sequencer tonight (creates/resolves a
+  /// library target at the suggestion's RA/Dec). Null when planning is
+  /// unavailable; disabled while [planning] is true.
+  final VoidCallback? onPlanTonight;
+  final bool planning;
+
   const FollowTheNightCard({
     super.key,
     required this.suggestion,
     required this.onClaim,
     this.claiming = false,
+    this.onRelease,
+    this.releasing = false,
+    this.onPlanTonight,
+    this.planning = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final ready = suggestion.isReadyNow;
-    final accent = ready ? colors.accent : colors.textMuted;
+    final held = suggestion.heldByMe;
+    final accent = (ready || held) ? colors.accent : colors.textMuted;
 
     return NightshadeCard(
-      variant: ready ? CardVariant.standard : CardVariant.subtle,
+      variant: (ready || held) ? CardVariant.standard : CardVariant.subtle,
       padding: NightshadeTokens.cardPadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -42,7 +59,11 @@ class FollowTheNightCard extends StatelessWidget {
                 padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
                 decoration: NightshadeDecorations.tintedBadge(accent),
                 child: Icon(
-                  ready ? LucideIcons.moonStar : LucideIcons.moon,
+                  held
+                      ? LucideIcons.flag
+                      : ready
+                          ? LucideIcons.moonStar
+                          : LucideIcons.moon,
                   size: NightshadeTokens.iconSm,
                   color: accent,
                 ),
@@ -70,7 +91,14 @@ class FollowTheNightCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (ready)
+              if (held)
+                const StatusPill(
+                  icon: LucideIcons.flag,
+                  label: 'BATON',
+                  value: 'yours',
+                  status: StatusPillStatus.success,
+                )
+              else if (ready)
                 const StatusPill(
                   icon: LucideIcons.sparkles,
                   label: 'NOW',
@@ -101,21 +129,49 @@ class FollowTheNightCard extends StatelessWidget {
               ),
             ),
           ],
-          if (onClaim != null) ...[
+          if (_hasActions) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
-            Align(
-              alignment: Alignment.centerRight,
-              child: NightshadeButton(
-                label: 'Take the baton',
-                icon: LucideIcons.flag,
-                size: ButtonSize.small,
-                isLoading: claiming,
-                onPressed: claiming ? null : onClaim,
-              ),
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: NightshadeTokens.spaceSm,
+              runSpacing: NightshadeTokens.spaceSm,
+              children: [
+                if (onPlanTonight != null)
+                  NightshadeButton(
+                    label: 'Plan tonight',
+                    icon: LucideIcons.calendarPlus,
+                    variant: ButtonVariant.outline,
+                    size: ButtonSize.small,
+                    isLoading: planning,
+                    onPressed: planning ? null : onPlanTonight,
+                  ),
+                if (held && onRelease != null)
+                  NightshadeButton(
+                    label: 'Release',
+                    icon: LucideIcons.flagOff,
+                    variant: ButtonVariant.outline,
+                    size: ButtonSize.small,
+                    isLoading: releasing,
+                    onPressed: releasing ? null : onRelease,
+                  )
+                else if (onClaim != null)
+                  NightshadeButton(
+                    label: 'Take the baton',
+                    icon: LucideIcons.flag,
+                    size: ButtonSize.small,
+                    isLoading: claiming,
+                    onPressed: claiming ? null : onClaim,
+                  ),
+              ],
             ),
           ],
         ],
       ),
     );
   }
+
+  bool get _hasActions =>
+      onPlanTonight != null ||
+      (suggestion.heldByMe && onRelease != null) ||
+      onClaim != null;
 }

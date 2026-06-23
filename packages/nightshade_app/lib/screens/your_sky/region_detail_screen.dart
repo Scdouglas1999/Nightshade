@@ -1,8 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'sky_atlas_format.dart';
 import 'widgets/atlas_growth_curve.dart';
@@ -139,7 +144,7 @@ class _RegionDetailBody extends ConsumerWidget {
 /// only, and an honest line under it states "Showing latest depth — N of M
 /// sessions by `<date>`" so the slider clearly scrubs the FRAME LIST + growth
 /// below, not the hero image.
-class _CutoutPanel extends StatelessWidget {
+class _CutoutPanel extends ConsumerWidget {
   final SkyAtlasRegionRow region;
   final List<SkyAtlasFoldRow> folds;
   final DateTime? anchor;
@@ -151,8 +156,9 @@ class _CutoutPanel extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
+    final isHost = ref.watch(backendProvider) is! NetworkBackend;
 
     // Session counts by the scrub point: distinct fold days at/before the anchor
     // out of all distinct fold days. Drives the honest depth line.
@@ -226,6 +232,10 @@ class _CutoutPanel extends StatelessWidget {
                         .copyWith(color: colors.textMuted),
                   ),
                 ],
+                if (folds.isNotEmpty) ...[
+                  const SizedBox(height: NightshadeTokens.spaceMd),
+                  _CutoutActions(region: region, isHost: isHost),
+                ],
               ],
             ),
           ),
@@ -239,6 +249,146 @@ class _CutoutPanel extends StatelessWidget {
     return '${utc.year.toString().padLeft(4, '0')}-'
         '${utc.month.toString().padLeft(2, '0')}-'
         '${utc.day.toString().padLeft(2, '0')}';
+  }
+}
+
+/// Export / Share + "Use as reference frame" for a region's co-add. Export is
+/// backend-agnostic (host shares the local PNG; a slave fetches PNG bytes over
+/// `/api/atlas/region/<id>/cutout` and shares those). "Use as reference frame"
+/// is HOST-ONLY — it co-adds the region to a photometric FITS and arms live
+/// stacking against it ([LiveStackingService.startFromFile] takes a host path);
+/// on a slave the button is hidden with a one-line "runs on your host" note.
+class _CutoutActions extends ConsumerStatefulWidget {
+  final SkyAtlasRegionRow region;
+  final bool isHost;
+
+  const _CutoutActions({required this.region, required this.isHost});
+
+  @override
+  ConsumerState<_CutoutActions> createState() => _CutoutActionsState();
+}
+
+class _CutoutActionsState extends ConsumerState<_CutoutActions> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: NightshadeTokens.spaceSm,
+          runSpacing: NightshadeTokens.spaceSm,
+          children: [
+            NightshadeButton(
+              label: 'Export',
+              icon: LucideIcons.share2,
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+              onPressed: _busy ? null : _export,
+            ),
+            if (widget.isHost)
+              NightshadeButton(
+                label: 'Use as reference frame',
+                icon: LucideIcons.crosshair,
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                onPressed: _busy ? null : _useAsReference,
+              ),
+          ],
+        ),
+        if (!widget.isHost) ...[
+          const SizedBox(height: NightshadeTokens.spaceXs),
+          Text(
+            'Use as a live-stack reference frame runs on your imaging host.',
+            style: NightshadeTypography.captionSm
+                .copyWith(color: colors.textMuted),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _export() async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      final backend = ref.read(backendProvider);
+      final String sharePath;
+      if (backend is NetworkBackend) {
+        // Slave: pull PNG bytes over the wire and stage a temp file to share.
+        final bytes = await backend.getAtlasRegionCutout(widget.region.id);
+        final dir = await getTemporaryDirectory();
+        final file = File(p.join(
+          dir.path,
+          'region_${widget.region.id}_${_safeName(widget.region.name)}.png',
+        ));
+        await file.writeAsBytes(bytes);
+        sharePath = file.path;
+      } else {
+        final export = await ref
+            .read(skyAtlasServiceProvider)
+            .exportRegionCutout(widget.region.id);
+        if (export == null || export.pngPath == null) {
+          messenger.showSnackBar(const SnackBar(
+            content: Text('No co-add to export yet.'),
+            duration: Duration(seconds: 3),
+          ));
+          return;
+        }
+        sharePath = export.pngPath!;
+      }
+      await Share.shareXFiles(
+        [XFile(sharePath)],
+        text: '${widget.region.name} — co-added in Your Sky',
+      );
+    } on Object catch (e) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Could not export: $e'),
+        duration: const Duration(seconds: 4),
+      ));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _useAsReference() async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      final export = await ref
+          .read(skyAtlasServiceProvider)
+          .exportRegionCutout(widget.region.id);
+      if (export == null) {
+        messenger.showSnackBar(const SnackBar(
+          content: Text('No co-add to use as a reference yet.'),
+          duration: Duration(seconds: 3),
+        ));
+        return;
+      }
+      await ref
+          .read(liveStackingProvider.notifier)
+          .startFromFile(export.fitsPath);
+      messenger.showSnackBar(SnackBar(
+        content: Text(
+          'Armed live stacking on ${widget.region.name} as the reference frame.',
+        ),
+        duration: const Duration(seconds: 4),
+      ));
+    } on Object catch (e) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Could not set reference frame: $e'),
+        duration: const Duration(seconds: 4),
+      ));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  static String _safeName(String name) {
+    final cleaned = name.replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_');
+    return cleaned.isEmpty ? 'region' : cleaned;
   }
 }
 

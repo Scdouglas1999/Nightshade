@@ -154,6 +154,12 @@ class _ConstellationSignInSheetState
         account.bearerToken,
       );
       await settings.setSetting(constellationDisplayNameSettingKey, name);
+      // Record the hub-issued account id so follow-the-night can tell when the
+      // baton's holder is this user (enables the Release affordance).
+      await settings.setSetting(
+        constellationAccountIdSettingKey,
+        account.accountId,
+      );
 
       if (!mounted) return;
       ref.invalidate(constellationConfiguredProvider);

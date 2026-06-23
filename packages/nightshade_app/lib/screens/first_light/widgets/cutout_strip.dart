@@ -1,41 +1,51 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// Side-by-side template / frame / residual cutout strip for one transient
+/// Side-by-side template / science / residual cutout strip for one transient
 /// candidate.
 ///
-/// The raw per-detection postage stamps are not archived in the detection log
-/// (the difference pipeline writes optional residual PNGs to a scratch dir, not
-/// the DB), so this strip renders a faithful *schematic* of the measured
-/// residual from the candidate's persisted shape statistics — the same numbers
-/// the cross-match and the Narrator read:
+/// **Real pixels when available.** The difference pass writes three auto-stretched
+/// postage-stamp PNGs (template / science / residual) per detection, addressable
+/// from the persisted row alone (tile id + sky position). [firstLightCropProvider]
+/// serves them — the local file on the host, the `/api/firstlight/<id>/crops/...`
+/// endpoint on a companion tablet — so the strip shows the *actual* pixels around
+/// the candidate, the first thing a discoverer eyeballs to reject a hot pixel or
+/// satellite.
+///
+/// **Schematic fallback.** When a stamp is absent (an older detection logged
+/// before crops were captured, or a scan that produced none) the panel falls back
+/// to a faithful *schematic* drawn from the candidate's measured shape statistics
+/// — the same numbers the cross-match and Narrator read — clearly captioned as a
+/// schematic so it is never mistaken for raw pixels:
 ///
 ///   * **Template** — the deep stack at the source position. A
-///     `pointBrightening` had flux here already (a star present in the
-///     template); a `newSource` did not (empty template), which is exactly what
-///     makes it the headline case.
-///   * **Frame** — the fresh light frame: template plus the source as it
+///     `pointBrightening` had flux here already; a `newSource` did not.
+///   * **Science** — the fresh light frame: template plus the source as it
 ///     appeared, an elliptical Gaussian sized by [TransientDetectionRow.fwhm]
 ///     and elongated by [TransientDetectionRow.eccentricity].
 ///   * **Residual** — frame minus template, the difference the pipeline
 ///     detected. A `dipole` shows the tell-tale +/- lobe pair; everything else
-///     a single signed blob whose sign follows [TransientDetectionRow.deltaMag]
-///     (or the residual flux).
-///
-/// Drawing the measured ellipse (not a generic icon) means the strip reads
-/// honestly: a fat low-SNR smudge looks like one, a crisp high-SNR point looks
-/// like one. The labels make the schematic nature explicit so it is never
-/// mistaken for the raw pixels.
-class CutoutStrip extends StatelessWidget {
+///     a single signed blob whose sign follows [TransientDetectionRow.deltaMag].
+class CutoutStrip extends ConsumerWidget {
   const CutoutStrip({super.key, required this.detection});
 
   final TransientDetectionRow detection;
 
+  FirstLightCropQuery _query(String stage) => (
+        detectionId: detection.id,
+        tileId: detection.tileId,
+        raDeg: detection.raDeg,
+        decDeg: detection.decDeg,
+        stage: stage,
+      );
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
     final kind = TransientKind.fromWire(detection.kind);
     // A point brightening (and a known-star match) already had template flux;
@@ -48,67 +58,98 @@ class CutoutStrip extends StatelessWidget {
         ? detection.deltaMag! <= 0
         : detection.residualFlux >= 0;
 
+    final templateBytes = ref.watch(
+      firstLightCropProvider(_query('template')),
+    );
+    final scienceBytes = ref.watch(firstLightCropProvider(_query('science')));
+    final residualBytes = ref.watch(firstLightCropProvider(_query('residual')));
+
+    // The strip is "real pixels" only when every panel resolved to bytes; a
+    // mixed state (some stamps missing) shows the schematic uniformly so the
+    // three panels stay visually comparable and the caption stays honest.
+    final allReal = templateBytes.valueOrNull != null &&
+        scienceBytes.valueOrNull != null &&
+        residualBytes.valueOrNull != null;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         // Three equal panels with two gaps; keep them square-ish but never let a
         // narrow phone column overflow.
         const gap = NightshadeTokens.spaceSm;
         final panel = ((constraints.maxWidth - gap * 2) / 3).clamp(48.0, 132.0);
-        return Row(
+
+        Widget panelFor({
+          required String label,
+          required _CutoutStage stage,
+          required AsyncValue<Uint8List?> bytes,
+          bool accent = false,
+        }) {
+          return _CutoutPanel(
+            label: label,
+            size: panel,
+            colors: colors,
+            accent: accent,
+            pixels: allReal ? bytes.valueOrNull : null,
+            painter: _CutoutPainter(
+              colors: colors,
+              kind: kind,
+              fwhm: detection.fwhm,
+              eccentricity: detection.eccentricity,
+              snr: detection.snr,
+              positionAngleDeg: detection.positionAngleDeg,
+              stage: stage,
+              templateHasSource: templateHasSource,
+              brighter: brighter,
+            ),
+          );
+        }
+
+        final strip = Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _CutoutPanel(
+            panelFor(
               label: 'Template',
-              size: panel,
-              colors: colors,
-              painter: _CutoutPainter(
-                colors: colors,
-                kind: kind,
-                fwhm: detection.fwhm,
-                eccentricity: detection.eccentricity,
-                snr: detection.snr,
-                positionAngleDeg: detection.positionAngleDeg,
-                stage: _CutoutStage.template,
-                templateHasSource: templateHasSource,
-                brighter: brighter,
-              ),
+              stage: _CutoutStage.template,
+              bytes: templateBytes,
             ),
             const SizedBox(width: gap),
-            _CutoutPanel(
-              label: 'This frame',
-              size: panel,
-              colors: colors,
-              painter: _CutoutPainter(
-                colors: colors,
-                kind: kind,
-                fwhm: detection.fwhm,
-                eccentricity: detection.eccentricity,
-                snr: detection.snr,
-                positionAngleDeg: detection.positionAngleDeg,
-                stage: _CutoutStage.frame,
-                templateHasSource: templateHasSource,
-                brighter: brighter,
-              ),
+            panelFor(
+              label: 'Science',
+              stage: _CutoutStage.frame,
+              bytes: scienceBytes,
             ),
             const SizedBox(width: gap),
-            _CutoutPanel(
+            panelFor(
               label: 'Residual',
-              size: panel,
-              colors: colors,
+              stage: _CutoutStage.residual,
+              bytes: residualBytes,
               accent: true,
-              painter: _CutoutPainter(
-                colors: colors,
-                kind: kind,
-                fwhm: detection.fwhm,
-                eccentricity: detection.eccentricity,
-                snr: detection.snr,
-                positionAngleDeg: detection.positionAngleDeg,
-                stage: _CutoutStage.residual,
-                templateHasSource: templateHasSource,
-                brighter: brighter,
-              ),
             ),
           ],
+        );
+
+        // Caption: real pixels need none; the schematic must say so explicitly
+        // (it appeared only in code comments before), with a Semantics label so a
+        // screen reader is told these are measured-shape schematics, not pixels.
+        if (allReal) return strip;
+        return Semantics(
+          label: 'Cutout schematic — drawn from the measured shape, '
+              'not raw pixels',
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              strip,
+              const SizedBox(height: NightshadeTokens.spaceXs),
+              Text(
+                'Schematic — from measured shape, not raw pixels',
+                textAlign: TextAlign.center,
+                style: NightshadeTypography.labelQuiet.copyWith(
+                  color: colors.textMuted,
+                  fontSize: NightshadeTypography.fontSize10,
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -121,6 +162,7 @@ class _CutoutPanel extends StatelessWidget {
     required this.size,
     required this.colors,
     required this.painter,
+    this.pixels,
     this.accent = false,
   });
 
@@ -128,10 +170,15 @@ class _CutoutPanel extends StatelessWidget {
   final double size;
   final NightshadeColors colors;
   final CustomPainter painter;
+
+  /// Real PNG stamp bytes; when non-null the panel renders the actual pixels and
+  /// the [painter] schematic is unused.
+  final Uint8List? pixels;
   final bool accent;
 
   @override
   Widget build(BuildContext context) {
+    final pixels = this.pixels;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -147,7 +194,18 @@ class _CutoutPanel extends StatelessWidget {
             ),
           ),
           clipBehavior: Clip.antiAlias,
-          child: CustomPaint(painter: painter, size: Size.square(size)),
+          child: pixels != null
+              ? Image.memory(
+                  pixels,
+                  width: size,
+                  height: size,
+                  fit: BoxFit.cover,
+                  gaplessPlayback: true,
+                  filterQuality: FilterQuality.none,
+                  errorBuilder: (context, error, stack) =>
+                      CustomPaint(painter: painter, size: Size.square(size)),
+                )
+              : CustomPaint(painter: painter, size: Size.square(size)),
         ),
         const SizedBox(height: NightshadeTokens.spaceXs),
         Text(

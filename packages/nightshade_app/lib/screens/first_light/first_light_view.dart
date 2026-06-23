@@ -81,13 +81,18 @@ class FirstLightView extends ConsumerWidget {
 }
 
 /// What-this-is explainer strip. Mirrors the transient-alert citizen-science
-/// strip so the two Science discovery surfaces read as siblings.
-class _IntroStrip extends StatelessWidget {
+/// strip so the two Science discovery surfaces read as siblings. Explains the
+/// differencing AND the template-depth gate (a region produces nothing until its
+/// tiles are deep enough), and — when the last scan reported a thin atlas —
+/// surfaces a live "atlas not deep enough here yet" readout so a quiet sparse
+/// region is explainable instead of reading as broken.
+class _IntroStrip extends ConsumerWidget {
   const _IntroStrip();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
+    final coverage = ref.watch(firstLightCoverageProvider);
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: NightshadeTokens.spaceLg,
@@ -97,28 +102,86 @@ class _IntroStrip extends StatelessWidget {
         color: colors.surface,
         border: Border(bottom: BorderSide(color: colors.border)),
       ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+                decoration: NightshadeDecorations.tintedBadge(colors.accent),
+                child: Icon(
+                  LucideIcons.radar,
+                  size: NightshadeTokens.iconSm,
+                  color: colors.accent,
+                ),
+              ),
+              const SizedBox(width: NightshadeTokens.spaceMd),
+              Expanded(
+                child: Text(
+                  'Every solved frame is differenced against your deep sky '
+                  'atlas — but only where the atlas is at least 5 frames deep, '
+                  'so a fresh patch of sky stays quiet until it builds up. '
+                  'Anything that appeared, moved, or brightened on a deep patch '
+                  'lands here to review, then submit to the TNS or export an '
+                  'AAVSO / MPC report.',
+                  style: NightshadeTypography.caption.copyWith(
+                    color: colors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (coverage != null) ...[
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            _CoverageReadout(coverage: coverage, colors: colors),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Live deep-tile readout from the most-recent scan's coverage envelope. Tells
+/// the user, in plain terms, whether tonight's field was deep enough to search —
+/// the "atlas not deep enough here yet" feedback that turns a silent thin-atlas
+/// no-op into an explained quiet night.
+class _CoverageReadout extends StatelessWidget {
+  const _CoverageReadout({required this.coverage, required this.colors});
+
+  final FirstLightCoverage coverage;
+  final NightshadeColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final thin = coverage.isAtlasTooThin;
+    final color = thin ? colors.warning : colors.success;
+    final icon = thin ? LucideIcons.layers : NightshadeIcons.check;
+    final text = thin
+        ? 'Atlas not deep enough here yet — '
+            '${coverage.tilesSkippedThin + coverage.tilesNoTemplate} of '
+            '${coverage.tilesCovered} covered tiles still need more frames '
+            'before differencing can run.'
+        : '${coverage.tilesChecked} of ${coverage.tilesCovered} covered tiles '
+            'were deep enough to search this scan.';
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceMd,
+        vertical: NightshadeTokens.spaceSm,
+      ),
+      decoration: NightshadeDecorations.tintedBadge(
+        color,
+        borderRadius: NightshadeTokens.borderRadiusSm,
+      ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
-            decoration: NightshadeDecorations.tintedBadge(colors.accent),
-            child: Icon(
-              LucideIcons.radar,
-              size: NightshadeTokens.iconSm,
-              color: colors.accent,
-            ),
-          ),
-          const SizedBox(width: NightshadeTokens.spaceMd),
+          Icon(icon, size: NightshadeTokens.iconXs, color: color),
+          const SizedBox(width: NightshadeTokens.spaceSm),
           Expanded(
             child: Text(
-              'Every solved frame is differenced against your deep sky atlas. '
-              'Anything that appeared, moved, or brightened lands here — review '
-              'it, then submit it to the TNS (live, with your bot key) or '
-              'export an ingestible AAVSO / MPC report.',
-              style: NightshadeTypography.caption.copyWith(
-                color: colors.textSecondary,
-                height: 1.4,
-              ),
+              text,
+              style: NightshadeTypography.labelSm.copyWith(color: color),
             ),
           ),
         ],

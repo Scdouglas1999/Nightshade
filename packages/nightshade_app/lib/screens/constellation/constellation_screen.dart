@@ -274,6 +274,7 @@ class _ConnectedBody extends ConsumerWidget {
     final settings = ref.read(settingsDaoProvider);
     await settings.setSetting(constellationHubUrlSettingKey, '');
     await settings.setSetting(constellationHubTokenSettingKey, '');
+    await settings.setSetting(constellationAccountIdSettingKey, '');
     ref.invalidate(constellationConfiguredProvider);
     ref.invalidate(constellationHubInfoProvider);
   }
@@ -342,6 +343,8 @@ class _FollowTheNightCardWired extends ConsumerStatefulWidget {
 class _FollowTheNightCardWiredState
     extends ConsumerState<_FollowTheNightCardWired> {
   bool _claiming = false;
+  bool _releasing = false;
+  bool _planning = false;
 
   @override
   Widget build(BuildContext context) {
@@ -350,7 +353,70 @@ class _FollowTheNightCardWiredState
       suggestion: s,
       claiming: _claiming,
       onClaim: s.isReadyNow ? _claim : null,
+      releasing: _releasing,
+      onRelease: s.heldByMe ? _release : null,
+      planning: _planning,
+      onPlanTonight: _planTonight,
     );
+  }
+
+  Future<void> _release() async {
+    setState(() => _releasing = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await ref
+          .read(constellationServiceProvider)
+          .releaseHandoff(widget.suggestion.targetId);
+      if (!mounted) return;
+      ref.invalidate(followTheNightProvider(-1));
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Released the baton for ${widget.suggestion.targetName} back to '
+            'the swarm.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text(describeConstellationError(error))),
+      );
+    } finally {
+      if (mounted) setState(() => _releasing = false);
+    }
+  }
+
+  Future<void> _planTonight() async {
+    setState(() => _planning = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final s = widget.suggestion;
+    try {
+      // Host-aware: on a slave this resolves/creates the target on the MASTER's
+      // library via the NetworkBackend; on the host it writes the local table.
+      // RA is stored in decimal hours, the suggestion carries degrees.
+      await ref.read(targetLibraryServiceProvider).ensureCatalogTarget(
+            targetName: s.targetName,
+            raHours: s.raDeg / 15.0,
+            decDegrees: s.decDeg,
+          );
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            '${s.targetName} is queued in your planner — open Planning to '
+            'schedule it tonight.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text(describeConstellationError(error))),
+      );
+    } finally {
+      if (mounted) setState(() => _planning = false);
+    }
   }
 
   Future<void> _claim() async {

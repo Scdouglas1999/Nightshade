@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:drift/drift.dart' show Value;
+import 'package:path/path.dart' as p;
 
 import '../../database/daos/living_sky_retention_dao.dart';
 import '../../database/daos/transient_detections_dao.dart';
@@ -12,6 +13,76 @@ import '../logging_service.dart';
 import '../science/photometric_catalog_service.dart';
 import 'difference_image_seam.dart';
 import 'transient_candidate.dart';
+
+/// On-disk directory the per-detection real-pixel crop stamps are written into,
+/// derived from the atlas root. One shared dir (not per-session) so a crop is
+/// addressable from the persisted detection row alone (tile id + position), which
+/// is all the `/api/firstlight/<id>/crops` endpoint has to work with.
+String firstLightCropDir(String atlasRoot) =>
+    p.join(atlasRoot, 'firstlight_crops');
+
+/// Deterministic crop-stamp filename for a detection at (`raDeg`, `decDeg`) on
+/// [tileId], for [stage] (`template` | `science` | `residual`). Mirrors the
+/// native `crop_basename` exactly (tile id + sky position quantized to
+/// micro-degrees) so the bytes the bridge wrote are the bytes the UI/endpoint
+/// reads back.
+String firstLightCropName({
+  required int tileId,
+  required double raDeg,
+  required double decDeg,
+  required String stage,
+}) {
+  final raU = (raDeg * 1000000.0).round();
+  final decU = (decDeg * 1000000.0).round();
+  return 'crop_${tileId}_${raU}_${decU}_$stage.png';
+}
+
+/// How much of a frame's footprint the atlas was deep enough to actually
+/// difference, decoded from the native difference envelope. Distinguishes a
+/// genuinely clean-sky result (tiles checked, nothing found) from a thin-atlas
+/// no-op (every covered tile too thin / not folded into yet) so the UI can say
+/// "atlas not deep enough here yet" rather than silently reading as broken.
+class FirstLightCoverage {
+  const FirstLightCoverage({
+    required this.tilesChecked,
+    required this.tilesSkippedThin,
+    required this.tilesNoTemplate,
+  });
+
+  /// Tiles whose template was deep enough and were differenced.
+  final int tilesChecked;
+
+  /// Tiles the frame covered but whose template was thinner than the depth gate.
+  final int tilesSkippedThin;
+
+  /// Tiles the frame footprint covered but which have not been folded into yet.
+  final int tilesNoTemplate;
+
+  /// Every tile the frame footprint touched (deep, thin, or empty).
+  int get tilesCovered => tilesChecked + tilesSkippedThin + tilesNoTemplate;
+
+  /// True when the frame covered sky but not one tile was deep enough to scan —
+  /// the "atlas not deep enough here yet" condition.
+  bool get isAtlasTooThin => tilesChecked == 0 && tilesCovered > 0;
+
+  static int _len(Object? v) => v is List ? v.length : 0;
+
+  /// Decode from the `{ tilesChecked, tilesSkippedThin, tilesNoTemplate }` lists
+  /// the native difference envelope carries (each is a list of tile ids).
+  factory FirstLightCoverage.fromBridgeJson(Map<String, dynamic> json) {
+    return FirstLightCoverage(
+      tilesChecked: _len(json['tilesChecked']),
+      tilesSkippedThin: _len(json['tilesSkippedThin']),
+      tilesNoTemplate: _len(json['tilesNoTemplate']),
+    );
+  }
+
+  static const empty = FirstLightCoverage(
+    tilesChecked: 0,
+    tilesSkippedThin: 0,
+    tilesNoTemplate: 0,
+  );
+}
 
 /// Narrow seam over the photometric catalog cone search the cross-match needs.
 ///
@@ -80,6 +151,7 @@ class FirstLightService {
     required LoggingService logger,
     required Future<String> Function() atlasRootResolver,
     LivingSkyRetentionDao? retention,
+    void Function(FirstLightCoverage coverage)? onCoverage,
     int order = 9,
   }) : _dao = dao,
        _seam = seam,
@@ -87,6 +159,7 @@ class FirstLightService {
        _logger = logger,
        _atlasRootResolver = atlasRootResolver,
        _retention = retention,
+       _onCoverage = onCoverage,
        _order = order;
 
   final TransientDetectionsDao _dao;
@@ -95,6 +168,12 @@ class FirstLightService {
   final LoggingService _logger;
   final Future<String> Function() _atlasRootResolver;
   final LivingSkyRetentionDao? _retention;
+
+  /// Published the latest scan's coverage envelope (deep / thin / empty tile
+  /// counts) so a surface can show "atlas not deep enough here yet" rather than a
+  /// thin-atlas no-op being indistinguishable from a clean sky.
+  final void Function(FirstLightCoverage coverage)? _onCoverage;
+
   final int _order;
 
   /// Default retention horizon: triaged-artefact transient history older than
@@ -179,6 +258,15 @@ class FirstLightService {
       'wcs': frameRef.toWcsJson(),
       'interp': AtlasInterp.lanczos3.wire,
       'minTemplateCoverage': minTemplateCoverage,
+      // Pass the SNR floor + cross-tile dedup/match radius explicitly so Dart and
+      // native share one source of truth (no silent-drift between the two 5.0s).
+      'minSnr': _minSnr,
+      // Write real-pixel template/science/residual postage stamps per detection
+      // into a stable cache dir, named deterministically by tile id + position so
+      // the UI (and the /api/firstlight/<id>/crops endpoint) resolve them from the
+      // persisted row alone — replacing the schematic cutout strip with real
+      // pixels.
+      'cropOutDir': firstLightCropDir(atlasRoot),
     };
 
     final result = await _seam.difference(args);
@@ -188,11 +276,30 @@ class FirstLightService {
         .where((c) => c.snr >= _minSnr)
         .toList(growable: false);
 
+    // Coverage envelope: how much of the frame's footprint the atlas was actually
+    // deep enough to difference. A thin-atlas no-op (every covered tile too thin /
+    // no template yet) is otherwise indistinguishable from a genuinely clean sky;
+    // logging + surfacing it lets the UI say "atlas not deep enough here yet"
+    // instead of silently reading as broken.
+    final coverage = FirstLightCoverage.fromBridgeJson(result);
+    _onCoverage?.call(coverage);
     if (rawCandidates.isEmpty) {
-      _logger.debug(
-        'First Light scan: no residuals above SNR $_minSnr for $framePath',
-        source: _logSource,
-      );
+      if (coverage.tilesChecked == 0 && coverage.tilesCovered > 0) {
+        _logger.info(
+          'First Light scan: atlas not deep enough here yet for $framePath — '
+          '${coverage.tilesSkippedThin} tile(s) below the '
+          '$minTemplateCoverage-frame depth gate, '
+          '${coverage.tilesNoTemplate} not folded into yet '
+          '(0 of ${coverage.tilesCovered} deep enough)',
+          source: _logSource,
+        );
+      } else {
+        _logger.debug(
+          'First Light scan: no residuals above SNR $_minSnr for $framePath '
+          '(${coverage.tilesChecked} tile(s) checked)',
+          source: _logSource,
+        );
+      }
       return const [];
     }
 

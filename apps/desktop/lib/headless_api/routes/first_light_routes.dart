@@ -21,6 +21,13 @@ List<HeadlessRoute> buildFirstLightRoutes(
   // Cross-night history of one transient (light-curve detail view). Single
   // static segment so it never shadows the `<id>/<action>` triage routes.
   HeadlessRoute(HttpMethod.get, '/api/firstlight/near', h.handleGetNear),
+  // Real per-detection pixel crop (template | science | residual) as PNG bytes,
+  // so a slave renders the actual pixels around a candidate, not a schematic.
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/firstlight/<id>/crops/<stage>',
+    h.handleGetCrop,
+  ),
   HeadlessRoute(HttpMethod.post, '/api/firstlight/<id>/review', h.handleReview),
   HeadlessRoute(
     HttpMethod.post,

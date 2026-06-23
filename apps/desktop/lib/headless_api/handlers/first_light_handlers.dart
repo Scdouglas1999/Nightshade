@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
@@ -273,6 +275,66 @@ class FirstLightHandlers {
     final parsed = int.tryParse(raw);
     if (parsed == null || parsed < 0) return 0;
     return parsed;
+  }
+
+  /// Crop stages the difference pass writes a real-pixel postage stamp for.
+  static const _cropStages = {'template', 'science', 'residual'};
+
+  /// GET `/api/firstlight/<id>/crops/<stage>` — the REAL per-detection pixel
+  /// postage stamp (`template` | `science` | `residual`) the difference pass
+  /// wrote, as PNG bytes. The host re-derives the deterministic crop filename
+  /// from the persisted row (tile id + sky position) — the same key native used —
+  /// so a companion tablet renders the actual pixels around the candidate via
+  /// `Image.memory` instead of a schematic. 404 when the stamp is absent (an
+  /// older detection from before crops were captured, or a scan that produced no
+  /// crop) so the client falls back to the schematic.
+  Future<Response> handleGetCrop(
+    Request request,
+    String id,
+    String stage,
+  ) async {
+    final detectionId = int.tryParse(id);
+    if (detectionId == null) {
+      throw BadRequestError(
+        field: 'id',
+        expected: 'integer',
+        message: 'detection id must be an integer',
+      );
+    }
+    if (!_cropStages.contains(stage)) {
+      throw BadRequestError(
+        field: 'stage',
+        expected: 'template | science | residual',
+        message: 'unknown crop stage "$stage"',
+      );
+    }
+    _logInfo('[API] GET /api/firstlight/$detectionId/crops/$stage');
+
+    final detection = await _dao.detectionById(detectionId);
+    if (detection == null) {
+      return jsonNotFound('No transient detection with id $detectionId');
+    }
+
+    final atlasRoot = await defaultAtlasRoot();
+    final name = firstLightCropName(
+      tileId: detection.tileId,
+      raDeg: detection.raDeg,
+      decDeg: detection.decDeg,
+      stage: stage,
+    );
+    final file = File('${firstLightCropDir(atlasRoot)}/$name');
+    if (!await file.exists()) {
+      return jsonNotFound(
+        'No $stage crop for detection $detectionId (not captured)',
+      );
+    }
+    final bytes = await file.readAsBytes();
+    return contentResponse(
+      bytes,
+      contentType: 'image/png',
+      contentLength: bytes.length,
+      headers: const {'cache-control': 'public, max-age=86400'},
+    );
   }
 
   /// POST `/api/firstlight/<id>/review` — mark a detection reviewed (confirmed).

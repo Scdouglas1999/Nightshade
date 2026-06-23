@@ -97,6 +97,7 @@ void main() {
       // Pillar B — First Light (transient discovery)
       'GET /api/firstlight/candidates',
       'GET /api/firstlight/near',
+      'GET /api/firstlight/{param}/crops/{param}',
       'POST /api/firstlight/{param}/review',
       'POST /api/firstlight/{param}/dismiss',
       'POST /api/firstlight/{param}/submit/tns',

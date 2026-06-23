@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:path/path.dart' as p;
 
 /// A recording fake [SkyAtlasSeam] that returns canned bridge results so the
 /// service body (fold persistence, region bookkeeping) runs without native code.
@@ -20,6 +23,9 @@ class _FakeSkyAtlasSeam implements SkyAtlasSeam {
   @override
   Future<Map<String, dynamic>> queryCutout(Map<String, dynamic> args) async => {
     'ok': true,
+    // Echo the paths the service handed in (the native side writes here),
+    // mirroring the real bridge's contract.
+    'fitsPath': args['fitsPath'] ?? '/tmp/cutout.fits',
     'pngPath': '/tmp/cutout.png',
     'coveredFraction': 0.9,
   };
@@ -652,6 +658,146 @@ void main() {
         expect(indexed[i].integrationSeconds, scanned[i].integrationSeconds);
         expect(indexed[i].channels, scanned[i].channels);
       }
+    },
+  );
+
+  test(
+    'foldSession skips a phantom 0-frame tile (no index row, no timeline noise)',
+    () async {
+      // A cone that overlaps two tiles' footprints but contributes frames to
+      // only ONE of them: the over-coverage tile reports framesAdded == 0.
+      seam.onDispatch = (args) => {
+        'ok': true,
+        'tilesTouched': [42, 99],
+        'foldsByTile': [
+          {
+            'tileId': 42,
+            'framesAdded': 1,
+            'weightAdded': 1.0,
+            'rejected': 0,
+            'coverageMean': 1.0,
+            'centerRa': 83.6,
+            'centerDec': -5.39,
+            'totalFrames': 1,
+            'integrationSeconds': 300.0,
+            'channels': 1,
+          },
+          {
+            'tileId': 99,
+            'framesAdded':
+                0, // phantom: footprint overlap, zero accepted frames
+            'weightAdded': 0.0,
+            'rejected': 0,
+            'coverageMean': 0.0,
+            'centerRa': 83.7,
+            'centerDec': -5.40,
+            'totalFrames': 0,
+            'integrationSeconds': 0.0,
+            'channels': 1,
+          },
+        ],
+        'framesSkippedNoCoverage': 0,
+      };
+
+      await service.foldSession(
+        sessionId: 7,
+        frames: [frame()],
+        label: '2026-06-11',
+      );
+
+      // The real tile persists; the phantom is NOT upserted into the index.
+      expect(await dao.getTile(42), isNotNull);
+      expect(
+        await dao.getTile(99),
+        isNull,
+        reason: 'a 0-frame phantom tile must not seed a SkyTiles row',
+      );
+      // And it leaves no "+0 frames" entry in the timeline.
+      expect(await dao.listFoldsForTileOverTime(99), isEmpty);
+    },
+  );
+
+  test(
+    'sweepCache evicts aged cutout/delta artefacts by age and size',
+    () async {
+      final root = Directory.systemTemp.createTempSync('atlas_cache_test');
+      addTearDown(() => root.deleteSync(recursive: true));
+      final svc = SkyAtlasService(
+        dao: dao,
+        seam: seam,
+        logger: LoggingService(),
+        atlasRootResolver: () async => root.path,
+      );
+      final cacheDir = Directory(p.join(root.path, 'cache'))
+        ..createSync(recursive: true);
+
+      File makeFile(String name, {required Duration age, int bytes = 16}) {
+        final f = File(p.join(cacheDir.path, name))
+          ..writeAsBytesSync(List<int>.filled(bytes, 0));
+        final mtime = DateTime.now().subtract(age);
+        f.setLastModifiedSync(mtime);
+        return f;
+      }
+
+      final old = makeFile('cutout_old.png', age: const Duration(days: 30));
+      final fresh = makeFile('cutout_fresh.png', age: const Duration(hours: 1));
+      final delta = makeFile('delta_5.nst', age: const Duration(days: 30));
+      // A non-cache file extension is never touched.
+      final keep = makeFile('notes.txt', age: const Duration(days: 30));
+
+      final deleted = await svc.sweepCache(maxAge: const Duration(days: 14));
+      expect(
+        deleted,
+        2,
+        reason: 'the two aged artefacts go; the fresh one stays',
+      );
+      expect(old.existsSync(), isFalse);
+      expect(delta.existsSync(), isFalse);
+      expect(fresh.existsSync(), isTrue);
+      expect(keep.existsSync(), isTrue, reason: '.txt is not a cache artefact');
+    },
+  );
+
+  test('deleteExportedDelta removes a spent federation payload', () async {
+    final root = Directory.systemTemp.createTempSync('atlas_delta_test');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final svc = SkyAtlasService(
+      dao: dao,
+      seam: seam,
+      logger: LoggingService(),
+      atlasRootResolver: () async => root.path,
+    );
+    final cacheDir = Directory(p.join(root.path, 'cache'))
+      ..createSync(recursive: true);
+    final delta = File(p.join(cacheDir.path, 'delta_42.nst'))
+      ..writeAsBytesSync(const [0, 1, 2]);
+
+    expect(await svc.deleteExportedDelta(42), isTrue);
+    expect(delta.existsSync(), isFalse);
+    // Idempotent: a second call (file already gone) is a no-op, not an error.
+    expect(await svc.deleteExportedDelta(42), isFalse);
+  });
+
+  test(
+    'exportRegionCutout returns the co-add paths for a known region',
+    () async {
+      final id = await service.ensureRegion(
+        name: 'M31',
+        centerRaDeg: 10.68,
+        centerDecDeg: 41.27,
+        radiusDeg: 1.5,
+        kind: 'custom',
+      );
+      final export = await service.exportRegionCutout(id);
+      expect(export, isNotNull);
+      expect(export!.regionName, 'M31');
+      // The fake seam's queryCutout returns a pngPath but no fitsPath; the
+      // service synthesizes the fitsPath via the cutout stem.
+      expect(export.fitsPath, isNotEmpty);
+      expect(export.pngPath, '/tmp/cutout.png');
+
+      // An unknown region id yields null (nothing to export).
+      expect(await service.exportRegionCutout(999999), isNull);
     },
   );
 }
