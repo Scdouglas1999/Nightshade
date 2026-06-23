@@ -26,6 +26,155 @@ class FirstLightHandlers {
   TransientDetectionsDao get _dao =>
       container.read(transientDetectionsDaoProvider);
 
+  /// POST `/api/firstlight/<id>/submit/tns` — REAL TNS bot-API submission.
+  ///
+  /// The host holds the credentials (non-secret in ScienceSettings, the secret
+  /// api key in the keyring). A slave only triggers this; the api key never
+  /// crosses the wire. Returns the submission result JSON.
+  Future<Response> handleSubmitTns(Request request, String id) async {
+    final detectionId = int.tryParse(id);
+    if (detectionId == null) {
+      throw BadRequestError(
+        field: 'id',
+        expected: 'integer',
+        message: 'detection id must be an integer',
+      );
+    }
+    _logInfo('[API] POST /api/firstlight/$detectionId/submit/tns');
+
+    final detection = await _dao.detectionById(detectionId);
+    if (detection == null) {
+      return jsonNotFound('No transient detection with id $detectionId');
+    }
+
+    final settings = await container.read(scienceSettingsProvider.future);
+    final apiKey = await container
+        .read(secretsStoreProvider)
+        .read(SecretField.tnsApiKey);
+    final creds = TnsCredentials(
+      botId: settings.tnsBotId,
+      botName: settings.tnsBotName,
+      reportingGroupId: settings.tnsReportingGroupId,
+      dataSourceId: settings.tnsDataSourceId,
+      reporterName: settings.tnsReporterName.isNotEmpty
+          ? settings.tnsReporterName
+          : settings.observerName,
+      apiKey: apiKey,
+      useSandbox: settings.tnsUseSandbox,
+    );
+    if (!creds.isComplete) {
+      return jsonBadRequest({
+        'success': false,
+        'message':
+            'TNS credentials are not configured on the host. Set the bot '
+            'id/name/group/source, reporter, and api key in '
+            'Settings > Science on the rig host.',
+      });
+    }
+
+    final result = await container
+        .read(transientSubmissionServiceProvider)
+        .submitToTns(detection: detection, creds: creds);
+    return jsonOk({
+      'success': result.success,
+      'atName': result.atName,
+      'reportId': result.reportId,
+      'message': result.message,
+    });
+  }
+
+  /// POST `/api/firstlight/<id>/export/aavso` — generate an ingestible AAVSO
+  /// Extended File Format report and return it as a downloadable attachment.
+  ///
+  /// Requires a photometric zeropoint (passed in the body) and the host's
+  /// observer code; without a calibrated magnitude the AAVSO format is
+  /// disabled (returns 400), never a `na`-stuffed DIF row.
+  Future<Response> handleExportAavso(Request request, String id) async {
+    final detectionId = int.tryParse(id);
+    if (detectionId == null) {
+      throw BadRequestError(
+        field: 'id',
+        expected: 'integer',
+        message: 'detection id must be an integer',
+      );
+    }
+    _logInfo('[API] POST /api/firstlight/$detectionId/export/aavso');
+
+    final detection = await _dao.detectionById(detectionId);
+    if (detection == null) {
+      return jsonNotFound('No transient detection with id $detectionId');
+    }
+    final payload = await readJsonObject(request);
+    final magZeroPoint = (payload['magZeroPoint'] as num?)?.toDouble();
+    final standardBand = optionalString(payload, 'standardBand');
+
+    final settings = await container.read(scienceSettingsProvider.future);
+    final reports = TransientReportService();
+    final reason = reports.aavsoDisabledReason(
+      detection,
+      observerCode: settings.aavsoObserverCode,
+      magZeroPoint: magZeroPoint,
+    );
+    if (reason != null) {
+      return jsonBadRequest({'error': reason});
+    }
+
+    final content = reports.generateAavsoReport(
+      detection: detection,
+      observerCode: settings.aavsoObserverCode,
+      magZeroPoint: magZeroPoint!,
+      standardBand: standardBand,
+    );
+    return attachmentResponse(
+      content,
+      fileName: 'aavso_transient_$detectionId.txt',
+      contentType: 'text/plain; charset=utf-8',
+    );
+  }
+
+  /// POST `/api/firstlight/<id>/export/mpc` — generate an MPC ADES PSV
+  /// astrometry report and return it as a downloadable attachment. Requires the
+  /// host's 3-char observatory code.
+  Future<Response> handleExportMpc(Request request, String id) async {
+    final detectionId = int.tryParse(id);
+    if (detectionId == null) {
+      throw BadRequestError(
+        field: 'id',
+        expected: 'integer',
+        message: 'detection id must be an integer',
+      );
+    }
+    _logInfo('[API] POST /api/firstlight/$detectionId/export/mpc');
+
+    final detection = await _dao.detectionById(detectionId);
+    if (detection == null) {
+      return jsonNotFound('No transient detection with id $detectionId');
+    }
+    final settings = await container.read(scienceSettingsProvider.future);
+    final reports = TransientReportService();
+    if (!reports.mpcAdesAvailable(
+      observatoryCode: settings.mpcObservatoryCode,
+    )) {
+      return jsonBadRequest({
+        'error':
+            'Set your 3-character MPC observatory code in Settings > Science '
+            'on the host first.',
+      });
+    }
+
+    final content = reports.generateMpcAdesPsv(
+      detection: detection,
+      observatoryCode: settings.mpcObservatoryCode,
+      observerName: settings.observerName,
+      astrometricCatalog: settings.mpcAstrometricCatalog,
+    );
+    return attachmentResponse(
+      content,
+      fileName: 'mpc_ades_transient_$detectionId.psv',
+      contentType: 'text/plain; charset=utf-8',
+    );
+  }
+
   /// GET `/api/firstlight/candidates?sessionId=` — newest-first transient
   /// detections. `sessionId` is optional; omit it for the across-sessions feed
   /// the standalone gallery and the export hub read.

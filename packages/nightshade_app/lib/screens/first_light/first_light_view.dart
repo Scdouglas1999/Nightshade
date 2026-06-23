@@ -113,8 +113,8 @@ class _IntroStrip extends StatelessWidget {
             child: Text(
               'Every solved frame is differenced against your deep sky atlas. '
               'Anything that appeared, moved, or brightened lands here — review '
-              'it, then submit a real discovery report to AAVSO, the MPC, or the '
-              'TNS.',
+              'it, then submit it to the TNS (live, with your bot key) or '
+              'export an ingestible AAVSO / MPC report.',
               style: NightshadeTypography.caption.copyWith(
                 color: colors.textSecondary,
                 height: 1.4,
@@ -245,7 +245,13 @@ class _List extends StatelessWidget {
             .where((r) => r.catalogMatch == null && !r.dismissed)
             .toList(growable: false);
       case FirstLightFilter.confirmed:
-        return rows.where((r) => r.reviewed).toList(growable: false);
+        // Confirmed = reviewed AND not dismissed. A dismissed detection is also
+        // marked reviewed (markReviewed sets reviewed=true, dismissed=true), so
+        // without the !dismissed guard every dismissed artefact would pollute
+        // the curated submit list the instant anything is dismissed.
+        return rows
+            .where((r) => r.reviewed && !r.dismissed)
+            .toList(growable: false);
       case FirstLightFilter.dismissed:
         return rows.where((r) => r.dismissed).toList(growable: false);
     }

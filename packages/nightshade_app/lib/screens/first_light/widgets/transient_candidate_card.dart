@@ -180,7 +180,11 @@ class _MetricsRow extends StatelessWidget {
       if (dm != null && dm.isFinite)
         _MetricChip(
           icon: dm <= 0 ? LucideIcons.trendingUp : LucideIcons.trendingDown,
-          label: '${dm <= 0 ? '+' : '-'}${dm.abs().toStringAsFixed(2)} mag',
+          // Print the real signed magnitude delta as stored (native convention:
+          // negative = brighter). A brightening shows "-0.50 mag", a fading
+          // "+0.50 mag" — matching how astronomers read Δmag. The previous
+          // code flipped the sign so a brightening read as fainter.
+          label: '${dm <= 0 ? '' : '+'}${dm.toStringAsFixed(2)} mag',
           color: dm <= 0 ? colors.accent : colors.info,
           colors: colors,
         ),
@@ -308,6 +312,14 @@ class _ActionsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // A low-confidence dipole / unreviewed candidate must not one-tap a TNS
+    // "possible SN" false alarm. Submit is enabled only for a reviewed,
+    // non-dipole detection; otherwise it is disabled with a not-yet-confirmed
+    // warning so the user confirms first.
+    final isDipole =
+        TransientKind.fromWire(detection.kind) == TransientKind.dipole;
+    final canSubmit = detection.reviewed && !isDipole;
+
     final primary = Row(
       children: [
         Expanded(
@@ -316,7 +328,21 @@ class _ActionsRow extends StatelessWidget {
             icon: NightshadeIcons.upload,
             size: ButtonSize.small,
             variant: ButtonVariant.primary,
-            onPressed: () => TransientSubmitDialog.show(context, detection),
+            onPressed: canSubmit
+                ? () => TransientSubmitDialog.show(context, detection)
+                : () {
+                    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          isDipole
+                              ? 'Dipole artefacts are not real transients — '
+                                  'they cannot be submitted.'
+                              : 'Not yet confirmed — mark this detection as '
+                                  'confirmed before submitting.',
+                        ),
+                      ),
+                    );
+                  },
           ),
         ),
         const SizedBox(width: NightshadeTokens.spaceSm),

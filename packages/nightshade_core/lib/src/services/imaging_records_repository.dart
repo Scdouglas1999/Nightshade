@@ -681,11 +681,34 @@ final imagingRecordsRepositoryProvider = Provider<ImagingRecordsRepository>((
           bpCoeffs: sip?.bpCoeffs ?? const [],
         );
 
+        // Pillar B ("First Light"): the SAME solve-persist event that folds the
+        // light into the atlas also differences it against the comparison
+        // template and logs any transient. Gated on a light frame with a valid,
+        // invertible WCS; the scan itself no-ops (skips thin tiles) until a deep
+        // template exists, so an early-night frame over a sparse tile is cheap.
+        //
+        // ORDER IS LOAD-BEARING (Wave 1 self-subtraction fix): the scan MUST run
+        // BEFORE the atlas fold below. The diff template is read from the SAME
+        // per-tile `.nst` sidecars the fold writes into, so folding first would
+        // average this frame's own flux into the template it is differenced
+        // against (weight ~1/(N+1)) — every transient would self-suppress and
+        // faint SNR~5-6 sources would drop below the persist gate and vanish.
+        // Running the scan first means the template = history (all PRIOR frames
+        // only); the fold then deepens the template for the NEXT frame.
+        // A future refactor MUST NOT reorder fold above scan.
+        await _runFirstLightScan(
+          ref: ref,
+          logger: logger,
+          image: image,
+          imageWidth: fits.width,
+          imageHeight: fits.height,
+          distortion: distortion,
+        );
+
         // Fold dedup (Wave 0): a re-solved frame fires this hook again with the
         // same captured-image id. If the row was already folded into the atlas
         // (marker stamped), skip ONLY the fold so its photons are not
-        // double-counted. First Light below still runs — its self-subtraction
-        // dedup is Wave 1. The marker is stamped after a successful fold, so a
+        // double-counted. The marker is stamped after a successful fold, so a
         // fold that throws leaves it unset and a retry can still fold.
         if (image.atlasFoldedAt == null) {
           final summary = await ref
@@ -703,20 +726,6 @@ final imagingRecordsRepositoryProvider = Provider<ImagingRecordsRepository>((
             await imagesDao.stampAtlasFolded(capturedImageId);
           }
         }
-
-        // Pillar B ("First Light"): the SAME solve-persist event that folds the
-        // light into the atlas also differences it against the now-deepened
-        // template and logs any transient. Gated on a light frame with a valid,
-        // invertible WCS; the scan itself no-ops (skips thin tiles) until a deep
-        // template exists, so an early-night frame over a sparse tile is cheap.
-        await _runFirstLightScan(
-          ref: ref,
-          logger: logger,
-          image: image,
-          imageWidth: fits.width,
-          imageHeight: fits.height,
-          distortion: distortion,
-        );
       } catch (e, st) {
         logger.warning(
           'Sky-atlas auto-fold for image $capturedImageId failed: $e\n$st',

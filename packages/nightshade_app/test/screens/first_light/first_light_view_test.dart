@@ -96,6 +96,81 @@ void main() {
       expect(find.textContaining('0.42 mag'), findsOneWidget);
     });
 
+    testWidgets(
+        'a brightening shows a NEGATIVE signed delta mag '
+        '(negative = brighter, matching the stored convention)', (
+      tester,
+    ) async {
+      // Native truth: Δmag is negative when the source brightened. The card must
+      // print the real signed value (a brightening -> "-0.42 mag"), not flip the
+      // sign so a brightening reads as fainter.
+      await _pump(
+        tester,
+        candidates: [
+          _detection(
+            kind: 'pointBrightening',
+            catalogMatch: 'Star V=12.3',
+            deltaMag: -0.42,
+          ),
+        ],
+      );
+      await tester.pumpAndSettle();
+
+      // The signed value is shown as negative — NOT "+0.42 mag".
+      expect(find.textContaining('-0.42 mag'), findsOneWidget);
+      expect(find.textContaining('+0.42 mag'), findsNothing);
+    });
+
+    testWidgets('a fading shows a POSITIVE signed delta mag', (tester) async {
+      await _pump(
+        tester,
+        candidates: [
+          _detection(
+            kind: 'pointBrightening',
+            catalogMatch: 'Star V=12.3',
+            deltaMag: 0.42, // positive = fainter
+          ),
+        ],
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('+0.42 mag'), findsOneWidget);
+    });
+
+    testWidgets(
+        'the Confirmed filter shows reviewed AND not-dismissed rows '
+        'only (a dismissed-but-reviewed artefact is excluded)', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        candidates: [
+          // Confirmed: reviewed, not dismissed -> belongs under Confirmed.
+          _detection(id: 1, catalogMatch: 'Confirmed SN', reviewed: true),
+          // Dismissed artefact: markReviewed sets reviewed=true AND dismissed=true.
+          // Must NOT pollute the curated Confirmed list.
+          _detection(
+            id: 2,
+            catalogMatch: 'Dismissed artefact',
+            reviewed: true,
+            dismissed: true,
+          ),
+          // Untriaged: reviewed=false -> not Confirmed.
+          _detection(id: 3, catalogMatch: 'Untriaged source'),
+        ],
+      );
+      await tester.pumpAndSettle();
+
+      // Switch to the Confirmed filter (the chip is the first "Confirmed" text;
+      // reviewed cards also carry a "Confirmed" status badge).
+      await tester.tap(find.text('Confirmed').first);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Confirmed SN'), findsOneWidget);
+      expect(find.text('Dismissed artefact'), findsNothing);
+      expect(find.text('Untriaged source'), findsNothing);
+    });
+
     testWidgets('shows the empty state when there are no candidates', (
       tester,
     ) async {

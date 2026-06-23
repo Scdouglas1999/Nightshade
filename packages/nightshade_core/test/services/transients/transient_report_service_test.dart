@@ -35,89 +35,160 @@ TransientDetectionRow _detection({
 void main() {
   final service = TransientReportService();
 
-  group('MPC report', () {
-    test('produces an exact 80-column line', () {
-      final report = service.generateMpcReport(
+  group('MPC ADES PSV report', () {
+    test('emits a 2022 header block + trkSub-identified astrometry row', () {
+      final report = service.generateMpcAdesPsv(
         detection: _detection(kind: 'movingStreak'),
         observatoryCode: 'G40',
+        observerName: 'S. Douglas',
+        astrometricCatalog: 'Gaia2',
       );
-      final line = report.trimRight();
-      expect(line.length, 80);
-      // Observatory code lands in cols 78-80.
-      expect(line.substring(77, 80), 'G40');
-      // CCD note in column 14 (index 13).
-      expect(line[13], 'C');
+      final lines = report.trim().split('\n');
+      // Header keys present.
+      expect(report, contains('# version 2022'));
+      expect(report, contains('! mpcCode G40'));
+      expect(report, contains('! name S. Douglas'));
+      // Column header + one data row.
+      final colLine = lines.firstWhere((l) => l.startsWith('trkSub|'));
+      final cols = colLine.split('|');
+      final dataLine = lines.last;
+      final row = dataLine.split('|');
+      expect(cols.length, row.length);
+      expect(cols, containsAllInOrder(['trkSub', 'mode', 'stn', 'obsTime']));
+      // No permID/provID for a new object — trkSub identifies the tracklet.
+      expect(row[0], startsWith('NS'));
+      expect(row[1], 'CCD');
+      expect(row[2], 'G40');
+      // obsTime is ISO-8601 UTC with Z.
+      expect(row[3], endsWith('Z'));
+      // ra/dec are decimal degrees (not sexagesimal), J2000.
+      expect(double.parse(row[4]), closeTo(187.7059, 1e-4));
+      expect(double.parse(row[5]), closeTo(12.3911, 1e-4));
+      // astCat threaded through, not fabricated.
+      expect(row[6], 'Gaia2');
+    });
+
+    test('flags astCat UNK when the solver catalog is unknown', () {
+      final report = service.generateMpcAdesPsv(
+        detection: _detection(kind: 'movingStreak'),
+        observatoryCode: 'G40',
+        observerName: 'S. Douglas',
+      );
+      expect(report, contains('astCat UNK'));
+      expect(report.trim().split('\n').last, endsWith('|UNK'));
     });
 
     test('rejects a non-3-char observatory code', () {
       expect(
-        () => service.generateMpcReport(
+        () => service.generateMpcAdesPsv(
           detection: _detection(),
           observatoryCode: 'XX',
+          observerName: 'S. Douglas',
         ),
         throwsArgumentError,
       );
     });
   });
 
-  group('AAVSO report', () {
-    test('has the Extended File Format header + an observation row', () {
+  group('AAVSO report (ingestible STD)', () {
+    test('emits an STD row with no na-stuffed comparison star', () {
       final report = service.generateAavsoReport(
         detection: _detection(deltaMag: -0.7, catalogMatch: 'V0123 Cyg'),
         observerCode: 'ABC',
+        magZeroPoint: 22.5,
+        standardBand: 'V',
       );
       expect(report, contains('#TYPE=EXTENDED'));
       expect(report, contains('#OBSCODE=ABC'));
-      expect(report, contains('#DELIM=,'));
+      expect(report, contains('#SOFTWARE=Nightshade First Light'));
       expect(report, contains('V0123 Cyg'));
+      final dataLine = report.trim().split('\n').last;
+      final fields = dataLine.split(',');
+      // 15 Extended-format fields.
+      expect(fields.length, 15);
+      // MTYPE (index 6) is STD — does NOT require a named comparison star.
+      expect(fields[6], 'STD');
+      // FILT (index 4) is the real band, not the unsupported 'CV'.
+      expect(fields[4], 'V');
     });
 
-    test('refuses a detection with no magnitude change', () {
-      expect(
-        () => service.generateAavsoReport(
-          detection: _detection(deltaMag: null),
-          observerCode: 'ABC',
-        ),
-        throwsArgumentError,
-      );
+    test('aavsoAvailable is false without a photometric zeropoint', () {
+      final d = _detection(deltaMag: -0.7);
+      expect(service.aavsoAvailable(d, magZeroPoint: null), isFalse);
+      expect(service.aavsoAvailable(d, magZeroPoint: 22.5), isTrue);
     });
 
-    test('requires an observer code', () {
-      expect(
-        () => service.generateAavsoReport(
-          detection: _detection(deltaMag: -0.7),
-          observerCode: '   ',
-        ),
-        throwsArgumentError,
+    test('disabled reason explains the missing calibrated magnitude', () {
+      final reason = service.aavsoDisabledReason(
+        _detection(deltaMag: -0.7),
+        observerCode: 'ABC',
+        magZeroPoint: null,
       );
+      expect(reason, isNotNull);
+      expect(reason, contains('calibrated magnitude'));
     });
+
+    test(
+      'throws when no calibrated magnitude is available (caller must gate)',
+      () {
+        expect(
+          () => service.generateAavsoReport(
+            detection: _detection(deltaMag: null),
+            observerCode: 'ABC',
+            magZeroPoint: 22.5,
+          ),
+          throwsArgumentError,
+        );
+      },
+    );
   });
 
-  group('TNS report', () {
-    test('has a header + tab-separated data row', () {
-      final report = service.generateTnsReport(
+  group('TNS bulk-report JSON', () {
+    const creds = TnsCredentials(
+      botId: 12345,
+      botName: 'NightshadeBot',
+      reportingGroupId: 42,
+      dataSourceId: 7,
+      reporterName: 'S. Douglas',
+      apiKey: 'secret',
+    );
+
+    test('builds the at_report.0 structure with required fields', () {
+      final json = service.buildTnsReportJson(
         detection: _detection(),
-        reporterName: 'S. Douglas',
+        creds: creds,
       );
-      final lines = report.trim().split('\n');
-      expect(lines, hasLength(2));
-      final header = lines[0].split('\t');
-      final row = lines[1].split('\t');
-      expect(header.length, row.length);
-      expect(header, contains('ra'));
-      expect(header, contains('discovery_datetime'));
-      // A new unnamed source reports as a PSN AT type.
-      expect(row, contains('PSN'));
+      expect(json.containsKey('at_report'), isTrue);
+      final report = (json['at_report'] as Map)['0'] as Map<String, dynamic>;
+      expect(report['reporting_group_id'], 42);
+      expect(report['discovery_data_source_id'], 7);
+      expect(report['reporter'], 'S. Douglas');
+      expect(report['internal_name'], 'NS1');
+      // ra/dec are nested {value,error,units} blocks.
+      final ra = report['ra'] as Map<String, dynamic>;
+      expect(double.parse(ra['value'] as String), closeTo(187.7059, 1e-4));
+      expect(ra['units'], 'arcsec');
+      // discovery_datetime is "YYYY-MM-DD HH:MM:SS.sss".
+      expect(
+        report['discovery_datetime'],
+        matches(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}$'),
+      );
+      // No fabricated photometry block (we have no calibrated mag).
+      expect(report.containsKey('photometry'), isFalse);
+      expect(report.containsKey('non_detection'), isFalse);
     });
 
-    test('requires a reporter name', () {
-      expect(
-        () => service.generateTnsReport(
-          detection: _detection(),
-          reporterName: '',
-        ),
-        throwsArgumentError,
+    test('credentials completeness gate', () {
+      expect(creds.isComplete, isTrue);
+      const missingKey = TnsCredentials(
+        botId: 12345,
+        botName: 'NightshadeBot',
+        reportingGroupId: 42,
+        dataSourceId: 7,
+        reporterName: 'S. Douglas',
+        apiKey: '',
       );
+      expect(missingKey.isComplete, isFalse);
     });
   });
 

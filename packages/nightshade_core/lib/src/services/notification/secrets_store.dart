@@ -57,6 +57,16 @@ abstract class SecretField {
   /// (see `services/sync/sync_service.dart`). Lives here so it rides the
   /// same keyring-backed store as the other transport secrets.
   static const String cloudSyncPassword = 'sync.webdav_password';
+
+  /// TNS (Transient Name Server) bot API key used by the First Light
+  /// submission path to authenticate real `set/bulk-report` calls.
+  ///
+  /// This is the SUBMISSION key and MUST live in the keyring, never in
+  /// `app_settings`/science settings (those are plaintext and ride
+  /// export/backup). The unrelated plaintext `tnsApiKey` on
+  /// `TransientAlertSettings` is for the alert-INGEST side and should also move
+  /// to secure storage in a later pass; do not reuse it for submission.
+  static const String tnsApiKey = 'tns.api_key';
 }
 
 /// Minimal interface for the backing secure-storage implementation.

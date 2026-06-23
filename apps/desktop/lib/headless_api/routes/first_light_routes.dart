@@ -24,4 +24,22 @@ List<HeadlessRoute> buildFirstLightRoutes(
     '/api/firstlight/<id>/dismiss',
     h.handleDismiss,
   ),
+  // Submission: a host action (credentials + outbound HTTP live on the rig
+  // host). TNS is a real bot-API upload; AAVSO/MPC return downloadable
+  // ingestible reports the slave saves / share-sheets.
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/firstlight/<id>/submit/tns',
+    h.handleSubmitTns,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/firstlight/<id>/export/aavso',
+    h.handleExportAavso,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/firstlight/<id>/export/mpc',
+    h.handleExportMpc,
+  ),
 ];

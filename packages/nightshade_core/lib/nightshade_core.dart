@@ -592,6 +592,7 @@ export 'src/services/transients/transient_candidate.dart';
 export 'src/services/transients/difference_image_seam.dart';
 export 'src/services/transients/first_light_service.dart';
 export 'src/services/transients/transient_report_service.dart';
+export 'src/services/transients/transient_submission_service.dart';
 export 'src/services/transients/transient_alert_mapper.dart';
 export 'src/providers/transient_detections_provider.dart';
 // Smart Morning Report (v42): Night Doctor report persistence.

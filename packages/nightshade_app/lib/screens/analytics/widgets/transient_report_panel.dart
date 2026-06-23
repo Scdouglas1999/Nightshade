@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,15 +9,21 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../utils/snackbar_helper.dart';
 
-/// Panel for exporting a confirmed First Light transient detection as an
-/// AAVSO / MPC / TNS discovery report.
+/// Panel for submitting / exporting a confirmed First Light transient detection
+/// to AAVSO, the MPC, or the TNS.
 ///
-/// One detection is selected, one network format is chosen, and the panel emits
-/// a properly-formatted report (real file formats — see
-/// [TransientReportService]) that can be copied to the clipboard or written to
-/// the exports directory. Reviewed (confirmed) detections sort first; a network
-/// whose format the selected detection cannot satisfy (AAVSO needs a magnitude
-/// change) is disabled with an explanatory tooltip.
+/// Honest per-format behaviour:
+///   * TNS — a REAL bot-API submission (when bot credentials are configured).
+///     The primary action is "Submit to TNS"; it creates a live, public AT
+///     record. Local backend submits directly; a slave routes through the host.
+///   * AAVSO — generates an ingestible Extended File Format report you upload
+///     to WebObs manually (no per-observer upload API). Requires a calibrated
+///     magnitude; disabled (never `na`-stuffed) otherwise.
+///   * MPC — generates an ADES PSV astrometry report you submit via the MPC web
+///     form. Requires a 3-char observatory code and a plausible mover.
+///
+/// The panel is the single place both the discovery card and the science export
+/// hub route through, so the truth lives in exactly one place.
 class TransientReportPanel extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final List<TransientDetectionRow> detections;
@@ -35,9 +43,18 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
   int? _selectedId;
   TransientReportFormat _format = TransientReportFormat.tns;
   String? _lastExportPath;
+  String? _lastAtName;
   String? _preview;
+  bool _submitting = false;
 
   final _reportService = TransientReportService();
+
+  // The science calibration path does not (yet) join a per-frame photometric
+  // zeropoint onto the detection row, so a calibrated AAVSO magnitude is not
+  // available here. AAVSO is therefore disabled for current detections (the
+  // honest STD-mag gate) rather than emitting a non-ingestible na-filled row.
+  // When the MAGZP join lands, thread it in here and AAVSO enables itself.
+  double? get _magZeroPoint => null;
 
   @override
   Widget build(BuildContext context) {
@@ -75,8 +92,8 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Submit a confirmed difference-image detection to AAVSO, the MPC, '
-              'or the TNS in the network\'s real submission format.',
+              'Submit a confirmed detection to the TNS live with your bot key, '
+              'or export an ingestible AAVSO / MPC report to upload manually.',
               style: TextStyle(
                 fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
@@ -85,8 +102,9 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
             const SizedBox(height: 12),
             Text(
               'Detection',
-              style:
-                  NightshadeTypography.h6.copyWith(color: colors.textSecondary),
+              style: NightshadeTypography.h6.copyWith(
+                color: colors.textSecondary,
+              ),
             ),
             const SizedBox(height: 6),
             ...sorted.map(
@@ -103,14 +121,15 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
             const SizedBox(height: 12),
             Text(
               'Network',
-              style:
-                  NightshadeTypography.h6.copyWith(color: colors.textSecondary),
+              style: NightshadeTypography.h6.copyWith(
+                color: colors.textSecondary,
+              ),
             ),
             const SizedBox(height: 6),
             Wrap(
               spacing: NightshadeTokens.spaceSm,
               children: TransientReportFormat.values.map((fmt) {
-                final enabled = _formatEnabled(fmt, selected);
+                final enabled = _formatEnabled(fmt, selected, scienceSettings);
                 return NightshadeChip(
                   label: _formatLabel(fmt),
                   selected: _format == fmt,
@@ -123,10 +142,10 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
                 );
               }).toList(),
             ),
-            if (!_formatEnabled(_format, selected)) ...[
+            if (!_formatEnabled(_format, selected, scienceSettings)) ...[
               const SizedBox(height: 6),
               Text(
-                _disabledReason(_format),
+                _disabledReason(_format, selected, scienceSettings),
                 style: TextStyle(
                   fontSize: NightshadeTypography.fontSize10,
                   color: colors.warning,
@@ -146,54 +165,32 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
                 ),
                 child: SelectableText(
                   _preview!,
-                  style: NightshadeTypography.monoSm
-                      .copyWith(color: colors.textSecondary),
+                  style: NightshadeTypography.monoSm.copyWith(
+                    color: colors.textSecondary,
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
             ],
-            Row(
-              children: [
-                Expanded(
-                  child: NightshadeButton(
-                    label: 'Preview',
-                    icon: LucideIcons.eye,
-                    variant: ButtonVariant.outline,
-                    size: ButtonSize.small,
-                    onPressed: _formatEnabled(_format, selected)
-                        ? () => setState(
-                              () => _preview =
-                                  _buildReport(selected, scienceSettings),
-                            )
-                        : null,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: NightshadeButton(
-                    label: 'Copy',
-                    icon: LucideIcons.clipboard,
-                    variant: ButtonVariant.outline,
-                    size: ButtonSize.small,
-                    onPressed: _formatEnabled(_format, selected)
-                        ? () => _copy(selected, scienceSettings)
-                        : null,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: NightshadeButton(
-                    label: 'Export',
-                    icon: LucideIcons.download,
-                    variant: ButtonVariant.primary,
-                    size: ButtonSize.small,
-                    onPressed: _formatEnabled(_format, selected)
-                        ? () => _export(selected, scienceSettings)
-                        : null,
-                  ),
-                ),
-              ],
+            _buildActionRow(selected, scienceSettings, colors),
+            const SizedBox(height: 6),
+            Text(
+              _actionNote(_format),
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize10,
+                color: colors.textMuted,
+              ),
             ),
+            if (_lastAtName != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Submitted as $_lastAtName',
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize10,
+                  color: colors.success,
+                ),
+              ),
+            ],
             if (_lastExportPath != null) ...[
               const SizedBox(height: 6),
               Text(
@@ -212,64 +209,189 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
     );
   }
 
-  bool _formatEnabled(TransientReportFormat fmt, TransientDetectionRow d) {
+  Widget _buildActionRow(
+    TransientDetectionRow d,
+    ScienceSettings settings,
+    NightshadeColors colors,
+  ) {
+    final enabled = _formatEnabled(_format, d, settings) && !_submitting;
+    final canPreviewLocally = _format != TransientReportFormat.tns;
+
+    final primary = _format == TransientReportFormat.tns
+        ? NightshadeButton(
+            label: _submitting ? 'Submitting…' : 'Submit to TNS',
+            icon: LucideIcons.send,
+            variant: ButtonVariant.primary,
+            size: ButtonSize.small,
+            onPressed: enabled ? () => _submitTns(d, settings) : null,
+          )
+        : NightshadeButton(
+            label: 'Export report',
+            icon: LucideIcons.download,
+            variant: ButtonVariant.primary,
+            size: ButtonSize.small,
+            onPressed: enabled ? () => _export(d, settings) : null,
+          );
+
+    return Row(
+      children: [
+        // TNS has no local text preview (it's a JSON payload submitted live);
+        // show a "Preview JSON" for transparency, Copy for AAVSO/MPC.
+        Expanded(
+          child: NightshadeButton(
+            label: 'Preview',
+            icon: LucideIcons.eye,
+            variant: ButtonVariant.outline,
+            size: ButtonSize.small,
+            onPressed: _formatEnabled(_format, d, settings)
+                ? () => setState(
+                      () => _preview = _buildPreview(d, settings),
+                    )
+                : null,
+          ),
+        ),
+        const SizedBox(width: 8),
+        if (canPreviewLocally) ...[
+          Expanded(
+            child: NightshadeButton(
+              label: 'Copy',
+              icon: LucideIcons.clipboard,
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+              onPressed: _formatEnabled(_format, d, settings)
+                  ? () => _copy(d, settings)
+                  : null,
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+        Expanded(child: primary),
+      ],
+    );
+  }
+
+  /// Honest one-liner under the action row describing what the primary action
+  /// actually does for the selected format.
+  String _actionNote(TransientReportFormat fmt) {
     switch (fmt) {
-      case TransientReportFormat.aavso:
-        // AAVSO photometry needs a magnitude change.
-        final dm = d.deltaMag;
-        return dm != null && dm.isFinite;
-      case TransientReportFormat.mpc:
-        return ref
-                .read(scienceSettingsProvider)
-                .valueOrNull
-                ?.mpcObservatoryCode
-                .length ==
-            3;
       case TransientReportFormat.tns:
-        return true;
+        return 'Submits live to the TNS via your bot API key — creates a '
+            'public AT record.';
+      case TransientReportFormat.aavso:
+        return 'Exports an ingestible .txt — upload it to AAVSO WebObs '
+            'manually.';
+      case TransientReportFormat.mpc:
+        return 'Exports an ADES .psv — submit it via the MPC web form.';
     }
   }
 
-  String _disabledReason(TransientReportFormat fmt) {
+  bool _formatEnabled(
+    TransientReportFormat fmt,
+    TransientDetectionRow d,
+    ScienceSettings settings,
+  ) {
+    // A low-confidence dipole / unreviewed candidate must never one-tap a TNS
+    // "possible SN" false alarm. Gate every format on review + exclude dipoles.
+    if (!d.reviewed) return false;
+    if (TransientKind.fromWire(d.kind) == TransientKind.dipole) return false;
+
     switch (fmt) {
       case TransientReportFormat.aavso:
-        return 'AAVSO needs a magnitude change — this is a brand-new source. '
-            'Use the TNS report instead.';
+        return _reportService.aavsoAvailable(d, magZeroPoint: _magZeroPoint) &&
+            settings.aavsoObserverCode.trim().isNotEmpty;
       case TransientReportFormat.mpc:
+        // ADES astrometry needs the obs code; a stationary brightening is not a
+        // minor planet, so gate on a plausible mover.
+        return _reportService.mpcAdesAvailable(
+              observatoryCode: settings.mpcObservatoryCode,
+            ) &&
+            TransientKind.fromWire(d.kind).isPlausibleMover;
+      case TransientReportFormat.tns:
+        return _tnsCreds(settings).isComplete;
+    }
+  }
+
+  String _disabledReason(
+    TransientReportFormat fmt,
+    TransientDetectionRow d,
+    ScienceSettings settings,
+  ) {
+    if (!d.reviewed) {
+      return 'Not yet confirmed — mark this detection as confirmed before '
+          'submitting, so an artefact cannot be reported as a discovery.';
+    }
+    if (TransientKind.fromWire(d.kind) == TransientKind.dipole) {
+      return 'Dipole artefacts (registration/PSF mismatch) are not real '
+          'transients and cannot be submitted.';
+    }
+    switch (fmt) {
+      case TransientReportFormat.aavso:
+        return _reportService.aavsoDisabledReason(
+              d,
+              observerCode: settings.aavsoObserverCode,
+              magZeroPoint: _magZeroPoint,
+            ) ??
+            '';
+      case TransientReportFormat.mpc:
+        if (!TransientKind.fromWire(d.kind).isPlausibleMover) {
+          return 'MPC astrometry is for moving objects — this detection is not '
+              'a plausible mover.';
+        }
         return 'Set your 3-character MPC observatory code in '
-            'Settings > Science > MPC first.';
+            'Settings > Science first.';
       case TransientReportFormat.tns:
-        return '';
+        return 'TNS submission needs your bot id/name, reporting group, data '
+            'source, reporter, and api key — configure them in '
+            'Settings > Science.';
     }
   }
 
-  String _buildReport(TransientDetectionRow d, ScienceSettings settings) {
+  TnsCredentials _tnsCreds(ScienceSettings settings) {
+    // The secret api key is read async at submit time; for the gate we only
+    // need the non-secret identifiers + the cached has-key flag. We optimistic-
+    // enable on the non-secret fields and verify the key at submit time.
+    return TnsCredentials(
+      botId: settings.tnsBotId,
+      botName: settings.tnsBotName,
+      reportingGroupId: settings.tnsReportingGroupId,
+      dataSourceId: settings.tnsDataSourceId,
+      reporterName: settings.tnsReporterName.isNotEmpty
+          ? settings.tnsReporterName
+          : settings.observerName,
+      // Placeholder so the gate passes on identifiers; the real key is loaded
+      // at submit time and re-checked there.
+      apiKey: 'pending',
+    );
+  }
+
+  String _buildPreview(TransientDetectionRow d, ScienceSettings settings) {
     switch (_format) {
       case TransientReportFormat.aavso:
         return _reportService.generateAavsoReport(
           detection: d,
-          observerCode: settings.aavsoObserverCode.isNotEmpty
-              ? settings.aavsoObserverCode
-              : 'NSOBS',
+          observerCode: settings.aavsoObserverCode,
+          magZeroPoint: _magZeroPoint ?? 0.0,
         );
       case TransientReportFormat.mpc:
-        return _reportService.generateMpcReport(
+        return _reportService.generateMpcAdesPsv(
           detection: d,
           observatoryCode: settings.mpcObservatoryCode,
+          observerName: settings.observerName,
+          astrometricCatalog: settings.mpcAstrometricCatalog,
         );
       case TransientReportFormat.tns:
-        return _reportService.generateTnsReport(
+        final creds = _tnsCreds(settings);
+        final json = _reportService.buildTnsReportJson(
           detection: d,
-          reporterName: settings.aavsoObserverCode.isNotEmpty
-              ? settings.aavsoObserverCode
-              : 'Nightshade observer',
+          creds: creds,
         );
+        return const JsonEncoderPretty().convert(json);
     }
   }
 
   Future<void> _copy(TransientDetectionRow d, ScienceSettings settings) async {
     try {
-      final report = _buildReport(d, settings);
+      final report = _buildPreview(d, settings);
       await Clipboard.setData(ClipboardData(text: report));
       if (mounted) {
         context.showSuccessSnackBar('${_formatLabel(_format)} report copied');
@@ -280,27 +402,144 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
   }
 
   Future<void> _export(
-      TransientDetectionRow d, ScienceSettings settings) async {
+    TransientDetectionRow d,
+    ScienceSettings settings,
+  ) async {
+    final backend = ref.read(backendProvider);
     try {
-      final report = _buildReport(d, settings);
-      final ext = _format == TransientReportFormat.mpc ? 'txt' : 'tsv';
-      final stamp = DateTime.now()
-          .toUtc()
-          .toIso8601String()
-          .replaceAll(':', '-')
-          .split('.')
-          .first;
-      final filePath = await _reportService.writeReport(
-        content: report,
-        fileName: '${_format.name}_transient_${d.id}_$stamp.$ext',
-      );
+      String? path;
+      if (backend is NetworkBackend) {
+        // Slave: ask the host to generate the report and save the bytes.
+        if (_format == TransientReportFormat.aavso) {
+          final bytes = await backend.exportFirstLightAavso(
+            d.id,
+            magZeroPoint: _magZeroPoint ?? 0.0,
+          );
+          path = await _reportService.writeReport(
+            content: String.fromCharCodes(bytes),
+            fileName: 'aavso_transient_${d.id}.txt',
+          );
+        } else {
+          final bytes = await backend.exportFirstLightMpc(d.id);
+          path = await _reportService.writeReport(
+            content: String.fromCharCodes(bytes),
+            fileName: 'mpc_ades_transient_${d.id}.psv',
+          );
+        }
+      } else {
+        // Local host: generate directly.
+        final submission = ref.read(transientSubmissionServiceProvider);
+        if (_format == TransientReportFormat.aavso) {
+          path = await submission.exportAavso(
+            detection: d,
+            observerCode: settings.aavsoObserverCode,
+            magZeroPoint: _magZeroPoint ?? 0.0,
+          );
+        } else {
+          path = await submission.exportMpcAdes(
+            detection: d,
+            observatoryCode: settings.mpcObservatoryCode,
+            observerName: settings.observerName,
+            astrometricCatalog: settings.mpcAstrometricCatalog,
+          );
+        }
+      }
       if (mounted) {
-        setState(() => _lastExportPath = filePath);
-        context.showSuccessSnackBar('Report exported to: $filePath');
+        setState(() => _lastExportPath = path);
+        context.showSuccessSnackBar('Report exported to: $path');
       }
     } catch (e) {
       if (mounted) context.showErrorSnackBar('Export failed: $e');
     }
+  }
+
+  Future<void> _submitTns(
+    TransientDetectionRow d,
+    ScienceSettings settings,
+  ) async {
+    final confirmed = await _confirmTnsSubmit(settings.tnsUseSandbox);
+    if (confirmed != true) return;
+
+    setState(() => _submitting = true);
+    final backend = ref.read(backendProvider);
+    try {
+      if (backend is NetworkBackend) {
+        // Slave: the host holds the credentials + api key.
+        final result = await backend.submitFirstLightToTns(d.id);
+        final success = result['success'] == true;
+        final atName = result['atName'] as String?;
+        final message = result['message']?.toString() ?? 'TNS submission done';
+        if (success) {
+          // Refresh the slave's feed so the persisted reviewed state / any
+          // host-side change reflects after the round-trip.
+          ref.invalidate(firstLightCandidatesProvider);
+        }
+        if (mounted) {
+          setState(() => _lastAtName = success ? atName : null);
+          if (success) {
+            context.showSuccessSnackBar(message);
+          } else {
+            context.showErrorSnackBar(message);
+          }
+        }
+      } else {
+        // Local host: read the secret key, then submit directly.
+        final apiKey =
+            await ref.read(secretsStoreProvider).read(SecretField.tnsApiKey);
+        final creds = TnsCredentials(
+          botId: settings.tnsBotId,
+          botName: settings.tnsBotName,
+          reportingGroupId: settings.tnsReportingGroupId,
+          dataSourceId: settings.tnsDataSourceId,
+          reporterName: settings.tnsReporterName.isNotEmpty
+              ? settings.tnsReporterName
+              : settings.observerName,
+          apiKey: apiKey,
+          useSandbox: settings.tnsUseSandbox,
+        );
+        final result = await ref
+            .read(transientSubmissionServiceProvider)
+            .submitToTns(detection: d, creds: creds);
+        if (mounted) {
+          setState(() => _lastAtName = result.success ? result.atName : null);
+          if (result.success) {
+            context.showSuccessSnackBar(result.message);
+          } else {
+            context.showErrorSnackBar(result.message);
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) context.showErrorSnackBar('TNS submission failed: $e');
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<bool?> _confirmTnsSubmit(bool sandbox) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Submit to TNS?'),
+        content: Text(
+          sandbox
+              ? 'This submits to the TNS SANDBOX (no public record).'
+              : 'This submits a LIVE report to the TNS and creates a public, '
+                  'permanent AT record visible to the worldwide network. Only '
+                  'submit a genuine, confirmed discovery.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(sandbox ? 'Submit (sandbox)' : 'Submit live'),
+          ),
+        ],
+      ),
+    );
   }
 
   String _formatLabel(TransientReportFormat fmt) {
@@ -313,6 +552,13 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
         return 'TNS';
     }
   }
+}
+
+/// Minimal indenting JSON encoder for the TNS preview (avoids pulling a dep).
+class JsonEncoderPretty {
+  const JsonEncoderPretty();
+  String convert(Object? value) =>
+      const JsonEncoder.withIndent('  ').convert(value);
 }
 
 class _DetectionTile extends StatelessWidget {
@@ -331,6 +577,7 @@ class _DetectionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final name = detection.catalogMatch ?? 'Unnamed source';
+    final kindLabel = TransientKind.fromWire(detection.kind).label;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
@@ -340,9 +587,7 @@ class _DetectionTile extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected ? colors.primary.withValues(alpha: 0.08) : null,
           borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-          border: Border.all(
-            color: selected ? colors.primary : colors.border,
-          ),
+          border: Border.all(color: selected ? colors.primary : colors.border),
         ),
         child: Row(
           children: [
@@ -366,7 +611,7 @@ class _DetectionTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    '${detection.kind} · SNR ${detection.snr.toStringAsFixed(1)}'
+                    '$kindLabel · SNR ${detection.snr.toStringAsFixed(1)}'
                     '${detection.reviewed ? ' · confirmed' : ''}',
                     style: TextStyle(
                       fontSize: NightshadeTypography.fontSize9,

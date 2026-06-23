@@ -387,6 +387,9 @@ List<String> availableHeadlessEndpoints() {
     'GET /api/firstlight/candidates',
     'POST /api/firstlight/<id>/review',
     'POST /api/firstlight/<id>/dismiss',
+    'POST /api/firstlight/<id>/submit/tns',
+    'POST /api/firstlight/<id>/export/aavso',
+    'POST /api/firstlight/<id>/export/mpc',
     // Sky atlas (Pillar A — "Your Sky")
     'GET /api/atlas/regions',
     'GET /api/atlas/coverage',

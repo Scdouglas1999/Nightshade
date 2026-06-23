@@ -19,6 +19,26 @@ enum TransientKind {
   /// Wire token sent across the FFI / stored in the DB.
   String get wire => name;
 
+  /// Human-readable label for UI surfaces (the raw enum token must never leak
+  /// to the user — `pointBrightening` reads as a bug, not a discovery class).
+  String get label {
+    switch (this) {
+      case TransientKind.pointBrightening:
+        return 'Brightening';
+      case TransientKind.movingStreak:
+        return 'Moving streak';
+      case TransientKind.dipole:
+        return 'Dipole artefact';
+      case TransientKind.newSource:
+        return 'New source';
+    }
+  }
+
+  /// True when this class is a plausible solar-system mover (the legitimate MPC
+  /// astrometry target). A stationary brightening or a dipole artefact is not a
+  /// minor planet.
+  bool get isPlausibleMover => this == TransientKind.movingStreak;
+
   /// Parse a wire token; unknown values fall back to [dipole] (the
   /// least-exciting, artefact-leaning class) so a forward-compatible reader
   /// never crashes and never over-promotes an unrecognised residual.

@@ -330,6 +330,37 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
     await _post('firstlight/$id/dismiss');
   }
 
+  /// Trigger a REAL TNS submission for detection [id] ON THE HOST. The host
+  /// holds the bot credentials + api key (the api key never crosses the wire);
+  /// the slave only triggers and surfaces the result. Returns the host's
+  /// `{success, atName?, reportId?, message}` payload.
+  Future<Map<String, dynamic>> submitFirstLightToTns(int id) async {
+    return _post('firstlight/$id/submit/tns');
+  }
+
+  /// Ask the host to generate an ingestible AAVSO Extended File Format report
+  /// for detection [id] and return the bytes (the slave saves / share-sheets
+  /// them — there is no per-observer AAVSO upload API; WebObs upload is manual).
+  /// [magZeroPoint] is required (a calibrated magnitude); the host returns 400
+  /// if unavailable.
+  Future<Uint8List> exportFirstLightAavso(
+    int id, {
+    required double magZeroPoint,
+    String? standardBand,
+  }) async {
+    return _postRawBytes('firstlight/$id/export/aavso', {
+      'magZeroPoint': magZeroPoint,
+      if (standardBand != null && standardBand.isNotEmpty)
+        'standardBand': standardBand,
+    });
+  }
+
+  /// Ask the host to generate an MPC ADES PSV astrometry report for detection
+  /// [id] and return the bytes (MPC submission is via the web form / email).
+  Future<Uint8List> exportFirstLightMpc(int id) async {
+    return _postRawBytes('firstlight/$id/export/mpc', const {});
+  }
+
   // =========================================================================
   // Sky Atlas — Pillar A ("Your Sky") personal atlas (read-only)
   // =========================================================================

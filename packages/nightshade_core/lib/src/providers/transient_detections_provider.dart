@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 
 import '../backend/network_backend.dart';
 import '../database/daos/transient_detections_dao.dart';
@@ -10,6 +11,7 @@ import '../services/science/photometric_catalog_service.dart';
 import '../services/sky_atlas/sky_atlas_service.dart' show defaultAtlasRoot;
 import '../services/transients/difference_image_seam.dart';
 import '../services/transients/first_light_service.dart';
+import '../services/transients/transient_submission_service.dart';
 import 'backend_provider.dart';
 
 /// Riverpod surface for Pillar B ("First Light") — difference-imaging transients.
@@ -31,6 +33,20 @@ final firstLightServiceProvider = Provider<FirstLightService>((ref) {
     atlasRootResolver: defaultAtlasRoot,
   );
 });
+
+/// Host-only submission seam for First Light discovery reports (real TNS
+/// bot-API upload + AAVSO/MPC export). Wired with an http.Client + logger; the
+/// TNS api key is read from the keyring by the caller, not injected here.
+final transientSubmissionServiceProvider = Provider<TransientSubmissionService>(
+  (ref) {
+    final client = http.Client();
+    ref.onDispose(client.close);
+    return TransientSubmissionService(
+      httpClient: client,
+      logger: ref.watch(loggingServiceProvider),
+    );
+  },
+);
 
 /// Reactive newest-first transient detections for a session.
 final transientDetectionsProvider =
