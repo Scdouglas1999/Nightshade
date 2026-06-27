@@ -404,62 +404,8 @@ class _BackendResult {
 // Convenience Providers for Grouped Devices by Type
 // ============================================================================
 
-/// Provider for unified cameras (grouped by physical device)
-final unifiedCamerasProvider = Provider<List<UnifiedDevice>>((ref) {
-  final discovery = ref.watch(unifiedDiscoveryProvider);
-  return discovery.getDevicesByType(DeviceType.camera);
-});
-
-/// Provider for unified mounts
-final unifiedMountsProvider = Provider<List<UnifiedDevice>>((ref) {
-  final discovery = ref.watch(unifiedDiscoveryProvider);
-  return discovery.getDevicesByType(DeviceType.mount);
-});
-
-/// Provider for unified focusers
-final unifiedFocusersProvider = Provider<List<UnifiedDevice>>((ref) {
-  final discovery = ref.watch(unifiedDiscoveryProvider);
-  return discovery.getDevicesByType(DeviceType.focuser);
-});
-
-/// Provider for unified filter wheels
-final unifiedFilterWheelsProvider = Provider<List<UnifiedDevice>>((ref) {
-  final discovery = ref.watch(unifiedDiscoveryProvider);
-  return discovery.getDevicesByType(DeviceType.filterWheel);
-});
-
-/// Provider for unified guiders
-final unifiedGuidersProvider = Provider<List<UnifiedDevice>>((ref) {
-  final discovery = ref.watch(unifiedDiscoveryProvider);
-  return discovery.getDevicesByType(DeviceType.guider);
-});
-
-/// Provider for unified rotators
-final unifiedRotatorsProvider = Provider<List<UnifiedDevice>>((ref) {
-  final discovery = ref.watch(unifiedDiscoveryProvider);
-  return discovery.getDevicesByType(DeviceType.rotator);
-});
-
-/// Provider for unified domes
-final unifiedDomesProvider = Provider<List<UnifiedDevice>>((ref) {
-  final discovery = ref.watch(unifiedDiscoveryProvider);
-  return discovery.getDevicesByType(DeviceType.dome);
-});
-
-/// Provider for unified weather stations
-final unifiedWeatherProvider = Provider<List<UnifiedDevice>>((ref) {
-  final discovery = ref.watch(unifiedDiscoveryProvider);
-  return discovery.getDevicesByType(DeviceType.weather);
-});
-
 /// Provider for unified safety monitors
 final unifiedSafetyMonitorsProvider = Provider<List<UnifiedDevice>>((ref) {
   final discovery = ref.watch(unifiedDiscoveryProvider);
   return discovery.getDevicesByType(DeviceType.safetyMonitor);
-});
-
-/// Provider for unified switch devices.
-final unifiedSwitchesProvider = Provider<List<UnifiedDevice>>((ref) {
-  final discovery = ref.watch(unifiedDiscoveryProvider);
-  return discovery.getDevicesByType(DeviceType.switch_);
 });
