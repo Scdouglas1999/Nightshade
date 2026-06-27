@@ -1,8 +1,8 @@
 # Nightshade - Single Source of Truth for Version Info
 # This file is read by build scripts to update pubspec.yaml, installer.iss, etc.
 
-version: "4.2.0"
-build_number: 21
+version: "5.0.0"
+build_number: 23
 channel: "stable"  # stable, beta, alpha
 
 # Minimum version required to apply updates (for breaking changes)

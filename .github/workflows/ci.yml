@@ -78,6 +78,18 @@ jobs:
       - name: Dependency Hygiene Gate
         run: dart run tools/production/dependency_hygiene.dart
 
+      # BUILD-001: a released OTA package, the artifact filename, and the
+      # binary-reported version must all denote the same release. This gate
+      # fails closed when version.yaml, the desktop pubspec, and the mobile
+      # pubspec disagree on version/build, or when the OTA package builder
+      # stops deriving its version from version.yaml. The self-test validates
+      # both the passing and failing paths.
+      - name: Version Consistency Gate
+        run: melos run audit:version-consistency
+
+      - name: Version Consistency Audit Self-Test
+        run: melos run audit:version-consistency:self-test
+
       - name: Analyze code (production gate)
         # required check. analyzer_rollup is the
         # `melos run analyze:production` zero-error gate (see melos.yaml).
@@ -116,6 +128,16 @@ jobs:
 
       - name: Runtime Behavioral Gate
         run: dart run tools/production/behavioral_audit.dart --register docs/production-readiness/behavioral-audit-register.md --fail-on-unregistered --fail-on-open --report .behavioral_audit_hits.txt --min-files 796
+
+      # Architecture §1: nightshade_core is the only Dart package that may
+      # import package:nightshade_bridge. The audit fails closed (exit 1) on any
+      # un-whitelisted importer; the self-test validates its exemption,
+      # whitelist, and violation-detection logic.
+      - name: Bridge Boundary Gate
+        run: melos run audit:bridge-boundary
+
+      - name: Bridge Boundary Audit Self-Test
+        run: melos run audit:bridge-boundary:self-test
 
   test-dart:
     name: Dart Tests
