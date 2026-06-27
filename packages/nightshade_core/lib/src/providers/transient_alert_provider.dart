@@ -561,37 +561,6 @@ final unacknowledgedAlertCountProvider = Provider<int>((ref) {
 });
 
 // =============================================================================
-// Filtered Alerts Providers
-// =============================================================================
-
-/// Provider for alerts that have been queued for observation
-final queuedAlertsProvider = Provider<List<TransientAlert>>((ref) {
-  final alertsAsync = ref.watch(activeTransientAlertsProvider);
-  final states = ref.watch(transientAlertStatesProvider);
-
-  final alerts = alertsAsync.valueOrNull ?? [];
-
-  return alerts.where((alert) {
-    return states[alert.id] == TransientAlertState.queued;
-  }).toList();
-});
-
-/// Provider for alerts that are actionable (new or acknowledged, not dismissed/observed)
-final actionableAlertsProvider = Provider<List<TransientAlert>>((ref) {
-  final alertsAsync = ref.watch(activeTransientAlertsProvider);
-  final states = ref.watch(transientAlertStatesProvider);
-
-  final alerts = alertsAsync.valueOrNull ?? [];
-
-  return alerts.where((alert) {
-    final alertState = states[alert.id];
-    return alertState == null ||
-        alertState == TransientAlertState.newAlert ||
-        alertState == TransientAlertState.acknowledged;
-  }).toList();
-});
-
-// =============================================================================
 // Queue Transient Action
 // =============================================================================
 
@@ -731,20 +700,3 @@ void refreshTransientAlerts(WidgetRef ref) {
     source: 'refreshTransientAlerts',
   );
 }
-
-// =============================================================================
-// Alert Detail Provider
-// =============================================================================
-
-/// Provider for getting a specific alert by ID
-final transientAlertByIdProvider = Provider.family
-    .autoDispose<TransientAlert?, String>((ref, alertId) {
-      final alertsAsync = ref.watch(activeTransientAlertsProvider);
-      final alerts = alertsAsync.valueOrNull ?? [];
-
-      try {
-        return alerts.firstWhere((a) => a.id == alertId);
-      } catch (_) {
-        return null;
-      }
-    });

@@ -65,7 +65,6 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 static LISTENER_STARTED: AtomicBool = AtomicBool::new(false);
 static POLL_WATCHER_STARTED: AtomicBool = AtomicBool::new(false);
-static POLL_WATCHER_SHUTDOWN: AtomicBool = AtomicBool::new(false);
 static LAST_PUBLISHED_MS: AtomicU64 = AtomicU64::new(0);
 
 const HOTPLUG_DEBOUNCE_MS: u64 = 500;
@@ -140,15 +139,6 @@ pub(crate) fn start_os_hotplug_listener() {
     start_device_poll_watcher();
 }
 
-/// Request the polling task to exit on its next tick. Tests and the bridge
-/// shutdown path call this; the OS listener thread is parked on
-/// `GetMessageW` and cannot be cleanly stopped, but its impact is negligible
-/// (a hidden message-only window).
-#[allow(dead_code)]
-pub fn stop_device_poll_watcher() {
-    POLL_WATCHER_SHUTDOWN.store(true, Ordering::Release);
-}
-
 /// Run a full hot-plug diff pass now, independent of the slow-poll cadence.
 ///
 /// Used by:
@@ -215,7 +205,6 @@ fn start_device_poll_watcher() {
         }
     };
 
-    POLL_WATCHER_SHUTDOWN.store(false, Ordering::Release);
     runtime.spawn(async {
         tracing::info!(
             "Hot-plug poll watcher started (interval={}s, types={:?})",
@@ -227,14 +216,7 @@ fn start_device_poll_watcher() {
         // already-known state, not a "newly arrived" device.
         let mut first_tick = true;
         loop {
-            if POLL_WATCHER_SHUTDOWN.load(Ordering::Acquire) {
-                tracing::info!("Hot-plug poll watcher exiting on shutdown request");
-                break;
-            }
             tokio::time::sleep(HOTPLUG_POLL_INTERVAL).await;
-            if POLL_WATCHER_SHUTDOWN.load(Ordering::Acquire) {
-                break;
-            }
             poll_once(first_tick).await;
             first_tick = false;
         }
@@ -1008,14 +990,20 @@ mod tests {
 
         let connected_keys: HashSet<(DriverType, String)> = [key.clone()].into_iter().collect();
         let connected_types: HashSet<(DriverType, DeviceType)> =
-            [(DriverType::Native, DeviceType::Mount)].into_iter().collect();
+            [(DriverType::Native, DeviceType::Mount)]
+                .into_iter()
+                .collect();
 
         // Probe returned NOTHING for the mount bus (device held the handle).
         let observed: HashMap<(DriverType, String), CachedDevice> = HashMap::new();
         let (arrivals, removals) =
             diff_with_connected_for_test(&mut cache, observed, &connected_keys, &connected_types);
 
-        assert!(arrivals.is_empty(), "no arrivals expected, got {:?}", arrivals);
+        assert!(
+            arrivals.is_empty(),
+            "no arrivals expected, got {:?}",
+            arrivals
+        );
         assert!(
             removals.is_empty(),
             "connected device must NOT produce a removal, got {:?}",
@@ -1041,7 +1029,9 @@ mod tests {
 
         let connected_keys: HashSet<(DriverType, String)> = [key.clone()].into_iter().collect();
         let connected_types: HashSet<(DriverType, DeviceType)> =
-            [(DriverType::Native, DeviceType::Camera)].into_iter().collect();
+            [(DriverType::Native, DeviceType::Camera)]
+                .into_iter()
+                .collect();
 
         // Probe skipped (paused) -> observed has nothing for that bus.
         let observed: HashMap<(DriverType, String), CachedDevice> = HashMap::new();
@@ -1054,7 +1044,11 @@ mod tests {
             "connected device cache entry must be carried forward, cache: {:?}",
             cache.keys().collect::<Vec<_>>()
         );
-        assert_eq!(cache.len(), 1, "cache must retain exactly the carried entry");
+        assert_eq!(
+            cache.len(),
+            1,
+            "cache must retain exactly the carried entry"
+        );
     }
 
     #[test]
@@ -1092,9 +1086,19 @@ mod tests {
 
         let (arrivals, removals) =
             diff_with_connected_for_test(&mut cache, observed, &connected_keys, &connected_types);
-        assert_eq!(arrivals.len(), 1, "expected the fresh arrival, got {:?}", arrivals);
+        assert_eq!(
+            arrivals.len(),
+            1,
+            "expected the fresh arrival, got {:?}",
+            arrivals
+        );
         assert_eq!(arrivals[0].1, "native:test:fresh");
-        assert_eq!(removals.len(), 1, "expected the gone removal, got {:?}", removals);
+        assert_eq!(
+            removals.len(),
+            1,
+            "expected the gone removal, got {:?}",
+            removals
+        );
         assert_eq!(removals[0].1, "native:test:gone");
     }
 

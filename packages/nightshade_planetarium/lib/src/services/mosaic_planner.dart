@@ -513,9 +513,6 @@ class MosaicPlanner {
   }
 }
 
-/// Export format for mosaic plans
-enum MosaicExportFormat { json, csv, ninaSequence, voyagerDragScript }
-
 /// Mosaic export utilities
 class MosaicExporter {
   /// Export mosaic plan to JSON

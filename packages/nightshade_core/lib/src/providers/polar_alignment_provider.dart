@@ -646,56 +646,6 @@ class PolarAlignmentErrorHistoryNotifier
     _buffer.clear();
     state = [];
   }
-
-  /// Get the trend direction (improving, worsening, stable)
-  ErrorTrend getTrend() {
-    if (_buffer.length < 5) return ErrorTrend.unknown;
-
-    final recent = _buffer.toList().sublist(_buffer.length - 5);
-    final totalErrors = recent.map((e) => e.totalError).toList();
-
-    // Calculate simple linear trend
-    double sum = 0;
-    for (int i = 1; i < totalErrors.length; i++) {
-      sum += totalErrors[i] - totalErrors[i - 1];
-    }
-    final avgChange = sum / (totalErrors.length - 1);
-
-    if (avgChange < -1) return ErrorTrend.improving;
-    if (avgChange > 1) return ErrorTrend.worsening;
-    return ErrorTrend.stable;
-  }
-}
-
-/// Error trend direction
-enum ErrorTrend { improving, stable, worsening, unknown }
-
-extension ErrorTrendExtension on ErrorTrend {
-  String get displayName {
-    switch (this) {
-      case ErrorTrend.improving:
-        return 'Improving';
-      case ErrorTrend.stable:
-        return 'Stable';
-      case ErrorTrend.worsening:
-        return 'Worsening';
-      case ErrorTrend.unknown:
-        return 'Unknown';
-    }
-  }
-
-  String get emoji {
-    switch (this) {
-      case ErrorTrend.improving:
-        return '↓';
-      case ErrorTrend.stable:
-        return '→';
-      case ErrorTrend.worsening:
-        return '↑';
-      case ErrorTrend.unknown:
-        return '?';
-    }
-  }
 }
 
 // =============================================================================
