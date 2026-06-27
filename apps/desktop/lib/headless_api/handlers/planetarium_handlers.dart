@@ -524,7 +524,6 @@ class PlanetariumHandlers {
   /// Returns WebSocket URL and event types for real-time mount updates.
   Future<Response> handleGetSubscribeInfo(Request request) async {
     _logInfo('[API] GET /api/planetarium/subscribe-info');
-    // Get the host from the request
     final host = request.requestedUri.host;
     final port = request.requestedUri.port;
     final scheme = request.requestedUri.scheme == 'https' ? 'wss' : 'ws';

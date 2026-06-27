@@ -41,7 +41,19 @@ class PolarAlignmentStateNotifier extends StateNotifier<PolarAlignmentState> {
   }
 
   void _init() {
-    final backend = ref.read(backendProvider);
+    _bindToBackend(ref.read(backendProvider));
+
+    // The active backend can be swapped at runtime (local FFI <-> network).
+    // Re-bind to the new backend's event stream on every swap so polar
+    // alignment events keep flowing after a reconnect; the old subscription
+    // is cancelled inside [_bindToBackend].
+    ref.listen<NightshadeBackend>(backendProvider, (_, next) {
+      _bindToBackend(next);
+    });
+  }
+
+  void _bindToBackend(NightshadeBackend backend) {
+    _eventSub?.cancel();
 
     // Subscribe to general event stream for polar alignment events
     _eventSub = backend.eventStream.listen((event) {

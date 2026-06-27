@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../backend/nightshade_backend.dart';
 import '../models/autofocus_progress.dart';
 import '../models/backend/autofocus_result.dart';
 import '../models/backend/event_types.dart';
@@ -112,16 +113,25 @@ class AutofocusOverlayNotifier extends StateNotifier<AutofocusOverlayState> {
   }
 
   void _listenToEvents() {
-    _eventSubscription = _ref
-        .read(diagnosticsBackendProvider)
-        .eventStream
-        .listen((event) {
-          if (!mounted) return;
-          if (event.category == EventCategory.equipment &&
-              event.eventType == 'AutofocusProgress') {
-            _handleAutofocusProgress(event);
-          }
-        });
+    _bindToBackend(_ref.read(diagnosticsBackendProvider));
+
+    // Re-bind on backend swap (local FFI <-> network) so the overlay keeps
+    // receiving AutofocusProgress events from whichever backend is active.
+    // The old subscription is cancelled inside [_bindToBackend].
+    _ref.listen<DiagnosticsBackend>(diagnosticsBackendProvider, (_, next) {
+      _bindToBackend(next);
+    });
+  }
+
+  void _bindToBackend(DiagnosticsBackend backend) {
+    _eventSubscription?.cancel();
+    _eventSubscription = backend.eventStream.listen((event) {
+      if (!mounted) return;
+      if (event.category == EventCategory.equipment &&
+          event.eventType == 'AutofocusProgress') {
+        _handleAutofocusProgress(event);
+      }
+    });
   }
 
   void _handleAutofocusProgress(NightshadeEvent event) {

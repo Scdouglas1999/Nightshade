@@ -272,8 +272,10 @@ final activeTransientAlertsProvider =
             .toList(growable: false);
       }
 
-      // Initial fetch
-      Future<void> fetchAlerts() async {
+      // A single fetch round-trip. Wrapped by [fetchAlerts] below so that
+      // overlapping triggers (immediate + poll + detections-change) never run
+      // concurrently and out-of-order completion cannot overwrite fresher data.
+      Future<void> runFetch() async {
         try {
           List<TransientAlert> alerts;
 
@@ -320,6 +322,28 @@ final activeTransientAlertsProvider =
           } else if (!controller.isClosed) {
             controller.addError(e);
           }
+        }
+      }
+
+      // Coalesce overlapping triggers: only one fetch runs at a time, and any
+      // trigger that arrives mid-flight schedules exactly one follow-up run so
+      // the newest data always wins (no out-of-order overwrite, no thundering
+      // herd of concurrent requests).
+      var fetchInProgress = false;
+      var fetchPending = false;
+      Future<void> fetchAlerts() async {
+        if (fetchInProgress) {
+          fetchPending = true;
+          return;
+        }
+        fetchInProgress = true;
+        try {
+          do {
+            fetchPending = false;
+            await runFetch();
+          } while (fetchPending && !controller.isClosed);
+        } finally {
+          fetchInProgress = false;
         }
       }
 

@@ -407,46 +407,6 @@ mixin _NetworkBackendPlanningAccessoryOperations on _NetworkBackendTransport {
   }
 
   // ===========================================================================
-  // PHD2 Additional Endpoints
-  // ===========================================================================
-
-  /// Get PHD2 star image
-  Future<Map<String, dynamic>> getPhd2StarImage({int size = 50}) async {
-    return await _get('phd2/star-image', {'size': size});
-  }
-
-  /// Get PHD2 algorithm parameter names
-  Future<List<String>> getPhd2AlgoParamNames(String axis) async {
-    final response = await _get('phd2/algo-params', {'axis': axis});
-    return (response['parameters'] as List).cast<String>();
-  }
-
-  /// Get PHD2 algorithm parameter value
-  Future<double> getPhd2AlgoParam({
-    required String axis,
-    required String name,
-  }) async {
-    final response = await _get('phd2/algo-param', {
-      'axis': axis,
-      'name': name,
-    });
-    return (response['value'] as num).toDouble();
-  }
-
-  /// Set PHD2 algorithm parameter
-  Future<void> setPhd2AlgoParam({
-    required String axis,
-    required String name,
-    required double value,
-  }) async {
-    await _post('phd2/algo-param', {
-      'axis': axis,
-      'name': name,
-      'value': value,
-    });
-  }
-
-  // ===========================================================================
   // Planetarium Support
   // ===========================================================================
 

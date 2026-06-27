@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:math' as math;
 import '../coordinate_system.dart';
 import '../astronomy/astronomy_calculations.dart';
@@ -548,8 +549,9 @@ class MosaicExporter {
       'panels': panels,
     };
 
-    // Simple JSON serialization
-    return _encodeJson(data);
+    // Indented, fully-escaped, spec-valid JSON. Field order is preserved from
+    // the map literal above and panels stay in capture order.
+    return const JsonEncoder.withIndent('  ').convert(data);
   }
 
   /// Export mosaic panel coordinates to CSV
@@ -568,33 +570,5 @@ class MosaicExporter {
     }
 
     return buffer.toString();
-  }
-
-  static String _encodeJson(dynamic value, [int indent = 0]) {
-    final prefix = '  ' * indent;
-    final childPrefix = '  ' * (indent + 1);
-
-    if (value == null) return 'null';
-    if (value is bool) return value.toString();
-    if (value is num) return value.toString();
-    if (value is String) return '"$value"';
-
-    if (value is List) {
-      if (value.isEmpty) return '[]';
-      final items = value.map(
-        (e) => '$childPrefix${_encodeJson(e, indent + 1)}',
-      );
-      return '[\n${items.join(',\n')}\n$prefix]';
-    }
-
-    if (value is Map) {
-      if (value.isEmpty) return '{}';
-      final items = value.entries.map(
-        (e) => '$childPrefix"${e.key}": ${_encodeJson(e.value, indent + 1)}',
-      );
-      return '{\n${items.join(',\n')}\n$prefix}';
-    }
-
-    return value.toString();
   }
 }

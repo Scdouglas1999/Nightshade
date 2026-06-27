@@ -56,7 +56,6 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
     final phd2State = ref.watch(phd2StateProvider);
     final guideStats = ref.watch(guideStatsProvider);
 
-    // Initialize controller
     ref.watch(phd2ControllerProvider);
 
     return ContextualTourPrompt(

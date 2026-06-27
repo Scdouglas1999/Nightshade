@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/weather/weather_models.dart';
 import '../models/equipment/equipment_models.dart';
@@ -778,14 +779,20 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
         predictedClearSkyAlt: null,
         predictedClearSkyAz: null,
       );
-    } catch (e) {
-      // Cloud-motion push failures are best-effort: the analyzer may not
-      // have produced data yet, the radar fetch may be in-flight, or the
-      // backend may be temporarily disconnected. Log at debug level so
-      // diagnostic context is preserved without spamming production logs.
-      // ignore: avoid_print
-      // We don't have a log helper at this scope; the backend layer will
-      // log a more structured message when the call itself fails.
+    } catch (e, stack) {
+      // Cloud-motion push is opportunistic forecast telemetry layered on top
+      // of the authoritative SafeRig (Dart) and WeatherUnsafe (Rust) gates, so
+      // a failure here must never propagate and block the safety path. It is
+      // still a diagnosable condition (analyzer not ready yet, radar fetch
+      // in-flight, or backend disconnected), so record it at a low severity
+      // instead of silently dropping it.
+      developer.log(
+        'weather: cloud-motion push failed: $e',
+        name: 'WeatherSafety',
+        level: 700,
+        error: e,
+        stackTrace: stack,
+      );
     }
   }
 
