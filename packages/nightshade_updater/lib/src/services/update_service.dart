@@ -61,6 +61,7 @@ class UpdateService {
   final UpdateVerifier _verifier;
   final http.Client _httpClient;
   final Future<Directory> Function() _applicationSupportDirectoryProvider;
+  final bool _allowInsecureUpdateSource;
   final _NoticeQueue _noticeQueue = _NoticeQueue();
 
   String? _updateServerUrl;
@@ -74,6 +75,13 @@ class UpdateService {
     UpdateVerifier? verifier,
     http.Client? httpClient,
     Future<Directory> Function()? applicationSupportDirectoryProvider,
+    // SEC-001: OTA sources must use https. This default-off escape hatch
+    // only exists for trusted local testing (e.g. a loopback mock server)
+    // and is sourced from a compile-time define so production builds can
+    // never silently allow http. Leave it false in any shipped build.
+    bool allowInsecureUpdateSource = const bool.fromEnvironment(
+      'NIGHTSHADE_ALLOW_INSECURE_UPDATE_SOURCE',
+    ),
   }) : _currentVersion = currentVersion,
        _currentBuildNumber = currentBuildNumber,
        _downloader = downloader ?? UpdateDownloader(),
@@ -81,7 +89,35 @@ class UpdateService {
        _httpClient = httpClient ?? http.Client(),
        _applicationSupportDirectoryProvider =
            applicationSupportDirectoryProvider ??
-           getApplicationSupportDirectory;
+           getApplicationSupportDirectory,
+       _allowInsecureUpdateSource = allowInsecureUpdateSource;
+
+  /// SEC-001: refuse any update source URL that is not https.
+  ///
+  /// An update fetched over plaintext http can be transparently rewritten
+  /// by a network attacker. While the manifest signature check is the
+  /// primary defence, requiring https closes the downgrade/observation
+  /// surface and matches the vendor download URLs the build scripts emit.
+  /// http is permitted only when [_allowInsecureUpdateSource] is explicitly
+  /// enabled (default off) for trusted local testing.
+  void _assertSecureUpdateUrl(String rawUrl, String purpose) {
+    final uri = Uri.tryParse(rawUrl);
+    if (uri == null || !uri.hasScheme) {
+      throw UpdateException('Invalid $purpose URL: "$rawUrl"');
+    }
+    final scheme = uri.scheme.toLowerCase();
+    if (scheme == 'https') {
+      return;
+    }
+    if (scheme == 'http' && _allowInsecureUpdateSource) {
+      return;
+    }
+    throw UpdateException(
+      'Refusing $purpose over insecure scheme "${uri.scheme}": $rawUrl. '
+      'Update sources must use https. Enable allowInsecureUpdateSource only '
+      'for trusted local testing.',
+    );
+  }
 
   /// Cancel any in-progress download
   void cancelDownload() {
@@ -163,6 +199,7 @@ class UpdateService {
     try {
       // Fetch version info from server
       final versionUrl = '$_updateServerUrl/api/version';
+      _assertSecureUpdateUrl(versionUrl, 'update version check');
       final response = await _httpClient.get(Uri.parse(versionUrl));
 
       if (response.statusCode != 200) {
@@ -186,7 +223,10 @@ class UpdateService {
       final latestVersion = channelInfo.version;
       final manifest = await _fetchManifest(channelInfo.manifestUrl);
 
-      if (manifest.isNewerThan(_currentVersion)) {
+      // Offer when the semver is strictly newer, or when it matches the
+      // current semver but carries a higher build (same-version hotfix).
+      // An identical version+build is never offered (no self-update loop).
+      if (manifest.isNewerBuildThan(_currentVersion, _currentBuildNumber)) {
         // Check if we can upgrade from current version
         if (!manifest.canUpgradeFrom(_currentVersion)) {
           return UpdateCheckResult(
@@ -223,6 +263,7 @@ class UpdateService {
         ? manifestUrl
         : '$_updateServerUrl$manifestUrl';
 
+    _assertSecureUpdateUrl(url, 'manifest fetch');
     final response = await _httpClient.get(Uri.parse(url));
     if (response.statusCode != 200) {
       throw UpdateException('Failed to fetch manifest: ${response.statusCode}');
@@ -238,6 +279,26 @@ class UpdateService {
     UpdateManifest manifest, {
     DownloadProgressCallback? onProgress,
   }) async {
+    // SEC-001: the download must be cryptographically authenticated to the
+    // vendor key. If this build has no trusted update public key compiled
+    // in (NIGHTSHADE_UPDATE_PUBLIC_KEY), it cannot authenticate ANY
+    // manifest, so OTA auto-update is disabled by design. Refuse loudly
+    // rather than fall back to hash-only acceptance of a self-referential
+    // manifest (which would be an RCE / supply-chain hole). This mirrors
+    // the LAN push receiver, which refuses to start without a trusted key.
+    if (!_verifier.hasTrustedPublicKey) {
+      throw UpdateException(
+        'OTA auto-update is disabled: this build has no trusted update '
+        'public key (NIGHTSHADE_UPDATE_PUBLIC_KEY) compiled in, so update '
+        'manifests cannot be authenticated to the vendor. Provision the '
+        'vendor public key at build time to enable signed OTA updates.',
+      );
+    }
+
+    // SEC-001: reject plaintext download sources (unless explicitly allowed
+    // for trusted local testing) before spending any bandwidth.
+    _assertSecureUpdateUrl(manifest.downloadUrl, 'package download');
+
     // Get staging directory
     final stagingDir = await _getStagingDirectory();
     final packagePath = path.join(stagingDir.path, 'update.zip');

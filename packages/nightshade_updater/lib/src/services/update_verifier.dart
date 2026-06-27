@@ -159,10 +159,17 @@ class UpdateVerifier {
       return false;
     }
 
-    if (!_requiresManifestSignature(manifest)) {
-      return true;
-    }
-
+    // SEC-001: signature verification is MANDATORY for every staged update.
+    // A correct SHA-256 only proves the bytes match the manifest we were
+    // handed; it says nothing about whether that manifest came from the
+    // vendor. A self-referential manifest (attacker-supplied package +
+    // attacker-supplied matching hash) would otherwise pass on hash alone.
+    // We therefore never return true on hash agreement: the manifest must
+    // carry an Ed25519 signature that verifies against the trusted key
+    // compiled into this build. [verifyManifestSignature] returns false
+    // when this build has no trusted key or the manifest is unsigned, so
+    // both of those cases fail closed here — mirroring the LAN push
+    // receiver, which refuses to start without a trusted key.
     return verifyManifestSignature(manifest);
   }
 
@@ -222,13 +229,6 @@ class UpdateVerifier {
       'releaseNotes': manifest.releaseNotes,
     };
     return jsonEncode(payload);
-  }
-
-  bool _requiresManifestSignature(UpdateManifest manifest) {
-    final hasTrustedKey = _trustedPublicKeyBase64.isNotEmpty;
-    final hasSignature =
-        manifest.signature != null && manifest.signature!.isNotEmpty;
-    return hasTrustedKey || hasSignature;
   }
 }
 

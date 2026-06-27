@@ -203,6 +203,75 @@ netstat -an | Select-String "45679|45680"
 2. **Dart not found**: Ensure Dart SDK is in PATH
 3. **Permissions**: Run PowerShell as Administrator
 
+## OTA signing keys (owner provisioning step)
+
+**OTA auto-update is fail-closed and DISABLED by default.** Both the HTTPS
+pull path (`UpdateService.downloadAndStage`) and the LAN push receiver
+(`LanPushReceiver.startServer`) refuse to stage an update unless it carries an
+Ed25519 signature that verifies against a trusted public key compiled into the
+running build. A correct SHA-256 against an attacker-supplied manifest is **not**
+sufficient — that is the SEC-001 supply-chain hole this guard closes. Update
+sources must also use `https://`; plaintext `http://` is rejected unless the
+build explicitly opts in via `allowInsecureUpdateSource` (intended only for
+trusted loopback testing).
+
+To enable signed OTA updates, the owner must provision two distinct keys.
+
+### 1. Generate an Ed25519 key pair (one time)
+
+```dart
+// dart run with package:cryptography on PATH
+import 'dart:convert';
+import 'package:cryptography/cryptography.dart';
+
+Future<void> main() async {
+  final algo = Ed25519();
+  final kp = await algo.newKeyPair();
+  final priv = await kp.extractPrivateKeyBytes(); // 32-byte seed
+  final pub = (await kp.extractPublicKey()).bytes;
+  print('PRIVATE (keep secret):  ${base64Encode(priv)}');
+  print('PUBLIC  (ship in app):  ${base64Encode(pub)}');
+}
+```
+
+Store the **private** key in a secret manager. Never commit it.
+
+### 2. Embed the PUBLIC key in the shipped app build
+
+Set the env var before the release build so it is baked into the binary via
+`--dart-define`:
+
+```powershell
+$env:NIGHTSHADE_UPDATE_PUBLIC_KEY = "<base64 vendor public key>"
+.\scripts\package_windows.ps1
+```
+
+`package_windows.ps1` passes
+`--dart-define=NIGHTSHADE_UPDATE_PUBLIC_KEY=$env:NIGHTSHADE_UPDATE_PUBLIC_KEY`
+to `flutter build windows --release`. If the variable is empty, the build still
+succeeds but **OTA stays disabled** (the runtime fails closed). A build without
+the public key will refuse every update, signed or not.
+
+### 3. Sign each manifest with the PRIVATE key
+
+Set the env var before building the update package so the manifest is signed:
+
+```powershell
+$env:NIGHTSHADE_UPDATE_PRIVATE_KEY = "<base64 32-byte private seed>"
+.\scripts\build_update_package.ps1
+```
+
+`build_update_package.ps1` signs the canonical manifest payload when
+`NIGHTSHADE_UPDATE_PRIVATE_KEY` is present. A manifest signed with a private key
+whose public half is **not** embedded in the target build cannot be applied.
+
+### Result
+
+- Public key embedded **and** manifest signed by the matching private key →
+  OTA updates apply.
+- Public key missing, or manifest unsigned, or signature mismatch, or non-https
+  source → update is refused (fail-closed, no hash-only acceptance).
+
 ## Network Ports
 
 | Port | Protocol | Purpose |

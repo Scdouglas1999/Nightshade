@@ -84,6 +84,23 @@ abstract class UpdateManifest with _$UpdateManifest {
     return mine.length > other.length;
   }
 
+  /// Check if this build supersedes [currentVersion]+[currentBuild].
+  ///
+  /// Newer when the semver is strictly newer, OR the semver is identical
+  /// and this manifest's [buildNumber] is greater. This lets same-semver
+  /// hotfix builds be offered while never offering an identical
+  /// version+build (which would loop a self-update). [isNewerThan]'s
+  /// semver-only contract is intentionally left untouched for callers that
+  /// want pure string ordering.
+  bool isNewerBuildThan(String currentVersion, int currentBuild) {
+    final cmp = _compareVersions(
+      versionParts,
+      currentVersion.split('.').map((p) => int.tryParse(p) ?? 0).toList(),
+    );
+    if (cmp != 0) return cmp > 0;
+    return buildNumber > currentBuild;
+  }
+
   /// Check if upgrade from a version is allowed
   bool canUpgradeFrom(String fromVersion) {
     if (minVersion == null) return true;
@@ -95,12 +112,23 @@ abstract class UpdateManifest with _$UpdateManifest {
         .split('.')
         .map((p) => int.tryParse(p) ?? 0)
         .toList();
+    // At or above minVersion may upgrade; below it is gated out. Equal is
+    // allowed (compare == 0). Shorter component lists are zero-padded so
+    // '2.0' < '2.0.5'.
+    return _compareVersions(from, min) >= 0;
+  }
 
-    for (var i = 0; i < from.length && i < min.length; i++) {
-      if (from[i] > min[i]) return true;
-      if (from[i] < min[i]) return false;
+  /// Compare two zero-padded version-component lists. Returns >0 if [a] is
+  /// newer, <0 if older, 0 if equal. The shorter list is treated as
+  /// trailing zeros so '2.0' compares below '2.0.5'.
+  static int _compareVersions(List<int> a, List<int> b) {
+    final length = a.length > b.length ? a.length : b.length;
+    for (var i = 0; i < length; i++) {
+      final ai = i < a.length ? a[i] : 0;
+      final bi = i < b.length ? b[i] : 0;
+      if (ai != bi) return ai > bi ? 1 : -1;
     }
-    return true;
+    return 0;
   }
 }
 
