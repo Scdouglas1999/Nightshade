@@ -439,8 +439,14 @@ class UpdateService {
   /// 4. Launch the new version (if `--launch-after`).
   ///
   /// We refuse to spawn the updater unless [_stagedVerifiedMarker] is
-  /// present and matches the staged manifest hash; otherwise the staging
-  /// tree could have been swapped after verification (§7A.9). On
+  /// present and matches the staged manifest hash AND the staged manifest's
+  /// vendor Ed25519 signature re-verifies against the trusted key compiled
+  /// into this build (PERSIST-001). The marker alone is only a cheap
+  /// consistency check — its value is sha256(manifest), which an attacker
+  /// who can write the staging dir can recompute after swapping the
+  /// manifest + tree + marker — so the signature is the authoritative
+  /// apply-time gate and fails closed when no trusted key is present
+  /// (§7A.9, consistent with the SEC-001 download-time posture). On
   /// `Process.start` failure we restore the in-memory status to staged
   /// instead of `exit(0)`-ing into a half-broken state (§7A.5).
   Future<void> applyUpdate() async {
@@ -460,8 +466,33 @@ class UpdateService {
 
     // §7A.9: prove the marker matches the staged manifest before we
     // touch any byte of the install. If the marker is missing or stale,
-    // the staging tree is not trusted.
+    // the staging tree is not trusted. This is a cheap consistency check
+    // only — see the signature gate below for the authoritative trust.
     await _assertVerifiedMarkerMatches(stagingRoot, manifest);
+
+    // PERSIST-001: the marker above hashes the manifest with sha256, which
+    // an attacker who can write the staging dir can recompute after
+    // swapping the manifest + extracted tree + marker. The authoritative
+    // apply-time gate is the vendor Ed25519 signature: re-verify it against
+    // the trusted key compiled into this build before we touch any byte of
+    // the install. This mirrors the SEC-001 download-time posture and fails
+    // closed — a build with no trusted key cannot authenticate any update,
+    // and an unsigned / invalidly signed staged manifest is rejected — so a
+    // hash-only forgery cannot pass even though the marker matches.
+    if (!_verifier.hasTrustedPublicKey) {
+      throw UpdateException(
+        'Refusing to apply staged update: this build has no trusted update '
+        'public key (NIGHTSHADE_UPDATE_PUBLIC_KEY) compiled in, so the '
+        'staged manifest cannot be authenticated to the vendor.',
+      );
+    }
+    if (!await _verifier.verifyManifestSignature(manifest)) {
+      throw UpdateException(
+        'Staged manifest failed Ed25519 signature re-verification at apply '
+        'time; refusing to apply. The staging tree may have been tampered '
+        'with after download (a recomputed hash marker is not sufficient).',
+      );
+    }
 
     // Build expected_hashes.json (POSIX-relative path -> sha256 hex)
     // straight from the verified manifest. The Rust updater will
