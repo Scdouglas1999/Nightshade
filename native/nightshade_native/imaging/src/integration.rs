@@ -640,9 +640,10 @@ fn percentile_clip(samples: &mut Vec<Sample>, low: f64, high: f64) {
 fn min_max_clip(samples: &mut Vec<Sample>, n_low: usize, n_high: usize) {
     let n = samples.len();
     if n_low + n_high >= n {
-        // Would reject everything; keep the median sample as a safety floor so
-        // the pixel is not left empty. Rejecting nothing is the honest choice
-        // over emptying the column on a misconfigured n_low/n_high.
+        // Would reject everything; fall through keeping the full column intact
+        // (reject nothing) so the pixel is not left empty. Rejecting nothing is
+        // the honest choice over emptying the column on a misconfigured
+        // n_low/n_high.
         return;
     }
     samples.sort_by(|a, b| {
