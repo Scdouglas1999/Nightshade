@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_core/nightshade_core.dart'
+    show AnnotationStatus, ObjectType;
 import 'nightshade_colors.dart';
 
 /// Domain-specific hues for catalog object types in annotation UI.
