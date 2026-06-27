@@ -21,16 +21,19 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 void main() {
   group('TargetScheduler Dart<->Rust weight contract', () {
-    test('node preview weights view IS the shared planetarium ScoringWeights', () {
-      final node = TargetSchedulerNode();
-      final w = node.scoringWeights;
-      // The node's five duplicated fields delegate to the one contract.
-      expect(w.altitudeWeight, node.altitudeWeight);
-      expect(w.moonDistanceWeight, node.moonDistanceWeight);
-      expect(w.transitProximityWeight, node.transitProximityWeight);
-      expect(w.darknessWeight, node.darknessWeight);
-      expect(w.airmassWeight, node.airmassWeight);
-    });
+    test(
+      'node preview weights view IS the shared planetarium ScoringWeights',
+      () {
+        final node = TargetSchedulerNode();
+        final w = node.scoringWeights;
+        // The node's five duplicated fields delegate to the one contract.
+        expect(w.altitudeWeight, node.altitudeWeight);
+        expect(w.moonDistanceWeight, node.moonDistanceWeight);
+        expect(w.transitProximityWeight, node.transitProximityWeight);
+        expect(w.darknessWeight, node.darknessWeight);
+        expect(w.airmassWeight, node.airmassWeight);
+      },
+    );
 
     test('Dart defaults match the pinned cross-language defaults', () {
       final node = TargetSchedulerNode();
@@ -106,8 +109,11 @@ void main() {
       var lastIndex = -1;
       for (final field in fieldOrder) {
         final idx = src.indexOf('pub $field: f64');
-        expect(idx, greaterThan(lastIndex),
-            reason: 'Rust field "$field" missing or out of contract order');
+        expect(
+          idx,
+          greaterThan(lastIndex),
+          reason: 'Rust field "$field" missing or out of contract order',
+        );
         lastIndex = idx;
       }
 

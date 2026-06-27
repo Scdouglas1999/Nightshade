@@ -122,10 +122,11 @@ void main() {
       // Golden pick: target 1 (high in the south near meridian) wins.
       expect(decision.chosenTargetId, 1);
       // Golden eligible ranking (post-delegation == pre-delegation).
-      final eligible = decision.scoredCandidates
-          .where((s) => !s.hardConstraintFailed)
-          .toList()
-        ..sort((a, b) => b.totalScore.compareTo(a.totalScore));
+      final eligible =
+          decision.scoredCandidates
+              .where((s) => !s.hardConstraintFailed)
+              .toList()
+            ..sort((a, b) => b.totalScore.compareTo(a.totalScore));
       // The two high-south targets outrank the low setting/rising ones; the
       // full-priority one (id 1) outranks the low-priority twin (id 4).
       final order = eligible.map((s) => s.targetId).toList();
@@ -235,10 +236,9 @@ void main() {
     });
 
     test('normalized floors the divisor at epsilon (no NaN)', () {
-      final got = WeightedScore.total(
-        [const WeightedFactor(name: 'z', value: 42, weight: 0)],
-        mode: WeightedScoreMode.normalized,
-      );
+      final got = WeightedScore.total([
+        const WeightedFactor(name: 'z', value: 42, weight: 0),
+      ], mode: WeightedScoreMode.normalized);
       expect(got.isFinite, isTrue);
       expect(got, 0.0);
     });

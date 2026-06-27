@@ -34,9 +34,7 @@ class FirstLightDetailScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
     final isUnknown = detection.catalogMatch == null;
-    final title = isUnknown
-        ? 'Possible transient'
-        : detection.catalogMatch!;
+    final title = isUnknown ? 'Possible transient' : detection.catalogMatch!;
 
     final query = (
       raDeg: detection.raDeg,
@@ -51,7 +49,8 @@ class FirstLightDetailScreen extends ConsumerWidget {
         backgroundColor: colors.surface,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft, size: NightshadeTokens.iconMd),
+          icon:
+              const Icon(LucideIcons.arrowLeft, size: NightshadeTokens.iconMd),
           color: colors.textPrimary,
           tooltip: 'Back',
           onPressed: () => Navigator.of(context).maybePop(),
@@ -227,8 +226,7 @@ class _DetectionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final dm = row.deltaMag;
     final when = row.detectedAt.toLocal();
-    final dateStr =
-        '${when.year}-${_two(when.month)}-${_two(when.day)} '
+    final dateStr = '${when.year}-${_two(when.month)}-${_two(when.day)} '
         '${_two(when.hour)}:${_two(when.minute)}';
     return Container(
       padding: const EdgeInsets.symmetric(

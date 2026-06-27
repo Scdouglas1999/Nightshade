@@ -48,8 +48,7 @@ class _LinearPanelBackend {
         binY: any(named: 'binY'),
       ),
     ).thenAnswer((invocation) async {
-      _lastExposure =
-          invocation.namedArguments[#exposureTime] as double;
+      _lastExposure = invocation.namedArguments[#exposureTime] as double;
       // Fire ExposureComplete on the next microtask so the service's listener
       // (subscribed before this returns) observes it.
       scheduleMicrotask(() {
@@ -115,14 +114,13 @@ void main() {
       required double targetAdu,
       double minExposure = 0.001,
       double maxExposure = 30.0,
-    }) =>
-        svc.calculateNextExposure(
-          currentExposure: currentExposure,
-          currentAdu: currentAdu,
-          targetAdu: targetAdu,
-          minExposure: minExposure,
-          maxExposure: maxExposure,
-        );
+    }) => svc.calculateNextExposure(
+      currentExposure: currentExposure,
+      currentAdu: currentAdu,
+      targetAdu: targetAdu,
+      minExposure: minExposure,
+      maxExposure: maxExposure,
+    );
 
     test('zero ADU falls back to arithmetic-mean midpoint', () {
       // currentAdu <= 0 -> (min+max)/2 = 15.0005
@@ -204,8 +202,11 @@ void main() {
         maxIterations: maxIterations,
       );
       await panel.dispose();
-      expect(result.success, isTrue,
-          reason: 'representative case is expected to converge');
+      expect(
+        result.success,
+        isTrue,
+        reason: 'representative case is expected to converge',
+      );
       // Within tolerance of target by construction of the linear model.
       expect(
         (result.adu - targetAdu).abs() / targetAdu * 100,

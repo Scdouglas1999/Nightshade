@@ -64,16 +64,19 @@ class _FakeSkyAtlasSeam implements SkyAtlasSeam {
   }
 
   @override
-  Future<Map<String, dynamic>> queryCutout(Map<String, dynamic> args) async =>
-      {'ok': true};
+  Future<Map<String, dynamic>> queryCutout(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
 
   @override
-  Future<Map<String, dynamic>> regionInfo(Map<String, dynamic> args) async =>
-      {'ok': true};
+  Future<Map<String, dynamic>> regionInfo(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
 
   @override
-  Future<Map<String, dynamic>> growth(Map<String, dynamic> args) async =>
-      {'ok': true};
+  Future<Map<String, dynamic>> growth(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
 }
 
 void main() {

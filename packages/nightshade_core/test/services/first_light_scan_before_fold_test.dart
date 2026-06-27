@@ -56,17 +56,21 @@ class _RecordingFoldSeam implements SkyAtlasSeam {
   }
 
   @override
-  Future<Map<String, dynamic>> queryCutout(Map<String, dynamic> args) async =>
-      {'ok': true};
+  Future<Map<String, dynamic>> queryCutout(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
   @override
-  Future<Map<String, dynamic>> regionInfo(Map<String, dynamic> args) async =>
-      {'ok': true};
+  Future<Map<String, dynamic>> regionInfo(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
   @override
-  Future<Map<String, dynamic>> growth(Map<String, dynamic> args) async =>
-      {'ok': true};
+  Future<Map<String, dynamic>> growth(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
   @override
-  Future<Map<String, dynamic>> mergeDelta(Map<String, dynamic> args) async =>
-      {'ok': true};
+  Future<Map<String, dynamic>> mergeDelta(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
 }
 
 /// Difference seam that records each `difference` dispatch onto the shared
@@ -226,25 +230,23 @@ void main() {
       expect(
         _timeline.indexOf('diff'),
         lessThan(_timeline.indexOf('fold')),
-        reason: 'First Light difference must run before the atlas fold so the '
+        reason:
+            'First Light difference must run before the atlas fold so the '
             'comparison template excludes the current frame',
       );
     },
   );
 
-  test(
-    'a faint SNR~5.5 injected transient survives the persist gate '
-    '(self-subtraction would have dropped it below SNR 5.0)',
-    () async {
-      final id = await insertSolvedLight();
-      await solveHook(id);
+  test('a faint SNR~5.5 injected transient survives the persist gate '
+      '(self-subtraction would have dropped it below SNR 5.0)', () async {
+    final id = await insertSolvedLight();
+    await solveHook(id);
 
-      // The faint survivor was persisted — not suppressed by folding its own
-      // flux into the template (which would have pushed SNR below the floor).
-      final persisted = await transientDao.allDetections();
-      expect(persisted, hasLength(1));
-      expect(persisted.single.snr, closeTo(5.5, 1e-9));
-      expect(persisted.single.kind, 'newSource');
-    },
-  );
+    // The faint survivor was persisted — not suppressed by folding its own
+    // flux into the template (which would have pushed SNR below the floor).
+    final persisted = await transientDao.allDetections();
+    expect(persisted, hasLength(1));
+    expect(persisted.single.snr, closeTo(5.5, 1e-9));
+    expect(persisted.single.kind, 'newSource');
+  });
 }

@@ -78,9 +78,8 @@ class _ShareTargetSheetState extends ConsumerState<_ShareTargetSheet> {
                 : _TargetPicker(
                     targets: targets,
                     selected: _selected,
-                    onSelect: _busy
-                        ? null
-                        : (t) => setState(() => _selected = t),
+                    onSelect:
+                        _busy ? null : (t) => setState(() => _selected = t),
                   ),
             loading: () => const ShimmerLoading(
               child: SkeletonBox(
@@ -99,9 +98,7 @@ class _ShareTargetSheetState extends ConsumerState<_ShareTargetSheet> {
             const SizedBox(height: NightshadeTokens.spaceLg),
             _RadiusRow(
               radiusDeg: _radiusDeg,
-              onChanged: _busy
-                  ? null
-                  : (v) => setState(() => _radiusDeg = v),
+              onChanged: _busy ? null : (v) => setState(() => _radiusDeg = v),
             ),
           ],
           if (_error != null) ...[
@@ -124,9 +121,7 @@ class _ShareTargetSheetState extends ConsumerState<_ShareTargetSheet> {
       _error = null;
     });
     try {
-      final target = await ref
-          .read(constellationServiceProvider)
-          .proposeTarget(
+      final target = await ref.read(constellationServiceProvider).proposeTarget(
             name: selected.name,
             raDeg: selected.raDeg,
             decDeg: selected.decDeg,
@@ -223,7 +218,9 @@ class _TargetOption extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  target.name.isEmpty ? 'Target #${target.targetId}' : target.name,
+                  target.name.isEmpty
+                      ? 'Target #${target.targetId}'
+                      : target.name,
                   style: NightshadeTypography.labelStrong.copyWith(
                     color: colors.textPrimary,
                   ),

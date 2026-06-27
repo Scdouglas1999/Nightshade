@@ -21,20 +21,22 @@ import 'database_provider.dart';
 /// path instead. Best-effort: a native hiccup must not fail the GUI activation.
 Future<void> writeActiveProfileThroughToRust(Ref ref, int profileId) async {
   try {
-    final row = await ref.read(equipmentProfilesDaoProvider).getProfileById(
-          profileId,
-        );
+    final row = await ref
+        .read(equipmentProfilesDaoProvider)
+        .getProfileById(profileId);
     if (row == null) return;
     final remote = dbProfileToRemote(row);
     final backend = ref.read(profileSettingsBackendProvider);
     await backend.saveProfile(remote);
     await backend.loadProfile(remote.id);
   } on Object catch (e, stack) {
-    ref.read(loggingServiceProvider).debug(
-      'Active-profile write-through to native store failed: $e',
-      source: 'ProfileActivationWriteThrough',
-      fields: {'error': e.toString(), 'stack': stack.toString()},
-    );
+    ref
+        .read(loggingServiceProvider)
+        .debug(
+          'Active-profile write-through to native store failed: $e',
+          source: 'ProfileActivationWriteThrough',
+          fields: {'error': e.toString(), 'stack': stack.toString()},
+        );
   }
 }
 
@@ -44,19 +46,21 @@ Future<void> writeActiveProfileThroughToRustFromWidget(
   int profileId,
 ) async {
   try {
-    final row = await ref.read(equipmentProfilesDaoProvider).getProfileById(
-          profileId,
-        );
+    final row = await ref
+        .read(equipmentProfilesDaoProvider)
+        .getProfileById(profileId);
     if (row == null) return;
     final remote = dbProfileToRemote(row);
     final backend = ref.read(profileSettingsBackendProvider);
     await backend.saveProfile(remote);
     await backend.loadProfile(remote.id);
   } on Object catch (e, stack) {
-    ref.read(loggingServiceProvider).debug(
-      'Active-profile write-through to native store failed: $e',
-      source: 'ProfileActivationWriteThrough',
-      fields: {'error': e.toString(), 'stack': stack.toString()},
-    );
+    ref
+        .read(loggingServiceProvider)
+        .debug(
+          'Active-profile write-through to native store failed: $e',
+          source: 'ProfileActivationWriteThrough',
+          fields: {'error': e.toString(), 'stack': stack.toString()},
+        );
   }
 }

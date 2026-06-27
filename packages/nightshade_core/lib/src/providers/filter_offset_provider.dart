@@ -220,8 +220,8 @@ class FilterOffsetNotifier extends StateNotifier<FilterOffsetState> {
         for (final entry in offsets.entries) {
           final value = entry.value;
           if (value is Map && value['offsetSteps'] is num) {
-            offsetMap[entry.key.toString()] =
-                (value['offsetSteps'] as num).toInt();
+            offsetMap[entry.key.toString()] = (value['offsetSteps'] as num)
+                .toInt();
           }
         }
       }

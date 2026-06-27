@@ -40,8 +40,9 @@ class SchedulerHandlers {
   Future<Response> handlePreviewDecision(Request request) async {
     _logInfo('[API] GET /api/scheduler/preview');
     try {
-      final decision =
-          await container.read(schedulerPreviewDecisionProvider.future);
+      final decision = await container.read(
+        schedulerPreviewDecisionProvider.future,
+      );
       return jsonOk(decision.toJson());
     } catch (e) {
       return jsonInternalServerError({

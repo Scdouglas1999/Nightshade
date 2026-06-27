@@ -100,56 +100,58 @@ void main() {
       }
     });
 
-    test('living_sky_retention round-trips a prune marker + accumulates count',
-        () async {
-      final tempDir = await Directory.systemTemp.createTemp(
-        'nightshade_v54_v55_rt_',
-      );
-      addTearDown(() async {
-        if (await tempDir.exists()) await tempDir.delete(recursive: true);
-      });
-      final dbFile = await createV54Database(tempDir);
-
-      final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
-      try {
-        final dao = upgraded.livingSkyRetentionDao;
-        const scope = LivingSkyRetentionScope.transientDetections;
-
-        expect(await dao.getMarker(scope), isNull);
-
-        final firstAt = DateTime(2026, 6, 21, 12);
-        await dao.recordPrune(
-          scope,
-          lastPrunedAt: firstAt,
-          lastPrunedId: 100,
-          reclaimed: 7,
-          note: 'first sweep',
+    test(
+      'living_sky_retention round-trips a prune marker + accumulates count',
+      () async {
+        final tempDir = await Directory.systemTemp.createTemp(
+          'nightshade_v54_v55_rt_',
         );
+        addTearDown(() async {
+          if (await tempDir.exists()) await tempDir.delete(recursive: true);
+        });
+        final dbFile = await createV54Database(tempDir);
 
-        var row = await dao.getMarker(scope);
-        expect(row, isNotNull);
-        expect(row!.lastPrunedAt, firstAt);
-        expect(row.lastPrunedId, 100);
-        expect(row.prunedCount, 7);
-        expect(row.note, 'first sweep');
+        final upgraded = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+        try {
+          final dao = upgraded.livingSkyRetentionDao;
+          const scope = LivingSkyRetentionScope.transientDetections;
 
-        // A second pass advances the marker and ADDS to the running count.
-        final secondAt = DateTime(2026, 6, 22, 12);
-        await dao.recordPrune(
-          scope,
-          lastPrunedAt: secondAt,
-          lastPrunedId: 250,
-          reclaimed: 3,
-        );
-        row = await dao.getMarker(scope);
-        expect(row!.lastPrunedAt, secondAt);
-        expect(row.lastPrunedId, 250);
-        expect(row.prunedCount, 10, reason: 'reclaimed counts accumulate');
-        expect(row.note, 'first sweep', reason: 'omitted note is preserved');
-      } finally {
-        await upgraded.close();
-      }
-    });
+          expect(await dao.getMarker(scope), isNull);
+
+          final firstAt = DateTime(2026, 6, 21, 12);
+          await dao.recordPrune(
+            scope,
+            lastPrunedAt: firstAt,
+            lastPrunedId: 100,
+            reclaimed: 7,
+            note: 'first sweep',
+          );
+
+          var row = await dao.getMarker(scope);
+          expect(row, isNotNull);
+          expect(row!.lastPrunedAt, firstAt);
+          expect(row.lastPrunedId, 100);
+          expect(row.prunedCount, 7);
+          expect(row.note, 'first sweep');
+
+          // A second pass advances the marker and ADDS to the running count.
+          final secondAt = DateTime(2026, 6, 22, 12);
+          await dao.recordPrune(
+            scope,
+            lastPrunedAt: secondAt,
+            lastPrunedId: 250,
+            reclaimed: 3,
+          );
+          row = await dao.getMarker(scope);
+          expect(row!.lastPrunedAt, secondAt);
+          expect(row.lastPrunedId, 250);
+          expect(row.prunedCount, 10, reason: 'reclaimed counts accumulate');
+          expect(row.note, 'first sweep', reason: 'omitted note is preserved');
+        } finally {
+          await upgraded.close();
+        }
+      },
+    );
 
     test('the index-backed transient + atlas reads return correct rows after '
         'upgrade', () async {
@@ -201,9 +203,7 @@ void main() {
         expect(recent, hasLength(2));
 
         // pruneDetections reclaims aged dismissed rows, keeps the rest.
-        final deleted = await tDao.pruneDetections(
-          olderThan: DateTime(2027),
-        );
+        final deleted = await tDao.pruneDetections(olderThan: DateTime(2027));
         expect(deleted, 1, reason: 'only the dismissed artefact ages out');
         expect(await tDao.confirmedDetections(), hasLength(1));
 

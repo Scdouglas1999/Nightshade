@@ -31,11 +31,7 @@ mixin _NetworkBackendObservingListOperations on _NetworkBackendTransport {
     final response = await _get('observing-lists/items', {
       'listId': listId.toString(),
     });
-    return _observingListsFrom(
-      response,
-      'items',
-      ObservingListItem.fromJson,
-    );
+    return _observingListsFrom(response, 'items', ObservingListItem.fromJson);
   }
 
   /// GET /api/observing-lists/listed-catalog-ids — distinct catalog ids across

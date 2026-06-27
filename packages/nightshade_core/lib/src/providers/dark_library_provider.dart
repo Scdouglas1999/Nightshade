@@ -176,7 +176,8 @@ List<DarkGroupKey> _groupsFromEntries(List<DarkLibraryEntry> entries) {
       binY: e.binY,
       frameType: e.frameType,
     );
-    seen['${e.exposureTime}|${e.gain}|${e.binX}|${e.binY}|${e.frameType}'] = key;
+    seen['${e.exposureTime}|${e.gain}|${e.binX}|${e.binY}|${e.frameType}'] =
+        key;
   }
   return seen.values.toList();
 }

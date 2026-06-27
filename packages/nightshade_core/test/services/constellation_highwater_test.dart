@@ -97,16 +97,19 @@ class _RecordingSeam implements SkyAtlasSeam {
   }
 
   @override
-  Future<Map<String, dynamic>> queryCutout(Map<String, dynamic> args) async =>
-      {'ok': true};
+  Future<Map<String, dynamic>> queryCutout(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
 
   @override
-  Future<Map<String, dynamic>> regionInfo(Map<String, dynamic> args) async =>
-      {'ok': true};
+  Future<Map<String, dynamic>> regionInfo(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
 
   @override
-  Future<Map<String, dynamic>> growth(Map<String, dynamic> args) async =>
-      {'ok': true};
+  Future<Map<String, dynamic>> growth(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
 }
 
 void main() {
@@ -313,11 +316,7 @@ void main() {
   );
 
   test('re-pull is idempotent: overlay frames stable across two pulls', () async {
-    final seam = _RecordingSeam(
-      ownFrames: 0,
-      ownSeconds: 0,
-      mergeFrames: 7,
-    );
+    final seam = _RecordingSeam(ownFrames: 0, ownSeconds: 0, mergeFrames: 7);
     final service = buildService(seam)..joinSharedTarget(target);
 
     final first = await service.pullTarget(target.targetId, finalized: false);

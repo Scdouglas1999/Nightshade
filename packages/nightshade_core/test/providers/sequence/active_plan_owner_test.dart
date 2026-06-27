@@ -81,26 +81,29 @@ void main() {
       },
     );
 
-    test('releaseOwnership restores the stashed manual sequence + dirty flag', () {
-      final c = newContainer();
-      final editor = c.read(currentSequenceProvider.notifier);
+    test(
+      'releaseOwnership restores the stashed manual sequence + dirty flag',
+      () {
+        final c = newContainer();
+        final editor = c.read(currentSequenceProvider.notifier);
 
-      editor.loadSequence(buildSequence(name: 'Manual Work'));
-      editor.setName('Manual Work (touched)');
-      expect(editor.isDirty, isTrue);
+        editor.loadSequence(buildSequence(name: 'Manual Work'));
+        editor.setName('Manual Work (touched)');
+        expect(editor.isDirty, isTrue);
 
-      editor.takeOwnership(
-        buildSequence(name: 'Autopilot Plan'),
-        ActivePlanOwner.autopilot,
-      );
-      expect(c.read(activePlanOwnerProvider), ActivePlanOwner.autopilot);
+        editor.takeOwnership(
+          buildSequence(name: 'Autopilot Plan'),
+          ActivePlanOwner.autopilot,
+        );
+        expect(c.read(activePlanOwnerProvider), ActivePlanOwner.autopilot);
 
-      // Autopilot stops -> manual ownership and the exact unsaved work return.
-      editor.releaseOwnership();
-      expect(c.read(activePlanOwnerProvider), ActivePlanOwner.manual);
-      expect(c.read(currentSequenceProvider)!.name, 'Manual Work (touched)');
-      expect(editor.isDirty, isTrue);
-    });
+        // Autopilot stops -> manual ownership and the exact unsaved work return.
+        editor.releaseOwnership();
+        expect(c.read(activePlanOwnerProvider), ActivePlanOwner.manual);
+        expect(c.read(currentSequenceProvider)!.name, 'Manual Work (touched)');
+        expect(editor.isDirty, isTrue);
+      },
+    );
 
     test('re-dispatch while owned keeps the ORIGINAL manual stash', () {
       final c = newContainer();

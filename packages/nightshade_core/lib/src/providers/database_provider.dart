@@ -209,16 +209,10 @@ final allSettingsProvider = StreamProvider<Map<String, String>>((ref) {
 
 Stream<List<db.EquipmentProfile>> _pollRemoteEquipmentProfiles(
   NetworkBackend backend,
-) =>
-    _pollRemote(() => _fetchRemoteEquipmentProfiles(backend), listEquals);
+) => _pollRemote(() => _fetchRemoteEquipmentProfiles(backend), listEquals);
 
-Stream<db.EquipmentProfile?> _pollRemoteActiveProfile(
-  NetworkBackend backend,
-) =>
-    _pollRemote(
-      () => _fetchRemoteActiveProfile(backend),
-      (a, b) => a == b,
-    );
+Stream<db.EquipmentProfile?> _pollRemoteActiveProfile(NetworkBackend backend) =>
+    _pollRemote(() => _fetchRemoteActiveProfile(backend), (a, b) => a == b);
 
 Future<List<db.EquipmentProfile>> _fetchRemoteEquipmentProfiles(
   NetworkBackend backend,
@@ -284,20 +278,15 @@ Stream<List<db.Target>> _pollRemoteTargets(NetworkBackend backend) =>
 Stream<List<db.Sequence>> _pollRemoteSequenceRows(
   NetworkBackend backend, {
   required bool templates,
-}) =>
-    _pollRemote(
-      () => _fetchRemoteSequenceRows(backend, templates: templates),
-      listEquals,
-    );
+}) => _pollRemote(
+  () => _fetchRemoteSequenceRows(backend, templates: templates),
+  listEquals,
+);
 
-Stream<List<db.ImagingSession>> _pollRemoteSessions(
-  NetworkBackend backend,
-) =>
+Stream<List<db.ImagingSession>> _pollRemoteSessions(NetworkBackend backend) =>
     _pollRemote(() => _fetchRemoteSessions(backend), listEquals);
 
-Stream<List<db.CapturedImage>> _pollRemoteImages(
-  NetworkBackend backend,
-) =>
+Stream<List<db.CapturedImage>> _pollRemoteImages(NetworkBackend backend) =>
     _pollRemote(() => _fetchRemoteImages(backend), listEquals);
 
 /// Polls the host's `/api/sequence-runs` and maps each [RemoteSequenceRun]
@@ -313,17 +302,15 @@ Stream<List<db.CapturedImage>> _pollRemoteImages(
 Stream<List<db.SequenceRun>> pollRemoteSequenceRuns(
   NetworkBackend backend, {
   int? sequenceId,
-}) =>
-    _pollRemoteRuns(backend, sequenceId: sequenceId);
+}) => _pollRemoteRuns(backend, sequenceId: sequenceId);
 
 Stream<List<db.SequenceRun>> _pollRemoteRuns(
   NetworkBackend backend, {
   int? sequenceId,
-}) =>
-    _pollRemote(
-      () => _fetchRemoteRuns(backend, sequenceId: sequenceId),
-      listEquals,
-    );
+}) => _pollRemote(
+  () => _fetchRemoteRuns(backend, sequenceId: sequenceId),
+  listEquals,
+);
 
 Future<List<db.SequenceRun>> _fetchRemoteRuns(
   NetworkBackend backend, {

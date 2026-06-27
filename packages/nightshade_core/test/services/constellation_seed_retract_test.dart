@@ -59,20 +59,25 @@ class _Seam implements SkyAtlasSeam {
   }
 
   @override
-  Future<Map<String, dynamic>> mergeDelta(Map<String, dynamic> args) async =>
-      {'ok': true, 'totalFramesAfter': 7};
+  Future<Map<String, dynamic>> mergeDelta(Map<String, dynamic> args) async => {
+    'ok': true,
+    'totalFramesAfter': 7,
+  };
 
   @override
-  Future<Map<String, dynamic>> queryCutout(Map<String, dynamic> args) async =>
-      {'ok': true};
+  Future<Map<String, dynamic>> queryCutout(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
 
   @override
-  Future<Map<String, dynamic>> regionInfo(Map<String, dynamic> args) async =>
-      {'ok': true};
+  Future<Map<String, dynamic>> regionInfo(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
 
   @override
-  Future<Map<String, dynamic>> growth(Map<String, dynamic> args) async =>
-      {'ok': true};
+  Future<Map<String, dynamic>> growth(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
 }
 
 void main() {
@@ -166,59 +171,62 @@ void main() {
 
   tearDown(() => db.close());
 
-  test('proposeTarget POSTs /v1/targets, decodes + joins the new target',
-      () async {
-    final service = buildService(_Seam());
+  test(
+    'proposeTarget POSTs /v1/targets, decodes + joins the new target',
+    () async {
+      final service = buildService(_Seam());
 
-    final created = await service.proposeTarget(
-      name: 'My Field',
-      raDeg: 83.6,
-      decDeg: -5.4,
-    );
+      final created = await service.proposeTarget(
+        name: 'My Field',
+        raDeg: 83.6,
+        decDeg: -5.4,
+      );
 
-    expect(created.targetId, 42);
-    expect(created.name, 'My Field');
-    expect(created.raDeg, 83.6);
-    // Joined locally so contribute/pull can resolve its geometry.
-    expect(
-      service.joinedTargets.any((t) => t.targetId == 42),
-      isTrue,
-    );
-  });
+      expect(created.targetId, 42);
+      expect(created.name, 'My Field');
+      expect(created.raDeg, 83.6);
+      // Joined locally so contribute/pull can resolve its geometry.
+      expect(service.joinedTargets.any((t) => t.targetId == 42), isTrue);
+    },
+  );
 
-  test('contribute stamps a retractable receipt myContributions surfaces',
-      () async {
-    final service = buildService(_Seam())..joinSharedTarget(target);
+  test(
+    'contribute stamps a retractable receipt myContributions surfaces',
+    () async {
+      final service = buildService(_Seam())..joinSharedTarget(target);
 
-    await service.contributeTarget(target.targetId);
+      await service.contributeTarget(target.targetId);
 
-    final records = await service.myContributions();
-    expect(records, hasLength(1));
-    expect(records.single.tileId, 1234);
-    expect(records.single.contributionId, 'ctr-1');
-    expect(records.single.contributedFrames, 4);
-  });
+      final records = await service.myContributions();
+      expect(records, hasLength(1));
+      expect(records.single.tileId, 1234);
+      expect(records.single.contributionId, 'ctr-1');
+      expect(records.single.contributedFrames, 4);
+    },
+  );
 
-  test('retractTile DELETEs the persisted id and clears the local receipt',
-      () async {
-    final service = buildService(_Seam())..joinSharedTarget(target);
-    await service.contributeTarget(target.targetId);
+  test(
+    'retractTile DELETEs the persisted id and clears the local receipt',
+    () async {
+      final service = buildService(_Seam())..joinSharedTarget(target);
+      await service.contributeTarget(target.targetId);
 
-    final receipt = await service.retractTile(1234);
+      final receipt = await service.retractTile(1234);
 
-    expect(receipt.retracted, isTrue);
-    expect(receipt.totalFramesAfter, 100);
-    // The hub was asked to subtract exactly the stored receipt id.
-    expect(deletedContributionIds, ['ctr-1']);
-    // The local receipt is gone so the next contribute re-anchors from epoch.
-    final row = await contributionsDao.getContribution(
-      'https://hub.example.org',
-      1234,
-      healpixOrder: 9,
-    );
-    expect(row, isNull);
-    expect(await service.myContributions(), isEmpty);
-  });
+      expect(receipt.retracted, isTrue);
+      expect(receipt.totalFramesAfter, 100);
+      // The hub was asked to subtract exactly the stored receipt id.
+      expect(deletedContributionIds, ['ctr-1']);
+      // The local receipt is gone so the next contribute re-anchors from epoch.
+      final row = await contributionsDao.getContribution(
+        'https://hub.example.org',
+        1234,
+        healpixOrder: 9,
+      );
+      expect(row, isNull);
+      expect(await service.myContributions(), isEmpty);
+    },
+  );
 
   test('retractTile throws when there is no recorded contribution', () async {
     final service = buildService(_Seam())..joinSharedTarget(target);

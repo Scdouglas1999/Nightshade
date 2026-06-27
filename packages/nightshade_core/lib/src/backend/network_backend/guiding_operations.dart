@@ -6,7 +6,10 @@ mixin _NetworkBackendGuidingOperations on _NetworkBackendTransport {
   // =========================================================================
 
   @override
-  Future<bool> isPhd2Running({String host = 'localhost', int port = 4400}) async {
+  Future<bool> isPhd2Running({
+    String host = 'localhost',
+    int port = 4400,
+  }) async {
     // The PHD2 event-server socket lives on the host's loopback, which a
     // remote client cannot reach directly. Instead, ask the master to run
     // the probe on our behalf via GET /api/phd2/running. Older masters that

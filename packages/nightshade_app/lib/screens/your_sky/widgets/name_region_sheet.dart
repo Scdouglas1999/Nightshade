@@ -177,9 +177,7 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
             ),
             const SizedBox(height: NightshadeTokens.spaceXs),
             NightshadeDropdown(
-              value: _selectedTarget == null
-                  ? null
-                  : '${_selectedTarget!.id}',
+              value: _selectedTarget == null ? null : '${_selectedTarget!.id}',
               hint: 'Choose a target',
               isExpanded: true,
               items: [for (final t in targets) '${t.id}'],
@@ -304,9 +302,8 @@ class _NameRegionSheetState extends ConsumerState<NameRegionSheet> {
       kind = 'custom';
     }
 
-    final effectiveName = name.isNotEmpty
-        ? name
-        : (_selectedTarget?.name ?? 'Custom region');
+    final effectiveName =
+        name.isNotEmpty ? name : (_selectedTarget?.name ?? 'Custom region');
 
     try {
       await ref.read(skyAtlasServiceProvider).ensureRegion(

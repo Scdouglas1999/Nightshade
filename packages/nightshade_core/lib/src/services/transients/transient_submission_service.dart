@@ -34,14 +34,16 @@ class TnsSubmissionResult {
     this.rawReply,
   });
 
-  factory TnsSubmissionResult.failure(String message,
-          {Map<String, dynamic>? rawReply, String? reportId}) =>
-      TnsSubmissionResult(
-        success: false,
-        message: message,
-        rawReply: rawReply,
-        reportId: reportId,
-      );
+  factory TnsSubmissionResult.failure(
+    String message, {
+    Map<String, dynamic>? rawReply,
+    String? reportId,
+  }) => TnsSubmissionResult(
+    success: false,
+    message: message,
+    rawReply: rawReply,
+    reportId: reportId,
+  );
 }
 
 /// Network/upload seam for First Light discovery reports.
@@ -68,9 +70,9 @@ class TransientSubmissionService {
     required http.Client httpClient,
     required LoggingService logger,
     TransientReportService? reportService,
-  })  : _http = httpClient,
-        _logger = logger,
-        _reports = reportService ?? TransientReportService();
+  }) : _http = httpClient,
+       _logger = logger,
+       _reports = reportService ?? TransientReportService();
 
   static const String _prodBase = 'https://www.wis-tns.org/api';
   static const String _sandboxBase = 'https://sandbox.wis-tns.org/api';
@@ -133,7 +135,8 @@ class TransientSubmissionService {
     }
 
     final base = creds.useSandbox ? _sandboxBase : _prodBase;
-    final marker = 'tns_marker'
+    final marker =
+        'tns_marker'
         '{"tns_id":${creds.botId},"type":"bot",'
         '"name":"${creds.botName.replaceAll('"', r'\"')}"}';
 
@@ -147,10 +150,7 @@ class TransientSubmissionService {
       final setResp = await _http.post(
         Uri.parse('$base/set/bulk-report'),
         headers: {'User-Agent': marker},
-        body: {
-          'api_key': creds.apiKey,
-          'data': jsonEncode(reportJson),
-        },
+        body: {'api_key': creds.apiKey, 'data': jsonEncode(reportJson)},
       );
       final setDecoded = _tryDecode(setResp.body);
       if (setResp.statusCode != 200) {

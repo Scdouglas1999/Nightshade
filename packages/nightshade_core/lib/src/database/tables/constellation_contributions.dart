@@ -68,8 +68,7 @@ class ConstellationContributions extends Table {
 
   /// Running tally of own-light frames / integration shipped to this hub for
   /// this tile (cumulative across contributions).
-  IntColumn get contributedFrames =>
-      integer().withDefault(const Constant(0))();
+  IntColumn get contributedFrames => integer().withDefault(const Constant(0))();
   RealColumn get contributedIntegrationSeconds =>
       real().withDefault(const Constant(0))();
 

@@ -155,23 +155,26 @@ void main() {
       expect(after, before);
     });
 
-    test('park policy off + weather toggle on: derived autoPark matches',
-        () async {
-      await db.weatherSettingsDao.updateSettings(autoParkEnabled: true);
-      const appSettings = AppSettingsState(
-        safetyFailMode: SafetyFailMode.failOpen,
-        parkOnUnsafeWeather: false,
-      );
+    test(
+      'park policy off + weather toggle on: derived autoPark matches',
+      () async {
+        await db.weatherSettingsDao.updateSettings(autoParkEnabled: true);
+        const appSettings = AppSettingsState(
+          safetyFailMode: SafetyFailMode.failOpen,
+          parkOnUnsafeWeather: false,
+        );
 
-      final before = jsonEncode(await legacyPayload(db, appSettings));
-      final after = jsonEncode(await consolidatedPayload(db, appSettings));
+        final before = jsonEncode(await legacyPayload(db, appSettings));
+        final after = jsonEncode(await consolidatedPayload(db, appSettings));
 
-      expect(after, before);
-      // Cross-check the derived field is the AND of the two stores.
-      final config =
-          await SafetyConfigStore(db).load(appSettings: appSettings);
-      expect(config.autoParkOnUnsafe, isFalse);
-    });
+        expect(after, before);
+        // Cross-check the derived field is the AND of the two stores.
+        final config = await SafetyConfigStore(
+          db,
+        ).load(appSettings: appSettings);
+        expect(config.autoParkOnUnsafe, isFalse);
+      },
+    );
 
     test('write path round-trips through facade to same wire shape', () async {
       final store = SafetyConfigStore(db);

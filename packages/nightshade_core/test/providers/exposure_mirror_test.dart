@@ -25,29 +25,31 @@ void main() {
         data: data,
       );
 
-  test('ExposureStarted marks the camera exposing and seeds the countdown',
-      () async {
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
-    final backend = slaveBackend();
-    addTearDown(backend.dispose);
+  test(
+    'ExposureStarted marks the camera exposing and seeds the countdown',
+    () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      final backend = slaveBackend();
+      addTearDown(backend.dispose);
 
-    await applyRemoteSyncEvent(
-      container,
-      imagingEvent('ExposureStarted', {
-        'durationSecs': 60.0,
-        'frameNumber': 3,
-        'totalFrames': 10,
-      }),
-      networkBackend: backend,
-    );
+      await applyRemoteSyncEvent(
+        container,
+        imagingEvent('ExposureStarted', {
+          'durationSecs': 60.0,
+          'frameNumber': 3,
+          'totalFrames': 10,
+        }),
+        networkBackend: backend,
+      );
 
-    expect(container.read(cameraStateProvider).isExposing, isTrue);
-    final progress = container.read(exposureProgressProvider);
-    expect(progress.remaining, 60.0);
-    expect(progress.frameNumber, 3);
-    expect(progress.totalFrames, 10);
-  });
+      expect(container.read(cameraStateProvider).isExposing, isTrue);
+      final progress = container.read(exposureProgressProvider);
+      expect(progress.remaining, 60.0);
+      expect(progress.frameNumber, 3);
+      expect(progress.totalFrames, 10);
+    },
+  );
 
   test('ExposureProgress drives the live remaining-time countdown', () async {
     final container = ProviderContainer();
@@ -96,21 +98,23 @@ void main() {
     expect(container.read(cameraStateProvider).isExposing, isFalse);
   });
 
-  test('exposure events are IGNORED on the host path (no network backend)',
-      () async {
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
+  test(
+    'exposure events are IGNORED on the host path (no network backend)',
+    () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
 
-    await applyRemoteSyncEvent(
-      container,
-      imagingEvent('ExposureProgress', {
-        'progress': 0.5,
-        'remainingSecs': 30.0,
-      }),
-      // No networkBackend => host path; ImagingService already owns this state,
-      // so the mirror must NOT run (would double-apply).
-    );
+      await applyRemoteSyncEvent(
+        container,
+        imagingEvent('ExposureProgress', {
+          'progress': 0.5,
+          'remainingSecs': 30.0,
+        }),
+        // No networkBackend => host path; ImagingService already owns this state,
+        // so the mirror must NOT run (would double-apply).
+      );
 
-    expect(container.read(cameraStateProvider).isExposing, isFalse);
-  });
+      expect(container.read(cameraStateProvider).isExposing, isFalse);
+    },
+  );
 }

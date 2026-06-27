@@ -23,24 +23,29 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 class _Seam implements SkyAtlasSeam {
   @override
-  Future<Map<String, dynamic>> dispatch(Map<String, dynamic> args) async =>
-      {'ok': true};
+  Future<Map<String, dynamic>> dispatch(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
 
   @override
-  Future<Map<String, dynamic>> mergeDelta(Map<String, dynamic> args) async =>
-      {'ok': true};
+  Future<Map<String, dynamic>> mergeDelta(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
 
   @override
-  Future<Map<String, dynamic>> queryCutout(Map<String, dynamic> args) async =>
-      {'ok': true};
+  Future<Map<String, dynamic>> queryCutout(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
 
   @override
-  Future<Map<String, dynamic>> regionInfo(Map<String, dynamic> args) async =>
-      {'ok': true};
+  Future<Map<String, dynamic>> regionInfo(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
 
   @override
-  Future<Map<String, dynamic>> growth(Map<String, dynamic> args) async =>
-      {'ok': true};
+  Future<Map<String, dynamic>> growth(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
 }
 
 void main() {
@@ -112,68 +117,74 @@ void main() {
 
   tearDown(() => db.close());
 
-  test('a join survives a fresh service over the same db and feeds the sweep',
-      () async {
-    // Join on one service instance (e.g. before an app restart).
-    final first = buildService();
-    first.joinSharedTarget(orion);
-    // Let the fire-and-forget persistence settle.
-    await Future<void>.delayed(Duration.zero);
+  test(
+    'a join survives a fresh service over the same db and feeds the sweep',
+    () async {
+      // Join on one service instance (e.g. before an app restart).
+      final first = buildService();
+      first.joinSharedTarget(orion);
+      // Let the fire-and-forget persistence settle.
+      await Future<void>.delayed(Duration.zero);
 
-    // A brand-new service over the SAME db (the relaunch): memory is empty.
-    final second = buildService();
-    expect(second.joinedTargets, isEmpty);
+      // A brand-new service over the SAME db (the relaunch): memory is empty.
+      final second = buildService();
+      expect(second.joinedTargets, isEmpty);
 
-    await second.rehydrateJoined();
-    expect(second.joinedTargets.map((t) => t.targetId), [7]);
-    expect(second.joinedTargets.single.name, 'Orion');
+      await second.rehydrateJoined();
+      expect(second.joinedTargets.map((t) => t.targetId), [7]);
+      expect(second.joinedTargets.single.name, 'Orion');
 
-    // The rehydrated membership now drives follow-the-night.
-    final suggestions = await second.followTheNight();
-    expect(queriedHandoffIds, [7]);
-    expect(suggestions.single.targetId, 7);
-  });
+      // The rehydrated membership now drives follow-the-night.
+      final suggestions = await second.followTheNight();
+      expect(queriedHandoffIds, [7]);
+      expect(suggestions.single.targetId, 7);
+    },
+  );
 
-  test('leaveSharedTarget clears the persisted row so it does not resurrect',
-      () async {
-    final first = buildService();
-    first.joinSharedTarget(orion);
-    await Future<void>.delayed(Duration.zero);
-    first.leaveSharedTarget(7);
-    await Future<void>.delayed(Duration.zero);
+  test(
+    'leaveSharedTarget clears the persisted row so it does not resurrect',
+    () async {
+      final first = buildService();
+      first.joinSharedTarget(orion);
+      await Future<void>.delayed(Duration.zero);
+      first.leaveSharedTarget(7);
+      await Future<void>.delayed(Duration.zero);
 
-    final second = buildService();
-    await second.rehydrateJoined();
-    expect(second.joinedTargets, isEmpty);
-  });
+      final second = buildService();
+      await second.rehydrateJoined();
+      expect(second.joinedTargets, isEmpty);
+    },
+  );
 
-  test('the join row does not collide with a real tile receipt at the same int',
-      () async {
-    // A real contribution receipt for tile id 7 (non-negative HEALPix pixel).
-    await contributionsDao.upsertContribution(
-      'https://hub.example.org',
-      7,
-      contributionId: 'rcpt-7',
-      contributedFrames: 12,
-    );
-    // Join hub target 7 — its join row keys at a DISJOINT negative tileId.
-    final service = buildService();
-    service.joinSharedTarget(orion);
-    await Future<void>.delayed(Duration.zero);
+  test(
+    'the join row does not collide with a real tile receipt at the same int',
+    () async {
+      // A real contribution receipt for tile id 7 (non-negative HEALPix pixel).
+      await contributionsDao.upsertContribution(
+        'https://hub.example.org',
+        7,
+        contributionId: 'rcpt-7',
+        contributedFrames: 12,
+      );
+      // Join hub target 7 — its join row keys at a DISJOINT negative tileId.
+      final service = buildService();
+      service.joinSharedTarget(orion);
+      await Future<void>.delayed(Duration.zero);
 
-    // The real receipt is untouched (still retractable with its id + frames).
-    final receipt = await contributionsDao.getContribution(
-      'https://hub.example.org',
-      7,
-    );
-    expect(receipt, isNotNull);
-    expect(receipt!.contributionId, 'rcpt-7');
-    expect(receipt.contributedFrames, 12);
-    expect(receipt.joined, isFalse); // the tile receipt was NOT marked joined
+      // The real receipt is untouched (still retractable with its id + frames).
+      final receipt = await contributionsDao.getContribution(
+        'https://hub.example.org',
+        7,
+      );
+      expect(receipt, isNotNull);
+      expect(receipt!.contributionId, 'rcpt-7');
+      expect(receipt.contributedFrames, 12);
+      expect(receipt.joined, isFalse); // the tile receipt was NOT marked joined
 
-    // And rehydration still recovers the joined target.
-    final fresh = buildService();
-    await fresh.rehydrateJoined();
-    expect(fresh.joinedTargets.map((t) => t.targetId), [7]);
-  });
+      // And rehydration still recovers the joined target.
+      final fresh = buildService();
+      await fresh.rehydrateJoined();
+      expect(fresh.joinedTargets.map((t) => t.targetId), [7]);
+    },
+  );
 }

@@ -201,8 +201,7 @@ class ProjectTarget extends Equatable {
       targetId: json['targetId'] as int? ?? 0,
       priorityOverride: json['priorityOverride'] as int?,
       addedAt: added is String
-          ? (DateTime.tryParse(added) ??
-                DateTime.fromMillisecondsSinceEpoch(0))
+          ? (DateTime.tryParse(added) ?? DateTime.fromMillisecondsSinceEpoch(0))
           : DateTime.fromMillisecondsSinceEpoch(0),
     );
   }

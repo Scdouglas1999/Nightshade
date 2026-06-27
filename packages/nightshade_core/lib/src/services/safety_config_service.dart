@@ -192,7 +192,8 @@ class SafetyConfigStore {
     final weatherRow = await _db.weatherSettingsDao.getOrCreateSettings();
     final stored = await _db.settingsDao.getAllSettings();
 
-    final safetyFailMode = appSettings?.safetyFailMode ?? SafetyFailMode.failClosed;
+    final safetyFailMode =
+        appSettings?.safetyFailMode ?? SafetyFailMode.failClosed;
     final parkOnUnsafeWeather = appSettings?.parkOnUnsafeWeather ?? true;
     final parkBeforeDawn = appSettings?.parkBeforeDawn ?? true;
 
@@ -213,8 +214,11 @@ class SafetyConfigStore {
       parkBeforeDawn: parkBeforeDawn,
       checkIntervalSeconds: _parseIntSetting(stored, kCheckIntervalKey, 300),
       warningDelaySeconds: _parseIntSetting(stored, kWarningDelayKey, 60),
-      requiredSafeDurationSeconds:
-          _parseIntSetting(stored, kRequiredSafeDurationKey, 300),
+      requiredSafeDurationSeconds: _parseIntSetting(
+        stored,
+        kRequiredSafeDurationKey,
+        300,
+      ),
       autoStopOnUnsafe: _parseBoolSetting(
         stored,
         kAutoStopKey,

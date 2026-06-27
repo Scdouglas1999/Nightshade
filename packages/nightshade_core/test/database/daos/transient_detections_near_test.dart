@@ -60,31 +60,31 @@ void main() {
     expect(group, hasLength(3));
     // Oldest-first ordering drives the light-curve x-axis. Compare epoch ms so
     // the assertion is timezone-agnostic (Drift round-trips DateTime to local).
-    expect(
-      group.map((r) => r.detectedAt.millisecondsSinceEpoch),
-      [
-        DateTime.utc(2026, 6, 1).millisecondsSinceEpoch,
-        DateTime.utc(2026, 6, 3).millisecondsSinceEpoch,
-        DateTime.utc(2026, 6, 5).millisecondsSinceEpoch,
-      ],
-    );
+    expect(group.map((r) => r.detectedAt.millisecondsSinceEpoch), [
+      DateTime.utc(2026, 6, 1).millisecondsSinceEpoch,
+      DateTime.utc(2026, 6, 3).millisecondsSinceEpoch,
+      DateTime.utc(2026, 6, 5).millisecondsSinceEpoch,
+    ]);
     expect(group.every((r) => (r.raDeg - 120.0).abs() < 0.01), isTrue);
   });
 
-  test('RA bounding box widens with declination (cos(dec) correction)',
-      () async {
-    // At dec=80, 0.02 deg on the sky is ~0.115 deg in RA. A detection 0.05 deg
-    // away in RA is on-sky ~0.0087 deg from the anchor — inside a 0.02 cone.
-    await dao.insertDetection(at(120.05, 80.0, DateTime.utc(2026, 6, 2)));
+  test(
+    'RA bounding box widens with declination (cos(dec) correction)',
+    () async {
+      // At dec=80, 0.02 deg on the sky is ~0.115 deg in RA. A detection 0.05 deg
+      // away in RA is on-sky ~0.0087 deg from the anchor — inside a 0.02 cone.
+      await dao.insertDetection(at(120.05, 80.0, DateTime.utc(2026, 6, 2)));
 
-    final group = await dao.detectionsNear(120.0, 80.0, radiusDeg: 0.02);
+      final group = await dao.detectionsNear(120.0, 80.0, radiusDeg: 0.02);
 
-    expect(
-      group,
-      isNotEmpty,
-      reason: 'high-dec RA box must widen by 1/cos(dec) or it drops real rows',
-    );
-  });
+      expect(
+        group,
+        isNotEmpty,
+        reason:
+            'high-dec RA box must widen by 1/cos(dec) or it drops real rows',
+      );
+    },
+  );
 
   test('empty when nothing is near the position', () async {
     await dao.insertDetection(at(10.0, -30.0, DateTime.utc(2026, 6, 2)));

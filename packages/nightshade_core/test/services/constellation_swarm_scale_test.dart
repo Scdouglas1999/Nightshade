@@ -48,20 +48,25 @@ class _RecordingSeam implements SkyAtlasSeam {
   }
 
   @override
-  Future<Map<String, dynamic>> mergeDelta(Map<String, dynamic> args) async =>
-      {'ok': true, 'totalFramesAfter': 7};
+  Future<Map<String, dynamic>> mergeDelta(Map<String, dynamic> args) async => {
+    'ok': true,
+    'totalFramesAfter': 7,
+  };
 
   @override
-  Future<Map<String, dynamic>> queryCutout(Map<String, dynamic> args) async =>
-      {'ok': true};
+  Future<Map<String, dynamic>> queryCutout(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
 
   @override
-  Future<Map<String, dynamic>> regionInfo(Map<String, dynamic> args) async =>
-      {'ok': true};
+  Future<Map<String, dynamic>> regionInfo(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
 
   @override
-  Future<Map<String, dynamic>> growth(Map<String, dynamic> args) async =>
-      {'ok': true};
+  Future<Map<String, dynamic>> growth(Map<String, dynamic> args) async => {
+    'ok': true,
+  };
 }
 
 void main() {
@@ -209,8 +214,10 @@ void main() {
 
   group('sweepSwarmBlobs', () {
     Future<File> writeBlob(String name, {required DateTime modified}) async {
-      final dir = Directory('${tempRoot.path}/swarm/'
-          '${ConstellationService.defaultHealpixOrder}');
+      final dir = Directory(
+        '${tempRoot.path}/swarm/'
+        '${ConstellationService.defaultHealpixOrder}',
+      );
       dir.createSync(recursive: true);
       final f = File('${dir.path}/$name');
       await f.writeAsBytes(const [1, 2, 3, 4]);
@@ -250,9 +257,9 @@ void main() {
         reason: 'tile 9003 should be a live overlay after pull',
       );
       // Re-age the live overlay file written by the pull.
-      File(liveOverlay.path).setLastModifiedSync(
-        now.subtract(const Duration(days: 90)),
-      );
+      File(
+        liveOverlay.path,
+      ).setLastModifiedSync(now.subtract(const Duration(days: 90)));
 
       final deleted = await service.sweepSwarmBlobs(
         maxAge: const Duration(days: 14),
@@ -276,35 +283,42 @@ void main() {
       expect(marker.lastPrunedAt, isNotNull);
     });
 
-    test('byte budget evicts oldest survivors LRU, sparing the live overlay',
-        () async {
-      final now = DateTime.now();
-      // Three fresh (within age) blobs, each 4 bytes; oldest mtime first.
-      await writeBlob('tile_8001_9.nst',
-          modified: now.subtract(const Duration(hours: 3)));
-      await writeBlob('tile_8002_9.nst',
-          modified: now.subtract(const Duration(hours: 2)));
-      await writeBlob('tile_8003_9.nst',
-          modified: now.subtract(const Duration(hours: 1)));
+    test(
+      'byte budget evicts oldest survivors LRU, sparing the live overlay',
+      () async {
+        final now = DateTime.now();
+        // Three fresh (within age) blobs, each 4 bytes; oldest mtime first.
+        await writeBlob(
+          'tile_8001_9.nst',
+          modified: now.subtract(const Duration(hours: 3)),
+        );
+        await writeBlob(
+          'tile_8002_9.nst',
+          modified: now.subtract(const Duration(hours: 2)),
+        );
+        await writeBlob(
+          'tile_8003_9.nst',
+          modified: now.subtract(const Duration(hours: 1)),
+        );
 
-      final service = buildService();
+        final service = buildService();
 
-      // maxBytes = 4 keeps exactly one blob; the two oldest are evicted.
-      final deleted = await service.sweepSwarmBlobs(
-        maxAge: const Duration(days: 365),
-        maxBytes: 4,
-      );
+        // maxBytes = 4 keeps exactly one blob; the two oldest are evicted.
+        final deleted = await service.sweepSwarmBlobs(
+          maxAge: const Duration(days: 365),
+          maxBytes: 4,
+        );
 
-      expect(deleted, 2);
-      final remaining = Directory('${tempRoot.path}/swarm/'
-              '${ConstellationService.defaultHealpixOrder}')
-          .listSync()
-          .whereType<File>()
-          .toList();
-      expect(remaining, hasLength(1));
-      // The newest (hours: 1) blob is the one kept.
-      expect(remaining.single.path, endsWith('tile_8003_9.nst'));
-    });
+        expect(deleted, 2);
+        final remaining = Directory(
+          '${tempRoot.path}/swarm/'
+          '${ConstellationService.defaultHealpixOrder}',
+        ).listSync().whereType<File>().toList();
+        expect(remaining, hasLength(1));
+        // The newest (hours: 1) blob is the one kept.
+        expect(remaining.single.path, endsWith('tile_8003_9.nst'));
+      },
+    );
 
     test('no swarm dir is a clean no-op', () async {
       final service = buildService();

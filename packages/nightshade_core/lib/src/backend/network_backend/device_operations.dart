@@ -223,20 +223,12 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
 
   @override
   Future<void> connectDevice(DeviceType deviceType, String deviceId) {
-    return _dedupedConnectOp(
-      deviceType,
-      deviceId,
-      'devices/connect',
-    );
+    return _dedupedConnectOp(deviceType, deviceId, 'devices/connect');
   }
 
   @override
   Future<void> disconnectDevice(DeviceType deviceType, String deviceId) {
-    return _dedupedConnectOp(
-      deviceType,
-      deviceId,
-      'devices/disconnect',
-    );
+    return _dedupedConnectOp(deviceType, deviceId, 'devices/disconnect');
   }
 
   /// Shared connect/disconnect dispatch with in-flight dedupe and NO retry.
@@ -269,10 +261,12 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
       return existing;
     }
     final future = () async {
-      await _post(endpoint, {
-        'deviceType': deviceType.name,
-        'deviceId': deviceId,
-      }, null, 1);
+      await _post(
+        endpoint,
+        {'deviceType': deviceType.name, 'deviceId': deviceId},
+        null,
+        1,
+      );
     }();
     _inFlightConnectOps[key] = future;
     return future.whenComplete(() {

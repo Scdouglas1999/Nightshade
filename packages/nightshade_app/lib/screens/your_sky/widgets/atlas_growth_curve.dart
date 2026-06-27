@@ -46,7 +46,8 @@ class AtlasGrowthCurvePanel extends StatelessWidget {
       children: [
         SectionHeader(
           title: 'Deepening over time',
-          subtitle: '${formatIntegration(curve.totalSeconds)} integrated across '
+          subtitle:
+              '${formatIntegration(curve.totalSeconds)} integrated across '
               '${points.length} nights',
         ),
         const SizedBox(height: NightshadeTokens.spaceSm),

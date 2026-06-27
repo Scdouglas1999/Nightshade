@@ -106,7 +106,8 @@ class SequencerRunVitals {
 
   factory SequencerRunVitals.fromJson(Map<String, dynamic> json) {
     return SequencerRunVitals(
-      startTime: DateTime.tryParse(json['startTime'] as String? ?? '') ??
+      startTime:
+          DateTime.tryParse(json['startTime'] as String? ?? '') ??
           DateTime.fromMillisecondsSinceEpoch(0),
       endTime: json['endTime'] is String
           ? DateTime.tryParse(json['endTime'] as String)
@@ -120,7 +121,7 @@ class SequencerRunVitals {
       ditherCount: (json['ditherCount'] as num?)?.toInt() ?? 0,
       warningMessages:
           (json['warningMessages'] as List<dynamic>?)?.cast<String>() ??
-              const [],
+          const [],
     );
   }
 

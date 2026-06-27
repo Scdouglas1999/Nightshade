@@ -72,61 +72,56 @@ void main() {
     ];
 
     for (final c in cases) {
-      test(
-        'measured=${c.measured} target=${c.target} tol=${c.tolPct}% '
-        'agree on convergence + direction',
-        () {
-          const minExp = 0.001;
-          const maxExp = 30.0;
-          const currentExposure = 5.0;
+      test('measured=${c.measured} target=${c.target} tol=${c.tolPct}% '
+          'agree on convergence + direction', () {
+        const minExp = 0.001;
+        const maxExp = 30.0;
+        const currentExposure = 5.0;
 
-          final tolAdu = toleranceAdu(c.target, c.tolPct);
-          final rust = rustBinarySearchStep(
-            minExp: minExp,
-            maxExp: maxExp,
-            targetAdu: c.target,
-            toleranceAdu: tolAdu,
-            measuredAdu: c.measured,
-          );
+        final tolAdu = toleranceAdu(c.target, c.tolPct);
+        final rust = rustBinarySearchStep(
+          minExp: minExp,
+          maxExp: maxExp,
+          targetAdu: c.target,
+          toleranceAdu: tolAdu,
+          measuredAdu: c.measured,
+        );
 
-          // Dart convergence predicate (mirrors calibrateFilter's check:
-          // error% = |adu-target|/target*100 <= tolerance).
-          final dartError =
-              (c.measured - c.target).abs() / c.target * 100.0;
-          final dartConverged = dartError <= c.tolPct;
+        // Dart convergence predicate (mirrors calibrateFilter's check:
+        // error% = |adu-target|/target*100 <= tolerance).
+        final dartError = (c.measured - c.target).abs() / c.target * 100.0;
+        final dartConverged = dartError <= c.tolPct;
 
-          // (1) Convergence predicate parity.
-          expect(
-            dartConverged,
-            rust.converged,
-            reason:
-                'convergence predicate must match Rust for shared inputs',
-          );
+        // (1) Convergence predicate parity.
+        expect(
+          dartConverged,
+          rust.converged,
+          reason: 'convergence predicate must match Rust for shared inputs',
+        );
 
-          if (rust.converged) return;
+        if (rust.converged) return;
 
-          // (2) Direction parity: the Dart proportional engine must move the
-          // exposure the SAME way the Rust binary search narrows its window.
-          final dartNext = svc.calculateNextExposure(
-            currentExposure: currentExposure,
-            currentAdu: c.measured.toDouble(),
-            targetAdu: c.target.toDouble(),
-            minExposure: minExp,
-            maxExposure: maxExp,
-          );
+        // (2) Direction parity: the Dart proportional engine must move the
+        // exposure the SAME way the Rust binary search narrows its window.
+        final dartNext = svc.calculateNextExposure(
+          currentExposure: currentExposure,
+          currentAdu: c.measured.toDouble(),
+          targetAdu: c.target.toDouble(),
+          minExposure: minExp,
+          maxExposure: maxExp,
+        );
 
-          // Rust "needs longer exposure" iff it raised the lower bound.
-          final rustWantsLonger = rust.nextMin > minExp;
-          final dartWantsLonger = dartNext > currentExposure;
+        // Rust "needs longer exposure" iff it raised the lower bound.
+        final rustWantsLonger = rust.nextMin > minExp;
+        final dartWantsLonger = dartNext > currentExposure;
 
-          expect(
-            dartWantsLonger,
-            rustWantsLonger,
-            reason:
-                'direction of exposure correction must match Rust binary search',
-          );
-        },
-      );
+        expect(
+          dartWantsLonger,
+          rustWantsLonger,
+          reason:
+              'direction of exposure correction must match Rust binary search',
+        );
+      });
     }
   });
 }
