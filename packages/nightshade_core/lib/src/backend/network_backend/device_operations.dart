@@ -318,19 +318,29 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
     int? width,
     int? height,
   }) async {
-    await _post('camera/expose', {
-      'deviceId': deviceId,
-      'exposureTime': exposureTime,
-      'frameType': frameType.name,
-      if (gain != null) 'gain': gain,
-      if (offset != null) 'offset': offset,
-      'binX': binX,
-      'binY': binY,
-      if (x != null) 'x': x,
-      if (y != null) 'y': y,
-      if (width != null) 'width': width,
-      if (height != null) 'height': height,
-    });
+    // Non-idempotent: starting an exposure actuates the camera. A transient
+    // transport retry after a timeout could launch a SECOND exposure on a host
+    // that already received and began the first, so this POST is pinned to a
+    // single attempt (no auto-retry), mirroring connect/disconnect. The user
+    // (or sequencer) re-issues if it genuinely failed. See MOBILE-001.
+    await _post(
+      'camera/expose',
+      {
+        'deviceId': deviceId,
+        'exposureTime': exposureTime,
+        'frameType': frameType.name,
+        if (gain != null) 'gain': gain,
+        if (offset != null) 'offset': offset,
+        'binX': binX,
+        'binY': binY,
+        if (x != null) 'x': x,
+        if (y != null) 'y': y,
+        if (width != null) 'width': width,
+        if (height != null) 'height': height,
+      },
+      null,
+      1,
+    );
   }
 
   @override
@@ -569,11 +579,16 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
 
   @override
   Future<void> mountMoveAxis(String deviceId, int axis, double rate) async {
-    await _post('mount/move-axis', {
-      'deviceId': deviceId,
-      'axis': axis,
-      'rate': rate,
-    });
+    // Non-idempotent relative actuation: a duplicate move-axis after a
+    // transient-timeout retry can leave the axis slewing at a rate the operator
+    // already cancelled (or double-applied), so this POST is pinned to a single
+    // attempt with no auto-retry, mirroring connect/disconnect. See MOBILE-001.
+    await _post(
+      'mount/move-axis',
+      {'deviceId': deviceId, 'axis': axis, 'rate': rate},
+      null,
+      1,
+    );
   }
 
   @override
@@ -608,10 +623,17 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
 
   @override
   Future<void> focuserMoveRelative(String deviceId, int delta) async {
-    await _post('focuser/move-relative', {
-      'deviceId': deviceId,
-      'delta': delta,
-    });
+    // Non-idempotent: `delta` is applied relative to the current position, so a
+    // retried POST after a transient timeout would move the focuser by 2*delta.
+    // Pinned to a single attempt (no auto-retry), mirroring connect/disconnect.
+    // The absolute `focuser/move-to` above is idempotent and keeps retries.
+    // See MOBILE-001.
+    await _post(
+      'focuser/move-relative',
+      {'deviceId': deviceId, 'delta': delta},
+      null,
+      1,
+    );
   }
 
   @override
@@ -722,10 +744,17 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
 
   @override
   Future<void> rotatorMoveRelative(String deviceId, double delta) async {
-    await _post('rotator/move-relative', {
-      'deviceId': deviceId,
-      'delta': delta,
-    });
+    // Non-idempotent: `delta` is applied relative to the current angle, so a
+    // retried POST after a transient timeout would rotate by 2*delta. Pinned to
+    // a single attempt (no auto-retry), mirroring connect/disconnect. The
+    // absolute `rotator/move-to` above is idempotent and keeps retries.
+    // See MOBILE-001.
+    await _post(
+      'rotator/move-relative',
+      {'deviceId': deviceId, 'delta': delta},
+      null,
+      1,
+    );
   }
 
   @override
