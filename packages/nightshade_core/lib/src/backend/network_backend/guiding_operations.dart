@@ -111,8 +111,11 @@ mixin _NetworkBackendGuidingOperations on _NetworkBackendTransport {
   @override
   Future<List<String>> phd2GetAlgoParamNames({required String axis}) async {
     final response = await _get('phd2/algo-params', {'axis': axis});
-    final params = response['params'] as List<dynamic>;
-    return params.map((e) => e as String).toList();
+    // The server (handlePhd2GetAlgoParamNames) emits the list under the key
+    // 'names' (alongside 'axis'); decoding 'params' here always yielded null and
+    // threw on cast. Match the actual response envelope so the names decode.
+    final names = response['names'] as List<dynamic>;
+    return names.map((e) => e as String).toList();
   }
 
   @override
