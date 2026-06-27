@@ -22,7 +22,7 @@ Future<void> main() async {
     );
     _expect(report['passed'] == true, 'passing fixture should pass');
     _expect(report['issueCount'] == 0, 'passing fixture should have no issues');
-    _expect(report['fileCount'] == 13, 'should audit 13 files');
+    _expect(report['fileCount'] == 14, 'should audit 14 files');
 
     await _writeDoc(
       temp,
@@ -97,14 +97,20 @@ void info() {
     'deviceDrivers': platformCapabilities.toJson(),
     'platform': platformCapabilities.platform,
   };
-  final endpoints = [
-    'GET /api/equipment/camera/capabilities',
-    'GET /api/equipment/mount/capabilities',
-    'GET /api/equipment/focuser/capabilities',
-    'GET /api/equipment/filter-wheel/capabilities',
-    'GET /api/equipment/rotator/capabilities',
-  ];
 }
+''',
+  );
+  await _writeDoc(
+    root,
+    'apps/desktop/lib/headless_api/handlers/system_endpoint_catalog.dart',
+    '''
+const availableHeadlessEndpoints = [
+  'GET /api/equipment/camera/capabilities',
+  'GET /api/equipment/mount/capabilities',
+  'GET /api/equipment/focuser/capabilities',
+  'GET /api/equipment/filter-wheel/capabilities',
+  'GET /api/equipment/rotator/capabilities',
+];
 ''',
   );
   await _writeDoc(
@@ -187,7 +193,7 @@ void main() {
   // unsupportedBackendReasonFor gates ASCOM COM off Linux
   // BackendSelectorChips disables unsupported platform backends
   print(PlatformCapabilityMatrix.linux);
-  print(Icons.block);
+  print(LucideIcons.ban);
 }
 ''',
   );

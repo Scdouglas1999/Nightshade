@@ -42,10 +42,23 @@ const _requiredFiles = <_RequiredFile>[
     path: 'apps/desktop/lib/headless_api/handlers/system_handlers.dart',
     label: 'Headless capability API system handlers',
     requiredText: [
-      'PlatformCapabilityMatrix.forPlatform(Platform.operatingSystem)',
+      // `forPlatform(...)` is dart-format line-wrapped here, so match the
+      // capability-model call by its stable prefix rather than the inline
+      // single-line form.
+      'PlatformCapabilityMatrix.forPlatform(',
       "'platformCapabilities': platformCapabilities.toJson()",
       "'deviceDrivers': platformCapabilities.toJson()",
       "'platform': platformCapabilities.platform",
+    ],
+  ),
+  _RequiredFile(
+    path:
+        'apps/desktop/lib/headless_api/handlers/system_endpoint_catalog.dart',
+    label: 'Headless endpoint catalog capability exposure',
+    requiredText: [
+      // The capability endpoints were extracted from system_handlers.dart into
+      // this hand-maintained catalog (re-exported via availableHeadlessEndpoints
+      // through system_handlers.dart). The API-exposure invariant lives here now.
       "'GET /api/equipment/camera/capabilities'",
       "'GET /api/equipment/mount/capabilities'",
       "'GET /api/equipment/focuser/capabilities'",
@@ -118,7 +131,10 @@ const _requiredFiles = <_RequiredFile>[
       'unsupportedBackendReasonFor gates ASCOM COM off Linux',
       'BackendSelectorChips disables unsupported platform backends',
       'PlatformCapabilityMatrix.linux',
-      'Icons.block',
+      // The unsupported-backend indicator icon was changed from Icons.block to
+      // LucideIcons.ban in the chip refactor; the gating assertion still checks
+      // the disabled-backend icon is rendered.
+      'LucideIcons.ban',
     ],
   ),
   _RequiredFile(
