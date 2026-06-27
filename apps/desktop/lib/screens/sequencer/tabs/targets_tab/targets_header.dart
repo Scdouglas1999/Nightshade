@@ -243,7 +243,7 @@ class _TargetsHeaderState extends ConsumerState<_TargetsHeader> {
 
   Future<int> _importTargetsFromJson(String content) async {
     try {
-      final json = jsonDecode(content) as dynamic;
+      final json = jsonDecode(content);
       final List<dynamic> targetsList;
 
       if (json is List) {

@@ -79,6 +79,68 @@ void main() {
       expect(score.totalScore >= 0 && score.totalScore <= 100, isTrue);
     });
 
+    test(
+      'moon-proximity warnings match between scoreTarget and scoreTargetForNight',
+      () {
+        // The two warning generators share one moon-proximity helper; this
+        // pins that they emit the IDENTICAL (type/severity/message/suggestion)
+        // moon warnings for a target sitting at a fixed separation from a fixed
+        // Moon. We sweep the illumination/distance regimes that select each of
+        // the three moon-proximity branches (critical/warning/caution) plus the
+        // "no warning" regime.
+        //
+        // To make the two call sites see the SAME (moonDist, moonIllumination)
+        // we place the target exactly AT the Moon's coordinates so the angular
+        // separation is 0 (< 15°, the critical branch) for both, and vary the
+        // illumination through the service.
+        for (final illum in [10.0, 30.0, 60.0, 80.0]) {
+          final observer = DateTime.utc(2026, 1, 15, 6, 0, 0);
+          const moon = (75.0, 18.0);
+          const atMoon = _Fixture(
+            id: 'atmoon',
+            name: 'AtMoon',
+            // RA in hours: 75° / 15 = 5h.
+            coordinates: CelestialCoordinate(ra: 5.0, dec: 18.0),
+          );
+
+          final service = TargetScoringService(
+            latitude: 40.0,
+            longitude: -74.0,
+            observationTime: observer,
+            moonPosition: moon,
+            moonIllumination: illum,
+          );
+
+          final instant = service
+              .scoreTarget(atMoon)
+              .warnings
+              .where((w) => w.type == WarningType.moonProximity)
+              .toList();
+          final night = service
+              .scoreTargetForNight(
+                target: atMoon,
+                nightStart: observer.subtract(const Duration(hours: 4)),
+                nightEnd: observer.add(const Duration(hours: 4)),
+              )
+              .warnings
+              .where((w) => w.type == WarningType.moonProximity)
+              .toList();
+
+          expect(
+            night.length,
+            instant.length,
+            reason: 'moon warning count must match at illum=$illum',
+          );
+          for (var i = 0; i < instant.length; i++) {
+            expect(night[i].type, instant[i].type);
+            expect(night[i].severity, instant[i].severity);
+            expect(night[i].message, instant[i].message);
+            expect(night[i].suggestion, instant[i].suggestion);
+          }
+        }
+      },
+    );
+
     test('default weights sum to 1.0', () {
       const weights = ScoringWeights();
       final sum =

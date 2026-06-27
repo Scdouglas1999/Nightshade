@@ -667,38 +667,7 @@ class TargetScoringService {
     }
 
     // Moon proximity
-    if (moonIllumination > 20) {
-      if (moonDist < 15) {
-        warnings.add(
-          TargetWarning(
-            type: WarningType.moonProximity,
-            severity: WarningSeverity.critical,
-            message:
-                'Very close to Moon (${moonDist.toStringAsFixed(0)}°) - ${moonIllumination.toStringAsFixed(0)}% illuminated',
-            suggestion: 'Consider narrowband filters or a different target',
-          ),
-        );
-      } else if (moonDist < 30 && moonIllumination > 50) {
-        warnings.add(
-          TargetWarning(
-            type: WarningType.moonProximity,
-            severity: WarningSeverity.warning,
-            message:
-                'Near bright Moon (${moonDist.toStringAsFixed(0)}°) - ${moonIllumination.toStringAsFixed(0)}% illuminated',
-            suggestion: 'Use narrowband filters to reduce sky glow',
-          ),
-        );
-      } else if (moonDist < 45 && moonIllumination > 70) {
-        warnings.add(
-          TargetWarning(
-            type: WarningType.moonProximity,
-            severity: WarningSeverity.caution,
-            message: 'Moon is ${moonDist.toStringAsFixed(0)}° away',
-            suggestion: 'Some sky glow may be present',
-          ),
-        );
-      }
-    }
+    warnings.addAll(_moonProximityWarnings(moonDist));
 
     // Setting soon
     if (visibility.setTime != null && alt > 0) {
@@ -789,6 +758,45 @@ class TargetScoringService {
     }
 
     return warnings;
+  }
+
+  /// Moon-proximity warnings for a target at angular separation [moonDist]
+  /// from the Moon, gated on the current [moonIllumination]. Shared verbatim
+  /// by the real-time and full-night warning generators.
+  List<TargetWarning> _moonProximityWarnings(double moonDist) {
+    if (moonIllumination <= 20) return const [];
+
+    if (moonDist < 15) {
+      return [
+        TargetWarning(
+          type: WarningType.moonProximity,
+          severity: WarningSeverity.critical,
+          message:
+              'Very close to Moon (${moonDist.toStringAsFixed(0)}°) - ${moonIllumination.toStringAsFixed(0)}% illuminated',
+          suggestion: 'Consider narrowband filters or a different target',
+        ),
+      ];
+    } else if (moonDist < 30 && moonIllumination > 50) {
+      return [
+        TargetWarning(
+          type: WarningType.moonProximity,
+          severity: WarningSeverity.warning,
+          message:
+              'Near bright Moon (${moonDist.toStringAsFixed(0)}°) - ${moonIllumination.toStringAsFixed(0)}% illuminated',
+          suggestion: 'Use narrowband filters to reduce sky glow',
+        ),
+      ];
+    } else if (moonDist < 45 && moonIllumination > 70) {
+      return [
+        TargetWarning(
+          type: WarningType.moonProximity,
+          severity: WarningSeverity.caution,
+          message: 'Moon is ${moonDist.toStringAsFixed(0)}° away',
+          suggestion: 'Some sky glow may be present',
+        ),
+      ];
+    }
+    return const [];
   }
 
   String _formatTime(DateTime time) {
@@ -926,38 +934,7 @@ class TargetScoringService {
     }
 
     // Moon proximity
-    if (moonIllumination > 20) {
-      if (moonDist < 15) {
-        warnings.add(
-          TargetWarning(
-            type: WarningType.moonProximity,
-            severity: WarningSeverity.critical,
-            message:
-                'Very close to Moon (${moonDist.toStringAsFixed(0)}°) - ${moonIllumination.toStringAsFixed(0)}% illuminated',
-            suggestion: 'Consider narrowband filters or a different target',
-          ),
-        );
-      } else if (moonDist < 30 && moonIllumination > 50) {
-        warnings.add(
-          TargetWarning(
-            type: WarningType.moonProximity,
-            severity: WarningSeverity.warning,
-            message:
-                'Near bright Moon (${moonDist.toStringAsFixed(0)}°) - ${moonIllumination.toStringAsFixed(0)}% illuminated',
-            suggestion: 'Use narrowband filters to reduce sky glow',
-          ),
-        );
-      } else if (moonDist < 45 && moonIllumination > 70) {
-        warnings.add(
-          TargetWarning(
-            type: WarningType.moonProximity,
-            severity: WarningSeverity.caution,
-            message: 'Moon is ${moonDist.toStringAsFixed(0)}° away',
-            suggestion: 'Some sky glow may be present',
-          ),
-        );
-      }
-    }
+    warnings.addAll(_moonProximityWarnings(moonDist));
 
     // Short imaging window
     final nightHours = nightEnd.difference(nightStart).inMinutes / 60.0;

@@ -1589,6 +1589,46 @@ void main() {
         isTrue,
       );
     });
+
+    test('build() lists each uncalibrated filter once, comma-separated, in '
+        'sorted order in the reminder message', () {
+      // Only L is ADU-calibrated, so the M51 LRGB rotation leaves R/G/B
+      // uncalibrated. The reminder must enumerate them deduped and in the
+      // same sorted, comma-separated order the emitter produces.
+      const flatPlan = SmartNightFlatPlan(
+        perFilter: {
+          'L': SmartNightFlatExposure(
+            filterName: 'L',
+            exposureSecs: 2.5,
+            panelBrightness: 90,
+            histogramTargetPercent: 50,
+            actualAdu: 32000,
+          ),
+        },
+        uncalibratedFilters: ['R', 'G', 'B'],
+      );
+
+      final plan = service.build(
+        profile: monoProfile,
+        latitudeDeg: 41.0,
+        longitudeDeg: -73.0,
+        context: baseContext(),
+        selectedSuggestions: [fakeSuggestion(id: 1, name: 'M51')],
+        strategy: SmartNightStrategy.autoLrgb,
+        settings: const SmartNightSettings(
+          subExposureFloorSecs: 1,
+          includeFlatsAtEnd: true,
+          hasCoverCalibrator: true,
+          flatCountPerFilter: 15,
+        ),
+        flatPlan: flatPlan,
+      );
+
+      final reminder = plan.sequence.nodes.values
+          .whereType<NotificationNode>()
+          .firstWhere((n) => n.title.contains('no calibrated flat exposure'));
+      expect(reminder.message, contains('exists for: B, G, R.'));
+    });
   });
 
   // Phase B (scheduler-activation): the emitted in-sequence TargetSchedulerNode
