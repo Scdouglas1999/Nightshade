@@ -348,12 +348,16 @@ mixin _MobileReconnectOps on _MobileConnectionState {
       }
 
       // Test connection first
-      final isReachable =
-          await EnhancedNightshadeDiscovery.testServerConnection(
-            enrichedServer.host,
-            enrichedServer.webPort,
-            authToken: authToken,
-          );
+      final isReachable = await EnhancedNightshadeDiscovery.testServerConnection(
+        enrichedServer.host,
+        enrichedServer.webPort,
+        authToken: authToken,
+        // Probe over the transport the server actually speaks. A TLS-fronted
+        // tailnet/relay rig (scheme=='https') answers only on https; without
+        // this it defaulted to plain http and read as unreachable. UDP/LAN
+        // rigs keep scheme=='http' and probe unchanged.
+        scheme: enrichedServer.scheme,
+      );
 
       if (isReachable) {
         developer.log('Connection successful!', name: 'Discovery', level: 800);

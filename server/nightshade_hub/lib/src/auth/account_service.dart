@@ -50,6 +50,13 @@ class AccountService {
   final PasswordHasher _hasher;
   final Uuid _uuid = const Uuid();
 
+  /// A throwaway hash, computed once at the hasher's own iteration count, that
+  /// [login] verifies against when no account matches the public key. This makes
+  /// the unknown-key path spend the same PBKDF2 work as the wrong-password path,
+  /// closing the credential-validity timing oracle (SEC-003). It never matches a
+  /// real account.
+  late final String _decoyHash = _hasher.hash('');
+
   /// Default trust assigned to a brand-new contributor (contract §5 `/v1/info`
   /// example shows `0.5`). Earned upward / downward by [recordGrade].
   static const double defaultTrust = 0.5;
@@ -117,7 +124,12 @@ class AccountService {
       'SELECT id, password_hash, is_admin FROM accounts WHERE public_key = ?;',
       <Object?>[publicKey.trim()],
     );
-    if (rows.isEmpty) return null;
+    if (rows.isEmpty) {
+      // Spend the same PBKDF2 work as a wrong-password attempt so the unknown-
+      // key path is not faster, then fail closed (SEC-003).
+      _hasher.verify(password, _decoyHash);
+      return null;
+    }
     final row = rows.first;
     final stored = row['password_hash'] as String?;
     if (stored == null || !_hasher.verify(password, stored)) return null;

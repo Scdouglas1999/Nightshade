@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../backend/network_backend.dart';
 import '../models/flat_wizard/flat_wizard_state.dart';
@@ -135,10 +137,18 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
       if (entries.isEmpty) return null;
       final sum = entries.fold<double>(0, (s, e) => s + e.exposureDuration);
       return sum / entries.length;
-    } catch (_) {
-      // A history fetch failure must not block the wizard from loading; the
+    } catch (e) {
+      // A transport/host fault must not block the wizard from loading; the
       // user can still enter exposures manually (same outcome as a null DAO
-      // read on the local path).
+      // read on the local path). But unlike an empty history, a fault is a
+      // diagnosable condition — record it instead of silently conflating the
+      // two so a misconfigured/offline host is visible in the logs.
+      developer.log(
+        'FlatWizard: remote flat-history fetch failed for $filterName: $e',
+        name: 'FlatWizardNotifier',
+        level: 900,
+        error: e,
+      );
       return null;
     }
   }
