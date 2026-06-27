@@ -1,5 +1,24 @@
 part of '../headless_api_server.dart';
 
+/// Whether the rate limiter / pairing lockout should believe the
+/// `x-forwarded-for` / `x-real-ip` forwarding headers (and only when the
+/// socket peer is loopback).
+///
+/// HTTP-001: OFF by default. In the documented direct-bind deployment those
+/// headers are attacker-controlled, so the lockout/limiter key is derived
+/// from the real TCP socket peer instead. Set `NIGHTSHADE_TRUST_PROXY=true`
+/// (or `1`/`yes`) ONLY when the appliance runs behind the documented local
+/// nginx reverse proxy, which binds loopback and injects the forwarding
+/// headers itself. Evaluated once per process.
+final bool _rateLimitTrustProxyHeaders = _readTrustProxyFlag();
+
+bool _readTrustProxyFlag() {
+  final raw = Platform.environment['NIGHTSHADE_TRUST_PROXY']
+      ?.trim()
+      .toLowerCase();
+  return raw == 'true' || raw == '1' || raw == 'yes';
+}
+
 extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
   // ===========================================================================
   // Middleware
@@ -398,18 +417,20 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
     };
   }
 
+  /// Stable key for the rate limiter and the pairing brute-force lockout.
+  ///
+  /// HTTP-001: this MUST derive from the real TCP socket peer rather than the
+  /// client-supplied `x-forwarded-for` / `x-real-ip` headers. In the default
+  /// direct-bind deployment those headers are attacker-controlled, so keying
+  /// off them lets a client rotate the header to evade both the pairing
+  /// lockout and the bearer-token failure limiter. Forwarding headers are
+  /// honoured only when the appliance is explicitly configured to sit behind
+  /// the documented loopback reverse proxy (see [_rateLimitTrustProxyHeaders]).
   String _rateLimitClientKey(Request request) {
-    final forwardedFor = request.headers['x-forwarded-for'];
-    if (forwardedFor != null && forwardedFor.trim().isNotEmpty) {
-      return forwardedFor.split(',').first.trim();
-    }
-
-    final forwardedHost = request.headers['x-real-ip'];
-    if (forwardedHost != null && forwardedHost.trim().isNotEmpty) {
-      return forwardedHost.trim();
-    }
-
-    return request.requestedUri.host;
+    return headlessRateLimitClientKey(
+      request,
+      trustForwardedHeaders: _rateLimitTrustProxyHeaders,
+    );
   }
 
   Map<String, String> _buildCorsHeaders(Request request) {

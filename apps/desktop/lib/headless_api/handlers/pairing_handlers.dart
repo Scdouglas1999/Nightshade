@@ -107,6 +107,58 @@ bool isPrivateLanAddress(InternetAddress addr) {
   return false;
 }
 
+/// Returns the real TCP peer [InternetAddress] recorded by shelf_io
+/// (`shelf.io.connection_info`), or null when the request did not arrive
+/// over a real socket (e.g. an in-process [Request] in a unit test).
+///
+/// Unlike [lanTrustedSourceAddress] this does NOT filter by address class:
+/// loopback and public peers are returned verbatim. It is the spoof-proof
+/// anchor for the rate-limit / brute-force-lockout key, which must never be
+/// derivable from client-supplied headers like `x-forwarded-for`.
+InternetAddress? socketPeerAddress(Request request) {
+  final info = request.context['shelf.io.connection_info'];
+  if (info is! HttpConnectionInfo) return null;
+  return info.remoteAddress;
+}
+
+/// Computes the rate-limit / brute-force-lockout client key for [request].
+///
+/// By DEFAULT (the documented direct-bind `0.0.0.0:8080` deployment with no
+/// reverse proxy) the key is the real TCP socket peer address. The
+/// `x-forwarded-for` / `x-real-ip` headers are attacker-controlled in that
+/// topology, so honouring them would let a client rotate the header to dodge
+/// both the pairing lockout ([PairingAttemptTracker]) and the bearer-token
+/// failure limiter ([TokenResolver]).
+///
+/// [trustForwardedHeaders] is set ONLY when the operator has explicitly
+/// configured the appliance to sit behind the documented local reverse proxy
+/// (loopback nginx that injects the forwarding headers). Even then the headers
+/// are believed only when the socket peer is loopback, so a direct LAN/WAN
+/// client can never forge the key.
+///
+/// Falls back to the requested host when no socket connection info is present
+/// (in-process requests); forwarded headers are never trusted on that path.
+String headlessRateLimitClientKey(
+  Request request, {
+  required bool trustForwardedHeaders,
+}) {
+  final peer = socketPeerAddress(request);
+  if (trustForwardedHeaders && peer != null && peer.isLoopback) {
+    final forwardedFor = request.headers['x-forwarded-for'];
+    if (forwardedFor != null && forwardedFor.trim().isNotEmpty) {
+      return forwardedFor.split(',').first.trim();
+    }
+    final realIp = request.headers['x-real-ip'];
+    if (realIp != null && realIp.trim().isNotEmpty) {
+      return realIp.trim();
+    }
+  }
+  if (peer != null) {
+    return peer.address;
+  }
+  return request.requestedUri.host;
+}
+
 /// Function the handler calls when a successful verify mints a fresh
 /// session token. The server-side implementation appends the token +
 /// scope to its in-memory `_pairedSessionTokens` map so subsequent
@@ -122,9 +174,10 @@ typedef RecordPairedSession =
 /// created here.
 typedef EnsurePairingService = PairingService Function();
 
-/// Function the handler calls to compute a stable rate-limit key for
-/// the request (typically `x-forwarded-for` ?? `x-real-ip` ?? the
-/// connected client host).
+/// Function the handler calls to compute a stable rate-limit / lockout key
+/// for the request. The server implementation derives it from the real TCP
+/// socket peer via [headlessRateLimitClientKey] so a spoofed forwarding
+/// header cannot reset the per-client pairing lockout.
 typedef RateLimitClientKey = String Function(Request request);
 
 /// HTTP handlers for the pairing endpoints. Constructed once per
