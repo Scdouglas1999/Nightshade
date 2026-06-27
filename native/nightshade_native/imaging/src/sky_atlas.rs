@@ -1451,7 +1451,7 @@ fn estimate_frame_norm(src: &[f64], channels: usize) -> NormalizationReference {
     let ch = channels.max(1);
     let mut background = vec![0.0; ch];
     let mut scale = vec![1.0; ch];
-    let npix = if ch > 0 { src.len() / ch } else { 0 };
+    let npix = src.len().checked_div(ch).unwrap_or(0);
     for c in 0..ch {
         let mut vals: Vec<f64> = (0..npix)
             .map(|p| src[p * ch + c])
@@ -2160,7 +2160,9 @@ mod tests {
             })
             .collect();
         for h in handles {
-            h.join().expect("store_tile thread panicked").expect("store_tile must not error");
+            h.join()
+                .expect("store_tile thread panicked")
+                .expect("store_tile must not error");
         }
 
         // The final sidecar deserializes cleanly (no half-written / clobbered temp
@@ -2172,11 +2174,7 @@ mod tests {
         let leftover_tmp = std::fs::read_dir(&tiles_dir)
             .unwrap()
             .filter_map(|e| e.ok())
-            .filter(|e| {
-                e.file_name()
-                    .to_string_lossy()
-                    .contains(".nst.tmp.")
-            })
+            .filter(|e| e.file_name().to_string_lossy().contains(".nst.tmp."))
             .count();
         assert_eq!(leftover_tmp, 0, "no temp files should remain after renames");
 

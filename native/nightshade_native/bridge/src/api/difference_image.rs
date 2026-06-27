@@ -337,8 +337,7 @@ fn difference_impl(args: DifferenceArgs) -> Result<DifferenceResultJson, String>
                     ("residual", &result.residual),
                 ] {
                     if let Some(stamp) = crop_stamp(plane, c.tile_x, c.tile_y, crop_half) {
-                        let path =
-                            Path::new(dir).join(crop_basename(tid, c.ra, c.dec, stage));
+                        let path = Path::new(dir).join(crop_basename(tid, c.ra, c.dec, stage));
                         // A crop write failure is non-fatal: the UI falls back to the
                         // schematic. Log-free here (the bridge has no logger); the
                         // absence of the file is the signal.

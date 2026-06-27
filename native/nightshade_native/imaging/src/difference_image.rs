@@ -370,8 +370,8 @@ pub fn difference_against_template(
     // only one to avoid duplicate work.
     let mut detect_planes: Vec<&[f64]> = vec![&lum_plane];
     if ch > 1 {
-        for c in 0..ch {
-            detect_planes.push(&chan_planes[c]);
+        for plane in &chan_planes {
+            detect_planes.push(plane);
         }
     }
 
