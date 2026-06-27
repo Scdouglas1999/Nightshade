@@ -729,8 +729,9 @@ impl IntegratedMaster {
 
         let len = header.slot_count;
         let geom_len = (header.geometry.width as usize)
-            * (header.geometry.height as usize)
-            * (header.geometry.channels as usize);
+            .checked_mul(header.geometry.height as usize)
+            .and_then(|wh| wh.checked_mul(header.geometry.channels as usize))
+            .ok_or(MasterError::InconsistentPayload)?;
         if len != geom_len {
             return Err(MasterError::InconsistentPayload);
         }
@@ -1562,6 +1563,37 @@ mod tests {
                 supported: MASTER_STATE_VERSION,
             }
         );
+    }
+
+    #[test]
+    fn deserialize_rejects_geometry_dimension_overflow() {
+        // A header whose width×height×channels overflows usize must be rejected
+        // as InconsistentPayload, not panic or wrap into a value that happens to
+        // match a small slot_count. slot_count is tiny here while the declared
+        // geometry product blows past usize::MAX.
+        let header = SerializedHeader {
+            mode: AccumulationMode::default(),
+            geometry: GeometryReference {
+                width: u32::MAX,
+                height: u32::MAX,
+                channels: 2,
+            },
+            norm_reference: NormalizationReference {
+                background: vec![0.0],
+                scale: vec![1.0],
+            },
+            metadata: MasterMetadata::default(),
+            slot_count: 0,
+        };
+        let header_json = serde_json::to_vec(&header).unwrap();
+        let mut blob = Vec::new();
+        blob.extend_from_slice(MASTER_MAGIC);
+        blob.extend_from_slice(&MASTER_STATE_VERSION.to_le_bytes());
+        blob.extend_from_slice(&(header_json.len() as u32).to_le_bytes());
+        blob.extend_from_slice(&header_json);
+        // (No payload bytes: slot_count == 0, and the geometry check fires first.)
+        let err = IntegratedMaster::deserialize(&blob).unwrap_err();
+        assert_eq!(err, MasterError::InconsistentPayload);
     }
 
     #[test]
