@@ -28,8 +28,8 @@ use nightshade_imaging::calibration_masters::{
     build_master_flat, cosmetic_correct_transient, CosmeticConfig, MasterFlatConfig,
 };
 use nightshade_imaging::frame_weighting::{
-    analyze_frame_quality, weight_frames, CullPolicy, FrameQuality, FrameQualityConfig,
-    WeightFormula,
+    accumulation_weights, analyze_frame_quality, weight_frames, CullPolicy, FrameQuality,
+    FrameQualityConfig, WeightFormula,
 };
 use nightshade_imaging::integration::{
     integrate_frames, Combine, IntegrationConfig, IntegrationFrame, Reject,
@@ -1156,13 +1156,18 @@ fn master_add(args_json: &str) -> Result<MasterAccumulateResult, String> {
         exposures.push(args.exposures_sec.get(i).copied().unwrap_or(0.0));
     }
 
-    // Weight relative to the strongest sub in this fold (the master's own
-    // normalization reference keeps cross-fold scale consistent).
+    // Weight each fold's subs on a fixed, population-independent quality scale
+    // (`accumulation_weights`, anchored on `FrameQuality::neutral`) rather than
+    // renormalizing every night to its own best sub. The accumulating master
+    // sums weights across folds, so a per-fold max-normalization (`weight_frames`)
+    // would reset each night's best sub to 1.0 and erase real cross-night quality
+    // differences — a uniformly worse night would contribute as much weight as a
+    // pristine one. Anchoring on a fixed reference keeps the weights comparable
+    // across folds while leaving a single-night master unchanged (a weighted mean
+    // is invariant to a global weight rescale).
     let weights: Vec<f64> = if args.settings.weighting.enabled {
         let formula = build_weight_formula(&args.settings.weighting)?;
-        let report = weight_frames(&qualities, &formula, &CullPolicy::default())
-            .ok_or_else(|| "weighting produced no result".to_string())?;
-        report.frames.iter().map(|f| f.weight).collect()
+        accumulation_weights(&qualities, &formula)
     } else {
         vec![1.0; qualities.len()]
     };
@@ -2028,9 +2033,40 @@ mod tests {
         ]
     }
 
+    /// A dense, regular grid of equal-brightness stars (peak `6000 * k`) so a
+    /// meaningful fraction of pixels sit in the bright tail — this makes the
+    /// 95th-percentile SNR proxy responsive to overall brightness `k` (a sparse
+    /// field leaves the 95th percentile in the background, brightness-blind).
+    fn grid_stars(size: f64, k: f64) -> Vec<(f64, f64, f64)> {
+        let step = 12.0;
+        let mut out = Vec::new();
+        let mut y = step;
+        while y < size - step {
+            let mut x = step;
+            while x < size - step {
+                out.push((x, y, 6000.0 * k));
+                x += step;
+            }
+            y += step;
+        }
+        out
+    }
+
     /// Render a synthetic mono U16 star field with Gaussian PSFs over a flat,
     /// lightly-noised sky.
     fn render_field(size: u32, stars: &[(f64, f64, f64)], background: f64) -> ImageData {
+        render_field_psf(size, stars, background, 1.6)
+    }
+
+    /// As [`render_field`] but with a configurable PSF width `sigma` (px) — a
+    /// larger `sigma` blurs the stars (worse focus/seeing ⇒ larger measured
+    /// FWHM ⇒ lower integration weight).
+    fn render_field_psf(
+        size: u32,
+        stars: &[(f64, f64, f64)],
+        background: f64,
+        sigma: f64,
+    ) -> ImageData {
         let w = size as usize;
         let h = size as usize;
         let mut pixels = vec![0f64; w * h];
@@ -2038,7 +2074,6 @@ mod tests {
             let n = ((i.wrapping_mul(2654435761) >> 8) % 1000) as f64 / 1000.0;
             *p = background + (n - 0.5) * 6.0;
         }
-        let sigma = 1.6f64;
         let two_sigma_sq = 2.0 * sigma * sigma;
         let radius = (sigma * 4.0).ceil() as i64;
         for &(sx, sy, peak) in stars {
@@ -2348,6 +2383,88 @@ mod tests {
         let _ = std::fs::remove_file(&sidecar);
         let _ = std::fs::remove_file(&master_path);
         for p in &light_paths {
+            let _ = std::fs::remove_file(p);
+        }
+    }
+
+    /// IMG-001 regression: folding a good-seeing night and then a uniformly
+    /// worse-seeing (blurrier ⇒ larger-FWHM) night into the accumulating master
+    /// must give the good night strictly more *total* weight. The old per-fold
+    /// max-normalization (`weight_frames`) reset each night's best sub to 1.0,
+    /// making the two folds' total weights near-equal regardless of cross-night
+    /// quality; `accumulation_weights` anchors both folds on a fixed scale so the
+    /// worse night contributes proportionally less.
+    #[test]
+    fn accumulate_weights_better_night_more_than_worse_night() {
+        let size = 256u32;
+        let stars = base_stars(size as f64);
+
+        // A dense star grid so the bright-tail SNR proxy (95th-percentile signal
+        // over background) actually tracks star brightness — with only a handful
+        // of stars the 95th percentile sits in the background and is brightness-
+        // blind. The asterism from `base_stars` is overlaid so the quad matcher
+        // still has distinctive anchors to register against.
+        let mut field_stars = grid_stars(size as f64, 1.0);
+        field_stars.extend_from_slice(&stars);
+
+        // Reference frame defines the master grid/anchor (bright, like night A).
+        let ref_field = render_field(size, &field_stars, 200.0);
+        let ref_path = temp_path("img001_ref", "fits");
+        write_field_fits(&ref_path, &ref_field);
+
+        let sidecar = temp_path("img001_master", "nsmaster");
+        let create = serde_json::json!({
+            "op": "create",
+            "referencePath": ref_path.to_string_lossy(),
+            "sidecarPath": sidecar.to_string_lossy(),
+            "filter": "L"
+        });
+        api_master_accumulate(create.to_string()).expect("create");
+
+        // Helper: render two slightly-shifted subs whose stars are scaled to
+        // brightness `k`, write them, fold them in, return this fold's weights.
+        let mut cleanup: Vec<PathBuf> = vec![ref_path.clone()];
+        let mut fold = |k: f64, label: &str, tag: &str| -> Vec<f64> {
+            let mut paths = Vec::new();
+            for (i, (dx, dy)) in [(0.0f64, 0.0f64), (2.0, -3.0)].iter().enumerate() {
+                let mut night = grid_stars(size as f64, k);
+                night.extend_from_slice(&stars);
+                let field = render_field(size, &shift_stars(&night, *dx, *dy), 200.0);
+                let p = temp_path(&format!("{tag}{i}"), "fits");
+                write_field_fits(&p, &field);
+                cleanup.push(p.clone());
+                paths.push(p.to_string_lossy().to_string());
+            }
+            let add = serde_json::json!({
+                "op": "add",
+                "sidecarPath": sidecar.to_string_lossy(),
+                "lightPaths": paths,
+                "exposuresSec": [60.0, 60.0],
+                "label": label,
+                "settings": { "align": synthetic_align() }
+            });
+            let r = api_master_accumulate(add.to_string()).expect("add fold");
+            let res: MasterAccumulateResult = serde_json::from_str(&r).unwrap();
+            assert_eq!(res.frames_added, 2, "both subs of '{label}' must fold in");
+            res.frame_weights
+        };
+
+        // Night A: full-brightness subs (high SNR). Night B: uniformly dimmer ⇒
+        // lower SNR ⇒ lower per-sub quality on every sub.
+        let w_a = fold(1.0, "night-A", "img001_a");
+        let w_b = fold(0.45, "night-B", "img001_b");
+
+        let sum_a: f64 = w_a.iter().sum();
+        let sum_b: f64 = w_b.iter().sum();
+        assert!(sum_a > 0.0 && sum_b > 0.0, "weights must be positive");
+        assert!(
+            sum_a > sum_b * 1.3,
+            "the better-seeing night must carry meaningfully more total weight across folds: A={sum_a} ({w_a:?}) B={sum_b} ({w_b:?})"
+        );
+
+        let _ = std::fs::remove_file(reference_companion_path(&sidecar));
+        let _ = std::fs::remove_file(&sidecar);
+        for p in &cleanup {
             let _ = std::fs::remove_file(p);
         }
     }
