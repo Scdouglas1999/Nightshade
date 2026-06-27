@@ -63,22 +63,10 @@ class AtlasHandlers {
 
   Future<Response> handleGetRegion(Request request, String id) async {
     _logInfo('[API] GET /api/atlas/region/$id');
-    final regionId = int.tryParse(id);
-    if (regionId == null) {
-      return jsonError(
-        code: 'invalid_region_id',
-        message: 'region id must be an integer',
-        statusCode: 400,
-      );
-    }
-    final region = await _findRegion(regionId);
-    if (region == null) {
-      return jsonError(
-        code: 'region_not_found',
-        message: 'region $regionId not found',
-        statusCode: 404,
-      );
-    }
+    final resolved = await _resolveRegion(id);
+    if (resolved.error != null) return resolved.error!;
+    final regionId = resolved.regionId!;
+    final region = resolved.region!;
 
     // Live native coverage for the region cone augments the denormalized DB
     // rollups so the companion sees the true integration depth without a
@@ -110,22 +98,10 @@ class AtlasHandlers {
 
   Future<Response> handleGetRegionCutout(Request request, String id) async {
     _logInfo('[API] GET /api/atlas/region/$id/cutout');
-    final regionId = int.tryParse(id);
-    if (regionId == null) {
-      return jsonError(
-        code: 'invalid_region_id',
-        message: 'region id must be an integer',
-        statusCode: 400,
-      );
-    }
-    final region = await _findRegion(regionId);
-    if (region == null) {
-      return jsonError(
-        code: 'region_not_found',
-        message: 'region $regionId not found',
-        statusCode: 404,
-      );
-    }
+    final resolved = await _resolveRegion(id);
+    if (resolved.error != null) return resolved.error!;
+    final regionId = resolved.regionId!;
+    final region = resolved.region!;
 
     final qp = request.url.queryParameters;
     final outPixels = int.tryParse(qp['outPixels'] ?? '') ?? 2048;
@@ -175,22 +151,10 @@ class AtlasHandlers {
 
   Future<Response> handleGetRegionTimeline(Request request, String id) async {
     _logInfo('[API] GET /api/atlas/region/$id/timeline');
-    final regionId = int.tryParse(id);
-    if (regionId == null) {
-      return jsonError(
-        code: 'invalid_region_id',
-        message: 'region id must be an integer',
-        statusCode: 400,
-      );
-    }
-    final region = await _findRegion(regionId);
-    if (region == null) {
-      return jsonError(
-        code: 'region_not_found',
-        message: 'region $regionId not found',
-        statusCode: 404,
-      );
-    }
+    final resolved = await _resolveRegion(id);
+    if (resolved.error != null) return resolved.error!;
+    final regionId = resolved.regionId!;
+    final region = resolved.region!;
 
     final folds = await _service.regionTimeline(regionId);
 
@@ -219,6 +183,44 @@ class AtlasHandlers {
       if (region.id == regionId) return region;
     }
     return null;
+  }
+
+  /// Shared preamble for the three `/api/atlas/region/<id>/...` routes: parse
+  /// [id] as an integer and resolve the region. Returns either the resolved
+  /// `(regionId, region)` pair (with `error == null`) or a ready-made [error]
+  /// [Response] carrying the exact envelope all three routes shared verbatim
+  /// before this was extracted (SLOP-DUP-002):
+  ///   * 400 `invalid_region_id` / 'region id must be an integer' for a
+  ///     non-integer id, and
+  ///   * 404 `region_not_found` / `region <id> not found` when no region
+  ///     matches.
+  Future<({int? regionId, SkyAtlasRegionRow? region, Response? error})>
+  _resolveRegion(String id) async {
+    final regionId = int.tryParse(id);
+    if (regionId == null) {
+      return (
+        regionId: null,
+        region: null,
+        error: jsonError(
+          code: 'invalid_region_id',
+          message: 'region id must be an integer',
+          statusCode: 400,
+        ),
+      );
+    }
+    final region = await _findRegion(regionId);
+    if (region == null) {
+      return (
+        regionId: regionId,
+        region: null,
+        error: jsonError(
+          code: 'region_not_found',
+          message: 'region $regionId not found',
+          statusCode: 404,
+        ),
+      );
+    }
+    return (regionId: regionId, region: region, error: null);
   }
 
   AtlasInterp _parseInterp(String? value) {

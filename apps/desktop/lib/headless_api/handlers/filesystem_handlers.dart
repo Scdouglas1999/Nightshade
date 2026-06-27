@@ -135,6 +135,36 @@ class FileSystemHandlers {
     }
 
     final directory = Directory(path);
+
+    // HTTP-005: containment. Like the sibling /api/files/browse, validate must
+    // never stat or write-probe a path outside the allow-listed roots — without
+    // this it doubled as a filesystem existence/writability oracle that created
+    // a probe file at an arbitrary path. Canonicalize and reject out-of-root
+    // paths with the same `path_not_allowed` 403 browse uses, BEFORE any
+    // exists()/write-probe runs. Legitimate not-yet-created save paths under a
+    // root canonicalize to a normalized absolute path that still resolves under
+    // the root, so in-root validation (including new sub-directories) is
+    // unaffected.
+    final roots = await _resolveBrowseRoots();
+    final canonicalRequested = await _canonicalize(directory.path);
+    if (!_isPathUnderAnyRoot(canonicalRequested, roots)) {
+      _logError(
+        '[API] Validate rejected: $canonicalRequested is not under any '
+        'allow-listed root (${roots.map((r) => r.canonicalPath).join(", ")})',
+      );
+      return jsonForbidden({
+        'error': 'path_not_allowed',
+        'message':
+            'The requested path is not under an allow-listed browse root',
+        'valid': false,
+        'exists': false,
+        'writable': false,
+        'allowedRoots': roots
+            .map((r) => {'name': r.label, 'path': r.canonicalPath})
+            .toList(),
+      });
+    }
+
     final exists = await directory.exists();
     final writable =
         exists && (!mustBeWritable || await _isWritable(directory));

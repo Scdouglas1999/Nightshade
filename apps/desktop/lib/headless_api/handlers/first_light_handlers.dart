@@ -28,12 +28,13 @@ class FirstLightHandlers {
   TransientDetectionsDao get _dao =>
       container.read(transientDetectionsDaoProvider);
 
-  /// POST `/api/firstlight/<id>/submit/tns` — REAL TNS bot-API submission.
-  ///
-  /// The host holds the credentials (non-secret in ScienceSettings, the secret
-  /// api key in the keyring). A slave only triggers this; the api key never
-  /// crosses the wire. Returns the submission result JSON.
-  Future<Response> handleSubmitTns(Request request, String id) async {
+  /// Parse a `<id>` path segment as a detection id, or reject with the standard
+  /// 400 envelope every First Light route shared verbatim before this was
+  /// extracted (SLOP-DUP-003): `BadRequestError(field: 'id', expected:
+  /// 'integer', message: 'detection id must be an integer')`. The thrown error
+  /// is translated to the same wire shape by the error-translation middleware,
+  /// so the response is byte-identical to the inline blocks it replaced.
+  int _requireDetectionId(String id) {
     final detectionId = int.tryParse(id);
     if (detectionId == null) {
       throw BadRequestError(
@@ -42,6 +43,16 @@ class FirstLightHandlers {
         message: 'detection id must be an integer',
       );
     }
+    return detectionId;
+  }
+
+  /// POST `/api/firstlight/<id>/submit/tns` — REAL TNS bot-API submission.
+  ///
+  /// The host holds the credentials (non-secret in ScienceSettings, the secret
+  /// api key in the keyring). A slave only triggers this; the api key never
+  /// crosses the wire. Returns the submission result JSON.
+  Future<Response> handleSubmitTns(Request request, String id) async {
+    final detectionId = _requireDetectionId(id);
     _logInfo('[API] POST /api/firstlight/$detectionId/submit/tns');
 
     final detection = await _dao.detectionById(detectionId);
@@ -92,14 +103,7 @@ class FirstLightHandlers {
   /// observer code; without a calibrated magnitude the AAVSO format is
   /// disabled (returns 400), never a `na`-stuffed DIF row.
   Future<Response> handleExportAavso(Request request, String id) async {
-    final detectionId = int.tryParse(id);
-    if (detectionId == null) {
-      throw BadRequestError(
-        field: 'id',
-        expected: 'integer',
-        message: 'detection id must be an integer',
-      );
-    }
+    final detectionId = _requireDetectionId(id);
     _logInfo('[API] POST /api/firstlight/$detectionId/export/aavso');
 
     final detection = await _dao.detectionById(detectionId);
@@ -138,14 +142,7 @@ class FirstLightHandlers {
   /// astrometry report and return it as a downloadable attachment. Requires the
   /// host's 3-char observatory code.
   Future<Response> handleExportMpc(Request request, String id) async {
-    final detectionId = int.tryParse(id);
-    if (detectionId == null) {
-      throw BadRequestError(
-        field: 'id',
-        expected: 'integer',
-        message: 'detection id must be an integer',
-      );
-    }
+    final detectionId = _requireDetectionId(id);
     _logInfo('[API] POST /api/firstlight/$detectionId/export/mpc');
 
     final detection = await _dao.detectionById(detectionId);
@@ -293,14 +290,7 @@ class FirstLightHandlers {
     String id,
     String stage,
   ) async {
-    final detectionId = int.tryParse(id);
-    if (detectionId == null) {
-      throw BadRequestError(
-        field: 'id',
-        expected: 'integer',
-        message: 'detection id must be an integer',
-      );
-    }
+    final detectionId = _requireDetectionId(id);
     if (!_cropStages.contains(stage)) {
       throw BadRequestError(
         field: 'stage',
@@ -339,14 +329,7 @@ class FirstLightHandlers {
 
   /// POST `/api/firstlight/<id>/review` — mark a detection reviewed (confirmed).
   Future<Response> handleReview(Request request, String id) async {
-    final detectionId = int.tryParse(id);
-    if (detectionId == null) {
-      throw BadRequestError(
-        field: 'id',
-        expected: 'integer',
-        message: 'detection id must be an integer',
-      );
-    }
+    final detectionId = _requireDetectionId(id);
     _logInfo('[API] POST /api/firstlight/$detectionId/review');
 
     final existing = await _dao.detectionById(detectionId);
@@ -365,14 +348,7 @@ class FirstLightHandlers {
   /// POST `/api/firstlight/<id>/dismiss` — flag a detection as a triaged
   /// artefact so the next difference scan suppresses the same position.
   Future<Response> handleDismiss(Request request, String id) async {
-    final detectionId = int.tryParse(id);
-    if (detectionId == null) {
-      throw BadRequestError(
-        field: 'id',
-        expected: 'integer',
-        message: 'detection id must be an integer',
-      );
-    }
+    final detectionId = _requireDetectionId(id);
     _logInfo('[API] POST /api/firstlight/$detectionId/dismiss');
 
     final existing = await _dao.detectionById(detectionId);

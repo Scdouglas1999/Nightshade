@@ -88,6 +88,19 @@ const _headlessLogSource = 'HeadlessMain';
 ///                         Captures=/mnt/captures;USB=/media/nightshade.
 ///   NIGHTSHADE_ALLOW_UNAUTHENTICATED_LAN=true
 ///                         Same as --allow-unauthenticated-lan
+///   NIGHTSHADE_TRUST_PROXY=true
+///                         Believe the X-Forwarded-For / X-Real-IP headers when
+///                         deriving the rate-limit / pairing-lockout key. OFF by
+///                         default: in direct-bind mode those headers are client-
+///                         spoofable. Set to true ONLY behind the loopback nginx
+///                         reverse proxy documented in docs/remote-control.md
+///                         ("TLS with nginx"); without it every proxied client
+///                         shares one rate-limit/lockout bucket. Honoured only
+///                         when the socket peer is loopback.
+///   NIGHTSHADE_ALLOW_INSECURE_UPDATE_SOURCE=true
+///                         Testing only. Allow the OTA updater to fetch from a
+///                         non-HTTPS / unpinned update source. Never set on a
+///                         production appliance.
 ///   NIGHTSHADE_CORS_ORIGINS
 ///                         Comma-separated CORS allow-list (same effect as
 ///                         passing --cors-origin repeatedly).

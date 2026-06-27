@@ -4,12 +4,15 @@ part of '../headless_api_server.dart';
 /// `x-forwarded-for` / `x-real-ip` forwarding headers (and only when the
 /// socket peer is loopback).
 ///
-/// HTTP-001: OFF by default. In the documented direct-bind deployment those
-/// headers are attacker-controlled, so the lockout/limiter key is derived
-/// from the real TCP socket peer instead. Set `NIGHTSHADE_TRUST_PROXY=true`
-/// (or `1`/`yes`) ONLY when the appliance runs behind the documented local
-/// nginx reverse proxy, which binds loopback and injects the forwarding
-/// headers itself. Evaluated once per process.
+/// HTTP-001: OFF by default. In the direct-bind deployment those headers are
+/// attacker-controlled, so the lockout/limiter key is derived from the real TCP
+/// socket peer instead. Set `NIGHTSHADE_TRUST_PROXY=true` (or `1`/`yes`) ONLY
+/// when the appliance runs behind the loopback nginx reverse proxy documented
+/// in `docs/remote-control.md` (the "TLS with nginx" section), which binds
+/// loopback and injects the forwarding headers itself; in that topology the
+/// flag MUST be set or every proxied client collapses into one rate-limit /
+/// lockout bucket. Even then the headers are believed only when the socket peer
+/// is loopback (see [headlessRateLimitClientKey]). Evaluated once per process.
 final bool _rateLimitTrustProxyHeaders = _readTrustProxyFlag();
 
 bool _readTrustProxyFlag() {
@@ -120,9 +123,18 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
     };
   }
 
-  Middleware _requestSizeLimitMiddleware() {
+  /// HTTP-001 (part 1 of 2): header-only `Content-Length` ceiling.
+  ///
+  /// This runs BEFORE auth because it reads only the declared `Content-Length`
+  /// header (never the body), so a declared over-limit upload is rejected with
+  /// 413 (or 400 for a malformed header) cheaply and regardless of credentials.
+  /// The expensive part — buffering a chunked body that omits `Content-Length`
+  /// — is split into [_chunkedBodyLimitMiddleware], which runs AFTER auth so an
+  /// unauthenticated client cannot force the server to buffer a body up to the
+  /// per-path cap (≤1 GiB for catalog uploads) before its token is checked.
+  Middleware _contentLengthLimitMiddleware() {
     return (innerHandler) {
-      return (request) async {
+      return (request) {
         final path = '/${request.url.path}';
         final validation = route_metadata.validateContentLength(
           method: request.method,
@@ -135,7 +147,23 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
             statusCode: validation['statusCode'] as int,
           );
         }
+        return innerHandler(request);
+      };
+    };
+  }
 
+  /// HTTP-001 (part 2 of 2): buffer-and-cap a chunked request body.
+  ///
+  /// Only requests that (a) use a body-bearing method and (b) omit
+  /// `Content-Length` (i.e. `Transfer-Encoding: chunked`) reach the streaming
+  /// cap here. This middleware is installed AFTER [_authMiddleware] in the
+  /// pipeline so an unauthenticated request to a protected path is rejected
+  /// (401) before any of its body is read — closing the pre-auth buffering
+  /// vector. The streaming cap and 413 envelope for authenticated uploads are
+  /// unchanged from the previous single-middleware behaviour.
+  Middleware _chunkedBodyLimitMiddleware() {
+    return (innerHandler) {
+      return (request) async {
         if (!route_metadata.methodCanHaveBody(request.method)) {
           return innerHandler(request);
         }
@@ -146,6 +174,7 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
           return innerHandler(request);
         }
 
+        final path = '/${request.url.path}';
         final limit = route_metadata.requestBodyLimitForPath(path);
         final body = await _readRequestBodyWithinLimit(request, limit);
         if (!body.accepted) {
@@ -584,6 +613,30 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
 
           final queryToken = request.url.queryParameters['token'];
           if (queryToken != null && queryToken.isNotEmpty) {
+            // HTTP-004: route the legacy ?token= path through the SAME bearer-
+            // token failure limiter as the Authorization-header path (720-757).
+            // Without this, failed/garbage WS token attempts were unthrottled
+            // and each one drove the O(N*L) constant-time _scopeForToken scan
+            // pre-auth. Check the limiter BEFORE the scan; record a failure when
+            // the token resolves to no/disallowed scope; clear on success.
+            final wsClientKey = _rateLimitClientKey(request);
+            if (_tokenResolver.isRateLimited(wsClientKey)) {
+              _logWarning(
+                '[AUTH][$requestId] Rate-limited WS ?token= attempts from '
+                '$wsClientKey on $path',
+              );
+              return jsonRateLimited(
+                {
+                  'error': 'Rate limit exceeded',
+                  'message': 'Too many authentication failures',
+                  'requestId': requestId,
+                },
+                headers: {
+                  HeadlessApiServer._requestIdHeader: requestId,
+                  'retry-after': '60',
+                },
+              );
+            }
             final queryScope = _scopeForToken(queryToken);
             if (queryScope != null &&
                 HeadlessAuthPolicy.allows(
@@ -591,6 +644,7 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
                   method: 'WS',
                   path: path,
                 )) {
+              _tokenResolver.clearFailures(wsClientKey);
               _logWarning(
                 '[AUTH][$requestId] WS upgrade to $path used legacy ?token=. '
                 'Switch to POST /api/ws/ticket + ?ticket=.',
@@ -606,6 +660,10 @@ extension _HeadlessApiServerHttpMiddleware on HeadlessApiServer {
                 ),
               );
             }
+            // Unknown or scope-disallowed ?token= — count it against the
+            // failure limiter so repeated bad attempts trip the 429 lockout,
+            // mirroring the Authorization-header path's recordFailure.
+            _tokenResolver.recordFailure(wsClientKey);
           }
           // Fall through to check Authorization header below.
         }
