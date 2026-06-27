@@ -19,6 +19,8 @@ const _routesDirectory = 'apps/desktop/lib/headless_api/routes';
 
 const _serverMiddlewareTestPath =
     'apps/desktop/test/headless_api/auth_middleware_test.dart';
+const _sizeLimitTestPath =
+    'apps/desktop/test/headless_api_server/http_request_size_limit_test.dart';
 
 const _expectedHighRiskActions = {
   '/api/devices/connect': 'device_connect',
@@ -221,16 +223,28 @@ void main(List<String> args) {
 Map<String, bool> _readServerMiddlewareTests() {
   final file = File(_serverMiddlewareTestPath);
   final text = file.existsSync() ? file.readAsStringSync() : '';
+  final sizeLimitFile = File(_sizeLimitTestPath);
+  final sizeLimitText = sizeLimitFile.existsSync()
+      ? sizeLimitFile.readAsStringSync()
+      : '';
   return {
     'oversized_control_request_before_auth':
         text.contains('rejects oversized control requests before auth') &&
         text.contains('HttpStatus.requestEntityTooLarge') &&
         text.contains('Request body too large'),
-    'chunked_oversized_control_request_before_auth':
-        text.contains(
-          'rejects chunked oversized control requests before auth',
+    // HTTP-001: an unauthenticated chunked body must be rejected at auth (401)
+    // BEFORE it is buffered, while an authenticated oversized chunked body is
+    // still capped at 413 with request-id propagation. Both halves of that
+    // ordering contract must stay tested.
+    'chunked_oversized_control_request_auth_ordering':
+        sizeLimitText.contains(
+          'unauthenticated chunked upload is rejected with 401 before the body',
         ) &&
-        text.contains('Transfer-Encoding: chunked') &&
+        sizeLimitText.contains('HttpStatus.unauthorized') &&
+        sizeLimitText.contains('Transfer-Encoding: chunked') &&
+        text.contains(
+          'rejects chunked oversized control requests for authenticated',
+        ) &&
         text.contains("response.body['requestId']") &&
         text.contains("response.headers['x-request-id']") &&
         text.contains('HttpStatus.requestEntityTooLarge'),
