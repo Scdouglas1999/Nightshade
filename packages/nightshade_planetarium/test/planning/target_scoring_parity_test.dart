@@ -218,29 +218,30 @@ void main() {
       final body = fnMatch!.group(1)!;
 
       // Breakpoints, in source order: `if altitude < <X>`.
-      final breakpoints = RegExp(r'altitude < ([0-9.]+)')
-          .allMatches(body)
-          .map((m) => double.parse(m.group(1)!))
-          .toList();
+      final breakpoints = RegExp(
+        r'altitude < ([0-9.]+)',
+      ).allMatches(body).map((m) => double.parse(m.group(1)!)).toList();
       // Slope of the first linear segment: `return altitude * <slope>`.
       final slope0 = double.parse(
         RegExp(r'return altitude \* ([0-9.]+)').firstMatch(body)!.group(1)!,
       );
       // Subsequent segments: `return <base> + (altitude - <pivot>) * <slope>`.
-      final segments = RegExp(
-        r'return ([0-9.]+) \+ \(altitude - ([0-9.]+)\) \* ([0-9.]+)',
-      ).allMatches(body).map((m) {
-        return (
-          base: double.parse(m.group(1)!),
-          pivot: double.parse(m.group(2)!),
-          slope: double.parse(m.group(3)!),
-        );
-      }).toList();
+      final segments =
+          RegExp(
+            r'return ([0-9.]+) \+ \(altitude - ([0-9.]+)\) \* ([0-9.]+)',
+          ).allMatches(body).map((m) {
+            return (
+              base: double.parse(m.group(1)!),
+              pivot: double.parse(m.group(2)!),
+              slope: double.parse(m.group(3)!),
+            );
+          }).toList();
       // Terminal constant: the bare `100.0` (or similar) returned at the top.
       final terminal = double.parse(
-        RegExp(r'\n\s*([0-9.]+)\s*\n\}', dotAll: true)
-            .firstMatch('$body\n}')!
-            .group(1)!,
+        RegExp(
+          r'\n\s*([0-9.]+)\s*\n\}',
+          dotAll: true,
+        ).firstMatch('$body\n}')!.group(1)!,
       );
 
       // Pin the SHAPE so a reshaped piecewise (added/removed branch) trips the
@@ -253,10 +254,12 @@ void main() {
         if (alt < breakpoints[0]) return 0.0;
         if (alt < breakpoints[1]) return alt * slope0;
         if (alt < breakpoints[2]) {
-          return segments[0].base + (alt - segments[0].pivot) * segments[0].slope;
+          return segments[0].base +
+              (alt - segments[0].pivot) * segments[0].slope;
         }
         if (alt < breakpoints[3]) {
-          return segments[1].base + (alt - segments[1].pivot) * segments[1].slope;
+          return segments[1].base +
+              (alt - segments[1].pivot) * segments[1].slope;
         }
         return terminal;
       }
@@ -267,8 +270,20 @@ void main() {
         observationTime: DateTime.utc(2026, 1, 15, 6, 0, 0),
       );
       for (final alt in [
-        -5.0, 0.0, 5.0, 7.5, 14.999, 15.0, 22.5, 29.999, 30.0,
-        45.0, 59.999, 60.0, 75.0, 89.9,
+        -5.0,
+        0.0,
+        5.0,
+        7.5,
+        14.999,
+        15.0,
+        22.5,
+        29.999,
+        30.0,
+        45.0,
+        59.999,
+        60.0,
+        75.0,
+        89.9,
       ]) {
         expect(
           service.debugScoreAltitude(alt),

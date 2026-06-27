@@ -118,9 +118,7 @@ void main() {
     required String fileName,
     required List<int> fileBytes,
   }) async {
-    final staging = Directory(
-      path.join(appSupport.path, 'updates', 'staging'),
-    );
+    final staging = Directory(path.join(appSupport.path, 'updates', 'staging'));
     final extracted = Directory(path.join(staging.path, 'extracted'));
     await extracted.create(recursive: true);
     await File(path.join(extracted.path, fileName)).writeAsBytes(fileBytes);
@@ -216,9 +214,7 @@ void main() {
       );
 
       // Build with no compiled-in trusted key cannot authenticate anything.
-      final service = serviceWith(
-        UpdateVerifier(trustedPublicKeyBase64: ''),
-      );
+      final service = serviceWith(UpdateVerifier(trustedPublicKeyBase64: ''));
 
       await expectLater(
         service.applyUpdate(),

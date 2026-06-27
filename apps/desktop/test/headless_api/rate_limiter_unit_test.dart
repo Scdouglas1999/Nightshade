@@ -29,10 +29,8 @@ void main() {
         now: () => now,
       );
 
-      RateLimitDecision consume() => limiter.tryConsume(
-        tokenId: 'tok',
-        routeClass: TokenRouteClass.read,
-      );
+      RateLimitDecision consume() =>
+          limiter.tryConsume(tokenId: 'tok', routeClass: TokenRouteClass.read);
 
       // Drain the full bucket at t0.
       for (var i = 0; i < 10; i++) {

@@ -319,10 +319,7 @@ class GuideGraphAdvanced extends StatelessWidget {
             ),
           ),
           itemBuilder: (context) => items.map((item) {
-            return PopupMenuItem<T>(
-              value: item,
-              child: Text(item.label),
-            );
+            return PopupMenuItem<T>(value: item, child: Text(item.label));
           }).toList(),
         ),
       ],

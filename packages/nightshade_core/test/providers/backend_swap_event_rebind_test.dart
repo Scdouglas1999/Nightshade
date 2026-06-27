@@ -86,44 +86,50 @@ void main() {
     return container;
   }
 
-  test('polar alignment re-binds to the swapped backend event stream', () async {
-    final container = buildContainer();
-    container.read(polarAlignmentStateProvider.notifier);
-    await _pump();
+  test(
+    'polar alignment re-binds to the swapped backend event stream',
+    () async {
+      final container = buildContainer();
+      container.read(polarAlignmentStateProvider.notifier);
+      await _pump();
 
-    // Swap the active backend, then emit from the NEW backend.
-    (container.read(backendProvider.notifier) as _SwappableBackendNotifier)
-        .swapTo(newBackend);
-    await _pump();
+      // Swap the active backend, then emit from the NEW backend.
+      (container.read(backendProvider.notifier) as _SwappableBackendNotifier)
+          .swapTo(newBackend);
+      await _pump();
 
-    expect(
-      container.read(polarAlignmentStateProvider).currentError,
-      isNull,
-      reason: 'no event delivered yet',
-    );
+      expect(
+        container.read(polarAlignmentStateProvider).currentError,
+        isNull,
+        reason: 'no event delivered yet',
+      );
 
-    newEvents.add(_polarEvent());
-    await _pump();
+      newEvents.add(_polarEvent());
+      await _pump();
 
-    final error = container.read(polarAlignmentStateProvider).currentError;
-    expect(error, isNotNull);
-    expect(error!.totalError, closeTo(1.68, 1e-9));
-  });
+      final error = container.read(polarAlignmentStateProvider).currentError;
+      expect(error, isNotNull);
+      expect(error!.totalError, closeTo(1.68, 1e-9));
+    },
+  );
 
-  test('autofocus overlay re-binds to the swapped backend event stream', () async {
-    final container = buildContainer();
-    container.read(autofocusOverlayProvider.notifier);
-    await _pump();
+  test(
+    'autofocus overlay re-binds to the swapped backend event stream',
+    () async {
+      final container = buildContainer();
+      container.read(autofocusOverlayProvider.notifier);
+      await _pump();
 
-    (container.read(backendProvider.notifier) as _SwappableBackendNotifier)
-        .swapTo(newBackend);
-    await _pump();
+      (container.read(backendProvider.notifier) as _SwappableBackendNotifier)
+          .swapTo(newBackend);
+      await _pump();
 
-    expect(container.read(autofocusOverlayProvider).hasError, isFalse);
+      expect(container.read(autofocusOverlayProvider).hasError, isFalse);
 
-    newEvents.add(_autofocusEvent());
-    await _pump();
+      newEvents.add(_autofocusEvent());
+      await _pump();
 
-    expect(container.read(autofocusOverlayProvider).hasError, isTrue);
-  });
+      expect(container.read(autofocusOverlayProvider).hasError, isTrue);
+    },
+  );
 }

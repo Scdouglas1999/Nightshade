@@ -84,22 +84,24 @@ void main() {
     expect(body['acceptsRawSubs'], false);
   });
 
-  test('subframe POST is refused with 405 when the hub does not opt in',
-      () async {
-    final server = makeServer(acceptsRawSubs: false);
-    addTearDown(server.dispose);
-    final handler = server.handler;
-    final token = await contributorToken(handler, 'alice');
-    final r = await pushSub(
-      handler,
-      token,
-      314,
-      Uint8List.fromList(utf8.encode('SIMPLE  = T / fake fits')),
-    );
-    expect(r.statusCode, 405);
-    final body = jsonDecode(await r.readAsString()) as Map<String, Object?>;
-    expect((body['error'] as Map)['code'], 'rawSubsDisabled');
-  });
+  test(
+    'subframe POST is refused with 405 when the hub does not opt in',
+    () async {
+      final server = makeServer(acceptsRawSubs: false);
+      addTearDown(server.dispose);
+      final handler = server.handler;
+      final token = await contributorToken(handler, 'alice');
+      final r = await pushSub(
+        handler,
+        token,
+        314,
+        Uint8List.fromList(utf8.encode('SIMPLE  = T / fake fits')),
+      );
+      expect(r.statusCode, 405);
+      final body = jsonDecode(await r.readAsString()) as Map<String, Object?>;
+      expect((body['error'] as Map)['code'], 'rawSubsDisabled');
+    },
+  );
 
   test('an opt-in hub accepts, stores, and ledgers a raw subframe', () async {
     final server = makeServer(acceptsRawSubs: true);
@@ -153,38 +155,42 @@ void main() {
     expect(r.statusCode, 400);
   });
 
-  test('a contributor can delete their own subframe; ledger + file go away',
-      () async {
-    final server = makeServer(acceptsRawSubs: true);
-    addTearDown(server.dispose);
-    final handler = server.handler;
-    final token = await contributorToken(handler, 'alice');
-    final fits = Uint8List.fromList(utf8.encode('SIMPLE  = T'));
+  test(
+    'a contributor can delete their own subframe; ledger + file go away',
+    () async {
+      final server = makeServer(acceptsRawSubs: true);
+      addTearDown(server.dispose);
+      final handler = server.handler;
+      final token = await contributorToken(handler, 'alice');
+      final fits = Uint8List.fromList(utf8.encode('SIMPLE  = T'));
 
-    final pushed = jsonDecode(
-      await (await pushSub(handler, token, 314, fits)).readAsString(),
-    ) as Map<String, Object?>;
-    final id = pushed['contributionId'] as String;
+      final pushed =
+          jsonDecode(
+                await (await pushSub(handler, token, 314, fits)).readAsString(),
+              )
+              as Map<String, Object?>;
+      final id = pushed['contributionId'] as String;
 
-    final del = await handler(
-      Request(
-        'DELETE',
-        Uri.parse('http://localhost/v1/subframes/$id'),
-        headers: {'authorization': 'Bearer $token'},
-      ),
-    );
-    expect(del.statusCode, 200);
+      final del = await handler(
+        Request(
+          'DELETE',
+          Uri.parse('http://localhost/v1/subframes/$id'),
+          headers: {'authorization': 'Bearer $token'},
+        ),
+      );
+      expect(del.statusCode, 200);
 
-    final subDir = Directory('${tmp.path}/atlas/subframes');
-    final remaining = subDir.existsSync()
-        ? subDir
-              .listSync(recursive: true)
-              .whereType<File>()
-              .where((f) => f.path.endsWith('.fits'))
-              .toList()
-        : <File>[];
-    expect(remaining, isEmpty);
-  });
+      final subDir = Directory('${tmp.path}/atlas/subframes');
+      final remaining = subDir.existsSync()
+          ? subDir
+                .listSync(recursive: true)
+                .whereType<File>()
+                .where((f) => f.path.endsWith('.fits'))
+                .toList()
+          : <File>[];
+      expect(remaining, isEmpty);
+    },
+  );
 
   test("a contributor cannot delete another account's subframe", () async {
     final server = makeServer(acceptsRawSubs: true);
@@ -192,14 +198,16 @@ void main() {
     final handler = server.handler;
     final alice = await contributorToken(handler, 'alice');
     final bob = await contributorToken(handler, 'bob');
-    final pushed = jsonDecode(
-      await (await pushSub(
-        handler,
-        alice,
-        314,
-        Uint8List.fromList(utf8.encode('SIMPLE  = T')),
-      )).readAsString(),
-    ) as Map<String, Object?>;
+    final pushed =
+        jsonDecode(
+              await (await pushSub(
+                handler,
+                alice,
+                314,
+                Uint8List.fromList(utf8.encode('SIMPLE  = T')),
+              )).readAsString(),
+            )
+            as Map<String, Object?>;
     final id = pushed['contributionId'] as String;
 
     final del = await handler(

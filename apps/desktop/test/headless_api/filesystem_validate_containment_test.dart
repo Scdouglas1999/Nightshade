@@ -84,9 +84,7 @@ void main() {
       // The write-probe must never have run outside the allow-list.
       final probes = await outside
           .list()
-          .where(
-            (e) => e.path.contains('.nightshade_write_test_'),
-          )
+          .where((e) => e.path.contains('.nightshade_write_test_'))
           .toList();
       expect(probes, isEmpty);
     });
@@ -106,26 +104,28 @@ void main() {
       expect(body['normalizedPath'], isA<String>());
     });
 
-    test('validates a not-yet-created save path under an allow-listed root',
-        () async {
-      final newSavePath =
-          '${envBrowseRoot.path}${Platform.pathSeparator}NewTarget'
-          '${Platform.pathSeparator}lights';
+    test(
+      'validates a not-yet-created save path under an allow-listed root',
+      () async {
+        final newSavePath =
+            '${envBrowseRoot.path}${Platform.pathSeparator}NewTarget'
+            '${Platform.pathSeparator}lights';
 
-      final response = await validate({
-        'path': newSavePath,
-        // A save path the user has not created yet — must not regress to a
-        // path_not_allowed rejection just because it does not exist.
-        'mustExist': false,
-      });
+        final response = await validate({
+          'path': newSavePath,
+          // A save path the user has not created yet — must not regress to a
+          // path_not_allowed rejection just because it does not exist.
+          'mustExist': false,
+        });
 
-      expect(response.statusCode, HttpStatus.ok);
-      final body = jsonDecode(await response.readAsString()) as Map;
-      // Path is contained under the root, so it is not rejected; it just does
-      // not exist yet.
-      expect(body['exists'], isFalse);
-      expect(body['valid'], isTrue);
-    });
+        expect(response.statusCode, HttpStatus.ok);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        // Path is contained under the root, so it is not rejected; it just does
+        // not exist yet.
+        expect(body['exists'], isFalse);
+        expect(body['valid'], isTrue);
+      },
+    );
 
     test('reports empty path as a plain validation error (no containment '
         'check needed)', () async {

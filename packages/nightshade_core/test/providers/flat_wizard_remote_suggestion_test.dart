@@ -110,7 +110,8 @@ void main() {
       expect(
         faults,
         equals([thrown]),
-        reason: 'a transport fault must record a diagnostic, not be silently '
+        reason:
+            'a transport fault must record a diagnostic, not be silently '
             'treated as empty history',
       );
     },

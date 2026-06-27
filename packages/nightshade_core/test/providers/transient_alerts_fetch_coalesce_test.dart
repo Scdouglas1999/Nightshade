@@ -71,71 +71,75 @@ void main() {
     await db.close();
   });
 
-  test('out-of-order fetch completion never overwrites the freshest data',
-      () async {
-    final container = ProviderContainer(
-      overrides: [
-        settingsDaoProvider.overrideWithValue(db.settingsDao),
-        transientAlertServiceProvider.overrideWithValue(service),
-        allTransientDetectionsProvider.overrideWith((ref) => detections.stream),
-      ],
-    );
-    addTearDown(container.dispose);
+  test(
+    'out-of-order fetch completion never overwrites the freshest data',
+    () async {
+      final container = ProviderContainer(
+        overrides: [
+          settingsDaoProvider.overrideWithValue(db.settingsDao),
+          transientAlertServiceProvider.overrideWithValue(service),
+          allTransientDetectionsProvider.overrideWith(
+            (ref) => detections.stream,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
 
-    // Subscribe — kicks off the immediate fetch. The provider also rebuilds
-    // once when the async settings load resolves, so drain to a quiescent
-    // baseline before measuring the burst-coalescing behaviour. Draining
-    // completes every in-flight fetch (old rebuilt closures are guarded by
-    // `controller.isClosed`) until no fetch is outstanding.
-    final sub = container.listen(
-      activeTransientAlertsProvider,
-      (_, __) {},
-      fireImmediately: true,
-    );
-    addTearDown(sub.close);
-    await _pump();
+      // Subscribe — kicks off the immediate fetch. The provider also rebuilds
+      // once when the async settings load resolves, so drain to a quiescent
+      // baseline before measuring the burst-coalescing behaviour. Draining
+      // completes every in-flight fetch (old rebuilt closures are guarded by
+      // `controller.isClosed`) until no fetch is outstanding.
+      final sub = container.listen(
+        activeTransientAlertsProvider,
+        (_, __) {},
+        fireImmediately: true,
+      );
+      addTearDown(sub.close);
+      await _pump();
 
-    Future<void> drain() async {
-      while (service.completers.any((c) => !c.isCompleted)) {
-        for (final c in service.completers) {
-          if (!c.isCompleted) c.complete([_alert('seed')]);
+      Future<void> drain() async {
+        while (service.completers.any((c) => !c.isCompleted)) {
+          for (final c in service.completers) {
+            if (!c.isCompleted) c.complete([_alert('seed')]);
+          }
+          await _pump();
         }
-        await _pump();
       }
-    }
 
-    await drain();
+      await drain();
 
-    // Two external-feed triggers in quick succession, both left in flight.
-    detections.add(<TransientDetectionRow>[]);
-    await _pump();
-    detections.add(<TransientDetectionRow>[]);
-    await _pump();
+      // Two external-feed triggers in quick succession, both left in flight.
+      detections.add(<TransientDetectionRow>[]);
+      await _pump();
+      detections.add(<TransientDetectionRow>[]);
+      await _pump();
 
-    // The newest in-flight fetch (highest index) is the freshest request.
-    // Complete it FIRST with the fresh data.
-    final freshIndex = service.completers.length - 1;
-    expect(service.completers[freshIndex].isCompleted, isFalse);
-    service.completers[freshIndex].complete([_alert('fresh')]);
-    await _pump();
+      // The newest in-flight fetch (highest index) is the freshest request.
+      // Complete it FIRST with the fresh data.
+      final freshIndex = service.completers.length - 1;
+      expect(service.completers[freshIndex].isCompleted, isFalse);
+      service.completers[freshIndex].complete([_alert('fresh')]);
+      await _pump();
 
-    // Now the older, slower fetches resolve LATE with stale data. With the
-    // overlap guard in place these out-of-order completions must NOT clobber
-    // the fresher result that already landed. (Only older fetches are
-    // resolved; any follow-up spawned by the fresh completion is left pending.)
-    for (var i = 0; i < freshIndex; i++) {
-      if (!service.completers[i].isCompleted) {
-        service.completers[i].complete([_alert('stale')]);
+      // Now the older, slower fetches resolve LATE with stale data. With the
+      // overlap guard in place these out-of-order completions must NOT clobber
+      // the fresher result that already landed. (Only older fetches are
+      // resolved; any follow-up spawned by the fresh completion is left pending.)
+      for (var i = 0; i < freshIndex; i++) {
+        if (!service.completers[i].isCompleted) {
+          service.completers[i].complete([_alert('stale')]);
+        }
       }
-    }
-    await _pump();
+      await _pump();
 
-    final value = container.read(activeTransientAlertsProvider).valueOrNull;
-    expect(value, isNotNull);
-    expect(
-      value!.map((a) => a.id),
-      equals(['fresh']),
-      reason: 'a late stale fetch must not overwrite the freshest result',
-    );
-  });
+      final value = container.read(activeTransientAlertsProvider).valueOrNull;
+      expect(value, isNotNull);
+      expect(
+        value!.map((a) => a.id),
+        equals(['fresh']),
+        reason: 'a late stale fetch must not overwrite the freshest result',
+      );
+    },
+  );
 }

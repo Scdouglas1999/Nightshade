@@ -474,8 +474,7 @@ void main() {
     },
   );
 
-  test('unhandled error is redacted to a generic 500 by the error trap',
-      () async {
+  test('unhandled error is redacted to a generic 500 by the error trap', () async {
     // Drive the REAL production middleware ([hubErrorTrapMiddleware], the same
     // one HubServer installs) around a handler that throws an exception whose
     // text embeds exactly the kind of internal detail we must never leak: an

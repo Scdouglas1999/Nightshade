@@ -53,12 +53,18 @@ void main() {
       // upload endpoint. The point is that auth rejects it with 401 — the body
       // is never buffered, so the per-path 1 GiB cap is unreachable pre-auth.
       const body = 'payload-that-must-never-be-buffered';
-      final response = await _rawSocketRequest(baseUri, const [
-        'POST /api/catalog/upload HTTP/1.1',
-        'Content-Type: application/octet-stream',
-        'Transfer-Encoding: chunked',
-        'Connection: close',
-      ], host: '127.0.0.1', port: server.actualPort, body: _chunked(body));
+      final response = await _rawSocketRequest(
+        baseUri,
+        const [
+          'POST /api/catalog/upload HTTP/1.1',
+          'Content-Type: application/octet-stream',
+          'Transfer-Encoding: chunked',
+          'Connection: close',
+        ],
+        host: '127.0.0.1',
+        port: server.actualPort,
+        body: _chunked(body),
+      );
 
       expect(response.statusCode, HttpStatus.unauthorized);
       expect(response.body['error'], 'Authentication required');
@@ -68,38 +74,54 @@ void main() {
     // read) is preserved unchanged and is already covered by
     // auth_middleware_test's "rejects oversized control requests before auth".
 
-    test('authenticated within-limit chunked upload reaches the handler',
-        () async {
-      final response = await _rawSocketRequest(baseUri, const [
-        'POST /api/files/validate HTTP/1.1',
-        'Authorization: Bearer admin-token',
-        'Content-Type: application/json',
-        'Transfer-Encoding: chunked',
-        'Connection: close',
-      ], host: '127.0.0.1', port: server.actualPort, body: _chunked('{"path":""}'));
+    test(
+      'authenticated within-limit chunked upload reaches the handler',
+      () async {
+        final response = await _rawSocketRequest(
+          baseUri,
+          const [
+            'POST /api/files/validate HTTP/1.1',
+            'Authorization: Bearer admin-token',
+            'Content-Type: application/json',
+            'Transfer-Encoding: chunked',
+            'Connection: close',
+          ],
+          host: '127.0.0.1',
+          port: server.actualPort,
+          body: _chunked('{"path":""}'),
+        );
 
-      // The handler ran (it buffered the chunked body post-auth) and answered
-      // the empty-path validation with a 200 envelope, proving the streaming
-      // cap still admits within-limit authenticated uploads.
-      expect(response.statusCode, HttpStatus.ok);
-      expect(response.body['valid'], isFalse);
-    });
+        // The handler ran (it buffered the chunked body post-auth) and answered
+        // the empty-path validation with a 200 envelope, proving the streaming
+        // cap still admits within-limit authenticated uploads.
+        expect(response.statusCode, HttpStatus.ok);
+        expect(response.body['valid'], isFalse);
+      },
+    );
 
-    test('authenticated oversized chunked upload is rejected with 413',
-        () async {
-      final big = 'x' * (1024 * 1024 + 1);
-      final response = await _rawSocketRequest(baseUri, const [
-        'POST /api/mount/slew HTTP/1.1',
-        'Authorization: Bearer admin-token',
-        'Content-Type: application/json',
-        'Transfer-Encoding: chunked',
-        'Connection: close',
-      ], host: '127.0.0.1', port: server.actualPort, body: _chunked(big));
+    test(
+      'authenticated oversized chunked upload is rejected with 413',
+      () async {
+        final big = 'x' * (1024 * 1024 + 1);
+        final response = await _rawSocketRequest(
+          baseUri,
+          const [
+            'POST /api/mount/slew HTTP/1.1',
+            'Authorization: Bearer admin-token',
+            'Content-Type: application/json',
+            'Transfer-Encoding: chunked',
+            'Connection: close',
+          ],
+          host: '127.0.0.1',
+          port: server.actualPort,
+          body: _chunked(big),
+        );
 
-      expect(response.statusCode, HttpStatus.requestEntityTooLarge);
-      expect(response.body['error'], 'Request body too large');
-      expect(response.body['maxBytes'], 1024 * 1024);
-    });
+        expect(response.statusCode, HttpStatus.requestEntityTooLarge);
+        expect(response.body['error'], 'Request body too large');
+        expect(response.body['maxBytes'], 1024 * 1024);
+      },
+    );
   });
 }
 
@@ -125,10 +147,12 @@ Future<_RawResponse> _rawSocketRequest(
   await socket.close();
 
   final separator = responseText.indexOf('\r\n\r\n');
-  final head =
-      separator == -1 ? responseText : responseText.substring(0, separator);
-  final responseBody =
-      separator == -1 ? '' : responseText.substring(separator + 4);
+  final head = separator == -1
+      ? responseText
+      : responseText.substring(0, separator);
+  final responseBody = separator == -1
+      ? ''
+      : responseText.substring(separator + 4);
   final statusLine = head.split('\r\n').first;
   final statusCode = int.parse(statusLine.split(' ')[1]);
   final parsedBody = responseBody.trim().isEmpty
