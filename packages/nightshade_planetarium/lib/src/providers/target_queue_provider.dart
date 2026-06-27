@@ -543,23 +543,3 @@ final targetQueueProvider =
     StateNotifierProvider<TargetQueueNotifier, TargetQueueState>((ref) {
       return TargetQueueNotifier();
     });
-
-/// Provider for just the active target (for widgets that only care about current target)
-final activeTargetProvider = Provider<QueuedTarget?>((ref) {
-  return ref.watch(targetQueueProvider).activeTarget;
-});
-
-/// Provider for pending targets count
-final pendingTargetsCountProvider = Provider<int>((ref) {
-  return ref.watch(targetQueueProvider).pendingTargets.length;
-});
-
-/// Provider for overall target-queue progress (planetarium-side).
-///
-/// Renamed from `sessionProgressProvider` to avoid colliding with
-/// `nightshade_core/session_provider.dart:sessionProgressProvider`, which
-/// reports the active imaging session's progress. The planetarium version
-/// reflects pending vs completed targets in the visual queue.
-final queueProgressProvider = Provider<double>((ref) {
-  return ref.watch(targetQueueProvider).overallProgress;
-});

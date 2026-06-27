@@ -19,10 +19,3 @@ final variableStarDataProvider = Provider<List<VariableStarData>>((ref) {
   if (!show) return [];
   return VariableStarCatalog.stars;
 });
-
-/// Provides only bright variable stars (mag max <= 8.0) for rendering.
-final brightVariableStarsProvider = Provider<List<VariableStarData>>((ref) {
-  final show = ref.watch(showVariableStarsProvider);
-  if (!show) return [];
-  return VariableStarCatalog.getBrighterThan(8.0);
-});

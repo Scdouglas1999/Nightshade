@@ -78,12 +78,6 @@ enum SequencerToolboxTab { nodes, snippets, queue }
 final sequencerTabProvider =
     StateProvider<int>((ref) => SequencerTab.builder.index);
 
-/// Which panel is currently expanded in the sequencer
-/// null = both panels at default sizes (when space permits)
-/// 'toolbox' = toolbox expanded, properties collapsed
-/// 'properties' = properties expanded, toolbox collapsed
-final sequencerExpandedPanelProvider = StateProvider<String?>((ref) => null);
-
 /// Whether the toolbox panel is collapsed (icon-only mode).
 ///
 /// Seeded once from the persisted [AppSettingsState] panel preference (when

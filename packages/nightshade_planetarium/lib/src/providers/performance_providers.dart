@@ -125,28 +125,3 @@ final performanceMonitorProvider = ChangeNotifierProvider<PerformanceMonitor>((
 /// hardware (the timing data from [PerformanceMonitor] is collected in release;
 /// this only controls whether the readout is painted).
 final showPerfHudProvider = StateProvider<bool>((ref) => false);
-
-/// Provider for enabling/disabling auto quality adjustment.
-///
-/// When enabled, the system can automatically adjust render quality
-/// based on measured frame rates to maintain smooth performance.
-/// Enabled by default to ensure smooth experience on varied hardware.
-final autoQualityEnabledProvider = StateProvider<bool>((ref) => true);
-
-/// Computed provider that suggests a quality adjustment based on performance.
-///
-/// Returns:
-/// - 1 if performance is good and quality could be increased
-/// - 0 if performance is acceptable
-/// - -1 if performance is low and quality should be decreased
-final qualityAdjustmentSuggestionProvider = Provider<int>((ref) {
-  final autoEnabled = ref.watch(autoQualityEnabledProvider);
-  if (!autoEnabled) return 0;
-
-  final monitor = ref.watch(performanceMonitorProvider);
-  if (monitor.sampleCount < 10) return 0; // Not enough data
-
-  if (monitor.isPerformanceLow) return -1;
-  if (monitor.isPerformanceGood) return 1;
-  return 0;
-});

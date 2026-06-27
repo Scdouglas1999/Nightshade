@@ -10,9 +10,6 @@
 // Does NOT own:
 //   * Centering tolerance / framing-assistant defaults — those live in the
 //     CenteringService config, not in app settings.
-//   * The standalone [PlateSolveSettings] / [PlateSolveSettingsNotifier]
-//     sibling provider at the bottom of the main settings_provider.dart
-//     (kept for legacy backwards compatibility).
 part of '../settings_provider.dart';
 
 /// Setters for plate-solver defaults.
