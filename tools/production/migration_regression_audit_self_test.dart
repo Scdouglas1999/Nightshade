@@ -15,7 +15,9 @@ Future<void> main() async {
   );
   try {
     await _writePassingFixture(temp);
-    await _runAudit(script, temp);
+    // Presence-only cases skip the behavioral run; the behavioral path is
+    // exercised separately below against a real runnable test.
+    await _runAudit(script, temp, skipTestRun: true);
     final passing = _readJson(
       temp,
       'docs/production-readiness/migration-regression-audit.json',
@@ -31,7 +33,12 @@ Future<void> main() async {
     );
 
     await _writeFailingFixture(temp);
-    final failingResult = await _runAudit(script, temp, allowFailure: true);
+    final failingResult = await _runAudit(
+      script,
+      temp,
+      allowFailure: true,
+      skipTestRun: true,
+    );
     _expect(failingResult.exitCode == 1, 'failing fixture should fail');
     final failing = _readJson(
       temp,
@@ -52,7 +59,123 @@ Future<void> main() async {
       'failing report should include manual probe separation issue',
     );
 
+    await _runBehavioralCases(script);
+
     stdout.writeln('Migration regression audit self-test passed.');
+  } finally {
+    await temp.delete(recursive: true);
+  }
+}
+
+/// Verifies the behavioral guarantee: the audit runs the referenced migration
+/// test and goes red when that test fails. A self-contained runnable test
+/// stands in for `database_migration_test.dart` so the check is fast and does
+/// not require the full app toolchain, while exercising the same code path
+/// (process exit code -> audit issue) that the real suite drives in CI.
+Future<void> _runBehavioralCases(File script) async {
+  final temp = await Directory.systemTemp.createTemp(
+    'nightshade_migration_regression_audit_behavioral_',
+  );
+  try {
+    await _writePassingFixture(temp);
+    await _writeFile(temp, 'pubspec.yaml', '''
+name: nightshade_migration_audit_behavioral_fixture
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+dev_dependencies:
+  test: any
+''');
+    final getResult = await Process.run('dart', [
+      'pub',
+      'get',
+    ], workingDirectory: temp.path);
+    _expect(
+      getResult.exitCode == 0,
+      'behavioral fixture pub get should succeed:\n${getResult.stderr}',
+    );
+
+    Future<Map<String, dynamic>> runWithMigrationTest(String body) async {
+      // The audit reads this same file for both the substring-presence check
+      // and the behavioral run, so the runnable test must also carry the
+      // required named cases to keep the presence check green and isolate the
+      // behavioral signal under test.
+      await _writeFile(
+        temp,
+        'packages/nightshade_core/test/services/database_migration_test.dart',
+        '$body\n${_requiredTestPresenceLiterals()}',
+      );
+      await _runAudit(
+        script,
+        temp,
+        allowFailure: true,
+        extraArgs: const [
+          '--test-command',
+          'dart test --reporter json',
+          '--test-workdir',
+          '.',
+        ],
+      );
+      return _readJson(
+        temp,
+        'docs/production-readiness/migration-regression-audit.json',
+      );
+    }
+
+    // Intact assertion: the audit's behavioral run is green.
+    final greenReport = await runWithMigrationTest('''
+import 'package:test/test.dart';
+
+void main() {
+  test('migration preserves the upgraded value', () {
+    expect(2 + 2, equals(4));
+  });
+}
+''');
+    final greenBehavioral =
+        greenReport['behavioral'] as Map<String, dynamic>? ?? const {};
+    _expect(
+      greenBehavioral['ran'] == true,
+      'behavioral run should execute when not skipped',
+    );
+    _expect(
+      greenBehavioral['passed'] == true,
+      'intact migration test should keep the behavioral run green',
+    );
+    _expect(
+      (greenBehavioral['passedCount'] as num? ?? 0) >= 1,
+      'intact migration test should report at least one passing test',
+    );
+
+    // Gut the assertion: the same test now fails, so the audit must fail too.
+    final redReport = await runWithMigrationTest('''
+import 'package:test/test.dart';
+
+void main() {
+  test('migration preserves the upgraded value', () {
+    // Assertion gutted: the migration invariant is no longer checked.
+    expect(2 + 2, equals(5));
+  });
+}
+''');
+    _expect(
+      redReport['passed'] == false,
+      'gutting the migration test assertion must fail the audit',
+    );
+    final redBehavioral =
+        redReport['behavioral'] as Map<String, dynamic>? ?? const {};
+    _expect(
+      redBehavioral['passed'] == false,
+      'gutted migration test should fail the behavioral run',
+    );
+    _expect(
+      (redBehavioral['exitCode'] as num? ?? 0) != 0,
+      'gutted migration test should yield a non-zero test exit code',
+    );
+    final redIssues = (redReport['issues'] as List? ?? const []).join('\n');
+    _expect(
+      redIssues.contains('Behavioral migration tests failed'),
+      'gutted migration test should surface a behavioral failure issue',
+    );
   } finally {
     await temp.delete(recursive: true);
   }
@@ -169,10 +292,18 @@ Future<ProcessResult> _runAudit(
   File script,
   Directory root, {
   bool allowFailure = false,
+  bool skipTestRun = false,
+  List<String> extraArgs = const [],
 }) async {
   final result = await Process.run(
     'dart',
-    [script.path, '--root', root.path],
+    [
+      script.path,
+      '--root',
+      root.path,
+      if (skipTestRun) '--skip-test-run',
+      ...extraArgs,
+    ],
     workingDirectory: root.path,
     runInShell: Platform.isWindows,
   );
@@ -184,6 +315,41 @@ Future<ProcessResult> _runAudit(
     );
   }
   return result;
+}
+
+/// The named cases the audit's substring check requires of the migration test
+/// file, emitted as a comment so a runnable behavioral test still satisfies the
+/// presence check without those strings affecting test execution.
+String _requiredTestPresenceLiterals() {
+  const required = [
+    'synthetic schema 17 image fixture preserves metadata cascade',
+    'SyntheticOldProfileFixture.schema17WithCapturedImageMetadata',
+    'Migration v18 should restore image metadata cascade delete',
+    'Upgraded legacy image metadata should cascade on image delete',
+    'synthetic schema 20 profile fixture normalizes active and optics',
+    'SyntheticOldProfileFixture.schema20WithDuplicateActiveProfiles',
+    'equals(db.schemaVersion)',
+    'Migration v21 should keep only the newest active profile',
+    'idx_profiles_single_active',
+    'Upgraded legacy databases should reject another active',
+    'telescopeFocalLength',
+    'telescopeAperture',
+    'focalLength',
+    'aperture',
+    'synthetic schema 20 science fixture deduplicates session configs',
+    '.schema20WithDuplicateScienceSessionConfigs',
+    'Migration v21 should dedupe science session configs',
+    'idx_science_session_config_session_unique',
+    'Upgraded legacy databases should reject another config',
+    'synthetic schema 20 weather fixture deduplicates singleton settings',
+    '.schema20WithDuplicateWeatherSettings',
+    'primary singleton row on first settings access',
+    'weatherSettingsDao.getOrCreateSettings',
+    'legacy_primary',
+    'schema 12 database upgrades to the complete current table set',
+    'fresh and upgraded databases converge on the same default settings',
+  ];
+  return required.map((line) => '// $line').join('\n');
 }
 
 Future<void> _writeFile(
