@@ -374,7 +374,12 @@ class _ImagePainterWidgetState extends State<_ImagePainterWidget> {
   void didUpdateWidget(_ImagePainterWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.image != widget.image) {
+      // Clear the field BEFORE disposing so an in-flight decode callback can
+      // never observe (and re-use) a handle we are about to release; then free
+      // the previous frame's native image before decoding the new one.
+      final previous = _decoded;
       _decoded = null;
+      previous?.dispose();
       _decode();
     }
   }
@@ -387,10 +392,28 @@ class _ImagePainterWidgetState extends State<_ImagePainterWidget> {
       img.height,
       ui.PixelFormat.rgba8888,
       (decoded) {
-        if (!mounted) return;
-        setState(() => _decoded = decoded);
+        if (!mounted) {
+          // The widget went away (or was rebuilt for a new image) before this
+          // decode landed — drop the freshly decoded native image instead of
+          // leaking it.
+          decoded.dispose();
+          return;
+        }
+        setState(() {
+          // A prior frame may still be held (e.g. two decodes in flight after
+          // rapid updates); release it before adopting the new one.
+          _decoded?.dispose();
+          _decoded = decoded;
+        });
       },
     );
+  }
+
+  @override
+  void dispose() {
+    _decoded?.dispose();
+    _decoded = null;
+    super.dispose();
   }
 
   @override

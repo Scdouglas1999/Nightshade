@@ -262,77 +262,27 @@ mixin _MobileDiscoveryOps on _MobileConnectionState {
 
     final dialogContext = _connectionUiContext;
     if (dialogContext == null || !dialogContext.mounted) return;
-    final relayController = TextEditingController(text: initialRelayUrl);
-    final idController = TextEditingController(text: initialApplianceId);
-    var allowInsecure = initialAllowInsecure;
 
-    final submitted = await showDialog<bool>(
-      context: dialogContext,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setLocal) => AlertDialog(
-            title: const Text('Connect via Relay'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'Reach your rig from anywhere through a self-hosted '
-                  'Nightshade relay — no VPN or port forwarding. The appliance '
-                  'id is printed by the headless daemon on first connect.',
-                  style: TextStyle(fontSize: 13),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: relayController,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                  keyboardType: TextInputType.url,
-                  decoration: const InputDecoration(
-                    labelText: 'Relay URL',
-                    hintText: 'wss://relay.example.com',
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: idController,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                  decoration: const InputDecoration(
-                    labelText: 'Appliance id',
-                    hintText: 'xxxx-xxxx-xxxx',
-                  ),
-                ),
-                const SizedBox(height: 8),
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  value: allowInsecure,
-                  onChanged: (v) => setLocal(() => allowInsecure = v ?? false),
-                  title: const Text(
-                    'Trust self-signed relay TLS',
-                    style: TextStyle(fontSize: 13),
-                  ),
-                  controlAffinity: ListTileControlAffinity.leading,
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
-                child: const Text('Connect'),
-              ),
-            ],
+    // The dialog owns its text controllers for the lifetime of the route (see
+    // [_RelayConnectDialog]) so they are disposed exactly once, when the route
+    // is torn down — after the dismiss animation. Disposing them the instant
+    // showDialog resolves would race that animation, which still rebuilds the
+    // fields, and throw a use-after-dispose.
+    final result =
+        await showDialog<
+          ({String relayUrl, String applianceId, bool allowInsecure})
+        >(
+          context: dialogContext,
+          builder: (_) => _RelayConnectDialog(
+            initialRelayUrl: initialRelayUrl,
+            initialApplianceId: initialApplianceId,
+            initialAllowInsecure: initialAllowInsecure,
           ),
         );
-      },
-    );
 
-    if (submitted != true) return;
-    final relayUrl = relayController.text.trim();
-    final applianceId = idController.text.trim();
+    if (result == null) return;
+    final relayUrl = result.relayUrl.trim();
+    final applianceId = result.applianceId.trim();
     if (relayUrl.isEmpty || applianceId.isEmpty) {
       setState(() => _error = 'Enter both a relay URL and an appliance id.');
       return;
@@ -340,7 +290,7 @@ mixin _MobileDiscoveryOps on _MobileConnectionState {
     await _connectViaRelay(
       relayUrl: relayUrl,
       applianceId: applianceId,
-      allowInsecureTls: allowInsecure,
+      allowInsecureTls: result.allowInsecure,
     );
   }
 
@@ -637,5 +587,107 @@ mixin _MobileDiscoveryOps on _MobileConnectionState {
     }
 
     await _connectToServer(server);
+  }
+}
+
+/// Relay-connect dialog. Owns its text controllers for the lifetime of the
+/// route so they are disposed exactly once, when the route is torn down —
+/// after the dismiss animation. Pops a `(relayUrl, applianceId,
+/// allowInsecure)` record on Connect, or `null` on Cancel; the caller trims and
+/// validates the fields. (The relay URL / appliance id are read at pop time,
+/// before the controllers are disposed.)
+class _RelayConnectDialog extends StatefulWidget {
+  final String initialRelayUrl;
+  final String initialApplianceId;
+  final bool initialAllowInsecure;
+
+  const _RelayConnectDialog({
+    required this.initialRelayUrl,
+    required this.initialApplianceId,
+    required this.initialAllowInsecure,
+  });
+
+  @override
+  State<_RelayConnectDialog> createState() => _RelayConnectDialogState();
+}
+
+class _RelayConnectDialogState extends State<_RelayConnectDialog> {
+  late final TextEditingController _relayController = TextEditingController(
+    text: widget.initialRelayUrl,
+  );
+  late final TextEditingController _idController = TextEditingController(
+    text: widget.initialApplianceId,
+  );
+  late bool _allowInsecure = widget.initialAllowInsecure;
+
+  @override
+  void dispose() {
+    _relayController.dispose();
+    _idController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Connect via Relay'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Reach your rig from anywhere through a self-hosted '
+            'Nightshade relay — no VPN or port forwarding. The appliance '
+            'id is printed by the headless daemon on first connect.',
+            style: TextStyle(fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _relayController,
+            autocorrect: false,
+            enableSuggestions: false,
+            keyboardType: TextInputType.url,
+            decoration: const InputDecoration(
+              labelText: 'Relay URL',
+              hintText: 'wss://relay.example.com',
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _idController,
+            autocorrect: false,
+            enableSuggestions: false,
+            decoration: const InputDecoration(
+              labelText: 'Appliance id',
+              hintText: 'xxxx-xxxx-xxxx',
+            ),
+          ),
+          const SizedBox(height: 8),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            value: _allowInsecure,
+            onChanged: (v) => setState(() => _allowInsecure = v ?? false),
+            title: const Text(
+              'Trust self-signed relay TLS',
+              style: TextStyle(fontSize: 13),
+            ),
+            controlAffinity: ListTileControlAffinity.leading,
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop((
+            relayUrl: _relayController.text,
+            applianceId: _idController.text,
+            allowInsecure: _allowInsecure,
+          )),
+          child: const Text('Connect'),
+        ),
+      ],
+    );
   }
 }
