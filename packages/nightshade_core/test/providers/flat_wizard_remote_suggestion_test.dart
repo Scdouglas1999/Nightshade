@@ -11,14 +11,16 @@
 // These tests assert the user-visible contract that the brief pins down:
 //   - a throwing `listFlats` does not escape and break wizard init; the
 //     filter's `suggestedExposure` ends up null (manual-entry fallback);
-//   - an empty host history yields the same null suggestion.
+//   - an empty host history yields the same null suggestion;
+//   - CRUCIALLY, the two are NOT conflated: the fault path records a
+//     diagnostic, the empty-history path does not.
 //
-// The diagnostic itself is emitted via `dart:developer`'s `developer.log`,
-// which writes to the Dart VM service and is not interceptable by the
-// standard `runZoned`/print capture used in unit tests (the same constraint
-// documented in network_backend_seq_test.dart). The presence of the log line
-// is verified by inspection of `_remoteSuggestedExposure`; here we lock in the
-// behavioural contract — load succeeds, no rethrow, null fallback.
+// The production diagnostic is emitted via `dart:developer`'s `developer.log`,
+// which writes to the Dart VM service and is not interceptable by the standard
+// `runZoned`/print capture used in unit tests. To pin which fault occurred we
+// inject the notifier's `debugRemoteFaultSink` (a test-only seam that fires on
+// the SAME catch branch as the `developer.log` line) and assert it fires on the
+// fault path and stays silent on the empty-history path.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -78,16 +80,19 @@ void main() {
     'remote listFlats throwing does not break wizard init; suggestion is null',
     () async {
       final backend = _MockNetworkBackend();
+      final thrown = Exception('host unreachable');
       when(
         () => backend.listFlats(
           filter: any(named: 'filter'),
           equipmentProfileId: any(named: 'equipmentProfileId'),
           limit: any(named: 'limit'),
         ),
-      ).thenThrow(Exception('host unreachable'));
+      ).thenThrow(thrown);
 
       final container = makeContainer(backend);
       final notifier = container.read(flatWizardProvider.notifier);
+      final faults = <Object>[];
+      notifier.debugRemoteFaultSink = faults.add;
 
       // Must complete without the transport exception escaping.
       await notifier.loadFiltersFromWheel();
@@ -99,6 +104,14 @@ void main() {
         settings.single.suggestedExposure,
         isNull,
         reason: 'fault falls back to manual entry (null suggestion)',
+      );
+      // The fault path is DISTINGUISHED from empty history: the diagnostic
+      // fired exactly once, carrying the underlying transport error.
+      expect(
+        faults,
+        equals([thrown]),
+        reason: 'a transport fault must record a diagnostic, not be silently '
+            'treated as empty history',
       );
     },
   );
@@ -115,11 +128,20 @@ void main() {
 
     final container = makeContainer(backend);
     final notifier = container.read(flatWizardProvider.notifier);
+    final faults = <Object>[];
+    notifier.debugRemoteFaultSink = faults.add;
 
     await notifier.loadFiltersFromWheel();
 
     final settings = container.read(flatWizardProvider).filterSettings;
     expect(settings, hasLength(1));
     expect(settings.single.suggestedExposure, isNull);
+    // Empty history is the NON-fault path: no diagnostic is recorded. This is
+    // the assertion the old test lacked — it could not tell the two apart.
+    expect(
+      faults,
+      isEmpty,
+      reason: 'an empty host history must NOT record a fault diagnostic',
+    );
   });
 }

@@ -1,13 +1,18 @@
 // Dart side of the Rust↔Dart scoring parity contract.
 //
-// The Rust port lives at `native/nightshade_native/sequencer/src/scheduling/`.
-// `target_scheduler.rs::tests::rust_dart_scoring_parity_fixture` pins the
-// SAME observer / target / time tuple and asserts that the SAME altitude
-// score lands on the SAME Dart-defined piecewise breakpoint. Here we run
-// the Dart-side scorer against the same fixture and document the answer.
+// The Rust port lives at `native/nightshade_native/sequencer/src/scheduling/
+// scoring.rs::score_altitude`. This test is a REAL cross-language canary:
+//   * it drives the production Dart scorer (`TargetScoringService`, via the
+//     `debugScoreAltitude` seam) — NOT a re-implementation that can only ever
+//     agree with itself, and
+//   * it derives the EXPECTED values by parsing the breakpoints/slopes out of
+//     the Rust `score_altitude` source, so editing either side without the
+//     other trips the test.
 //
-// The two implementations are independently maintained — the test is a
-// canary: if either drifts, this test will surface the divergence.
+// If the native tree is absent (some CI shards strip it), the Rust-derived
+// arm is skipped, but the production-scorer pins below still run.
+
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
@@ -32,16 +37,18 @@ class _Fixture implements CelestialObject {
 
 void main() {
   group('Rust↔Dart scoring parity', () {
-    test('M42 score components track the published piecewise', () {
-      // SAME values as the Rust fixture in
-      // `native/nightshade_native/sequencer/src/node/logic/target_scheduler.rs::rust_dart_scoring_parity_fixture`.
+    test('public scoreTarget routes altitude through the real piecewise', () {
+      // Contract: TargetScore.altitudeScore from the PUBLIC scoreTarget path is
+      // exactly what the production `_scoreAltitude` piecewise (exposed via the
+      // `debugScoreAltitude` seam) yields for that frame's current altitude.
+      // This ties the seam used by the parity assertions below to the same code
+      // the real scorer runs — so neither can drift from the other unnoticed.
       final observer = DateTime.utc(2026, 1, 15, 6, 0, 0);
       const m42 = _Fixture(
         id: 'm42',
         name: 'M42',
         coordinates: CelestialCoordinate(ra: 5.5880, dec: -5.39),
       );
-      // Moon ~Pleiades region.
       const moon = (75.0, 18.0);
 
       final service = TargetScoringService(
@@ -53,30 +60,47 @@ void main() {
       );
       final score = service.scoreTarget(m42);
 
-      // The Dart implementation's `_scoreAltitude` piecewise — replicated
-      // here so the test asserts identity-on-formula rather than a
-      // hand-computed answer that needs maintenance every time the
-      // breakpoint changes.
-      double expectedAltitudeScore(double alt) {
-        if (alt < 0) return 0;
-        if (alt < 15) return alt * 2;
-        if (alt < 30) return 30 + (alt - 15) * 2;
-        if (alt < 60) return 60 + (alt - 30) * 1.33;
-        return 100;
-      }
-
       final currentAlt = score.visibility.currentAltitude;
-      final expected = expectedAltitudeScore(currentAlt);
+      // No re-implementation: assert the PUBLIC result equals the REAL private
+      // scorer for the same altitude.
       expect(
-        (score.altitudeScore - expected).abs() < 1e-9,
-        isTrue,
+        score.altitudeScore,
+        service.debugScoreAltitude(currentAlt),
         reason:
-            'altitude_score must follow the published piecewise exactly. '
-            'Got ${score.altitudeScore}, expected $expected at alt=$currentAlt',
+            'scoreTarget.altitudeScore must come straight from _scoreAltitude',
       );
       expect(score.totalScore.isFinite, isTrue);
-      // Sanity: total score is in [0, 100].
       expect(score.totalScore >= 0 && score.totalScore <= 100, isTrue);
+    });
+
+    test('real scorer reproduces the published altitude anchors', () {
+      // Drive the PRODUCTION piecewise (via the seam) at hand-anchored
+      // altitudes and assert exact outputs. These anchors are the published
+      // contract {0->0, 7.5->15, 15->30, 30->60, >=60->100} plus two interior
+      // points; if the production formula changes, this fails.
+      final service = TargetScoringService(
+        latitude: 40.0,
+        longitude: -74.0,
+        observationTime: DateTime.utc(2026, 1, 15, 6, 0, 0),
+      );
+      const anchors = <(double, double)>[
+        (-10.0, 0.0),
+        (0.0, 0.0),
+        (7.5, 15.0),
+        (15.0, 30.0),
+        (22.5, 45.0), // 30 + 7.5*2
+        (30.0, 60.0),
+        (45.0, 79.95), // 60 + 15*1.33
+        (60.0, 100.0),
+        (89.0, 100.0),
+      ];
+      for (final (alt, expected) in anchors) {
+        expect(
+          service.debugScoreAltitude(alt),
+          closeTo(expected, 1e-9),
+          reason: 'real _scoreAltitude($alt) must equal $expected',
+        );
+      }
     });
 
     test(
@@ -156,48 +180,102 @@ void main() {
       );
     });
 
-    test('altitude piecewise breakpoints', () {
-      // Same anchor values as the Rust test — guards against either side
-      // drifting from the published shape.
-      final observer = DateTime.utc(2026, 1, 15, 6, 0, 0);
+    test('real Dart scorer matches the Rust score_altitude source', () {
+      // CROSS-LANGUAGE canary. Parse the Rust `score_altitude` piecewise and
+      // build the EXPECTED closure from the parsed breakpoints/slopes, then run
+      // the REAL Dart scorer over a sweep and assert agreement. Editing either
+      // side's constants without the other trips this.
+      final candidates = [
+        File(
+          '../../native/nightshade_native/sequencer/src/scheduling/scoring.rs',
+        ),
+        File(
+          '${Directory.current.path}/../../native/nightshade_native/sequencer/'
+          'src/scheduling/scoring.rs',
+        ),
+      ];
+      final rustFile = candidates.firstWhere(
+        (f) => f.existsSync(),
+        orElse: () => candidates.first,
+      );
+      if (!rustFile.existsSync()) {
+        // Native tree stripped on this shard; the production-scorer pins above
+        // still guard the Dart side. Skip the cross-language arm.
+        return;
+      }
+      final src = rustFile.readAsStringSync();
+
+      // Isolate the `fn score_altitude(...) { ... }` body.
+      final fnMatch = RegExp(
+        r'fn score_altitude\(altitude: f64\) -> f64 \{(.*?)\n\}',
+        dotAll: true,
+      ).firstMatch(src);
+      expect(
+        fnMatch,
+        isNotNull,
+        reason: 'could not locate Rust fn score_altitude in scoring.rs',
+      );
+      final body = fnMatch!.group(1)!;
+
+      // Breakpoints, in source order: `if altitude < <X>`.
+      final breakpoints = RegExp(r'altitude < ([0-9.]+)')
+          .allMatches(body)
+          .map((m) => double.parse(m.group(1)!))
+          .toList();
+      // Slope of the first linear segment: `return altitude * <slope>`.
+      final slope0 = double.parse(
+        RegExp(r'return altitude \* ([0-9.]+)').firstMatch(body)!.group(1)!,
+      );
+      // Subsequent segments: `return <base> + (altitude - <pivot>) * <slope>`.
+      final segments = RegExp(
+        r'return ([0-9.]+) \+ \(altitude - ([0-9.]+)\) \* ([0-9.]+)',
+      ).allMatches(body).map((m) {
+        return (
+          base: double.parse(m.group(1)!),
+          pivot: double.parse(m.group(2)!),
+          slope: double.parse(m.group(3)!),
+        );
+      }).toList();
+      // Terminal constant: the bare `100.0` (or similar) returned at the top.
+      final terminal = double.parse(
+        RegExp(r'\n\s*([0-9.]+)\s*\n\}', dotAll: true)
+            .firstMatch('$body\n}')!
+            .group(1)!,
+      );
+
+      // Pin the SHAPE so a reshaped piecewise (added/removed branch) trips the
+      // structural expectation rather than silently passing.
+      expect(breakpoints, [0.0, 15.0, 30.0, 60.0]);
+      expect(segments, hasLength(2));
+
+      // Reconstruct the oracle FROM the parsed Rust constants.
+      double expectedFromRust(double alt) {
+        if (alt < breakpoints[0]) return 0.0;
+        if (alt < breakpoints[1]) return alt * slope0;
+        if (alt < breakpoints[2]) {
+          return segments[0].base + (alt - segments[0].pivot) * segments[0].slope;
+        }
+        if (alt < breakpoints[3]) {
+          return segments[1].base + (alt - segments[1].pivot) * segments[1].slope;
+        }
+        return terminal;
+      }
+
       final service = TargetScoringService(
         latitude: 40.0,
         longitude: -74.0,
-        observationTime: observer,
+        observationTime: DateTime.utc(2026, 1, 15, 6, 0, 0),
       );
-      // Use a zenith target (RA close to current LST) to land at high
-      // altitude; we only care that the piecewise produces consistent
-      // values across the [0, 60] segments.
-      for (final input in [
-        (0.0, 0.0),
-        (7.5, 15.0),
-        (15.0, 30.0),
-        (30.0, 60.0),
-        (60.0, 100.0),
-        (89.0, 100.0),
+      for (final alt in [
+        -5.0, 0.0, 5.0, 7.5, 14.999, 15.0, 22.5, 29.999, 30.0,
+        45.0, 59.999, 60.0, 75.0, 89.9,
       ]) {
-        final alt = input.$1;
-        final expected = input.$2;
-        // Score the altitude directly through the same internal piecewise
-        // by short-circuiting via a synthetic visibility.
-        // The service exposes only `scoreTarget(obj)` so we recompute the
-        // piecewise locally — same formula as in the service.
-        double piecewise(double a) {
-          if (a < 0) return 0;
-          if (a < 15) return a * 2;
-          if (a < 30) return 30 + (a - 15) * 2;
-          if (a < 60) return 60 + (a - 30) * 1.33;
-          return 100;
-        }
-
         expect(
-          (piecewise(alt) - expected).abs() < 1e-9,
-          isTrue,
-          reason: 'piecewise($alt) = ${piecewise(alt)}, expected $expected',
+          service.debugScoreAltitude(alt),
+          closeTo(expectedFromRust(alt), 1e-9),
+          reason: 'Dart scorer must match Rust score_altitude at alt=$alt',
         );
       }
-      // Suppress unused warning.
-      service.toString();
     });
   });
 }

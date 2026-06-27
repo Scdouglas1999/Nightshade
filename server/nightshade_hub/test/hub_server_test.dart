@@ -474,30 +474,56 @@ void main() {
     },
   );
 
-  test('an unhandled error does not leak internal detail to the client', () async {
-    final token =
-        (await jsonOf(
-              await req(
-                'POST',
-                '/v1/accounts',
-                jsonBody: <String, Object?>{
-                  'publicKey': 'e',
-                  'displayName': 'E',
-                },
-              ),
-            ))['bearerToken']
-            as String;
-    // A body too short to be a valid tile triggers a deserialize path; a truly
-    // unhandled error returns the generic message, never the raw exception text.
-    final r = await req('GET', '/v1/tiles/abc?order=9', token: token);
-    // (tileId 'abc' is a 400 by validation; the point of this test is the body
-    // never echoes a stack/exception type.)
-    final body = await jsonOf(r);
-    final err = body['error'] as Map?;
-    if (err != null && err['code'] == 'internal') {
-      expect((err['message'] as String), 'internal error');
-      expect((err['message'] as String), isNot(contains('Exception')));
-    }
+  test('unhandled error is redacted to a generic 500 by the error trap',
+      () async {
+    // Drive the REAL production middleware ([hubErrorTrapMiddleware], the same
+    // one HubServer installs) around a handler that throws an exception whose
+    // text embeds exactly the kind of internal detail we must never leak: an
+    // absolute path, a SQL fragment, and the exception type name.
+    const secret =
+        'StateError: /var/lib/nightshade/hub.sqlite SELECT token FROM accounts';
+    final trapped = hubErrorTrapMiddleware()(
+      (Request request) async => throw StateError(secret),
+    );
+
+    final response = await trapped(
+      Request('GET', Uri.parse('http://localhost/v1/anything')),
+    );
+    final raw = await response.readAsString();
+
+    // Status + stable envelope: a true 500 with the canonical code/message.
+    expect(response.statusCode, 500);
+    final body = jsonDecode(raw) as Map<String, Object?>;
+    final err = body['error'] as Map<String, Object?>;
+    expect(err['code'], 'internal');
+    expect(err['message'], 'internal error');
+
+    // Redaction: the serialized response must NOT echo any fragment of the
+    // thrown exception — not the path, not the SQL, not the type name.
+    expect(raw, isNot(contains('hub.sqlite')));
+    expect(raw, isNot(contains('SELECT')));
+    expect(raw, isNot(contains('StateError')));
+    expect(raw, isNot(contains('/var/lib')));
+  });
+
+  test('error trap still maps validation faults to their own codes', () async {
+    // The redaction path must be specific to TRULY-unhandled errors: a
+    // TileCodecException keeps its 400/409 code+message, and a FormatException
+    // becomes a 400 — neither is flattened into the generic 500.
+    final fmtTrap = hubErrorTrapMiddleware()(
+      (Request request) async => throw const FormatException('bad token'),
+    );
+    final fmt = await fmtTrap(
+      Request('POST', Uri.parse('http://localhost/v1/x')),
+    );
+    expect(fmt.statusCode, 400);
+    final fmtBody =
+        jsonDecode(await fmt.readAsString()) as Map<String, Object?>;
+    expect((fmtBody['error'] as Map)['code'], 'badRequest');
+    // The FormatException message IS surfaced here (it is caller-facing input
+    // validation, not an internal fault) — proving the 500 redaction above is
+    // not simply blanking every body.
+    expect((fmtBody['error'] as Map)['message'], contains('bad token'));
   });
 
   test('repeated failed logins lock the account out (429)', () async {

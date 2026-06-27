@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
 import '../astronomy/astronomy_calculations.dart';
 import '../celestial_object.dart';
 import 'weighted_score.dart';
@@ -511,6 +513,13 @@ class TargetScoringService {
       targets,
     ).where((s) => s.totalScore >= minScore).take(maxResults).toList();
   }
+
+  /// Test-only seam exposing the private altitude piecewise so the
+  /// Rust<->Dart parity test can drive the REAL production scorer (not a
+  /// re-implementation that can never disagree with itself). Behaviour is
+  /// unchanged in production — nothing else calls this.
+  @visibleForTesting
+  double debugScoreAltitude(double altitude) => _scoreAltitude(altitude);
 
   double _scoreAltitude(double altitude) {
     if (altitude < 0) return 0;

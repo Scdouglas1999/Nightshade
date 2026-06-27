@@ -231,38 +231,7 @@ class HubServer {
     };
   }
 
-  Middleware _errorTrapMiddleware() {
-    return (Handler inner) {
-      return (Request request) async {
-        final requestId = request.context['requestId'] as String?;
-        try {
-          return await inner(request);
-        } on TileCodecException catch (e) {
-          final status = _isConflictCode(e.code) ? 409 : 400;
-          return HubError(
-            status,
-            e.code,
-            e.message,
-          ).toResponse(requestId: requestId);
-        } on FormatException catch (e) {
-          return HubError.badRequest(
-            'malformed JSON: ${e.message}',
-          ).toResponse(requestId: requestId);
-        } catch (e, stack) {
-          // Never leak internal exception text (which routinely embeds absolute
-          // filesystem paths, SQL fragments, and type internals) to an untrusted
-          // caller. Log the full detail server-side keyed to the requestId so an
-          // operator can correlate, and return a generic, stable message.
-          stderr.writeln(
-            '[hub] unhandled error (requestId=${requestId ?? '-'}): $e\n$stack',
-          );
-          return HubError.internal(
-            'internal error',
-          ).toResponse(requestId: requestId);
-        }
-      };
-    };
-  }
+  Middleware _errorTrapMiddleware() => hubErrorTrapMiddleware();
 
   Middleware _rateLimitMiddleware() {
     return (Handler inner) {
@@ -948,4 +917,43 @@ class HubServer {
         code == 'channelMismatch' ||
         code == 'idMismatch';
   }
+}
+
+/// The production error-trap middleware, extracted to top level so its
+/// redaction contract is unit-testable without standing up the full server +
+/// DB. [HubServer] installs this verbatim ([HubServer._errorTrapMiddleware]).
+///
+/// Maps a [TileCodecException] to its 400/409 envelope and a [FormatException]
+/// to a 400, but converts any OTHER thrown error into a generic 500
+/// (`internal error`) that NEVER echoes the underlying exception text or stack
+/// to the caller (those routinely embed absolute filesystem paths, SQL
+/// fragments, and type internals). The full detail is logged server-side keyed
+/// to the requestId so an operator can still correlate.
+Middleware hubErrorTrapMiddleware() {
+  return (Handler inner) {
+    return (Request request) async {
+      final requestId = request.context['requestId'] as String?;
+      try {
+        return await inner(request);
+      } on TileCodecException catch (e) {
+        final status = HubServer._isConflictCode(e.code) ? 409 : 400;
+        return HubError(
+          status,
+          e.code,
+          e.message,
+        ).toResponse(requestId: requestId);
+      } on FormatException catch (e) {
+        return HubError.badRequest(
+          'malformed JSON: ${e.message}',
+        ).toResponse(requestId: requestId);
+      } catch (e, stack) {
+        stderr.writeln(
+          '[hub] unhandled error (requestId=${requestId ?? '-'}): $e\n$stack',
+        );
+        return HubError.internal(
+          'internal error',
+        ).toResponse(requestId: requestId);
+      }
+    };
+  };
 }

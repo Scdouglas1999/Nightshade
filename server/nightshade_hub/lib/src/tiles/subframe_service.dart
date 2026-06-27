@@ -69,6 +69,35 @@ class SubframeService {
     );
   }
 
+  /// Read the persisted ledger row for [contributionId], or null if none.
+  ///
+  /// Read-only. Lets callers (and the regression suite) confirm the exact
+  /// provenance recorded for a stored subframe — the tile/order it landed on,
+  /// the originating capture, instrument, exposure, and byte count — rather
+  /// than only that the receipt round-tripped.
+  SubframeLedgerEntry? ledgerRow(String contributionId) {
+    final rows = _db.db.select(
+      'SELECT contribution_id, account_id, tile_id, healpix_order, '
+      'captured_image_id, path, bytes, instrument, exposure_seconds, '
+      'received_at FROM raw_subframe_contributions WHERE contribution_id = ?;',
+      <Object?>[contributionId],
+    );
+    if (rows.isEmpty) return null;
+    final r = rows.first;
+    return SubframeLedgerEntry(
+      contributionId: r['contribution_id'] as String,
+      accountId: r['account_id'] as String,
+      tileId: r['tile_id'] as int,
+      healpixOrder: r['healpix_order'] as int,
+      capturedImageId: r['captured_image_id'] as int?,
+      path: r['path'] as String,
+      bytes: r['bytes'] as int,
+      instrument: r['instrument'] as String?,
+      exposureSeconds: (r['exposure_seconds'] as num?)?.toDouble(),
+      receivedAt: r['received_at'] as String,
+    );
+  }
+
   /// Delete a stored subframe (file + ledger row). [requesterId] non-null scopes
   /// the delete to the owner; null (admin) may delete anyone's. Throws
   /// [SubframeNotFound] / [SubframeForbidden] for a clean handler mapping.
@@ -109,6 +138,33 @@ class SubframeReceipt {
     'accepted': accepted,
     'storedBytes': storedBytes,
   };
+}
+
+/// A persisted raw-subframe ledger row (`raw_subframe_contributions`).
+class SubframeLedgerEntry {
+  const SubframeLedgerEntry({
+    required this.contributionId,
+    required this.accountId,
+    required this.tileId,
+    required this.healpixOrder,
+    required this.capturedImageId,
+    required this.path,
+    required this.bytes,
+    required this.instrument,
+    required this.exposureSeconds,
+    required this.receivedAt,
+  });
+
+  final String contributionId;
+  final String accountId;
+  final int tileId;
+  final int healpixOrder;
+  final int? capturedImageId;
+  final String path;
+  final int bytes;
+  final String? instrument;
+  final double? exposureSeconds;
+  final String receivedAt;
 }
 
 /// No raw subframe with the given id exists.

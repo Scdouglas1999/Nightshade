@@ -1,5 +1,6 @@
 import 'dart:developer' as developer;
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../backend/network_backend.dart';
 import '../models/flat_wizard/flat_wizard_state.dart';
@@ -24,6 +25,14 @@ final skyBrightnessTrackerProvider = Provider<SkyBrightnessTracker>((ref) {
 class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
   final Ref ref;
   bool _cancelRequested = false;
+
+  /// Test-only diagnostic sink. When set, the remote flat-history fault path
+  /// invokes this with the caught error IN ADDITION to `developer.log`, so a
+  /// test can prove a transport fault was distinguished from an empty host
+  /// history (it fires on the fault path and stays silent on empty history).
+  /// Null in production — behaviour is unchanged.
+  @visibleForTesting
+  void Function(Object error)? debugRemoteFaultSink;
 
   FlatWizardNotifier(this.ref) : super(const FlatWizardState());
 
@@ -149,6 +158,7 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
         level: 900,
         error: e,
       );
+      debugRemoteFaultSink?.call(e);
       return null;
     }
   }

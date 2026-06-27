@@ -344,7 +344,8 @@ export 'src/services/imaging_records_repository.dart'
     show
         ImagingRecordsRepository,
         imagingRecordsRepositoryProvider,
-        SolvedFrameFoldHook;
+        SolvedFrameFoldHook,
+        applyAtlasFoldDedup;
 export 'src/services/imaging_service.dart';
 export 'src/services/stretch_pipeline_service.dart';
 export 'src/services/thumbnail_sidecar_service.dart';

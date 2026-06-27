@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:drift/drift.dart' show Value;
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' show apiReadFitsFile;
 
@@ -19,6 +20,7 @@ import '../providers/sky_atlas_provider.dart';
 import '../providers/transient_detections_provider.dart';
 import '../services/logging_service.dart';
 import '../services/sky_atlas/sky_atlas_models.dart';
+import '../services/sky_atlas/sky_atlas_service.dart' show SkyAtlasService;
 import '../services/transients/transient_candidate.dart';
 import '../utils/coordinate_format.dart';
 import '../services/wcs/gnomonic_projection.dart' show SolvedWcs;
@@ -646,6 +648,38 @@ ProducingNodeThumbnail _producingThumbnailFromApiJson(
 
 /// Repository provider — local DAOs or remote host API.
 ///
+/// The Pillar A ("Your Sky") fold-dedup gate, factored out of the local
+/// solve-persist hook so the production path and its regression test exercise
+/// the SAME logic instead of a re-implementation.
+///
+/// Contract: fold the freshly-solved [image] into the personal sky atlas only
+/// when it has not already been folded ([db.CapturedImage.atlasFoldedAt] is
+/// null), and stamp the dedup marker only after a fold that actually ran
+/// (a null summary means the row was not foldable — e.g. no invertible WCS —
+/// so the marker stays unset and a later, better solve can still fold it).
+/// Returns the fold summary, or null when skipped/not foldable.
+@visibleForTesting
+Future<AtlasFoldSummary?> applyAtlasFoldDedup({
+  required db.CapturedImage image,
+  required ImagesDao imagesDao,
+  required SkyAtlasService atlas,
+  required int imageWidth,
+  required int imageHeight,
+  SolvedWcsDistortion distortion = const SolvedWcsDistortion(),
+}) async {
+  if (image.atlasFoldedAt != null) return null; // already folded — dedup
+  final summary = await atlas.autoFoldCapturedImage(
+    image: image,
+    imageWidth: imageWidth,
+    imageHeight: imageHeight,
+    distortion: distortion,
+  );
+  if (summary != null) {
+    await imagesDao.stampAtlasFolded(image.id);
+  }
+  return summary;
+}
+
 /// In local mode the repository is wired with the Pillar A ("Your Sky") fold
 /// hook: every solve persisted through [ImagingRecordsRepository.updatePlateSolveResult]
 /// auto-folds that light into the personal sky atlas. The hook reads the stored
@@ -711,26 +745,18 @@ final imagingRecordsRepositoryProvider = Provider<ImagingRecordsRepository>((
         );
 
         // Fold dedup (Wave 0): a re-solved frame fires this hook again with the
-        // same captured-image id. If the row was already folded into the atlas
-        // (marker stamped), skip ONLY the fold so its photons are not
-        // double-counted. The marker is stamped after a successful fold, so a
-        // fold that throws leaves it unset and a retry can still fold.
-        if (image.atlasFoldedAt == null) {
-          final summary = await ref
-              .read(skyAtlasServiceProvider)
-              .autoFoldCapturedImage(
-                image: image,
-                imageWidth: fits.width,
-                imageHeight: fits.height,
-                distortion: distortion,
-              );
-          // Only stamp when a fold actually ran (null = not a foldable light /
-          // no invertible WCS); leaving the marker unset lets a later, better
-          // solve of the same row fold it then.
-          if (summary != null) {
-            await imagesDao.stampAtlasFolded(capturedImageId);
-          }
-        }
+        // same captured-image id. The gate (extracted to [applyAtlasFoldDedup]
+        // so the production path and its regression test run the SAME logic)
+        // folds only when the row is not already stamped, and stamps only after
+        // a fold that actually ran.
+        await applyAtlasFoldDedup(
+          image: image,
+          imagesDao: imagesDao,
+          atlas: ref.read(skyAtlasServiceProvider),
+          imageWidth: fits.width,
+          imageHeight: fits.height,
+          distortion: distortion,
+        );
       } catch (e, st) {
         logger.warning(
           'Sky-atlas auto-fold for image $capturedImageId failed: $e\n$st',

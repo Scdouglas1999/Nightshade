@@ -5,10 +5,11 @@
 // is plausible in the master/slave sync architecture). Without a dedup marker
 // the second fire double-counts that frame's photons into the atlas.
 //
-// The production guard (imaging_records_repository.dart): only fold when
+// The production guard is `applyAtlasFoldDedup` in imaging_records_repository.dart
+// (the SAME function the local solve-persist hook calls): only fold when
 // `image.atlasFoldedAt == null`, then `stampAtlasFolded(id)` after a fold that
-// actually ran. This test reproduces that exact gate against the REAL ImagesDao
-// + SkyAtlasService.autoFoldCapturedImage and proves:
+// actually ran. This test drives that REAL gate against the REAL ImagesDao +
+// SkyAtlasService.autoFoldCapturedImage and proves:
 //   * autoFoldCapturedImage dispatches a native fold exactly ONCE across two
 //     hook fires for the same row,
 //   * the tile's own-light totalFrames counts the frame once (no double-count),
@@ -97,23 +98,20 @@ void main() {
     await db.close();
   });
 
-  /// The production solve-persist fold gate, lifted verbatim from
-  /// imaging_records_repository.dart so the test exercises the SAME dedup logic:
-  /// fold only when not already folded, then stamp the marker after a fold that
-  /// actually ran. Returns the fold summary (null when skipped/not foldable).
+  /// Fetch the current row and run it through the REAL production gate
+  /// ([applyAtlasFoldDedup]) — NOT a re-implementation. The fetch is incidental
+  /// (the solve hook does the same); the dedup decision + stamp under test all
+  /// live inside the production function.
   Future<AtlasFoldSummary?> foldHookGate(int capturedImageId) async {
     final image = await imagesDao.getImageById(capturedImageId);
     if (image == null) return null;
-    if (image.atlasFoldedAt != null) return null; // dedup: already folded
-    final summary = await service.autoFoldCapturedImage(
+    return applyAtlasFoldDedup(
       image: image,
+      imagesDao: imagesDao,
+      atlas: service,
       imageWidth: 1000,
       imageHeight: 800,
     );
-    if (summary != null) {
-      await imagesDao.stampAtlasFolded(capturedImageId);
-    }
-    return summary;
   }
 
   Future<int> insertSolvedLight() {

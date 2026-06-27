@@ -118,11 +118,20 @@ void main() {
     expect(body['accepted'], true);
     expect(body['storedBytes'], fits.length);
 
-    // The file landed under the contract layout and the ledger row exists.
-    final rows = server.fusion; // touch to ensure server is live
-    expect(rows, isNotNull);
-    final ledger = server.subframes;
-    expect(ledger, isNotNull);
+    // The ledger row actually exists AND records the exact provenance the
+    // request carried — tile/order, the originating capture, instrument,
+    // exposure, byte count, and the owning account. (Asserting the real row,
+    // not merely that the service object is non-null.)
+    final entry = server.subframes.ledgerRow(contributionId);
+    expect(entry, isNotNull, reason: 'a ledger row must be persisted');
+    expect(entry!.tileId, 314);
+    expect(entry.healpixOrder, 9);
+    expect(entry.capturedImageId, 7);
+    expect(entry.instrument, 'asi2600:scope600');
+    expect(entry.exposureSeconds, 120);
+    expect(entry.bytes, fits.length);
+    expect(entry.accountId, isNotEmpty);
+    expect(entry.path, endsWith('.fits'));
 
     // The stored FITS is on disk with the exact bytes.
     final subDir = Directory('${tmp.path}/atlas/subframes');
