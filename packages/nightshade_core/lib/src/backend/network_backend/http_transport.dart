@@ -150,12 +150,14 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
     try {
       final json = jsonDecode(responseBody);
       if (json is Map<String, dynamic>) {
-        // Error parsing: the headless server emits a
-        // {code, message, details} envelope on every 4xx/5xx; prefer
-        // that shape over the legacy and category formats. The check
-        // is positional (both keys, both non-empty strings) so we
-        // don't accidentally swallow the richer NightshadeError
-        // envelope, which always carries `category`.
+        // Error parsing: [ServerError.tryFromJson] is the single
+        // converged parser for the headless error envelope. It accepts
+        // the canonical {code, message}, the unified {error, code,
+        // message} transition shape, AND the legacy prose-only {error}
+        // bodies (synthesizing a code from the status). We still guard
+        // on the absence of `category` so we don't swallow the richer
+        // NightshadeError envelope, which always carries `category` and
+        // is decoded just below.
         if (!json.containsKey('category')) {
           final serverError = ServerError.tryFromJson(
             json,

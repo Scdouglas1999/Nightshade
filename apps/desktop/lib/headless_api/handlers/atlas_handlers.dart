@@ -65,11 +65,19 @@ class AtlasHandlers {
     _logInfo('[API] GET /api/atlas/region/$id');
     final regionId = int.tryParse(id);
     if (regionId == null) {
-      return jsonBadRequest({'error': 'region id must be an integer'});
+      return jsonError(
+        code: 'invalid_region_id',
+        message: 'region id must be an integer',
+        statusCode: 400,
+      );
     }
     final region = await _findRegion(regionId);
     if (region == null) {
-      return jsonNotFound({'error': 'region $regionId not found'});
+      return jsonError(
+        code: 'region_not_found',
+        message: 'region $regionId not found',
+        statusCode: 404,
+      );
     }
 
     // Live native coverage for the region cone augments the denormalized DB
@@ -104,11 +112,19 @@ class AtlasHandlers {
     _logInfo('[API] GET /api/atlas/region/$id/cutout');
     final regionId = int.tryParse(id);
     if (regionId == null) {
-      return jsonBadRequest({'error': 'region id must be an integer'});
+      return jsonError(
+        code: 'invalid_region_id',
+        message: 'region id must be an integer',
+        statusCode: 400,
+      );
     }
     final region = await _findRegion(regionId);
     if (region == null) {
-      return jsonNotFound({'error': 'region $regionId not found'});
+      return jsonError(
+        code: 'region_not_found',
+        message: 'region $regionId not found',
+        statusCode: 404,
+      );
     }
 
     final qp = request.url.queryParameters;
@@ -125,15 +141,19 @@ class AtlasHandlers {
 
     final pngPath = result['pngPath'] as String?;
     if (pngPath == null || pngPath.trim().isEmpty) {
-      return jsonInternalServerError({
-        'error': 'cutout did not produce a PNG for region $regionId',
-      });
+      return jsonError(
+        code: 'cutout_failed',
+        message: 'cutout did not produce a PNG for region $regionId',
+        statusCode: 500,
+      );
     }
     final file = File(pngPath);
     if (!await file.exists()) {
-      return jsonInternalServerError({
-        'error': 'cutout PNG missing on disk for region $regionId',
-      });
+      return jsonError(
+        code: 'cutout_missing',
+        message: 'cutout PNG missing on disk for region $regionId',
+        statusCode: 500,
+      );
     }
     final bytes = await file.readAsBytes();
     return contentResponse(
@@ -157,11 +177,19 @@ class AtlasHandlers {
     _logInfo('[API] GET /api/atlas/region/$id/timeline');
     final regionId = int.tryParse(id);
     if (regionId == null) {
-      return jsonBadRequest({'error': 'region id must be an integer'});
+      return jsonError(
+        code: 'invalid_region_id',
+        message: 'region id must be an integer',
+        statusCode: 400,
+      );
     }
     final region = await _findRegion(regionId);
     if (region == null) {
-      return jsonNotFound({'error': 'region $regionId not found'});
+      return jsonError(
+        code: 'region_not_found',
+        message: 'region $regionId not found',
+        statusCode: 404,
+      );
     }
 
     final folds = await _service.regionTimeline(regionId);

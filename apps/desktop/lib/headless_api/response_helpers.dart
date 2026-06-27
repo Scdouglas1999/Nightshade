@@ -69,6 +69,40 @@ Response jsonServiceUnavailable(Object? body, {Map<String, String>? headers}) {
   return jsonResponse(body, statusCode: 503, headers: headers);
 }
 
+/// Emit the unified, backward-compatible error envelope (NAME-001).
+///
+/// The body carries BOTH the legacy and canonical keys so existing and new
+/// clients are satisfied by a single response:
+///
+///   - `error`   — the human-readable [message]. Legacy clients that read
+///                 `body['error']` as a display string keep working.
+///   - `code`    — the machine-readable [code] new clients branch on.
+///   - `message` — the same human string under the canonical key.
+///   - `[details]` entries, spread inline.
+///
+/// [statusCode] is forwarded verbatim so the HTTP status for each error case
+/// is unchanged. The canonical `error`/`code`/`message` keys are written last
+/// so a stray same-named key inside [details] can never clobber the machine
+/// code or human message.
+Response jsonError({
+  required String code,
+  required String message,
+  Map<String, dynamic>? details,
+  int statusCode = 500,
+  Map<String, String>? headers,
+}) {
+  return jsonResponse(
+    {
+      if (details != null) ...details,
+      'error': message,
+      'code': code,
+      'message': message,
+    },
+    statusCode: statusCode,
+    headers: headers,
+  );
+}
+
 Response contentResponse(
   Object? body, {
   required String contentType,

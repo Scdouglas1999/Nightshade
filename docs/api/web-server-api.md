@@ -609,15 +609,33 @@ older clients consuming `RADistanceRaw` / `DECDistanceRaw` continue to work.
 
 ## Error Responses
 
-All endpoints may return error responses:
+All endpoints may return error responses using a single, unified envelope:
 
 **Error Response:**
 ```json
 {
-  "error": "Error type",
-  "message": "Detailed error message"
+  "error": "Region 42 not found",
+  "code": "region_not_found",
+  "message": "Region 42 not found",
+  "details": { "regionId": 42 }
 }
 ```
+
+Field semantics:
+
+| Field | Meaning |
+| --- | --- |
+| `code` | **Machine-readable** error code (lower_snake_case, e.g. `region_not_found`, `rate_limited`, `pairing_required`). Clients should branch on this. |
+| `message` | Human-readable message intended for direct display. |
+| `error` | Legacy display field. Carries the same human-readable string as `message` so older clients that read `body["error"]` keep working. **Not** a machine code. |
+| `details` | Optional structured, endpoint-specific context, spread inline alongside the envelope keys. |
+
+The envelope is backward-compatible: new clients read the machine `code`,
+while clients that historically read `error` as a display string still receive
+a human-readable message there. Some endpoints still emit the older prose-only
+`{ "error": "..." }` shape during the ongoing migration; clients parsing the
+envelope treat a missing `code` as a status-derived fallback (e.g. `not_found`
+for `404`).
 
 **HTTP Status Codes:**
 - `200 OK` - Success
