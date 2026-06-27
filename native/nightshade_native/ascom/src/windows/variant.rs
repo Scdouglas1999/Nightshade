@@ -9,8 +9,8 @@ use windows::Win32::Foundation::VARIANT_BOOL;
 use windows::Win32::System::{
     Com::{EXCEPINFO, SAFEARRAY},
     Variant::{
-        VARIANT, VT_ARRAY, VT_BOOL, VT_BSTR, VT_BYREF, VT_DATE, VT_I2, VT_I4, VT_R8, VT_UI2,
-        VT_VARIANT,
+        VariantClear, VARIANT, VT_ARRAY, VT_BOOL, VT_BSTR, VT_BYREF, VT_DATE, VT_I2, VT_I4, VT_R8,
+        VT_UI2, VT_VARIANT,
     },
 };
 
@@ -36,6 +36,66 @@ extern "system" {
 }
 
 pub(super) const DISPID_PROPERTYPUT: i32 = -3;
+
+/// RAII guard that owns a `VARIANT` returned by a `DISPATCH_PROPERTYGET`
+/// `Invoke` out-parameter and releases its heap payload on drop.
+///
+/// windows-rs 0.52 models `VARIANT` as a `Copy` POD with **no** `Drop`, so a
+/// PROPERTYGET result that owns a `SAFEARRAY` (e.g. `ImageArray`, ~96 MiB per
+/// frame) or a `BSTR` is never freed by the language — each call leaks the full
+/// payload, which on the supported Windows native-ASCOM path grows to multi-GB
+/// OOM after a handful of exposures. Wrapping the out-param in `OwnedVariant`
+/// guarantees a single `VariantClear` runs when the guard leaves scope, after
+/// the caller has already deep-copied the data out (the `extract_safearray_*` /
+/// `variant_to_*` helpers copy into owned Rust types before the guard drops, so
+/// returned pixel/string data is unaffected — only the source SAFEARRAY/BSTR is
+/// freed).
+///
+/// Scope: only PROPERTYGET **result** out-params are wrapped. Input-argument
+/// VARIANTs handed to the driver (built via `variant_bstr` etc.) keep their
+/// `ManuallyDrop` ownership and MUST NOT be routed through this type.
+pub(super) struct OwnedVariant(VARIANT);
+
+impl OwnedVariant {
+    /// Create an empty (`VT_EMPTY`) guard to receive an `Invoke` out-param.
+    pub(super) fn empty() -> Self {
+        Self(VARIANT::default())
+    }
+
+    /// Mutable reference to the inner VARIANT, for use as the `Invoke`
+    /// `pvarResult` out-parameter.
+    pub(super) fn as_mut(&mut self) -> &mut VARIANT {
+        &mut self.0
+    }
+
+    /// Borrow the inner VARIANT for read-only extraction.
+    pub(super) fn get(&self) -> &VARIANT {
+        &self.0
+    }
+}
+
+impl Drop for OwnedVariant {
+    fn drop(&mut self) {
+        // SAFETY: COM out-param ownership — the driver transferred ownership of
+        // this VARIANT (and any SAFEARRAY/BSTR it points at) to us via the
+        // PROPERTYGET `Invoke` out-parameter, so we are responsible for
+        // releasing it exactly once. `VariantClear` frees the heap payload and
+        // resets the tag to VT_EMPTY; it is a no-op for non-heap arms
+        // (VT_I4/VT_R8/VT_BOOL/VT_DATE) and for the VT_EMPTY default left when
+        // `Invoke` failed before writing the out-param. This runs on the STA
+        // worker thread that issued `Invoke`, satisfying the COM apartment rule
+        // (see the thread-affinity invariant in connection.rs).
+        unsafe {
+            if let Err(e) = VariantClear(&mut self.0) {
+                // Why log instead of propagate: `Drop` cannot return an error or
+                // unwind across an FFI boundary. A failing `VariantClear` only
+                // occurs for a malformed VARIANT (which the COM runtime does not
+                // produce), so the only useful action is a diagnostic.
+                tracing::warn!("VariantClear failed during OwnedVariant drop: {e}");
+            }
+        }
+    }
+}
 
 /// Maximum pixel count accepted from ASCOM camera image SAFEARRAYs (~600 MiB as i32).
 pub(super) const SAFEARRAY_I32_MAX_ELEMENTS: usize = 150_000_000;
@@ -604,5 +664,175 @@ mod tests {
         let var = variant_date(value);
         assert_eq!(variant_to_date(&var), Some(value));
         assert_eq!(variant_to_f64(&var), None);
+    }
+
+    // ------------------------------------------------------------------
+    // OwnedVariant RAII (DEV-001): PROPERTYGET out-param VARIANTs that own a
+    // SAFEARRAY/BSTR must be freed by VariantClear on drop. These tests run
+    // only on Windows (the whole `windows` module is `#[cfg(windows)]`), where
+    // the COM runtime / OleAut32 are present.
+    // ------------------------------------------------------------------
+
+    use std::ffi::c_void;
+    use std::mem::ManuallyDrop;
+    use std::ptr::null_mut;
+    use windows::Win32::System::Variant::VARENUM;
+
+    // OleAut32 allocator used only by these tests to build a real SAFEARRAY,
+    // mirroring what a driver's PROPERTYGET would hand back. Cleanup happens via
+    // `VariantClear` (which calls `SafeArrayDestroy`) inside `OwnedVariant::drop`.
+    #[link(name = "oleaut32")]
+    extern "system" {
+        fn SafeArrayCreateVector(vt: u16, l_lbound: i32, c_elements: u32) -> *mut SAFEARRAY;
+    }
+
+    // PSAPI working-set probe (exported by kernel32 since Win7 as the
+    // `K32`-prefixed forwarder), used to assert the per-frame SAFEARRAY is
+    // actually released rather than leaked. Declared manually so no extra
+    // `windows` crate feature is required.
+    #[repr(C)]
+    struct ProcessMemoryCounters {
+        cb: u32,
+        page_fault_count: u32,
+        peak_working_set_size: usize,
+        working_set_size: usize,
+        quota_peak_paged_pool_usage: usize,
+        quota_paged_pool_usage: usize,
+        quota_peak_non_paged_pool_usage: usize,
+        quota_non_paged_pool_usage: usize,
+        pagefile_usage: usize,
+        peak_pagefile_usage: usize,
+    }
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetCurrentProcess() -> isize;
+        fn K32GetProcessMemoryInfo(
+            process: isize,
+            counters: *mut ProcessMemoryCounters,
+            cb: u32,
+        ) -> i32;
+    }
+
+    /// Current process working-set size in bytes, or `None` if the OS refused
+    /// the query (the leak assertion is then skipped rather than flaking).
+    unsafe fn working_set_bytes() -> Option<usize> {
+        let mut counters: ProcessMemoryCounters = std::mem::zeroed();
+        counters.cb = std::mem::size_of::<ProcessMemoryCounters>() as u32;
+        if K32GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, counters.cb) != 0 {
+            Some(counters.working_set_size)
+        } else {
+            None
+        }
+    }
+
+    #[test]
+    fn owned_variant_empty_drop_is_safe() {
+        // VT_EMPTY default: VariantClear must be a harmless no-op. A panic/abort
+        // here would mean the Drop path is unsound for the failed-Invoke case.
+        let guard = OwnedVariant::empty();
+        // SAFETY: borrowing the inner VARIANT to confirm it is VT_EMPTY (0).
+        unsafe {
+            assert_eq!((*guard.get().Anonymous.Anonymous).vt.0, 0);
+        }
+        drop(guard);
+    }
+
+    #[test]
+    fn owned_variant_frees_bstr_after_extract() {
+        // Mimic a PROPERTYGET that returns a BSTR: the string is copied out via
+        // `variant_to_string` before the guard drops and `VariantClear` frees
+        // the BSTR. Returned data must be unchanged.
+        let mut guard = OwnedVariant::empty();
+        // SAFETY: VARIANT-union init identical to the production helpers — set
+        // `vt = VT_BSTR` and store a heap BSTR (the COM runtime owns it once
+        // handed back; `OwnedVariant::drop` releases it via `VariantClear`).
+        unsafe {
+            let var = guard.as_mut();
+            (*var.Anonymous.Anonymous).vt = VT_BSTR;
+            (*var.Anonymous.Anonymous).Anonymous.bstrVal =
+                ManuallyDrop::new(BSTR::from("ZWO ASI2600MM Pro"));
+        }
+        assert_eq!(
+            variant_to_string(guard.get()),
+            Some("ZWO ASI2600MM Pro".to_string())
+        );
+        // Drop here frees the BSTR exactly once; a double-free would abort the
+        // process under the system allocator.
+        drop(guard);
+    }
+
+    #[test]
+    fn owned_variant_image_array_loop_does_not_leak() {
+        // Characterizes DEV-001: repeatedly building an image-sized i32
+        // SAFEARRAY (as a driver's `ImageArray` PROPERTYGET would), extracting
+        // the pixels, and dropping the `OwnedVariant`. With the RAII clear each
+        // frame's SAFEARRAY is destroyed; without it the working set grows by
+        // ELEMS*4 bytes per iteration (multi-GB OOM on real frames).
+        const ELEMS: u32 = 1_048_576; // 4 MiB of i32 per "frame"
+        const ITERS: usize = 300; // ~1.2 GiB total churn if leaked
+
+        // SAFETY: each step validates its return before use; the SAFEARRAY is
+        // owned by the `OwnedVariant` and freed on drop within the loop body.
+        unsafe {
+            let baseline = working_set_bytes();
+
+            for iter in 0..ITERS {
+                let psa = SafeArrayCreateVector(VT_I4.0, 0, ELEMS);
+                assert!(!psa.is_null(), "SafeArrayCreateVector failed");
+
+                // Seed two sentinel pixels to prove the data is copied unchanged.
+                let mut data_ptr: *mut c_void = null_mut();
+                assert!(
+                    SafeArrayAccessData(psa, &mut data_ptr).is_ok(),
+                    "SafeArrayAccessData failed"
+                );
+                let pixels = std::slice::from_raw_parts_mut(data_ptr as *mut i32, ELEMS as usize);
+                pixels[0] = 42;
+                pixels[ELEMS as usize - 1] = -7;
+                let _ = SafeArrayUnaccessData(psa);
+
+                // Build the PROPERTYGET-style result VARIANT (VT_ARRAY | VT_I4)
+                // inside an OwnedVariant so it is freed when the guard drops.
+                let mut guard = OwnedVariant::empty();
+                {
+                    let var = guard.as_mut();
+                    (*var.Anonymous.Anonymous).vt = VARENUM(VT_ARRAY.0 | VT_I4.0);
+                    (*var.Anonymous.Anonymous).Anonymous.parray = psa;
+                }
+
+                let (data, w, h) =
+                    extract_safearray_i32(guard.get()).expect("extract_safearray_i32");
+                assert_eq!(data.len(), ELEMS as usize);
+                assert_eq!(w, ELEMS as usize);
+                assert_eq!(h, 1);
+                assert_eq!(data[0], 42, "pixel data must be copied unchanged");
+                assert_eq!(data[ELEMS as usize - 1], -7);
+
+                // Guard drop here -> VariantClear -> SafeArrayDestroy(psa).
+                drop(guard);
+
+                // Spot-check growth partway through so a leak fails fast.
+                if iter == ITERS / 2 {
+                    if let (Some(base), Some(now)) = (baseline, working_set_bytes()) {
+                        let growth = now.saturating_sub(base);
+                        assert!(
+                            growth < 256 * 1024 * 1024,
+                            "working set grew {growth} bytes mid-loop; SAFEARRAY frames are leaking"
+                        );
+                    }
+                }
+            }
+
+            if let (Some(base), Some(end)) = (baseline, working_set_bytes()) {
+                let growth = end.saturating_sub(base);
+                // ELEMS*4*ITERS == ~1.2 GiB if every frame leaked; a 256 MiB cap
+                // is far below that yet well above the steady-state footprint.
+                assert!(
+                    growth < 256 * 1024 * 1024,
+                    "working set grew {growth} bytes over {ITERS} frames; SAFEARRAY out-params are leaking"
+                );
+            }
+        }
     }
 }
