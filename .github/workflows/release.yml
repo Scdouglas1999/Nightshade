@@ -5,13 +5,19 @@ name: Release
 # (e.g. `git tag v4.1.0 && git push origin v4.1.0`). Windows desktop cannot be
 # cross-compiled from Linux, so it builds on a Windows runner here.
 #
-# `workflow_dispatch` lets you rebuild artifacts on demand; the publish job
-# only runs for tag refs.
+# `workflow_dispatch` lets you rebuild artifacts on demand. Supplying an
+# existing draft `release_tag` attaches the rebuilt assets without publishing
+# the draft; tag pushes retain the normal publish behavior.
 on:
   push:
     tags:
       - 'v*.*.*'
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Existing draft release tag to attach artifacts to (leave blank to build only)'
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -28,11 +34,14 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       app_version: ${{ steps.resolve.outputs.app_version }}
+      release_tag: ${{ steps.resolve.outputs.release_tag }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Resolve + validate version
         id: resolve
+        env:
+          REQUESTED_RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
           pubspec_version="$(grep '^version:' apps/desktop/pubspec.yaml | head -1 | sed -E 's/^version:[[:space:]]*//; s/\+.*$//')"
@@ -57,8 +66,19 @@ jobs:
               echo "::error::Tag ${GITHUB_REF_NAME} (${tag_version}) does not match apps/desktop/pubspec.yaml (${pubspec_version}). Bump the pubspecs and the tag in lockstep."
               exit 1
             fi
+            release_tag="$GITHUB_REF_NAME"
+          elif [ -n "${REQUESTED_RELEASE_TAG:-}" ]; then
+            tag_version="${REQUESTED_RELEASE_TAG#v}"
+            if [ "$tag_version" != "$pubspec_version" ]; then
+              echo "::error::Requested release ${REQUESTED_RELEASE_TAG} (${tag_version}) does not match apps/desktop/pubspec.yaml (${pubspec_version})."
+              exit 1
+            fi
+            release_tag="$REQUESTED_RELEASE_TAG"
+          else
+            release_tag=""
           fi
           echo "app_version=${pubspec_version}" >> "$GITHUB_OUTPUT"
+          echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
           echo "Resolved APP_VERSION=${pubspec_version}"
 
   # --------------------------------------------------------------------------
@@ -385,10 +405,12 @@ jobs:
 
   # --------------------------------------------------------------------------
   publish:
-    name: Publish GitHub Release
-    needs: [android, linux, windows]
+    name: Attach / publish GitHub Release
+    needs: [version, android, linux, windows]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') || inputs.release_tag != ''
+    env:
+      RELEASE_TAG: ${{ needs.version.outputs.release_tag }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -412,9 +434,10 @@ jobs:
       # tag was never written. The file name must match the tag (v4.1.0 ->
       # docs/release/v4.1.0.md).
       - name: Verify release notes exist for this tag
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           set -euo pipefail
-          notes="docs/release/${{ github.ref_name }}.md"
+          notes="docs/release/${RELEASE_TAG}.md"
           if [ ! -f "$notes" ]; then
             echo "::error::Release notes file '$notes' is missing. Create it before tagging, or the published release would have an empty body."
             exit 1
@@ -422,12 +445,19 @@ jobs:
           echo "Found release notes: $notes"
 
       - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          name: Nightshade ${{ github.ref_name }}
-          body_path: docs/release/${{ github.ref_name }}.md
+          name: Nightshade ${{ env.RELEASE_TAG }}
+          body_path: docs/release/${{ env.RELEASE_TAG }}.md
           files: release-assets/*
           draft: false
           prerelease: false
           make_latest: true
           fail_on_unmatched_files: true
+
+      - name: Attach artifacts to existing draft release
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$RELEASE_TAG" release-assets/* --clobber

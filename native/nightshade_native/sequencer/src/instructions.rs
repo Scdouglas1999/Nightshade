@@ -7244,12 +7244,14 @@ mod tests {
     // process behind (kill_on_drop reaps it).
     // -------------------------------------------------------------------
 
+    #[cfg(target_os = "linux")]
     async fn script_ctx() -> InstructionContext {
         crate::node::context::ExecutionContext::new("test-node".to_string())
             .to_instruction_context()
             .await
     }
 
+    #[cfg(target_os = "linux")]
     fn empty_frame() -> crate::expressions::EvaluationFrame {
         crate::expressions::EvaluationFrame::empty()
     }
