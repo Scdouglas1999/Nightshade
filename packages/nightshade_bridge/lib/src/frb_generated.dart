@@ -15591,6 +15591,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           deviceId: dco_decode_String(raw[2]),
           afterAttempts: dco_decode_u_32(raw[3]),
         );
+      case 28:
+        return EquipmentEvent_DeviceDiscovered(
+          deviceClass: dco_decode_String(raw[1]),
+          driver: dco_decode_String(raw[2]),
+          id: dco_decode_String(raw[3]),
+          name: dco_decode_String(raw[4]),
+          displayName: dco_decode_String(raw[5]),
+          uniqueId: dco_decode_opt_String(raw[6]),
+        );
+      case 29:
+        return EquipmentEvent_DeviceLost(
+          deviceClass: dco_decode_String(raw[1]),
+          driver: dco_decode_String(raw[2]),
+          id: dco_decode_String(raw[3]),
+        );
       default:
         throw Exception("unreachable");
     }
@@ -19373,6 +19388,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           deviceType: var_deviceType,
           deviceId: var_deviceId,
           afterAttempts: var_afterAttempts,
+        );
+      case 28:
+        var var_deviceClass = sse_decode_String(deserializer);
+        var var_driver = sse_decode_String(deserializer);
+        var var_id = sse_decode_String(deserializer);
+        var var_name = sse_decode_String(deserializer);
+        var var_displayName = sse_decode_String(deserializer);
+        var var_uniqueId = sse_decode_opt_String(deserializer);
+        return EquipmentEvent_DeviceDiscovered(
+          deviceClass: var_deviceClass,
+          driver: var_driver,
+          id: var_id,
+          name: var_name,
+          displayName: var_displayName,
+          uniqueId: var_uniqueId,
+        );
+      case 29:
+        var var_deviceClass = sse_decode_String(deserializer);
+        var var_driver = sse_decode_String(deserializer);
+        var var_id = sse_decode_String(deserializer);
+        return EquipmentEvent_DeviceLost(
+          deviceClass: var_deviceClass,
+          driver: var_driver,
+          id: var_id,
         );
       default:
         throw UnimplementedError('');
@@ -24165,6 +24204,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_String(deviceType, serializer);
         sse_encode_String(deviceId, serializer);
         sse_encode_u_32(afterAttempts, serializer);
+      case EquipmentEvent_DeviceDiscovered(
+        deviceClass: final deviceClass,
+        driver: final driver,
+        id: final id,
+        name: final name,
+        displayName: final displayName,
+        uniqueId: final uniqueId,
+      ):
+        sse_encode_i_32(28, serializer);
+        sse_encode_String(deviceClass, serializer);
+        sse_encode_String(driver, serializer);
+        sse_encode_String(id, serializer);
+        sse_encode_String(name, serializer);
+        sse_encode_String(displayName, serializer);
+        sse_encode_opt_String(uniqueId, serializer);
+      case EquipmentEvent_DeviceLost(
+        deviceClass: final deviceClass,
+        driver: final driver,
+        id: final id,
+      ):
+        sse_encode_i_32(29, serializer);
+        sse_encode_String(deviceClass, serializer);
+        sse_encode_String(driver, serializer);
+        sse_encode_String(id, serializer);
     }
   }
 

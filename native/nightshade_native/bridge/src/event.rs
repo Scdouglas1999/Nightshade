@@ -99,24 +99,6 @@ pub enum HeartbeatStatus {
 }
 
 /// Equipment-specific events
-///
-/// follow-up — TODO: promote the wave-6b hot-plug events to
-/// first-class variants (`DeviceDiscovered { device_class, driver, id,
-/// name, unique_id }` and `DeviceLost { device_class, driver, id }`) once
-/// FRB bindings are regenerated. The current hot-plug task in
-/// `crate::hotplug` rides on `PropertyChanged { property:
-/// "device_discovered" | "device_lost", value: <json> }` because adding
-/// new variants here requires `melos run generate` to regen the Dart FFI
-/// bindings — see `crate::hotplug` for the full rationale. To land the
-/// typed variants:
-///   1. Add `DeviceDiscovered { device_class: String, driver: String, id:
-///      String, name: String, unique_id: Option<String> }` and
-///      `DeviceLost { device_class: String, driver: String, id: String }`
-///      below.
-///   2. After editing: run `melos run generate` to regenerate FRB bindings.
-///   3. Update `crate::hotplug::poll_once` to emit the typed variants
-///      instead of `PropertyChanged`.
-///   4. Update the Dart `bridge_event_mapper.dart` to map the new variants.
 #[frb]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EquipmentEvent {
@@ -227,6 +209,33 @@ pub enum EquipmentEvent {
         device_type: String,
         device_id: String,
         after_attempts: u32,
+    },
+
+    // Hot-plug discovery events (wave-6b). Emitted by `crate::hotplug` when the
+    // OS bus listener / slow-poll watcher diffs the live device list and detects
+    // an arrival or removal. Dart filters these by `EventCategory::Equipment` +
+    // the `DeviceDiscovered` / `DeviceLost` event-type strings to refresh the
+    // equipment screen without a user-driven rescan.
+    DeviceDiscovered {
+        /// Canonical device class (`camera`, `mount`, `focuser`, `filterWheel`,
+        /// `rotator`, …).
+        device_class: String,
+        /// Driver backend (`native`, `ascom`, `alpaca`, `indi`, `simulator`).
+        driver: String,
+        /// Backend-scoped device id used to connect.
+        id: String,
+        /// Raw device name as reported by the SDK / driver.
+        name: String,
+        /// User-facing display name (may equal `name`).
+        display_name: String,
+        /// Stable hardware identity (USB serial, etc.) when the backend exposes
+        /// one; `None` otherwise.
+        unique_id: Option<String>,
+    },
+    DeviceLost {
+        device_class: String,
+        driver: String,
+        id: String,
     },
 }
 
@@ -1372,7 +1381,7 @@ impl EventContext {
 ///
 /// `duration_since(UNIX_EPOCH).unwrap_or_default()` — only fails if the
 /// system clock is set before 1970-01-01. A zero `Duration` then produces
-/// the same correlation-ID format `corr-0-XXXXX`; the suffix is still
+/// the same correlation-ID format `corr-0-<seq>`; the suffix is still
 /// derived from `timestamp.wrapping_mul`, so collisions are unlikely
 /// over a short pre-1970-clock interval. The ID is for log correlation
 /// only — uniqueness is best-effort, not load-bearing for correctness.

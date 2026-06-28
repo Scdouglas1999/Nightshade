@@ -542,6 +542,21 @@ typedef struct wire_cst_EquipmentEvent_HeartbeatReconnected {
   uint32_t after_attempts;
 } wire_cst_EquipmentEvent_HeartbeatReconnected;
 
+typedef struct wire_cst_EquipmentEvent_DeviceDiscovered {
+  struct wire_cst_list_prim_u_8_strict *device_class;
+  struct wire_cst_list_prim_u_8_strict *driver;
+  struct wire_cst_list_prim_u_8_strict *id;
+  struct wire_cst_list_prim_u_8_strict *name;
+  struct wire_cst_list_prim_u_8_strict *display_name;
+  struct wire_cst_list_prim_u_8_strict *unique_id;
+} wire_cst_EquipmentEvent_DeviceDiscovered;
+
+typedef struct wire_cst_EquipmentEvent_DeviceLost {
+  struct wire_cst_list_prim_u_8_strict *device_class;
+  struct wire_cst_list_prim_u_8_strict *driver;
+  struct wire_cst_list_prim_u_8_strict *id;
+} wire_cst_EquipmentEvent_DeviceLost;
+
 typedef union EquipmentEventKind {
   struct wire_cst_EquipmentEvent_Connecting Connecting;
   struct wire_cst_EquipmentEvent_Connected Connected;
@@ -564,6 +579,8 @@ typedef union EquipmentEventKind {
   struct wire_cst_EquipmentEvent_HeartbeatStatusChanged HeartbeatStatusChanged;
   struct wire_cst_EquipmentEvent_HeartbeatReconnecting HeartbeatReconnecting;
   struct wire_cst_EquipmentEvent_HeartbeatReconnected HeartbeatReconnected;
+  struct wire_cst_EquipmentEvent_DeviceDiscovered DeviceDiscovered;
+  struct wire_cst_EquipmentEvent_DeviceLost DeviceLost;
 } EquipmentEventKind;
 
 typedef struct wire_cst_equipment_event {

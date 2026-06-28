@@ -1,12 +1,13 @@
 ﻿// Hot-plug discovery event bridge.
 //
 // The Rust hot-plug watcher in `native/nightshade_native/bridge/src/hotplug.rs`
-// polls the native (vendor SDK) and ASCOM (Windows only) device lists every
-// 4 seconds and publishes one `EquipmentEvent::PropertyChanged` per arrival
-// or removal with `property: 'device_discovered' | 'device_lost'` and a
-// JSON-encoded device payload. Linux/macOS additionally get fine-grained
-// libusb hot-plug callbacks; Windows gets WM_DEVICECHANGE notifications;
-// all three paths emit through the same Equipment event channel.
+// polls the native (vendor SDK) and ASCOM (Windows only) device lists and
+// publishes one `EquipmentEvent::DeviceDiscovered` per arrival or
+// `EquipmentEvent::DeviceLost` per removal — first-class typed FRB variants
+// the FFI layer maps to the 'DeviceDiscovered' / 'DeviceLost' event types.
+// Linux/macOS additionally get fine-grained libusb hot-plug callbacks;
+// Windows gets WM_DEVICECHANGE notifications; all three paths emit through the
+// same Equipment event channel.
 //
 // This bridge listens on `backend.eventStream` for those events and
 // invalidates the equipment-discovery Riverpod providers
@@ -91,23 +92,18 @@ final hotplugEventBridgeProvider = Provider<void>((ref) {
   subscription = backend.eventStream.listen(
     (event) {
       if (event.category != core_events.EventCategory.equipment) return;
-      // The Rust hot-plug watcher rides on `PropertyChanged` while the
-      // typed `DeviceDiscovered` / `DeviceLost` variants wait for an FRB
-      // regen (see event.rs TODO). The wire shape is:
-      //   eventType: 'PropertyChanged'
-      //   data.property: 'device_discovered' | 'device_lost'
-      // so a simple eventType filter is not enough — we must inspect
-      // `data.property` to distinguish hot-plug events from the unrelated
-      // (and frequent) Mount / Camera / Focuser property-changed traffic.
-      if (event.eventType != 'PropertyChanged') return;
-      final property = event.data['property'];
-      if (property != core_events.deviceDiscoveredProperty &&
-          property != core_events.deviceLostProperty) {
+      // The hot-plug watcher emits first-class `DeviceDiscovered` /
+      // `DeviceLost` typed variants, so a simple eventType filter is enough —
+      // no need to inspect a JSON payload to distinguish hot-plug events from
+      // the unrelated (and frequent) Mount / Camera / Focuser property-changed
+      // traffic.
+      if (event.eventType != core_events.deviceDiscoveredEventType &&
+          event.eventType != core_events.deviceLostEventType) {
         return;
       }
 
       developer.log(
-        '[HotplugEventBridge] $property: ${event.data['value']}',
+        '[HotplugEventBridge] ${event.eventType}: ${event.data['id']}',
         name: 'HotplugEventBridge',
         level: 800,
       );

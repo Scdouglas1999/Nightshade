@@ -11727,6 +11727,32 @@ impl SseDecode for crate::event::EquipmentEvent {
                     after_attempts: var_afterAttempts,
                 };
             }
+            28 => {
+                let mut var_deviceClass = <String>::sse_decode(deserializer);
+                let mut var_driver = <String>::sse_decode(deserializer);
+                let mut var_id = <String>::sse_decode(deserializer);
+                let mut var_name = <String>::sse_decode(deserializer);
+                let mut var_displayName = <String>::sse_decode(deserializer);
+                let mut var_uniqueId = <Option<String>>::sse_decode(deserializer);
+                return crate::event::EquipmentEvent::DeviceDiscovered {
+                    device_class: var_deviceClass,
+                    driver: var_driver,
+                    id: var_id,
+                    name: var_name,
+                    display_name: var_displayName,
+                    unique_id: var_uniqueId,
+                };
+            }
+            29 => {
+                let mut var_deviceClass = <String>::sse_decode(deserializer);
+                let mut var_driver = <String>::sse_decode(deserializer);
+                let mut var_id = <String>::sse_decode(deserializer);
+                return crate::event::EquipmentEvent::DeviceLost {
+                    device_class: var_deviceClass,
+                    driver: var_driver,
+                    id: var_id,
+                };
+            }
             _ => {
                 unimplemented!("");
             }
@@ -16344,6 +16370,34 @@ impl flutter_rust_bridge::IntoDart for crate::event::EquipmentEvent {
                 after_attempts.into_into_dart().into_dart(),
             ]
             .into_dart(),
+            crate::event::EquipmentEvent::DeviceDiscovered {
+                device_class,
+                driver,
+                id,
+                name,
+                display_name,
+                unique_id,
+            } => [
+                28.into_dart(),
+                device_class.into_into_dart().into_dart(),
+                driver.into_into_dart().into_dart(),
+                id.into_into_dart().into_dart(),
+                name.into_into_dart().into_dart(),
+                display_name.into_into_dart().into_dart(),
+                unique_id.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            crate::event::EquipmentEvent::DeviceLost {
+                device_class,
+                driver,
+                id,
+            } => [
+                29.into_dart(),
+                device_class.into_into_dart().into_dart(),
+                driver.into_into_dart().into_dart(),
+                id.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
             _ => {
                 unimplemented!("");
             }
@@ -20035,6 +20089,32 @@ impl SseEncode for crate::event::EquipmentEvent {
                 <String>::sse_encode(device_type, serializer);
                 <String>::sse_encode(device_id, serializer);
                 <u32>::sse_encode(after_attempts, serializer);
+            }
+            crate::event::EquipmentEvent::DeviceDiscovered {
+                device_class,
+                driver,
+                id,
+                name,
+                display_name,
+                unique_id,
+            } => {
+                <i32>::sse_encode(28, serializer);
+                <String>::sse_encode(device_class, serializer);
+                <String>::sse_encode(driver, serializer);
+                <String>::sse_encode(id, serializer);
+                <String>::sse_encode(name, serializer);
+                <String>::sse_encode(display_name, serializer);
+                <Option<String>>::sse_encode(unique_id, serializer);
+            }
+            crate::event::EquipmentEvent::DeviceLost {
+                device_class,
+                driver,
+                id,
+            } => {
+                <i32>::sse_encode(29, serializer);
+                <String>::sse_encode(device_class, serializer);
+                <String>::sse_encode(driver, serializer);
+                <String>::sse_encode(id, serializer);
             }
             _ => {
                 unimplemented!("");
@@ -23911,6 +23991,25 @@ mod io {
                         device_type: ans.device_type.cst_decode(),
                         device_id: ans.device_id.cst_decode(),
                         after_attempts: ans.after_attempts.cst_decode(),
+                    }
+                }
+                28 => {
+                    let ans = unsafe { self.kind.DeviceDiscovered };
+                    crate::event::EquipmentEvent::DeviceDiscovered {
+                        device_class: ans.device_class.cst_decode(),
+                        driver: ans.driver.cst_decode(),
+                        id: ans.id.cst_decode(),
+                        name: ans.name.cst_decode(),
+                        display_name: ans.display_name.cst_decode(),
+                        unique_id: ans.unique_id.cst_decode(),
+                    }
+                }
+                29 => {
+                    let ans = unsafe { self.kind.DeviceLost };
+                    crate::event::EquipmentEvent::DeviceLost {
+                        device_class: ans.device_class.cst_decode(),
+                        driver: ans.driver.cst_decode(),
+                        id: ans.id.cst_decode(),
                     }
                 }
                 _ => unreachable!(),
@@ -33059,6 +33158,8 @@ mod io {
         HeartbeatStatusChanged: wire_cst_EquipmentEvent_HeartbeatStatusChanged,
         HeartbeatReconnecting: wire_cst_EquipmentEvent_HeartbeatReconnecting,
         HeartbeatReconnected: wire_cst_EquipmentEvent_HeartbeatReconnected,
+        DeviceDiscovered: wire_cst_EquipmentEvent_DeviceDiscovered,
+        DeviceLost: wire_cst_EquipmentEvent_DeviceLost,
         nil__: (),
     }
     #[repr(C)]
@@ -33190,6 +33291,23 @@ mod io {
         device_type: *mut wire_cst_list_prim_u_8_strict,
         device_id: *mut wire_cst_list_prim_u_8_strict,
         after_attempts: u32,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_EquipmentEvent_DeviceDiscovered {
+        device_class: *mut wire_cst_list_prim_u_8_strict,
+        driver: *mut wire_cst_list_prim_u_8_strict,
+        id: *mut wire_cst_list_prim_u_8_strict,
+        name: *mut wire_cst_list_prim_u_8_strict,
+        display_name: *mut wire_cst_list_prim_u_8_strict,
+        unique_id: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_EquipmentEvent_DeviceLost {
+        device_class: *mut wire_cst_list_prim_u_8_strict,
+        driver: *mut wire_cst_list_prim_u_8_strict,
+        id: *mut wire_cst_list_prim_u_8_strict,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]

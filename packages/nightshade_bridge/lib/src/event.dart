@@ -112,6 +112,32 @@ sealed class EquipmentEvent with _$EquipmentEvent {
     required String deviceId,
     required int afterAttempts,
   }) = EquipmentEvent_HeartbeatReconnected;
+  const factory EquipmentEvent.deviceDiscovered({
+    /// Canonical device class (`camera`, `mount`, `focuser`, `filterWheel`,
+    /// `rotator`, …).
+    required String deviceClass,
+
+    /// Driver backend (`native`, `ascom`, `alpaca`, `indi`, `simulator`).
+    required String driver,
+
+    /// Backend-scoped device id used to connect.
+    required String id,
+
+    /// Raw device name as reported by the SDK / driver.
+    required String name,
+
+    /// User-facing display name (may equal `name`).
+    required String displayName,
+
+    /// Stable hardware identity (USB serial, etc.) when the backend exposes
+    /// one; `None` otherwise.
+    String? uniqueId,
+  }) = EquipmentEvent_DeviceDiscovered;
+  const factory EquipmentEvent.deviceLost({
+    required String deviceClass,
+    required String driver,
+    required String id,
+  }) = EquipmentEvent_DeviceLost;
 }
 
 /// Categories of events

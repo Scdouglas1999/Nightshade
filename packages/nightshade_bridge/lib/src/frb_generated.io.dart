@@ -4053,6 +4053,32 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       wireObj.kind.HeartbeatReconnected.after_attempts = pre_after_attempts;
       return;
     }
+    if (apiObj is EquipmentEvent_DeviceDiscovered) {
+      var pre_device_class = cst_encode_String(apiObj.deviceClass);
+      var pre_driver = cst_encode_String(apiObj.driver);
+      var pre_id = cst_encode_String(apiObj.id);
+      var pre_name = cst_encode_String(apiObj.name);
+      var pre_display_name = cst_encode_String(apiObj.displayName);
+      var pre_unique_id = cst_encode_opt_String(apiObj.uniqueId);
+      wireObj.tag = 28;
+      wireObj.kind.DeviceDiscovered.device_class = pre_device_class;
+      wireObj.kind.DeviceDiscovered.driver = pre_driver;
+      wireObj.kind.DeviceDiscovered.id = pre_id;
+      wireObj.kind.DeviceDiscovered.name = pre_name;
+      wireObj.kind.DeviceDiscovered.display_name = pre_display_name;
+      wireObj.kind.DeviceDiscovered.unique_id = pre_unique_id;
+      return;
+    }
+    if (apiObj is EquipmentEvent_DeviceLost) {
+      var pre_device_class = cst_encode_String(apiObj.deviceClass);
+      var pre_driver = cst_encode_String(apiObj.driver);
+      var pre_id = cst_encode_String(apiObj.id);
+      wireObj.tag = 29;
+      wireObj.kind.DeviceLost.device_class = pre_device_class;
+      wireObj.kind.DeviceLost.driver = pre_driver;
+      wireObj.kind.DeviceLost.id = pre_id;
+      return;
+    }
   }
 
   @protected
@@ -20732,6 +20758,28 @@ final class wire_cst_EquipmentEvent_HeartbeatReconnected extends ffi.Struct {
   external int after_attempts;
 }
 
+final class wire_cst_EquipmentEvent_DeviceDiscovered extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> device_class;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> driver;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> id;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> name;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> display_name;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> unique_id;
+}
+
+final class wire_cst_EquipmentEvent_DeviceLost extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> device_class;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> driver;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> id;
+}
+
 final class EquipmentEventKind extends ffi.Union {
   external wire_cst_EquipmentEvent_Connecting Connecting;
 
@@ -20776,6 +20824,10 @@ final class EquipmentEventKind extends ffi.Union {
   external wire_cst_EquipmentEvent_HeartbeatReconnecting HeartbeatReconnecting;
 
   external wire_cst_EquipmentEvent_HeartbeatReconnected HeartbeatReconnected;
+
+  external wire_cst_EquipmentEvent_DeviceDiscovered DeviceDiscovered;
+
+  external wire_cst_EquipmentEvent_DeviceLost DeviceLost;
 }
 
 final class wire_cst_equipment_event extends ffi.Struct {

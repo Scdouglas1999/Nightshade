@@ -43,16 +43,15 @@
 //!     fixed cadence would saturate the LAN with UDP broadcasts and drain
 //!     battery on paired mobile clients.
 //!
-//! Dart consumers filter on `EventCategory::Equipment` + `eventType ==
-//! 'device_discovered' | 'device_lost'`. The wave-6b unified discovery
-//! provider invalidates its cache and refreshes the visible list on receipt
-//! so the equipment screen refreshes without pull-to-refresh.
+//! Dart consumers filter on `EventCategory::Equipment` + the
+//! `DeviceDiscovered` / `DeviceLost` event types. The wave-6b unified
+//! discovery provider invalidates its cache and refreshes the visible list on
+//! receipt so the equipment screen refreshes without pull-to-refresh.
 //!
-//! NOTE: a follow-up patch will promote `DeviceDiscovered`/`DeviceLost` to
-//! first-class `EquipmentEvent` variants. Doing that requires regenerating
-//! the FRB bindings — see `event.rs` for the regen TODO. The current
-//! implementation rides on `EquipmentEvent::PropertyChanged` so the wire
-//! shape is stable today and the FRB regen can land independently.
+//! These arrivals/removals are emitted as the first-class
+//! `EquipmentEvent::DeviceDiscovered` / `EquipmentEvent::DeviceLost` variants
+//! (see `event.rs`); the FRB bindings carry the typed fields directly, so the
+//! Dart side maps the variant without decoding a hand-built JSON payload.
 
 use crate::api::{api_invalidate_discovery_cache, get_state};
 use crate::device::{ConnectionState, DeviceType, DriverType};
@@ -398,7 +397,6 @@ async fn poll_once(suppress_events: bool) {
     invalidate_discovery_caches();
 
     for (driver, id, dev) in arrivals {
-        let value = encode_device_payload(driver, &id, &dev);
         tracing::info!(
             "Hot-plug arrival: driver={:?} type={:?} id={} name={}",
             driver,
@@ -407,18 +405,19 @@ async fn poll_once(suppress_events: bool) {
             dev.name
         );
         get_state().publish_equipment_event(
-            EquipmentEvent::PropertyChanged {
-                device_type: device_type_str(dev.device_type).to_string(),
-                device_id: id,
-                property: "device_discovered".to_string(),
-                value,
+            EquipmentEvent::DeviceDiscovered {
+                device_class: device_type_str(dev.device_type).to_string(),
+                driver: driver_type_str(driver).to_string(),
+                id,
+                name: dev.name,
+                display_name: dev.display_name,
+                unique_id: dev.unique_id,
             },
             EventSeverity::Info,
         );
     }
 
     for (driver, id, dev) in removals {
-        let value = encode_device_payload(driver, &id, &dev);
         tracing::info!(
             "Hot-plug removal: driver={:?} type={:?} id={} name={}",
             driver,
@@ -427,52 +426,14 @@ async fn poll_once(suppress_events: bool) {
             dev.name
         );
         get_state().publish_equipment_event(
-            EquipmentEvent::PropertyChanged {
-                device_type: device_type_str(dev.device_type).to_string(),
-                device_id: id,
-                property: "device_lost".to_string(),
-                value,
+            EquipmentEvent::DeviceLost {
+                device_class: device_type_str(dev.device_type).to_string(),
+                driver: driver_type_str(driver).to_string(),
+                id,
             },
             EventSeverity::Warning,
         );
     }
-}
-
-fn encode_device_payload(driver: DriverType, id: &str, dev: &CachedDevice) -> String {
-    // We hand-build the JSON to avoid taking a serde_json dep just for this
-    // four-field map. The keys match the Dart bridge_event_mapper expectations.
-    fn esc(s: &str) -> String {
-        let mut out = String::with_capacity(s.len() + 2);
-        out.push('"');
-        for ch in s.chars() {
-            match ch {
-                '"' => out.push_str("\\\""),
-                '\\' => out.push_str("\\\\"),
-                '\n' => out.push_str("\\n"),
-                '\r' => out.push_str("\\r"),
-                '\t' => out.push_str("\\t"),
-                c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
-                c => out.push(c),
-            }
-        }
-        out.push('"');
-        out
-    }
-
-    let unique_id = match dev.unique_id.as_deref() {
-        Some(u) if !u.is_empty() => format!(",\"uniqueId\":{}", esc(u)),
-        _ => String::new(),
-    };
-
-    format!(
-        "{{\"driver\":{driver},\"deviceClass\":{class},\"id\":{id},\"name\":{name},\"displayName\":{display}{unique}}}",
-        driver = esc(driver_type_str(driver)),
-        class = esc(device_type_str(dev.device_type)),
-        id = esc(id),
-        name = esc(&dev.name),
-        display = esc(&dev.display_name),
-        unique = unique_id,
-    )
 }
 
 fn device_type_str(t: DeviceType) -> &'static str {
@@ -803,40 +764,6 @@ mod tests {
         assert_eq!(device_type_str(DeviceType::Camera), "camera");
         assert_eq!(device_type_str(DeviceType::FilterWheel), "filterWheel");
         assert_eq!(device_type_str(DeviceType::Mount), "mount");
-    }
-
-    #[test]
-    fn payload_encoding_escapes_special_chars() {
-        let dev = CachedDevice {
-            device_type: DeviceType::Camera,
-            name: "ZWO ASI \"533\"".to_string(),
-            unique_id: Some("usb-1234".to_string()),
-            display_name: "ZWO ASI 533".to_string(),
-        };
-        let payload = encode_device_payload(DriverType::Native, "native:zwo:0", &dev);
-        // Quotes inside name must be escaped.
-        assert!(
-            payload.contains("ZWO ASI \\\"533\\\""),
-            "expected escaped quotes in payload, got: {}",
-            payload
-        );
-        // All expected keys present.
-        assert!(payload.contains("\"driver\":\"native\""));
-        assert!(payload.contains("\"deviceClass\":\"camera\""));
-        assert!(payload.contains("\"id\":\"native:zwo:0\""));
-        assert!(payload.contains("\"uniqueId\":\"usb-1234\""));
-    }
-
-    #[test]
-    fn payload_omits_empty_unique_id() {
-        let dev = CachedDevice {
-            device_type: DeviceType::Mount,
-            name: "AZ-GTi".to_string(),
-            unique_id: None,
-            display_name: "AZ-GTi".to_string(),
-        };
-        let payload = encode_device_payload(DriverType::Native, "native:sw:0", &dev);
-        assert!(!payload.contains("uniqueId"), "payload: {}", payload);
     }
 
     #[test]

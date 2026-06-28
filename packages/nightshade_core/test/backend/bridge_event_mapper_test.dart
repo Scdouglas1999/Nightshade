@@ -100,5 +100,82 @@ void main() {
           (bridgeEvent.payload as bridge.EventPayload_Equipment).field0;
       expect(inner, isA<bridge.EquipmentEvent_MountParkCompleted>());
     });
+
+    test('reconstructs DeviceDiscovered hot-plug arrival', () {
+      // Mirrors the data shape `_extractEquipmentEventInfo` serializes for the
+      // typed `EquipmentEvent::DeviceDiscovered` variant so the network path
+      // rebuilds the same typed event the local FFI path delivers.
+      const coreEvent = core.NightshadeEvent(
+        timestamp: 1,
+        severity: core.EventSeverity.info,
+        category: core.EventCategory.equipment,
+        eventType: 'DeviceDiscovered',
+        data: {
+          'device_class': 'camera',
+          'driver': 'native',
+          'id': 'native:zwo:0',
+          'name': 'ZWO ASI 533',
+          'display_name': 'ZWO ASI 533',
+          'unique_id': 'usb-533',
+        },
+      );
+
+      final bridgeEvent = bridgeEventFromCoreEvent(coreEvent);
+      final inner =
+          (bridgeEvent.payload as bridge.EventPayload_Equipment).field0;
+      expect(inner, isA<bridge.EquipmentEvent_DeviceDiscovered>());
+      final discovered = inner as bridge.EquipmentEvent_DeviceDiscovered;
+      expect(discovered.deviceClass, 'camera');
+      expect(discovered.driver, 'native');
+      expect(discovered.id, 'native:zwo:0');
+      expect(discovered.name, 'ZWO ASI 533');
+      expect(discovered.displayName, 'ZWO ASI 533');
+      expect(discovered.uniqueId, 'usb-533');
+    });
+
+    test('reconstructs DeviceDiscovered without a unique id', () {
+      const coreEvent = core.NightshadeEvent(
+        timestamp: 1,
+        severity: core.EventSeverity.info,
+        category: core.EventCategory.equipment,
+        eventType: 'DeviceDiscovered',
+        data: {
+          'device_class': 'mount',
+          'driver': 'native',
+          'id': 'native:sw:0',
+          'name': 'AZ-GTi',
+          'display_name': 'AZ-GTi',
+        },
+      );
+
+      final bridgeEvent = bridgeEventFromCoreEvent(coreEvent);
+      final discovered =
+          (bridgeEvent.payload as bridge.EventPayload_Equipment).field0
+              as bridge.EquipmentEvent_DeviceDiscovered;
+      expect(discovered.uniqueId, isNull);
+    });
+
+    test('reconstructs DeviceLost hot-plug removal', () {
+      const coreEvent = core.NightshadeEvent(
+        timestamp: 1,
+        severity: core.EventSeverity.warning,
+        category: core.EventCategory.equipment,
+        eventType: 'DeviceLost',
+        data: {
+          'device_class': 'focuser',
+          'driver': 'native',
+          'id': 'native:zwo:0',
+        },
+      );
+
+      final bridgeEvent = bridgeEventFromCoreEvent(coreEvent);
+      final inner =
+          (bridgeEvent.payload as bridge.EventPayload_Equipment).field0;
+      expect(inner, isA<bridge.EquipmentEvent_DeviceLost>());
+      final lost = inner as bridge.EquipmentEvent_DeviceLost;
+      expect(lost.deviceClass, 'focuser');
+      expect(lost.driver, 'native');
+      expect(lost.id, 'native:zwo:0');
+    });
   });
 }

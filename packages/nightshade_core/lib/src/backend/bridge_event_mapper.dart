@@ -327,16 +327,33 @@ bridge.EquipmentEvent _equipmentEventFromCore(
         deviceId: _stringField(data, 'device_id'),
       );
     case 'PropertyChanged':
-      // Hot-plug device_discovered / device_lost events
-      // and other property changes ride the PropertyChanged channel. The
+      // Other property changes ride the PropertyChanged channel. The
       // mapper rebuilds the typed variant verbatim so round-tripping
-      // through WS does not lose the property name or value the
-      // hotplug_event_bridge_provider depends on.
+      // through WS does not lose the property name or value.
       return bridge.EquipmentEvent.propertyChanged(
         deviceType: _stringField(data, 'device_type'),
         deviceId: _stringField(data, 'device_id'),
         property: _stringField(data, 'property'),
         value: data['value'] as String? ?? '',
+      );
+    case 'DeviceDiscovered':
+      // Hot-plug arrival. Rebuild the typed variant field-for-field from the
+      // wire envelope serialized by `_extractEquipmentEventInfo` so remote
+      // (network-backend) subscribers receive the same typed variant the local
+      // FFI path does and `hotplugEventBridgeProvider` refreshes the list.
+      return bridge.EquipmentEvent.deviceDiscovered(
+        deviceClass: _stringField(data, 'device_class'),
+        driver: _stringField(data, 'driver'),
+        id: _stringField(data, 'id'),
+        name: data['name'] as String? ?? '',
+        displayName: data['display_name'] as String? ?? '',
+        uniqueId: _optionalString(data, 'unique_id'),
+      );
+    case 'DeviceLost':
+      return bridge.EquipmentEvent.deviceLost(
+        deviceClass: _stringField(data, 'device_class'),
+        driver: _stringField(data, 'driver'),
+        id: _stringField(data, 'id'),
       );
     default:
       return bridge.EquipmentEvent.error(

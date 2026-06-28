@@ -330,6 +330,35 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
         },
       );
     }
+    // Hot-plug discovery events. The Rust hot-plug watcher emits these as
+    // first-class typed variants; `hotplugEventBridgeProvider` filters on the
+    // 'DeviceDiscovered' / 'DeviceLost' event types to refresh the equipment
+    // screen. The data map is the same shape the inverse network mapper
+    // (`_equipmentEventFromCore`) rebuilds, so the typed variant survives a WS
+    // round-trip.
+    else if (equipmentEvent is bridge.EquipmentEvent_DeviceDiscovered) {
+      return (
+        'DeviceDiscovered',
+        {
+          'device_class': equipmentEvent.deviceClass,
+          'driver': equipmentEvent.driver,
+          'id': equipmentEvent.id,
+          'name': equipmentEvent.name,
+          'display_name': equipmentEvent.displayName,
+          if (equipmentEvent.uniqueId != null)
+            'unique_id': equipmentEvent.uniqueId,
+        },
+      );
+    } else if (equipmentEvent is bridge.EquipmentEvent_DeviceLost) {
+      return (
+        'DeviceLost',
+        {
+          'device_class': equipmentEvent.deviceClass,
+          'driver': equipmentEvent.driver,
+          'id': equipmentEvent.id,
+        },
+      );
+    }
     // Fallback
     return ('UnknownEquipmentEvent', {'event': equipmentEvent.toString()});
   }
