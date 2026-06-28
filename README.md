@@ -11,7 +11,7 @@
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS%20%7C%20Android-blue)](#platforms)
 [![License](https://img.shields.io/badge/license-source--available-lightgrey)](LICENSE)
 
-[**Download**](https://github.com/Scdouglas1999/Nightshade/releases/latest) · [**Documentation**](docs/index.md) · [**Changelog**](docs/CHANGELOG.md) · [**Release notes (4.1.0)**](docs/release/v4.1.0.md)
+[**Download**](https://github.com/Scdouglas1999/Nightshade/releases/latest) · [**Documentation**](docs/index.md) · [**Support development**](https://www.patreon.com/cw/SeanDouglas) · [**Changelog**](docs/CHANGELOG.md) · [**Release notes (4.1.0)**](docs/release/v4.1.0.md)
 
 <img src="assets/screenshots/desktop-dashboard.png?v=20260608" width="860" alt="Nightshade live dashboard with preview, equipment, guiding, and weather tiles">
 
@@ -30,6 +30,12 @@ Nightshade runs the whole night from a single program. Connect the rig, plan tar
 > **Recommended tested setup:** Windows 10/11 desktop app + ASCOM/Alpaca drivers + a supported camera, focuser, filter wheel, and PHD2. **Experimental / supervise closely:** unattended *headless* nights, Linux, macOS, and native-SDK device paths. See [release evidence](docs/release-evidence/4.1.0.md), [supported hardware](docs/supported-hardware-by-platform.md), and [known limitations](docs/known-limitations.md). Test reports from real rigs are the most useful thing you can send — name the gear, the backend (ASCOM/Alpaca/INDI/native), the OS, and where it went sideways.
 >
 > ⚠️ **Do not leave an expensive rig running unattended until your specific setup has passed a supervised first-night validation.** Watch the first full sessions end to end — connect, slew, focus, guide, capture, meridian flip, and park — and confirm each step on *your* hardware before you trust it to run while you sleep.
+
+## Support Nightshade
+
+Nightshade is free to use, and the goal is to keep it that way. If it saves you time, helps your rig behave, or you simply want to support long-term development, you can optionally [support the project on Patreon](https://www.patreon.com/cw/SeanDouglas).
+
+Patreon support helps cover the less glamorous parts of keeping astrophotography software healthy: hardware testing, SDK changes, release packaging, documentation, compatibility fixes, and the long tail of edge cases that only appear under clear skies at 2 a.m. There are no paid-only builds or locked features; support is appreciated, never required.
 
 ## What it does
 
