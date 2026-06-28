@@ -29,7 +29,11 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y indi-bin libindi-dev
+          sudo apt-get install -y indi-bin libindi-dev pkg-config libudev-dev libraw-dev
+
+      - name: Install macOS native build dependencies
+        if: runner.os == 'macOS'
+        run: brew install libraw
 
       - name: Run compatibility suite
         shell: pwsh
