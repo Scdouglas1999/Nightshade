@@ -5222,7 +5222,7 @@ pub async fn execute_script(
             // script spawned survives the abort (SEQ-001). Unix-only; elsewhere we
             // retain the existing direct-child `kill_on_drop` behaviour.
             #[cfg(unix)]
-            kill_script_process_group(child_pid).await;
+            kill_script_process_group(child_pid);
             match abort {
                 Abort::Timeout => InstructionResult::failure(format!(
                     "Script timed out after {} seconds",
@@ -5236,33 +5236,31 @@ pub async fn execute_script(
 
 /// SIGKILL a timed-out/cancelled script's entire process group (Unix only).
 ///
-/// `execute_script` spawns the child with `process_group(0)`, so `pgid == pid`;
-/// the platform `kill` understands a negative target as a process group, so
-/// `kill -KILL -<pgid>` reaches every surviving member — including grandchildren
-/// a `kill_on_drop` of the direct child alone would orphan. Reparented
-/// descendants are reaped by the subreaper/init once signalled. We shell out to
-/// `kill` (rather than `libc::killpg`) because no `libc` dependency is in scope
-/// here. A no-op when the pid is unknown.
+/// `execute_script` spawns the child with `process_group(0)`, so `pgid == pid`.
+/// `kill(2)` with a NEGATIVE pid delivers the signal to that whole process
+/// group, reaching backgrounded grandchildren (`some_cmd &`) that a
+/// `kill_on_drop` of the direct child alone would orphan. Reparented descendants
+/// are reaped by the subreaper/init once signalled. A no-op when the pid is
+/// unknown.
+///
+/// We call `kill(2)` directly rather than shelling out to `kill -KILL -<pgid>`:
+/// the negative-pgid group syntax is parsed inconsistently across `kill(1)`
+/// implementations (the bash builtin accepts it; some standalone util-linux
+/// `kill` binaries — e.g. on CI runners — reject `-<pgid>` as a bad option), and
+/// a misparse there silently leaks the group because the non-zero exit was
+/// ignored. The syscall has no such ambiguity (SEQ-001 regression on CI).
 #[cfg(unix)]
-async fn kill_script_process_group(pid: Option<u32>) {
+fn kill_script_process_group(pid: Option<u32>) {
     let Some(pid) = pid else {
         return;
     };
-    match tokio::process::Command::new("kill")
-        .arg("-KILL")
-        .arg(format!("-{pid}"))
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .await
-    {
-        // Success, or a non-zero status because the group had already fully
-        // exited (the direct child may have been the last member and was already
-        // reaped by `kill_on_drop`) — neither is an error worth surfacing.
-        Ok(_) => {}
-        Err(e) => {
-            tracing::warn!("failed to run `kill` to tear down script process group {pid}: {e}")
-        }
+    let pgid = pid as libc::pid_t;
+    // SAFETY: `kill(2)` is async-signal-safe and takes no pointers. A negative
+    // target signals the process group `pgid`. The only expected failure is
+    // ESRCH (the group already fully exited — a benign abort/exit race), which
+    // needs no handling, so the return value is intentionally ignored.
+    unsafe {
+        libc::kill(-pgid, libc::SIGKILL);
     }
 }
 
