@@ -83,11 +83,14 @@ void main() {
     );
   });
 
-  testWidgets('SmartNightDialog footer has Cancel + Next buttons',
-      (tester) async {
+  testWidgets(
+      'SmartNightDialog footer has Next and no redundant Cancel '
+      '(dismissal is the header close button)', (tester) async {
     await _pumpDialog(tester);
-    expect(find.text('Cancel'), findsOneWidget);
     expect(find.text('Next'), findsOneWidget);
+    // The footer Cancel was removed; the header ✕ is the single dismissal
+    // affordance (covered by the close-button dismissal test above).
+    expect(find.text('Cancel'), findsNothing);
   });
 
   testWidgets(

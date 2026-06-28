@@ -409,12 +409,6 @@ final pluginHostProvider = Provider<PluginHost>((ref) {
   return host;
 });
 
-/// UI extension points provider
-final uiExtensionPointsProvider = Provider<List<UiExtensionPoint>>((ref) {
-  final host = ref.watch(pluginHostProvider);
-  return host.getPlugins<UiPlugin>().expand((p) => p.extensionPoints).toList();
-});
-
 /// Plugin sequence-node registry provider. Exposed at the package level so
 /// the sequence editor (palette) and the sequence executor (dispatch) can
 /// resolve plugin-contributed nodes without depending on the host directly.

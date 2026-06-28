@@ -176,11 +176,18 @@ void main() {
       expect(response.body['maxBytes'], 1024 * 1024);
     });
 
-    test('rejects chunked oversized control requests before auth', () async {
+    // HTTP-001: the chunked-body buffering now runs AFTER auth, so an
+    // AUTHENTICATED over-limit chunked upload is still rejected with 413 (the
+    // streaming cap is unchanged for valid credentials). The unauthenticated
+    // case is covered separately — it is rejected with 401 before any body is
+    // buffered (see http_request_size_limit_test.dart).
+    test('rejects chunked oversized control requests for authenticated '
+        'callers', () async {
       final body = 'x' * (1024 * 1024 + 1);
       final response = await _rawSocketRequest(baseUri, [
         'POST /api/mount/slew HTTP/1.1',
         'Host: 127.0.0.1:${server.actualPort}',
+        'Authorization: Bearer admin-token',
         'Content-Type: application/json',
         'Transfer-Encoding: chunked',
         'x-request-id: test-chunked-too-large-1',

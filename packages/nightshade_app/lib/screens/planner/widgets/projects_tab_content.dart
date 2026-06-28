@@ -61,11 +61,28 @@ class _ProjectsTabContentState extends ConsumerState<ProjectsTabContent> {
     );
   }
 
+  /// Projects are host-owned: a remote slave reads the campaign list + progress
+  /// over REST but cannot mutate it (there is no project-write endpoint, and
+  /// the local DB write would be lost). Gate the mutation affordances on a
+  /// slave with a clear notice instead of letting ProjectService throw.
+  bool _blockedOnRemote() {
+    if (ref.read(backendProvider) is! NetworkBackend) return false;
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Projects are managed on the imaging host.'),
+        ),
+      );
+    }
+    return true;
+  }
+
   // ---------------------------------------------------------------------------
   // Create / edit / delete project
   // ---------------------------------------------------------------------------
 
   Future<void> _openCreateDialog() async {
+    if (_blockedOnRemote()) return;
     final result = await showDialog<_ProjectFormResult>(
       context: context,
       builder: (_) => const _ProjectFormDialog(),
@@ -81,6 +98,7 @@ class _ProjectsTabContentState extends ConsumerState<ProjectsTabContent> {
   }
 
   Future<void> _openEditDialog(Project project) async {
+    if (_blockedOnRemote()) return;
     final result = await showDialog<_ProjectFormResult>(
       context: context,
       builder: (_) => _ProjectFormDialog(existing: project),
@@ -97,6 +115,7 @@ class _ProjectsTabContentState extends ConsumerState<ProjectsTabContent> {
   }
 
   Future<void> _confirmDelete(Project project) async {
+    if (_blockedOnRemote()) return;
     final colors = NightshadeColors.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
@@ -165,6 +184,7 @@ class _ProjectsTabContentState extends ConsumerState<ProjectsTabContent> {
   // ---------------------------------------------------------------------------
 
   Future<void> _openAddTargetDialog(int projectId, Set<int> attachedIds) async {
+    if (_blockedOnRemote()) return;
     final result = await showDialog<int>(
       context: context,
       builder: (_) => _AddTargetDialog(attachedTargetIds: attachedIds),
@@ -175,6 +195,7 @@ class _ProjectsTabContentState extends ConsumerState<ProjectsTabContent> {
   }
 
   Future<void> _removeTarget(int projectId, int targetId) async {
+    if (_blockedOnRemote()) return;
     final service = ref.read(projectServiceProvider);
     await service.removeTarget(projectId: projectId, targetId: targetId);
   }
@@ -245,12 +266,10 @@ class _ProjectsTabContentState extends ConsumerState<ProjectsTabContent> {
       return;
     }
 
-    await showDialog<void>(
-      context: context,
-      builder: (_) => SmartNightDialog(
-        seedTargetIds: incompleteIds,
-        seedSourceLabel: active.name,
-      ),
+    await showSmartNightDialog(
+      context,
+      seedTargetIds: incompleteIds,
+      seedSourceLabel: active.name,
     );
   }
 

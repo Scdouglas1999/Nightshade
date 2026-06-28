@@ -500,6 +500,41 @@ pub fn weight_frames(
     })
 }
 
+/// Weight a population on an **absolute, population-independent** scale for the
+/// multi-night accumulating master.
+///
+/// Unlike [`weight_frames`], which renormalizes each population so its *own*
+/// best frame is `1.0`, this weights every frame against the fixed
+/// [`FrameQuality::neutral`] anchor. Because the anchor never changes from one
+/// fold (night) to the next, the resulting weights are directly comparable
+/// **across folds**: a uniformly lower-SNR night yields strictly smaller
+/// weights and therefore contributes proportionally less to the running
+/// weighted mean — the bias the per-fold max-normalization would otherwise
+/// erase (see `master_accumulation` module docs).
+///
+/// Within a single fold the weights are exactly proportional to those of
+/// [`weight_frames`] (both derive from [`frame_weight`], which factors as
+/// `weight(q, ref) = C(ref) · g(q)` for any reference with positive FWHM/SNR),
+/// so anchoring on `neutral` instead of the fold's best frame does not change a
+/// single-night master: a weighted mean is invariant to a global weight scale.
+///
+/// If every frame is degenerate (all weights `0`), falls back to a uniform
+/// weight so the fold still integrates, matching [`weight_frames`].
+///
+/// Returns an empty vector for an empty population.
+pub fn accumulation_weights(qualities: &[FrameQuality], formula: &WeightFormula) -> Vec<f64> {
+    let anchor = FrameQuality::neutral();
+    let raw: Vec<f64> = qualities
+        .iter()
+        .map(|q| frame_weight(q, &anchor, formula))
+        .collect();
+    if !raw.is_empty() && raw.iter().all(|&w| w <= 0.0) {
+        vec![1.0; raw.len()]
+    } else {
+        raw
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -809,6 +844,103 @@ mod tests {
         assert!(weight_frames(&[], &WeightFormula::default(), &CullPolicy::default()).is_none());
         let empty = ImageData::new(0, 0, 1, crate::PixelType::U16);
         assert!(analyze_frame_quality(&empty, &FrameQualityConfig::default()).is_none());
+        assert!(accumulation_weights(&[], &WeightFormula::default()).is_empty());
+    }
+
+    /// IMG-001: the accumulating master's per-fold weights must sit on a fixed,
+    /// population-independent scale so a uniformly worse night contributes
+    /// strictly less weight across folds — the property `weight_frames`'
+    /// per-fold max-normalization erases.
+    #[test]
+    fn accumulation_weights_are_population_independent_and_cross_fold_comparable() {
+        let mk = |snr: f64| FrameQuality {
+            noise: 10.0,
+            background: 1000.0,
+            snr,
+            fwhm: 3.0,
+            eccentricity: Some(0.1),
+            star_count: 50,
+        };
+        let f = WeightFormula::SnrSquared;
+
+        // "Night A": two good subs. "Night B": two uniformly lower-SNR subs.
+        let night_a = [mk(40.0), mk(38.0)];
+        let night_b = [mk(20.0), mk(19.0)];
+
+        let wa = accumulation_weights(&night_a, &f);
+        let wb = accumulation_weights(&night_b, &f);
+
+        // Anchor stability: a frame's weight does NOT depend on which other
+        // frames share its fold. Re-weighting frame A0 alone, or alongside a
+        // different population, yields the identical weight.
+        let wa0_alone = accumulation_weights(&[mk(40.0)], &f);
+        assert_eq!(
+            wa[0], wa0_alone[0],
+            "weight must be population-independent (stable anchor)"
+        );
+        let mixed = accumulation_weights(&[mk(40.0), mk(20.0), mk(19.0)], &f);
+        assert_eq!(
+            wa[0], mixed[0],
+            "frame weight must not change when folded with a worse population"
+        );
+        assert_eq!(wb[0], mixed[1]);
+
+        // Cross-fold comparability: the better night contributes strictly more
+        // total weight. With SnrSquared, ~2× SNR ⇒ ~4× weight per frame.
+        let sum_a: f64 = wa.iter().sum();
+        let sum_b: f64 = wb.iter().sum();
+        assert!(
+            sum_a > sum_b * 3.0,
+            "the higher-SNR night must carry far more total weight: A={sum_a} B={sum_b}"
+        );
+
+        // Contrast with weight_frames, which renormalizes each night to max 1.0
+        // and so makes the two nights' total weights near-equal (the bug).
+        let nb_norm = weight_frames(&night_b, &f, &CullPolicy::default()).unwrap();
+        let sum_b_norm: f64 = nb_norm.frames.iter().map(|x| x.weight).sum();
+        let na_norm = weight_frames(&night_a, &f, &CullPolicy::default()).unwrap();
+        let sum_a_norm: f64 = na_norm.frames.iter().map(|x| x.weight).sum();
+        assert!(
+            (sum_a_norm - sum_b_norm).abs() < 0.1,
+            "per-fold normalization erases the cross-night difference: A={sum_a_norm} B={sum_b_norm}"
+        );
+    }
+
+    /// IMG-001 invariant: anchoring on `neutral` instead of the fold's best
+    /// frame is a pure global rescale within a single fold, so the implied
+    /// weighted mean is unchanged. Pin that the two weightings are proportional.
+    #[test]
+    fn accumulation_weights_are_proportional_to_weight_frames_within_a_fold() {
+        let mk = |snr: f64, fwhm: f64, ecc: f64| FrameQuality {
+            noise: 10.0,
+            background: 1000.0,
+            snr,
+            fwhm,
+            eccentricity: Some(ecc),
+            star_count: 50,
+        };
+        let f = WeightFormula::default();
+        let qs = [
+            mk(40.0, 2.0, 0.05),
+            mk(30.0, 3.0, 0.10),
+            mk(22.0, 4.0, 0.20),
+        ];
+        let abs = accumulation_weights(&qs, &f);
+        let norm: Vec<f64> = weight_frames(&qs, &f, &CullPolicy::default())
+            .unwrap()
+            .frames
+            .iter()
+            .map(|x| x.weight)
+            .collect();
+        // ratio abs/norm must be the same constant for every frame.
+        let c0 = abs[0] / norm[0];
+        for i in 1..qs.len() {
+            let ci = abs[i] / norm[i];
+            assert!(
+                (ci - c0).abs() < 1e-9 * c0,
+                "within a fold the two weightings must be a pure rescale: c0={c0} c{i}={ci}"
+            );
+        }
     }
 
     #[test]

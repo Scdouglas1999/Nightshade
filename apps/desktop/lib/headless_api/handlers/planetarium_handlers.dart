@@ -524,7 +524,6 @@ class PlanetariumHandlers {
   /// Returns WebSocket URL and event types for real-time mount updates.
   Future<Response> handleGetSubscribeInfo(Request request) async {
     _logInfo('[API] GET /api/planetarium/subscribe-info');
-    // Get the host from the request
     final host = request.requestedUri.host;
     final port = request.requestedUri.port;
     final scheme = request.requestedUri.scheme == 'https' ? 'wss' : 'ws';
@@ -584,5 +583,159 @@ class PlanetariumHandlers {
       'longitude': location.longitude,
       'elevation': location.elevation,
     });
+  }
+
+  // ===========================================================================
+  // Observing lists (host-backed favorites/lists subsystem)
+  //
+  // A remote slave's local SQLite observing-lists tables are never populated,
+  // so the planetarium Lists tab, the object-info "add to list" picker, the
+  // planner candidate list, and the Settings > Observing Lists screen all read
+  // empty there. These endpoints serve the master's lists/items and route the
+  // slave's mutations to the host so curated lists stay on the master.
+  // ===========================================================================
+
+  ObservingListsDao get _observingListsDao =>
+      container.read(observingListsDaoProvider);
+
+  /// GET /api/observing-lists — all observing lists ordered by sortOrder.
+  Future<Response> handleGetObservingLists(Request request) async {
+    _logInfo('[API] GET /api/observing-lists');
+    final lists = await _observingListsDao.getAllLists();
+    return jsonOk({'lists': lists.map((l) => l.toJson()).toList()});
+  }
+
+  /// GET /api/observing-lists/items?listId= — items in one list.
+  Future<Response> handleGetObservingListItems(Request request) async {
+    _logInfo('[API] GET /api/observing-lists/items');
+    final listIdStr = request.url.queryParameters['listId'];
+    final listId = int.tryParse(listIdStr ?? '');
+    if (listId == null) {
+      return jsonBadRequest({'error': 'Missing or invalid listId'});
+    }
+    final items = await _observingListsDao.getItemsForList(listId);
+    return jsonOk({'items': items.map((i) => i.toJson()).toList()});
+  }
+
+  /// GET /api/observing-lists/listed-catalog-ids[?listId=] — distinct catalog
+  /// ids across all lists, or for one list (drives star-chart list markers).
+  Future<Response> handleGetListedCatalogIds(Request request) async {
+    _logInfo('[API] GET /api/observing-lists/listed-catalog-ids');
+    final listIdStr = request.url.queryParameters['listId'];
+    final Set<String> ids;
+    if (listIdStr != null) {
+      final listId = int.tryParse(listIdStr);
+      if (listId == null) {
+        return jsonBadRequest({'error': 'Invalid listId'});
+      }
+      ids = await _observingListsDao.getCatalogIdsForList(listId);
+    } else {
+      ids = await _observingListsDao.getAllListedCatalogIds();
+    }
+    return jsonOk({'catalogIds': ids.toList()});
+  }
+
+  /// GET /api/observing-lists/containing?catalogId= — lists holding an object.
+  Future<Response> handleGetListsContaining(Request request) async {
+    _logInfo('[API] GET /api/observing-lists/containing');
+    final catalogId = request.url.queryParameters['catalogId'];
+    if (catalogId == null || catalogId.isEmpty) {
+      return jsonBadRequest({'error': 'Missing catalogId'});
+    }
+    final lists = await _observingListsDao.getListsContaining(catalogId);
+    return jsonOk({'lists': lists.map((l) => l.toJson()).toList()});
+  }
+
+  /// POST /api/observing-lists — create a list; returns its id.
+  Future<Response> handleCreateObservingList(Request request) async {
+    _logInfo('[API] POST /api/observing-lists');
+    final payload = await readJsonObject(request);
+    final name = requireString(payload, 'name');
+    final description = optionalString(payload, 'description');
+    final id = await _observingListsDao.createList(
+      name: name,
+      description: description,
+    );
+    return jsonOk({'id': id});
+  }
+
+  /// POST /api/observing-lists/update — rename / re-describe a list.
+  Future<Response> handleUpdateObservingList(Request request) async {
+    _logInfo('[API] POST /api/observing-lists/update');
+    final payload = await readJsonObject(request);
+    final id = requireInt(payload, 'id');
+    await _observingListsDao.updateList(
+      id: id,
+      name: optionalString(payload, 'name'),
+      description: optionalString(payload, 'description'),
+    );
+    return jsonOk({'status': 'updated'});
+  }
+
+  /// DELETE /api/observing-lists?id= — delete a list (cascades items).
+  Future<Response> handleDeleteObservingList(Request request) async {
+    _logInfo('[API] DELETE /api/observing-lists');
+    final id = int.tryParse(request.url.queryParameters['id'] ?? '');
+    if (id == null) {
+      return jsonBadRequest({'error': 'Missing or invalid id'});
+    }
+    await _observingListsDao.deleteList(id);
+    return jsonOk({'status': 'deleted'});
+  }
+
+  /// POST /api/observing-lists/duplicate — duplicate a list + items; new id.
+  Future<Response> handleDuplicateObservingList(Request request) async {
+    _logInfo('[API] POST /api/observing-lists/duplicate');
+    final payload = await readJsonObject(request);
+    final sourceId = requireInt(payload, 'sourceId');
+    final id = await _observingListsDao.duplicateList(sourceId);
+    return jsonOk({'id': id});
+  }
+
+  /// POST /api/observing-lists/items — add an item to a list; returns its id.
+  Future<Response> handleAddObservingListItem(Request request) async {
+    _logInfo('[API] POST /api/observing-lists/items');
+    final payload = await readJsonObject(request);
+    try {
+      final id = await _observingListsDao.addItem(
+        listId: requireInt(payload, 'listId'),
+        objectName: requireString(payload, 'objectName'),
+        catalogId: optionalString(payload, 'catalogId'),
+        objectType: optionalString(payload, 'objectType'),
+        ra: requireDouble(payload, 'ra'),
+        dec: requireDouble(payload, 'dec'),
+        magnitude: optionalDouble(payload, 'magnitude'),
+        sizeArcmin: optionalDouble(payload, 'sizeArcmin'),
+        notes: optionalString(payload, 'notes'),
+      );
+      return jsonOk({'id': id});
+    } on StateError catch (e) {
+      // Duplicate catalog id within the list — surface as a 409 so the slave's
+      // notifier shows the same "already in this list" message the host would.
+      return jsonConflict({'error': e.message});
+    }
+  }
+
+  /// DELETE /api/observing-lists/items?id= — remove an item.
+  Future<Response> handleRemoveObservingListItem(Request request) async {
+    _logInfo('[API] DELETE /api/observing-lists/items');
+    final id = int.tryParse(request.url.queryParameters['id'] ?? '');
+    if (id == null) {
+      return jsonBadRequest({'error': 'Missing or invalid id'});
+    }
+    await _observingListsDao.removeItem(id);
+    return jsonOk({'status': 'removed'});
+  }
+
+  /// POST /api/observing-lists/items/update-notes — edit an item's notes.
+  Future<Response> handleUpdateObservingListItemNotes(Request request) async {
+    _logInfo('[API] POST /api/observing-lists/items/update-notes');
+    final payload = await readJsonObject(request);
+    final itemId = requireInt(payload, 'itemId');
+    await _observingListsDao.updateItemNotes(
+      itemId,
+      optionalString(payload, 'notes'),
+    );
+    return jsonOk({'status': 'updated'});
   }
 }

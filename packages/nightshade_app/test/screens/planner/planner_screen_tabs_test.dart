@@ -96,10 +96,10 @@ int _tabIndex(String label) {
   const order = <String>[
     'Recommendation',
     'Projects',
-    'Target Queue',
-    'This Week',
-    'Progress',
-    'Sky',
+    'Schedule',
+    'Framing',
+    'Planetarium',
+    'Discover',
   ];
   final i = order.indexOf(label);
   if (i < 0) throw ArgumentError('Unknown planner tab label: $label');
@@ -119,32 +119,42 @@ void _expectSelected(WidgetTester tester, String label) {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('plannerTabFromQuery — Projects + This Week wiring', () {
-    test('maps the Projects canonical name and aliases', () {
+  group('plannerTabFromQuery — consolidated Projects + Schedule wiring', () {
+    test('maps Projects + the folded Progress aliases', () {
+      // Projects now absorbs the former standalone Progress tab, so its legacy
+      // deep-links resolve onto Projects (the all-targets scope).
       expect(plannerTabFromQuery('projects'), PlannerTab.projects);
       expect(plannerTabFromQuery('project'), PlannerTab.projects);
       expect(plannerTabFromQuery('campaign'), PlannerTab.projects);
       expect(plannerTabFromQuery('campaigns'), PlannerTab.projects);
+      expect(plannerTabFromQuery('progress'), PlannerTab.projects);
+      expect(plannerTabFromQuery('history'), PlannerTab.projects);
     });
 
-    test('maps the This Week canonical name and aliases', () {
-      expect(plannerTabFromQuery('week'), PlannerTab.week);
-      expect(plannerTabFromQuery('forecast'), PlannerTab.week);
-      expect(plannerTabFromQuery('thisweek'), PlannerTab.week);
-      expect(plannerTabFromQuery('this-week'), PlannerTab.week);
+    test('maps Schedule + the folded Target Queue / This Week aliases', () {
+      // Schedule unifies the former Target Queue scheduler and This Week
+      // forecast, so all of their legacy deep-links resolve onto Schedule.
+      expect(plannerTabFromQuery('schedule'), PlannerTab.schedule);
+      expect(plannerTabFromQuery('scheduler'), PlannerTab.schedule);
+      expect(plannerTabFromQuery('queue'), PlannerTab.schedule);
+      expect(plannerTabFromQuery('target-queue'), PlannerTab.schedule);
+      expect(plannerTabFromQuery('week'), PlannerTab.schedule);
+      expect(plannerTabFromQuery('forecast'), PlannerTab.schedule);
+      expect(plannerTabFromQuery('thisweek'), PlannerTab.schedule);
+      expect(plannerTabFromQuery('this-week'), PlannerTab.schedule);
     });
 
-    test('is case-insensitive for the new tabs', () {
+    test('is case-insensitive for the consolidated tabs', () {
       expect(plannerTabFromQuery('Projects'), PlannerTab.projects);
       expect(plannerTabFromQuery('CAMPAIGNS'), PlannerTab.projects);
-      expect(plannerTabFromQuery('Week'), PlannerTab.week);
-      expect(plannerTabFromQuery('This-Week'), PlannerTab.week);
+      expect(plannerTabFromQuery('Week'), PlannerTab.schedule);
+      expect(plannerTabFromQuery('This-Week'), PlannerTab.schedule);
     });
 
     test('still maps the pre-existing tabs (no regression)', () {
       expect(plannerTabFromQuery('recommendation'), PlannerTab.recommendation);
-      expect(plannerTabFromQuery('scheduler'), PlannerTab.scheduler);
-      expect(plannerTabFromQuery('progress'), PlannerTab.progress);
+      expect(plannerTabFromQuery('framing'), PlannerTab.framing);
+      expect(plannerTabFromQuery('planetarium'), PlannerTab.planetarium);
     });
 
     test('returns null for junk and for null', () {
@@ -156,18 +166,19 @@ void main() {
     });
 
     test('enum declares the intended planning-to-execution order', () {
-      // C11 ordering decision: Projects sits next to Recommendation (planning
-      // intent); This Week sits next to the scheduler queue (execution-timing
-      // intent). Guards against an accidental reorder of the enum.
+      // Recommendation → the consolidated Projects (campaign + all-targets
+      // progress) → Schedule (forecast + queue) → the sky-work tabs (Framing,
+      // Planetarium) → Discover. Guards against an accidental reorder of the
+      // enum — the selected index is PlannerTab.index.
       expect(
         PlannerTab.values,
         const [
           PlannerTab.recommendation,
           PlannerTab.projects,
-          PlannerTab.scheduler,
-          PlannerTab.week,
-          PlannerTab.progress,
-          PlannerTab.sky,
+          PlannerTab.schedule,
+          PlannerTab.framing,
+          PlannerTab.planetarium,
+          PlannerTab.discover,
         ],
       );
     });
@@ -201,18 +212,20 @@ void main() {
             'the enum.',
       );
 
-      // One IndexedStack child per enum value. A tab body (the embedded
-      // scheduler) may nest its own IndexedStack, so identify the planner's
-      // top-level stack as the one whose children are the tab bodies.
-      // IndexedStack keeps unselected children mounted but Offstage, so we
-      // must inspect the widget config directly rather than rely on rendered
-      // descendants.
+      // One IndexedStack child per enum value. A tab body may nest its own
+      // IndexedStack (the embedded scheduler; the Framing/Planetarium/Discover
+      // views), so identify the planner's top-level stack as the one whose
+      // children include the TickerMode wrappers that gate the heavy live-sky
+      // views (Framing/Planetarium/Discover) — those wrappers are unique to the
+      // planner's own stack. IndexedStack keeps unselected children mounted but
+      // Offstage, so we inspect the widget config directly rather than rely on
+      // rendered descendants.
       final plannerStack = tester
           .widgetList<IndexedStack>(
             find.byType(IndexedStack, skipOffstage: false),
           )
           .singleWhere(
-            (s) => s.children.any((c) => c is ProjectsTabContent),
+            (s) => s.children.any((c) => c is TickerMode),
             orElse: () => throw StateError(
               'No IndexedStack holds the planner tab bodies.',
             ),
@@ -225,9 +238,10 @@ void main() {
             'extra child mis-routes the body for some tab.',
       );
 
-      // The new tab bodies are present in the stack (built eagerly by
-      // IndexedStack, though Offstage when not selected), proving the children
-      // list was actually extended and not just the strip labels.
+      // The consolidated tab bodies are present (built eagerly by IndexedStack,
+      // though Offstage when not selected). Projects defaults to its campaign
+      // scope (so ProjectsTabContent is built, not the all-targets
+      // ProgressTabContent), and Schedule always builds the scheduler.
       expect(
         find.byType(ProjectsTabContent, skipOffstage: false),
         findsOneWidget,
@@ -236,13 +250,17 @@ void main() {
         find.byType(SchedulerTabContent, skipOffstage: false),
         findsOneWidget,
       );
-      expect(
-        find.byType(WeekForecastStrip, skipOffstage: false),
-        findsOneWidget,
-      );
+      // ProgressTabContent is the Projects tab's *other* scope — not built until
+      // the user switches to "All Targets". WeekForecastStrip only mounts atop
+      // the scheduler when the forecast has rankable nights (here the forecast
+      // double is unavailable), so neither is present in the default state.
       expect(
         find.byType(ProgressTabContent, skipOffstage: false),
-        findsOneWidget,
+        findsNothing,
+      );
+      expect(
+        find.byType(WeekForecastStrip, skipOffstage: false),
+        findsNothing,
       );
     });
 
@@ -264,22 +282,21 @@ void main() {
       _expectSelected(tester, 'Projects');
     });
 
-    testWidgets('?tab=week selects the This Week tab on initial render',
+    testWidgets('?tab=week (folded) selects the Schedule tab on initial render',
         (tester) async {
       sizeDesktop(tester);
       await tester.pumpWidget(_harness(initialTabQuery: 'week'));
       await tester.pump(const Duration(milliseconds: 200));
 
-      _expectSelected(tester, 'This Week');
+      _expectSelected(tester, 'Schedule');
     });
 
-    testWidgets('?tab=forecast alias selects the This Week tab',
-        (tester) async {
+    testWidgets('?tab=forecast alias selects the Schedule tab', (tester) async {
       sizeDesktop(tester);
       await tester.pumpWidget(_harness(initialTabQuery: 'forecast'));
       await tester.pump(const Duration(milliseconds: 200));
 
-      _expectSelected(tester, 'This Week');
+      _expectSelected(tester, 'Schedule');
     });
 
     testWidgets('junk ?tab= falls back to the default Recommendation tab',
@@ -291,22 +308,21 @@ void main() {
       _expectSelected(tester, 'Recommendation');
     });
 
-    testWidgets('tapping the This Week tab switches the selection',
+    testWidgets('tapping the Schedule tab switches the selection',
         (tester) async {
-      // Covers the user-gesture path (onSelected -> setState) for the
-      // newly-inserted tab specifically: a regression that wired the label but
-      // dropped the new entry's onSelected would still pass the deep-link
-      // tests.
+      // Covers the user-gesture path (onSelected -> setState) for a
+      // consolidated tab specifically: a regression that wired the label but
+      // dropped the entry's onSelected would still pass the deep-link tests.
       sizeDesktop(tester);
       await tester.pumpWidget(_harness());
       await tester.pump(const Duration(milliseconds: 200));
 
       _expectSelected(tester, 'Recommendation');
 
-      await tester.tap(find.text('This Week'));
+      await tester.tap(find.text('Schedule'));
       await tester.pump(const Duration(milliseconds: 200));
 
-      _expectSelected(tester, 'This Week');
+      _expectSelected(tester, 'Schedule');
     });
 
     testWidgets('tapping the Projects tab switches the selection',
@@ -358,7 +374,7 @@ void main() {
     }
 
     testWidgets(
-        'right-most Progress tab is reachable at 360px (bar scrolls it into '
+        'right-most Discover tab is reachable at 360px (bar scrolls it into '
         'view)', (tester) async {
       tester.view.devicePixelRatio = 1.0;
       tester.view.physicalSize = const Size(360, 640);
@@ -371,10 +387,10 @@ void main() {
       await tester.pump(const Duration(milliseconds: 200));
 
       final bar = tester.widget<AdaptiveTabBar>(find.byType(AdaptiveTabBar));
-      bar.onSelected(PlannerTab.progress.index);
+      bar.onSelected(PlannerTab.discover.index);
       await tester.pump(const Duration(milliseconds: 300));
 
-      _expectSelected(tester, 'Progress');
+      _expectSelected(tester, 'Discover');
       expect(tester.takeException(), isNull);
     });
   });

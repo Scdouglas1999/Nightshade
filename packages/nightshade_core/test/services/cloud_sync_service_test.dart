@@ -12,6 +12,8 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 /// Test-only LoggingService that skips native init (same pattern as
@@ -101,6 +103,86 @@ class InMemorySyncTarget implements SyncTarget {
 
   @override
   Future<void> testConnection() async {}
+}
+
+String _xmlEscape(String v) =>
+    v.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+
+/// An in-memory S3 object store fronted by a [MockClient], answering the
+/// PUT / GET / DELETE / list-objects-v2 calls [S3SyncTarget] makes (path
+/// style). Lets the real SigV4 signing + XML parsing run end-to-end with no
+/// network. The backing [objects] map is shared across every target the
+/// factory builds, so push-then-pull sees the same state.
+class InMemoryS3 {
+  InMemoryS3({required this.bucket});
+
+  final String bucket;
+  final Map<String, List<int>> objects = {};
+
+  MockClient client() => MockClient((request) async {
+    final segments = request.url.pathSegments;
+    if (segments.isEmpty || segments.first != bucket) {
+      return http.Response('NoSuchBucket', 404);
+    }
+    final key = segments.skip(1).join('/');
+    final qp = request.url.queryParameters;
+    switch (request.method) {
+      case 'PUT':
+        objects[key] = request.bodyBytes;
+        return http.Response('', 200);
+      case 'GET':
+        if (qp['list-type'] == '2') {
+          return http.Response(_listXml(qp), 200);
+        }
+        final bytes = objects[key];
+        if (bytes == null) return http.Response('NoSuchKey', 404);
+        return http.Response.bytes(bytes, 200);
+      case 'DELETE':
+        objects.remove(key);
+        return http.Response('', 204);
+      default:
+        return http.Response('Method Not Allowed', 405);
+    }
+  });
+
+  String _listXml(Map<String, String> qp) {
+    if (int.tryParse(qp['max-keys'] ?? '') == 0) {
+      return '<?xml version="1.0"?><ListBucketResult>'
+          '<IsTruncated>false</IsTruncated></ListBucketResult>';
+    }
+    final prefix = qp['prefix'] ?? '';
+    final delimiter = qp['delimiter'];
+    final contents = <String>[];
+    final commonPrefixes = <String>{};
+    for (final entry in objects.entries) {
+      final k = entry.key;
+      if (!k.startsWith(prefix)) continue;
+      final rest = k.substring(prefix.length);
+      if (delimiter != null &&
+          delimiter.isNotEmpty &&
+          rest.contains(delimiter)) {
+        commonPrefixes.add(
+          prefix + rest.substring(0, rest.indexOf(delimiter) + 1),
+        );
+      } else {
+        contents.add(
+          '<Contents><Key>${_xmlEscape(k)}</Key>'
+          '<Size>${entry.value.length}</Size>'
+          '<LastModified>2026-06-01T00:00:00.000Z</LastModified></Contents>',
+        );
+      }
+    }
+    final cps = commonPrefixes
+        .map(
+          (p) =>
+              '<CommonPrefixes><Prefix>${_xmlEscape(p)}</Prefix>'
+              '</CommonPrefixes>',
+        )
+        .join();
+    return '<?xml version="1.0"?><ListBucketResult>'
+        '<IsTruncated>false</IsTruncated>'
+        '${contents.join()}$cps</ListBucketResult>';
+  }
 }
 
 void main() {
@@ -387,6 +469,398 @@ void main() {
         remote.uploadedPaths.where((p) => p.endsWith('.nsbak')),
         hasLength(1),
       );
+    });
+  });
+
+  group('SyncProvider / SyncConfig', () {
+    test('fromKey: absent / null / unknown maps to webdav (back-compat)', () {
+      expect(SyncProvider.fromKey(null), SyncProvider.webdav);
+      expect(SyncProvider.fromKey(''), SyncProvider.webdav);
+      expect(SyncProvider.fromKey('nope'), SyncProvider.webdav);
+      expect(SyncProvider.fromKey('webdav'), SyncProvider.webdav);
+      expect(SyncProvider.fromKey('s3'), SyncProvider.s3);
+    });
+
+    test('const default keeps provider=webdav and empty S3 fields', () {
+      const config = SyncConfig();
+      expect(config.provider, SyncProvider.webdav);
+      expect(config.s3Endpoint, isEmpty);
+      expect(config.s3Region, isEmpty);
+      expect(config.s3Bucket, isEmpty);
+      expect(config.s3AccessKey, isEmpty);
+      expect(config.s3PathStyle, isFalse);
+    });
+
+    test('isConfigured evaluates only the active provider', () {
+      // WebDAV config with all S3 fields empty is configured for webdav.
+      const webdav = SyncConfig(
+        provider: SyncProvider.webdav,
+        serverUrl: 'https://dav.example.com',
+        machineName: 'box',
+      );
+      expect(webdav.isConfigured, isTrue);
+
+      // Same blob but provider switched to s3 (S3 fields empty) -> not
+      // configured: a half-filled inactive provider never blocks/passes.
+      expect(webdav.copyWith(provider: SyncProvider.s3).isConfigured, isFalse);
+
+      const s3 = SyncConfig(
+        provider: SyncProvider.s3,
+        s3Endpoint: 'https://s3.us-east-1.amazonaws.com',
+        s3Region: 'us-east-1',
+        s3Bucket: 'astro',
+        s3AccessKey: 'AKIA',
+        machineName: 'box',
+      );
+      expect(s3.isConfigured, isTrue);
+      expect(s3.copyWith(s3Bucket: '').isConfigured, isFalse);
+      expect(s3.copyWith(s3AccessKey: '').isConfigured, isFalse);
+    });
+
+    test('copyWith round-trips the six new fields', () {
+      const base = SyncConfig();
+      final updated = base.copyWith(
+        provider: SyncProvider.s3,
+        s3Endpoint: 'http://localhost:9000',
+        s3Region: 'us-east-1',
+        s3Bucket: 'b',
+        s3AccessKey: 'ak',
+        s3PathStyle: true,
+      );
+      expect(updated.provider, SyncProvider.s3);
+      expect(updated.s3Endpoint, 'http://localhost:9000');
+      expect(updated.s3Region, 'us-east-1');
+      expect(updated.s3Bucket, 'b');
+      expect(updated.s3AccessKey, 'ak');
+      expect(updated.s3PathStyle, isTrue);
+      // Untouched fields preserved.
+      expect(updated.machineName, base.machineName);
+      expect(updated.retainCount, base.retainCount);
+    });
+  });
+
+  group('SyncService config persistence', () {
+    late NightshadeDatabase db;
+    late Directory tempDir;
+    late LoggingService logger;
+    late SettingsDao dao;
+    late InMemorySecureKeyValueStore keyring;
+    late SecretsStore secrets;
+    late SyncService service;
+
+    setUp(() async {
+      db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+      tempDir = await Directory.systemTemp.createTemp('ns_cloud_sync_cfg_');
+      logger = _testLogger(tempDir);
+      dao = SettingsDao(db);
+      keyring = InMemorySecureKeyValueStore();
+      secrets = SecretsStore(keyring);
+      service = SyncService(
+        backupService: BackupService(
+          database: db,
+          sequenceRepository: SequenceRepository(db.sequencesDao),
+          logger: logger,
+        ),
+        settingsDao: dao,
+        secretsStore: secrets,
+        logger: logger,
+        targetFactory: (config, password) => InMemorySyncTarget(),
+        downloadDirectoryProvider: () async => tempDir,
+      );
+    });
+
+    tearDown(() async {
+      await db.close();
+      if (await tempDir.exists()) await tempDir.delete(recursive: true);
+    });
+
+    test('absent provider key loads as webdav with existing fields', () async {
+      // Simulate a pre-existing WebDAV install: server/username/machine set,
+      // no provider key written.
+      await dao.setSettings({
+        SyncSettingsKeys.serverUrl: 'https://dav.example.com/remote.php',
+        SyncSettingsKeys.username: 'astro',
+        SyncSettingsKeys.machineName: 'laptop',
+      });
+      expect(
+        await dao.getSetting(SyncSettingsKeys.provider),
+        isNull,
+        reason: 'precondition: no provider key persisted',
+      );
+
+      final config = await service.loadConfig();
+      expect(config.provider, SyncProvider.webdav);
+      expect(config.serverUrl, 'https://dav.example.com/remote.php');
+      expect(config.username, 'astro');
+      expect(config.machineName, 'laptop');
+      expect(config.isConfigured, isTrue);
+    });
+
+    test('S3 round-trips and the secret rides keyring, not settings', () async {
+      const secret = 'super-secret-key-value';
+      const config = SyncConfig(
+        provider: SyncProvider.s3,
+        s3Endpoint: 'https://s3.us-east-1.amazonaws.com',
+        s3Region: 'us-east-1',
+        s3Bucket: 'astro-backups',
+        s3AccessKey: 'AKIAEXAMPLE',
+        s3PathStyle: true,
+        machineName: 'rig',
+      );
+      await service.saveConfig(config, password: secret);
+
+      final loaded = await service.loadConfig();
+      expect(loaded.provider, SyncProvider.s3);
+      expect(loaded.s3Endpoint, 'https://s3.us-east-1.amazonaws.com');
+      expect(loaded.s3Region, 'us-east-1');
+      expect(loaded.s3Bucket, 'astro-backups');
+      expect(loaded.s3AccessKey, 'AKIAEXAMPLE');
+      expect(loaded.s3PathStyle, isTrue);
+
+      // Secret is in the keyring under the S3 field.
+      expect(await secrets.read(SecretField.cloudSyncS3SecretKey), secret);
+
+      // Secret is in NO app_settings value.
+      for (final key in const [
+        SyncSettingsKeys.provider,
+        SyncSettingsKeys.serverUrl,
+        SyncSettingsKeys.username,
+        SyncSettingsKeys.machineName,
+        SyncSettingsKeys.autoPush,
+        SyncSettingsKeys.retainCount,
+        SyncSettingsKeys.s3Endpoint,
+        SyncSettingsKeys.s3Region,
+        SyncSettingsKeys.s3Bucket,
+        SyncSettingsKeys.s3AccessKey,
+        SyncSettingsKeys.s3PathStyle,
+      ]) {
+        final value = await dao.getSetting(key);
+        expect(
+          value == null || !value.contains(secret),
+          isTrue,
+          reason: 'secret leaked into app_settings key "$key"',
+        );
+      }
+    });
+
+    test('webdav save writes the webdav field, not the S3 field', () async {
+      const config = SyncConfig(
+        provider: SyncProvider.webdav,
+        serverUrl: 'https://dav.example.com',
+        username: 'astro',
+        machineName: 'box',
+      );
+      await service.saveConfig(config, password: 'pw');
+      expect(await secrets.read(SecretField.cloudSyncPassword), 'pw');
+      expect(await secrets.read(SecretField.cloudSyncS3SecretKey), isEmpty);
+    });
+
+    test('hasStoredSecret reflects the right keyring field', () async {
+      await secrets.write(SecretField.cloudSyncPassword, 'pw');
+      expect(await service.hasStoredSecret(SyncProvider.webdav), isTrue);
+      expect(await service.hasStoredSecret(SyncProvider.s3), isFalse);
+      expect(await service.hasStoredPassword(), isTrue);
+
+      await secrets.write(SecretField.cloudSyncS3SecretKey, 'sk');
+      expect(await service.hasStoredSecret(SyncProvider.s3), isTrue);
+    });
+
+    test('status surfaces the S3 endpoint as serverUrl (non-secret)', () async {
+      const config = SyncConfig(
+        provider: SyncProvider.s3,
+        s3Endpoint: 'https://s3.us-east-1.amazonaws.com',
+        s3Region: 'us-east-1',
+        s3Bucket: 'astro',
+        s3AccessKey: 'AKIA',
+        machineName: 'rig',
+      );
+      await service.saveConfig(config, password: 'sk-must-not-appear');
+      final status = await service.status();
+      expect(status.serverUrl, 'https://s3.us-east-1.amazonaws.com');
+      expect(
+        jsonEncode(status.toJson()),
+        isNot(contains('sk-must-not-appear')),
+      );
+      expect(jsonEncode(status.toJson()), isNot(contains('AKIA')));
+    });
+  });
+
+  group('SyncService.defaultTargetFactory', () {
+    test('builds a WebDavSyncTarget for a webdav config', () {
+      const config = SyncConfig(
+        provider: SyncProvider.webdav,
+        serverUrl: 'https://dav.example.com',
+        machineName: 'box',
+      );
+      final target = SyncService.defaultTargetFactory(config, 'pw');
+      expect(target, isA<WebDavSyncTarget>());
+    });
+
+    test('builds an S3SyncTarget wiring the secret into secretKey', () {
+      const config = SyncConfig(
+        provider: SyncProvider.s3,
+        s3Endpoint: 'https://s3.us-east-1.amazonaws.com',
+        s3Region: 'us-east-1',
+        s3Bucket: 'astro',
+        s3AccessKey: 'AKIA',
+        s3PathStyle: true,
+        machineName: 'rig',
+      );
+      final target = SyncService.defaultTargetFactory(config, 'the-secret');
+      expect(target, isA<S3SyncTarget>());
+      final s3 = target as S3SyncTarget;
+      expect(s3.secretKey, 'the-secret');
+      expect(s3.accessKey, 'AKIA');
+      expect(s3.region, 'us-east-1');
+      expect(s3.bucket, 'astro');
+      expect(s3.pathStyle, isTrue);
+    });
+
+    test('rejects an S3 endpoint without http/https scheme', () {
+      const config = SyncConfig(
+        provider: SyncProvider.s3,
+        s3Endpoint: 'ftp://s3.example.com',
+        s3Region: 'us-east-1',
+        s3Bucket: 'astro',
+        s3AccessKey: 'AKIA',
+        machineName: 'rig',
+      );
+      expect(
+        () => SyncService.defaultTargetFactory(config, 'sk'),
+        throwsA(isA<SyncTargetException>()),
+      );
+    });
+
+    test('rejects empty S3 region / bucket (no network hit)', () {
+      const noRegion = SyncConfig(
+        provider: SyncProvider.s3,
+        s3Endpoint: 'https://s3.example.com',
+        s3Region: '',
+        s3Bucket: 'astro',
+        s3AccessKey: 'AKIA',
+        machineName: 'rig',
+      );
+      const noBucket = SyncConfig(
+        provider: SyncProvider.s3,
+        s3Endpoint: 'https://s3.example.com',
+        s3Region: 'us-east-1',
+        s3Bucket: '',
+        s3AccessKey: 'AKIA',
+        machineName: 'rig',
+      );
+      expect(
+        () => SyncService.defaultTargetFactory(noRegion, 'sk'),
+        throwsA(isA<SyncTargetException>()),
+      );
+      expect(
+        () => SyncService.defaultTargetFactory(noBucket, 'sk'),
+        throwsA(isA<SyncTargetException>()),
+      );
+    });
+  });
+
+  group('SyncService S3 loopback (real SigV4 + XML, MockClient)', () {
+    late Directory tempDir;
+    late LoggingService logger;
+    late InMemoryS3 store;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('ns_cloud_sync_s3_');
+      logger = _testLogger(tempDir);
+      store = InMemoryS3(bucket: 'astro-backups');
+    });
+
+    tearDown(() async {
+      if (await tempDir.exists()) await tempDir.delete(recursive: true);
+    });
+
+    SyncService s3ServiceFor(NightshadeDatabase database) {
+      return SyncService(
+        backupService: BackupService(
+          database: database,
+          sequenceRepository: SequenceRepository(database.sequencesDao),
+          logger: logger,
+        ),
+        settingsDao: SettingsDao(database),
+        secretsStore: SecretsStore(InMemorySecureKeyValueStore()),
+        logger: logger,
+        targetFactory: (config, password) => S3SyncTarget(
+          endpoint: Uri.parse(config.s3Endpoint),
+          region: config.s3Region,
+          bucket: config.s3Bucket,
+          accessKey: config.s3AccessKey,
+          secretKey: password,
+          pathStyle: config.s3PathStyle,
+          client: store.client(),
+        ),
+        downloadDirectoryProvider: () async => tempDir,
+      );
+    }
+
+    Future<void> configureS3(NightshadeDatabase database) async {
+      await SettingsDao(database).setSettings({
+        SyncSettingsKeys.provider: SyncProvider.s3.key,
+        SyncSettingsKeys.s3Endpoint: 'http://localhost:9000',
+        SyncSettingsKeys.s3Region: 'us-east-1',
+        SyncSettingsKeys.s3Bucket: 'astro-backups',
+        SyncSettingsKeys.s3AccessKey: 'AKIAEXAMPLE',
+        SyncSettingsKeys.s3PathStyle: 'true',
+        SyncSettingsKeys.machineName: 's3-machine',
+      });
+    }
+
+    test(
+      'pushNow + list + pullAndRestore round-trip through S3SyncTarget',
+      () async {
+        final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+        addTearDown(db.close);
+        await configureS3(db);
+        await TargetsDao(db).createTarget(
+          TargetsCompanion.insert(name: 'NGC7000', ra: 20.9, dec: 44.5),
+        );
+
+        final push = await s3ServiceFor(db).pushNow();
+        expect(push.success, isTrue, reason: push.errorMessage);
+        expect(push.remotePath, startsWith('nightshade-sync/s3-machine/'));
+
+        // Manifest + bundle really landed in the object store.
+        expect(
+          store.objects.keys,
+          contains('nightshade-sync/s3-machine/manifest.json'),
+        );
+        expect(store.objects.keys, contains(push.remotePath));
+
+        // list-objects-v2 -> machines / bundles surface correctly.
+        final svc = s3ServiceFor(db);
+        final machines = await svc.listRemoteMachines();
+        expect(machines.map((m) => m.name), contains('s3-machine'));
+        final bundles = await svc.listRemoteBundles('s3-machine');
+        expect(bundles, hasLength(1));
+        expect(bundles.single.sha256, isNotEmpty);
+
+        // Pull into a fresh DB and confirm the row crossed over (sha256 verified
+        // against the manifest along the way).
+        final dstDb = NightshadeDatabase.forTesting(NativeDatabase.memory());
+        addTearDown(dstDb.close);
+        await configureS3(dstDb);
+        final restore = await s3ServiceFor(dstDb).pullAndRestore(
+          machine: 's3-machine',
+          bundleFile: push.remotePath!.split('/').last,
+        );
+        expect(restore.success, isTrue, reason: restore.errorMessage);
+        final targets = await TargetsDao(dstDb).getAllTargets();
+        expect(targets.map((t) => t.name), contains('NGC7000'));
+      },
+    );
+
+    test('_closeIfOwned does not throw for an S3SyncTarget', () async {
+      final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(db.close);
+      await configureS3(db);
+      // testConnection builds an S3SyncTarget and runs it through the
+      // finally { _closeIfOwned(target) } path. The injected MockClient is
+      // not owned, so close() is a no-op and must not throw.
+      await s3ServiceFor(db).testConnection();
     });
   });
 }

@@ -20,6 +20,7 @@ pub mod channel_combine; // NEW: Narrowband/LRGB channel combination
 pub mod color_calibration; // NEW: Photometric color calibration (per-channel white balance)
 pub mod deconvolution; // NEW: PSF estimation + Richardson-Lucy deconvolution
 pub mod defect_map;
+pub mod difference_image; // NEW: Difference imaging (Pillar B — First Light) transient detection
 pub mod drizzle; // NEW: Drizzle (variable-pixel linear reconstruction) integration
 
 mod camera;
@@ -38,10 +39,12 @@ mod processing; // NEW: Tiled image processing
 mod raw; // NEW: RAW file support
 mod reader; // NEW: Memory-mapped readers
 pub mod registration; // NEW: High-quality star-based registration
+pub mod sky_atlas; // NEW: HEALPix-tiled additive all-sky accumulator (the 5.0 keystone)
 pub mod stacking;
 pub mod star_reduction; // NEW: Star-size reduction (morphological + screen recombine)
 mod stats;
 mod stretch;
+pub mod wcs_sip; // NEW: SIP-aware (CD + forward/inverse SIP) gnomonic projection
 mod xisf;
 
 pub use background_extraction::*; // NEW: Export background-extraction types
@@ -53,6 +56,7 @@ pub use channel_combine::*; // NEW: Export channel-combination types
 pub use color_calibration::*; // NEW: Export color-calibration types
 pub use debayer::*;
 pub use deconvolution::*; // NEW: Export deconvolution types
+pub use difference_image::*; // NEW: Export difference-imaging (First Light) types
 pub use drizzle::*; // NEW: Export drizzle types
 pub use fits::*;
 pub use frame_weighting::*; // NEW: Export frame-weighting types
@@ -68,9 +72,11 @@ pub use processing::*; // NEW: Export processing types
 pub use raw::*; // NEW: Export RAW types
 pub use reader::*; // NEW: Export reader types
 pub use registration::*; // NEW: Export registration types
+pub use sky_atlas::*; // NEW: Export sky-atlas (keystone) types
 pub use star_reduction::*; // NEW: Export star-reduction types
 pub use stats::*;
 pub use stretch::*;
+pub use wcs_sip::*; // NEW: Export SIP-aware projection types
 pub use xisf::*;
 
 use rayon::prelude::*;

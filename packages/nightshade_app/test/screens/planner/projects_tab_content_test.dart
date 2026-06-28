@@ -294,7 +294,7 @@ void main() {
   });
 
   testWidgets(
-      '"Plan in Smart Night" opens the wizard seeded with the active '
+      '"Plan Tonight" opens the wizard seeded with the active '
       "project's incomplete targets (C11 handoff)", (tester) async {
     final project = _project(id: 5, name: 'Galaxy Season');
     // Two targets: one incomplete (id 50), one complete (id 51). Only the
@@ -332,8 +332,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    await tester
-        .tap(find.widgetWithText(NightshadeButton, 'Plan in Smart Night'));
+    await tester.tap(find.widgetWithText(NightshadeButton, 'Plan Tonight'));
     await tester.pumpAndSettle();
 
     // The wizard opened.

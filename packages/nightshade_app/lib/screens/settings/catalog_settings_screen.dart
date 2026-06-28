@@ -538,11 +538,15 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                 children: [
                   Row(
                     children: [
-                      Text(
-                        package.displayName,
-                        style: TextStyle(
-                          color: colors.textPrimary,
-                          fontWeight: FontWeight.w600,
+                      Flexible(
+                        child: Text(
+                          package.displayName,
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -879,10 +883,14 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                 children: [
                   Row(
                     children: [
-                      Text(
-                        package.displayName,
-                        style: NightshadeTypography.h5
-                            .copyWith(color: colors.textPrimary),
+                      Flexible(
+                        child: Text(
+                          package.displayName,
+                          style: NightshadeTypography.h5
+                              .copyWith(color: colors.textPrimary),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       Container(

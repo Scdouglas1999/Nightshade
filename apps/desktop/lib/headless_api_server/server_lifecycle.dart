@@ -39,6 +39,8 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       ...buildScienceRoutes(_scienceHandlers),
       ...buildSuggestionRoutes(_suggestionHandlers),
       ...buildTransientRoutes(_transientHandlers),
+      ...buildFirstLightRoutes(_firstLightHandlers),
+      ...buildAtlasRoutes(_atlasHandlers),
       ...buildBackupRoutes(_backupHandlers),
       ...buildSyncRoutes(_syncHandlers),
       ...buildFramingRoutes(_framingHandlers),
@@ -48,6 +50,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       ...buildSafetyMonitorRoutes(_safetyMonitorHandlers),
       ...buildAuxiliaryRoutes(_auxiliaryHandlers),
       ...buildSchedulerRoutes(_schedulerHandlers),
+      ...buildPlanningDataRoutes(_planningDataHandlers),
       ...buildFocusModelRoutes(_focusModelHandlers),
       ...buildStackingRoutes(_stackingHandlers),
       ...buildPostSessionRoutes(_postSessionHandlers),
@@ -158,9 +161,16 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
           ),
         )
         .addMiddleware(_corsMiddleware())
-        .addMiddleware(_requestSizeLimitMiddleware())
+        // HTTP-001: the declared-Content-Length ceiling (header-only, no body
+        // read) stays ahead of auth so an over-large declared upload is still
+        // rejected with 413 without credentials; the chunked-body buffering is
+        // deferred to _chunkedBodyLimitMiddleware below, AFTER auth, so an
+        // unauthenticated client cannot force the server to buffer a body up to
+        // the per-path cap before its token is checked.
+        .addMiddleware(_contentLengthLimitMiddleware())
         .addMiddleware(_apiVersionMiddleware())
         .addMiddleware(_authMiddleware())
+        .addMiddleware(_chunkedBodyLimitMiddleware())
         .addMiddleware(_rateLimitMiddleware())
         .addMiddleware(_highRiskAuditMiddleware())
         // ownership gate runs AFTER auth so we only check ownership

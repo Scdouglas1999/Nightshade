@@ -10,8 +10,10 @@ import '../models/target/target_models.dart';
 import '../services/logging_service.dart';
 import '../services/target_library_service.dart';
 import '../services/transient_alert_service.dart';
+import '../services/transients/transient_alert_mapper.dart';
 import 'backend_provider.dart';
 import 'database_provider.dart';
+import 'transient_detections_provider.dart';
 import 'ui_notification_provider.dart';
 
 // =============================================================================
@@ -257,8 +259,23 @@ final activeTransientAlertsProvider =
       // Create a controller for the stream
       final controller = StreamController<List<TransientAlert>>();
 
-      // Initial fetch
-      Future<void> fetchAlerts() async {
+      // Pillar B ("First Light"): self-discovered transients flow through the
+      // same alert surfaces. Watch the local difference-imaging detections and
+      // merge the non-dismissed ones (most confident first) ahead of the
+      // external feed so a fresh discovery sits at the top of the bell.
+      List<TransientAlert> localFirstLightAlerts() {
+        final detections =
+            ref.watch(allTransientDetectionsProvider).valueOrNull ?? const [];
+        return detections
+            .where((d) => !d.dismissed)
+            .map(transientAlertFromDetection)
+            .toList(growable: false);
+      }
+
+      // A single fetch round-trip. Wrapped by [fetchAlerts] below so that
+      // overlapping triggers (immediate + poll + detections-change) never run
+      // concurrently and out-of-order completion cannot overwrite fresher data.
+      Future<void> runFetch() async {
         try {
           List<TransientAlert> alerts;
 
@@ -286,17 +303,47 @@ final activeTransientAlertsProvider =
             );
           }
 
+          // Merge local First Light discoveries ahead of the external feed.
+          final merged = [...localFirstLightAlerts(), ...alerts];
+
           if (!controller.isClosed) {
-            controller.add(alerts);
+            controller.add(merged);
           }
         } catch (e) {
           logger.error(
             'Error fetching transient alerts: $e',
             source: 'activeTransientAlertsProvider',
           );
-          if (!controller.isClosed) {
+          // Even if the external feed failed, still surface local discoveries —
+          // a self-found transient must never be hidden by a dead uplink.
+          final local = localFirstLightAlerts();
+          if (local.isNotEmpty) {
+            if (!controller.isClosed) controller.add(local);
+          } else if (!controller.isClosed) {
             controller.addError(e);
           }
+        }
+      }
+
+      // Coalesce overlapping triggers: only one fetch runs at a time, and any
+      // trigger that arrives mid-flight schedules exactly one follow-up run so
+      // the newest data always wins (no out-of-order overwrite, no thundering
+      // herd of concurrent requests).
+      var fetchInProgress = false;
+      var fetchPending = false;
+      Future<void> fetchAlerts() async {
+        if (fetchInProgress) {
+          fetchPending = true;
+          return;
+        }
+        fetchInProgress = true;
+        try {
+          do {
+            fetchPending = false;
+            await runFetch();
+          } while (fetchPending && !controller.isClosed);
+        } finally {
+          fetchInProgress = false;
         }
       }
 
@@ -305,6 +352,12 @@ final activeTransientAlertsProvider =
 
       // Set up periodic polling
       final timer = Timer.periodic(_alertPollingInterval, (_) {
+        fetchAlerts();
+      });
+
+      // Re-merge whenever the local detections change (a fresh scan persisted a
+      // new transient) so the bell updates without waiting for the poll tick.
+      ref.listen(allTransientDetectionsProvider, (_, __) {
         fetchAlerts();
       });
 
@@ -532,37 +585,6 @@ final unacknowledgedAlertCountProvider = Provider<int>((ref) {
 });
 
 // =============================================================================
-// Filtered Alerts Providers
-// =============================================================================
-
-/// Provider for alerts that have been queued for observation
-final queuedAlertsProvider = Provider<List<TransientAlert>>((ref) {
-  final alertsAsync = ref.watch(activeTransientAlertsProvider);
-  final states = ref.watch(transientAlertStatesProvider);
-
-  final alerts = alertsAsync.valueOrNull ?? [];
-
-  return alerts.where((alert) {
-    return states[alert.id] == TransientAlertState.queued;
-  }).toList();
-});
-
-/// Provider for alerts that are actionable (new or acknowledged, not dismissed/observed)
-final actionableAlertsProvider = Provider<List<TransientAlert>>((ref) {
-  final alertsAsync = ref.watch(activeTransientAlertsProvider);
-  final states = ref.watch(transientAlertStatesProvider);
-
-  final alerts = alertsAsync.valueOrNull ?? [];
-
-  return alerts.where((alert) {
-    final alertState = states[alert.id];
-    return alertState == null ||
-        alertState == TransientAlertState.newAlert ||
-        alertState == TransientAlertState.acknowledged;
-  }).toList();
-});
-
-// =============================================================================
 // Queue Transient Action
 // =============================================================================
 
@@ -702,20 +724,3 @@ void refreshTransientAlerts(WidgetRef ref) {
     source: 'refreshTransientAlerts',
   );
 }
-
-// =============================================================================
-// Alert Detail Provider
-// =============================================================================
-
-/// Provider for getting a specific alert by ID
-final transientAlertByIdProvider = Provider.family
-    .autoDispose<TransientAlert?, String>((ref, alertId) {
-      final alertsAsync = ref.watch(activeTransientAlertsProvider);
-      final alerts = alertsAsync.valueOrNull ?? [];
-
-      try {
-        return alerts.firstWhere((a) => a.id == alertId);
-      } catch (_) {
-        return null;
-      }
-    });

@@ -55,6 +55,7 @@ export 'src/models/equipment/equipment_models.dart';
 export 'src/models/equipment/unified_device.dart';
 export 'src/models/equipment/discovery_state.dart';
 export 'src/models/equipment_profile.dart';
+export 'src/models/equipment_profile_remote_mapping.dart';
 export 'src/models/settings/app_settings.dart';
 export 'src/models/imaging/imaging_models.dart';
 export 'src/models/imaging/camera_preset.dart';
@@ -87,6 +88,8 @@ export 'src/models/calibration/dark_library_match_tolerances.dart';
 // Wire-level model classes for the headless calibration API.
 export 'src/models/calibration/remote_calibration_models.dart';
 export 'src/models/sequence/sequence_models.dart';
+// Active-plan ownership of the editor/executor slot (manual vs automated).
+export 'src/models/sequence/active_plan_owner.dart';
 // Sky-brightness adaptive exposure event surface.
 export 'src/models/sequence/adaptive_exposure_event.dart';
 export 'src/models/sequence/instruction_progress_detail.dart';
@@ -211,6 +214,7 @@ export 'src/providers/session_provider.dart';
 export 'src/providers/settings_provider.dart' hide HorizonProfile;
 export 'src/providers/clock_provider.dart';
 export 'src/providers/profiles_provider.dart';
+export 'src/providers/profile_activation_writethrough.dart';
 export 'src/providers/equipment_fov_provider.dart';
 export 'src/providers/guiding_provider.dart';
 export 'src/providers/backend_provider.dart';
@@ -336,6 +340,12 @@ export 'src/utils/device_id.dart'
         kPhd2CanonicalId;
 export 'src/services/phd2_status_poll.dart';
 export 'src/services/device_matching_service.dart';
+export 'src/services/imaging_records_repository.dart'
+    show
+        ImagingRecordsRepository,
+        imagingRecordsRepositoryProvider,
+        SolvedFrameFoldHook,
+        applyAtlasFoldDedup;
 export 'src/services/imaging_service.dart';
 export 'src/services/stretch_pipeline_service.dart';
 export 'src/services/thumbnail_sidecar_service.dart';
@@ -422,6 +432,7 @@ export 'src/services/auto_save_service.dart';
 // machines via WebDAV (Nextcloud / generic). Reuses BackupService bundles.
 export 'src/services/sync/sync_target.dart';
 export 'src/services/sync/webdav_sync_target.dart';
+export 'src/services/sync/s3_sync_target.dart';
 export 'src/services/sync/sync_service.dart';
 // Plugin management (upload/enable/disable/uninstall)
 export 'src/services/plugin_management_service.dart';
@@ -563,6 +574,33 @@ export 'src/services/color_calibration_service.dart';
 export 'src/services/master_annotation_service.dart';
 export 'src/database/daos/integrated_masters_dao.dart';
 export 'src/database/daos/flat_library_dao.dart';
+// Living Sky (Wave 3): per-pillar retention/prune bookkeeping.
+export 'src/database/daos/living_sky_retention_dao.dart';
+export 'src/database/tables/living_sky_retention.dart'
+    show LivingSkyRetentionScope;
+// Pillar A ("Your Sky"): personal sky-atlas persistence + tables + service.
+export 'src/database/daos/sky_atlas_dao.dart';
+export 'src/database/tables/sky_atlas_tables.dart' show skyAtlasHealpixOrder;
+export 'src/services/sky_atlas/sky_atlas_models.dart';
+export 'src/services/sky_atlas/sky_atlas_seam.dart';
+export 'src/services/sky_atlas/sky_atlas_service.dart';
+export 'src/providers/sky_atlas_provider.dart';
+// Pillar C ("Constellation"): community hub client + orchestration + providers.
+export 'src/database/daos/constellation_contributions_dao.dart';
+export 'src/services/constellation/constellation_models.dart';
+export 'src/services/constellation/constellation_client.dart';
+export 'src/services/constellation/constellation_service.dart';
+export 'src/providers/constellation_provider.dart';
+// Pillar B ("First Light"): difference-imaging transient log + scan service +
+// report export.
+export 'src/database/daos/transient_detections_dao.dart';
+export 'src/services/transients/transient_candidate.dart';
+export 'src/services/transients/difference_image_seam.dart';
+export 'src/services/transients/first_light_service.dart';
+export 'src/services/transients/transient_report_service.dart';
+export 'src/services/transients/transient_submission_service.dart';
+export 'src/services/transients/transient_alert_mapper.dart';
+export 'src/providers/transient_detections_provider.dart';
 // Smart Morning Report (v42): Night Doctor report persistence.
 export 'src/database/daos/night_reports_dao.dart';
 // Durable multi-night campaign counter (Phase B, v43).
@@ -583,6 +621,7 @@ export 'src/database/daos/calibration_tags_dao.dart';
 export 'src/services/disk_space_service.dart';
 export 'src/services/disk_space_guard.dart';
 export 'src/services/safe_rig_service.dart';
+export 'src/services/safety_config_service.dart';
 
 // Utilities
 export 'src/utils/coordinate_parser.dart';

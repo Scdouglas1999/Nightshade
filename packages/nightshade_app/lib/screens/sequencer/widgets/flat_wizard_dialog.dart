@@ -6,8 +6,6 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../equipment/dialogs/profile_editor_dialog.dart';
 
-enum FlatPanelLocation { dawnSky, duskSky, flatPanel }
-
 /// Default filter list used when no profile is configured
 const _kFallbackFilters = ['L', 'R', 'G', 'B', 'Ha', 'OIII', 'SII'];
 
@@ -25,7 +23,6 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
   double _maxExposure = 10.0;
   final double _tolerancePercent = 5.0;
   int _framesPerFilter = 25;
-  FlatPanelLocation _panelLocation = FlatPanelLocation.duskSky;
 
   /// The filters the user wants to calibrate. Multi-select — the service's
   /// `generateFlatSequence` accepts a full list, so a single wizard run can
@@ -244,8 +241,6 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
               children: [
                 _buildTargetAduSlider(colors),
                 const SizedBox(height: 24),
-                _buildPanelLocationSelector(colors),
-                const SizedBox(height: 24),
                 _buildFilterSelector(colors),
                 const SizedBox(height: 24),
                 _buildFramesPerFilterControl(colors),
@@ -322,7 +317,6 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildReviewRow('Panel Location:', _panelLocationName()),
                   _buildReviewRow('Target ADU:', '$_targetAdu'),
                   _buildReviewRow('Frames per filter:', '$_framesPerFilter'),
                   const SizedBox(height: 8),
@@ -370,39 +364,6 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
           divisions: 40,
           onChanged: (v) => setState(() => _targetAdu = v.toInt()),
           activeColor: colors.primary,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildPanelLocationSelector(NightshadeColors colors) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Panel Location'),
-        const SizedBox(height: 8),
-        SegmentedButton<FlatPanelLocation>(
-          segments: const [
-            ButtonSegment(
-              value: FlatPanelLocation.dawnSky,
-              label: Text('Dawn Sky'),
-              icon: Icon(NightshadeIcons.sunset),
-            ),
-            ButtonSegment(
-              value: FlatPanelLocation.duskSky,
-              label: Text('Dusk Sky'),
-              icon: Icon(NightshadeIcons.sun),
-            ),
-            ButtonSegment(
-              value: FlatPanelLocation.flatPanel,
-              label: Text('Flat Panel'),
-              icon: Icon(NightshadeIcons.idea),
-            ),
-          ],
-          selected: {_panelLocation},
-          onSelectionChanged: (Set<FlatPanelLocation> selection) {
-            setState(() => _panelLocation = selection.first);
-          },
         ),
       ],
     );
@@ -600,16 +561,5 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
         ],
       ),
     );
-  }
-
-  String _panelLocationName() {
-    switch (_panelLocation) {
-      case FlatPanelLocation.dawnSky:
-        return 'Dawn Sky';
-      case FlatPanelLocation.duskSky:
-        return 'Dusk Sky';
-      case FlatPanelLocation.flatPanel:
-        return 'Flat Panel';
-    }
   }
 }

@@ -222,18 +222,58 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
   }
 
   @override
-  Future<void> connectDevice(DeviceType deviceType, String deviceId) async {
-    await _post('devices/connect', {
-      'deviceType': deviceType.name,
-      'deviceId': deviceId,
-    });
+  Future<void> connectDevice(DeviceType deviceType, String deviceId) {
+    return _dedupedConnectOp(deviceType, deviceId, 'devices/connect');
   }
 
   @override
-  Future<void> disconnectDevice(DeviceType deviceType, String deviceId) async {
-    await _post('devices/disconnect', {
-      'deviceType': deviceType.name,
-      'deviceId': deviceId,
+  Future<void> disconnectDevice(DeviceType deviceType, String deviceId) {
+    return _dedupedConnectOp(deviceType, deviceId, 'devices/disconnect');
+  }
+
+  /// Shared connect/disconnect dispatch with in-flight dedupe and NO retry.
+  ///
+  /// Dedupe: if the SAME operation (connect, or disconnect) for the same
+  /// `<type>:<id>` is already pending, returns the existing future rather than
+  /// firing a second POST — this kills the double-dispatch that piled up on the
+  /// host's serial mount. The endpoint is part of the key so a disconnect is
+  /// never collapsed into an in-flight connect (or vice versa) and silently
+  /// dropped.
+  ///
+  /// Non-retry: connect/disconnect go through `_post(..., maxAttempts: 1)` so a
+  /// slow/timed-out connect is NEVER auto-resent. A slave-side timeout on a
+  /// connect that is actually succeeding must be a no-op on the host (which is
+  /// now idempotent), not a duplicate POST. GET retries are unaffected.
+  Future<void> _dedupedConnectOp(
+    DeviceType deviceType,
+    String deviceId,
+    String endpoint,
+  ) {
+    final key = '$endpoint|${deviceType.name}:$deviceId';
+    final existing = _inFlightConnectOps[key];
+    if (existing != null) {
+      developer.log(
+        '[NetworkBackend] $endpoint already in flight for $key; '
+        'reusing pending request',
+        name: 'NetworkBackend',
+        level: 800,
+      );
+      return existing;
+    }
+    final future = () async {
+      await _post(
+        endpoint,
+        {'deviceType': deviceType.name, 'deviceId': deviceId},
+        null,
+        1,
+      );
+    }();
+    _inFlightConnectOps[key] = future;
+    return future.whenComplete(() {
+      // Only clear if it's still OUR future (a later op replaced it otherwise).
+      if (identical(_inFlightConnectOps[key], future)) {
+        _inFlightConnectOps.remove(key);
+      }
     });
   }
 
@@ -278,19 +318,29 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
     int? width,
     int? height,
   }) async {
-    await _post('camera/expose', {
-      'deviceId': deviceId,
-      'exposureTime': exposureTime,
-      'frameType': frameType.name,
-      if (gain != null) 'gain': gain,
-      if (offset != null) 'offset': offset,
-      'binX': binX,
-      'binY': binY,
-      if (x != null) 'x': x,
-      if (y != null) 'y': y,
-      if (width != null) 'width': width,
-      if (height != null) 'height': height,
-    });
+    // Non-idempotent: starting an exposure actuates the camera. A transient
+    // transport retry after a timeout could launch a SECOND exposure on a host
+    // that already received and began the first, so this POST is pinned to a
+    // single attempt (no auto-retry), mirroring connect/disconnect. The user
+    // (or sequencer) re-issues if it genuinely failed. See MOBILE-001.
+    await _post(
+      'camera/expose',
+      {
+        'deviceId': deviceId,
+        'exposureTime': exposureTime,
+        'frameType': frameType.name,
+        if (gain != null) 'gain': gain,
+        if (offset != null) 'offset': offset,
+        'binX': binX,
+        'binY': binY,
+        if (x != null) 'x': x,
+        if (y != null) 'y': y,
+        if (width != null) 'width': width,
+        if (height != null) 'height': height,
+      },
+      null,
+      1,
+    );
   }
 
   @override
@@ -529,11 +579,16 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
 
   @override
   Future<void> mountMoveAxis(String deviceId, int axis, double rate) async {
-    await _post('mount/move-axis', {
-      'deviceId': deviceId,
-      'axis': axis,
-      'rate': rate,
-    });
+    // Non-idempotent relative actuation: a duplicate move-axis after a
+    // transient-timeout retry can leave the axis slewing at a rate the operator
+    // already cancelled (or double-applied), so this POST is pinned to a single
+    // attempt with no auto-retry, mirroring connect/disconnect. See MOBILE-001.
+    await _post(
+      'mount/move-axis',
+      {'deviceId': deviceId, 'axis': axis, 'rate': rate},
+      null,
+      1,
+    );
   }
 
   @override
@@ -568,10 +623,17 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
 
   @override
   Future<void> focuserMoveRelative(String deviceId, int delta) async {
-    await _post('focuser/move-relative', {
-      'deviceId': deviceId,
-      'delta': delta,
-    });
+    // Non-idempotent: `delta` is applied relative to the current position, so a
+    // retried POST after a transient timeout would move the focuser by 2*delta.
+    // Pinned to a single attempt (no auto-retry), mirroring connect/disconnect.
+    // The absolute `focuser/move-to` above is idempotent and keeps retries.
+    // See MOBILE-001.
+    await _post(
+      'focuser/move-relative',
+      {'deviceId': deviceId, 'delta': delta},
+      null,
+      1,
+    );
   }
 
   @override
@@ -682,10 +744,17 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
 
   @override
   Future<void> rotatorMoveRelative(String deviceId, double delta) async {
-    await _post('rotator/move-relative', {
-      'deviceId': deviceId,
-      'delta': delta,
-    });
+    // Non-idempotent: `delta` is applied relative to the current angle, so a
+    // retried POST after a transient timeout would rotate by 2*delta. Pinned to
+    // a single attempt (no auto-retry), mirroring connect/disconnect. The
+    // absolute `rotator/move-to` above is idempotent and keeps retries.
+    // See MOBILE-001.
+    await _post(
+      'rotator/move-relative',
+      {'deviceId': deviceId, 'delta': delta},
+      null,
+      1,
+    );
   }
 
   @override

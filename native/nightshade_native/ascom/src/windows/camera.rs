@@ -3,12 +3,11 @@
 use windows::{
     core::GUID,
     Win32::System::Com::{DISPATCH_PROPERTYGET, DISPPARAMS},
-    Win32::System::Variant::VARIANT,
 };
 
 use super::connection::AscomDeviceConnection;
 use super::health::ConnectionHealth;
-use super::variant::extract_safearray_i32;
+use super::variant::{extract_safearray_i32, OwnedVariant};
 
 /// ASCOM Camera
 /// ASCOM Camera (ICameraV*).
@@ -187,12 +186,16 @@ impl AscomCamera {
     /// Extracts the SAFEARRAY from the ASCOM ImageArray property
     pub fn image_array(&self) -> Result<(Vec<i32>, usize, usize), String> {
         // SAFETY: DISPATCH_PROPERTYGET on the camera's `ImageArray` property —
-        // empty DISPPARAMS, stack VARIANT out-pointer, zeroed reserved GUID. The
-        // SAFEARRAY extraction in `extract_safearray_i32` validates dims/bounds
-        // before any pointer read. Caller invariant: STA worker thread.
+        // empty DISPPARAMS, an `OwnedVariant` out-pointer, zeroed reserved GUID.
+        // The SAFEARRAY extraction in `extract_safearray_i32` validates
+        // dims/bounds and deep-copies into an owned `Vec<i32>` before any free.
+        // The `OwnedVariant` guard then runs `VariantClear` on drop to release
+        // the driver-returned SAFEARRAY (~96 MiB/frame) so it cannot leak.
+        // Caller invariant: STA worker thread (also where the guard's
+        // `VariantClear` runs).
         unsafe {
             let dispid = self.device.get_dispid("ImageArray")?;
-            let mut result = VARIANT::default();
+            let mut result = OwnedVariant::empty();
             let params = DISPPARAMS::default();
 
             self.device
@@ -203,14 +206,15 @@ impl AscomCamera {
                     0,
                     DISPATCH_PROPERTYGET,
                     &params,
-                    Some(&mut result),
+                    Some(result.as_mut()),
                     None,
                     None,
                 )
                 .map_err(|e| format!("Failed to get ImageArray property: {}", e))?;
 
-            // Extract SAFEARRAY from VARIANT
-            extract_safearray_i32(&result)
+            // Extract SAFEARRAY from VARIANT (deep-copies the pixels) before the
+            // `OwnedVariant` guard drops and frees the source SAFEARRAY.
+            extract_safearray_i32(result.get())
         }
     }
 

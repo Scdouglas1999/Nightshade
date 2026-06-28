@@ -34,7 +34,6 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       alpacaServerHost: remote.alpacaServerHost,
       alpacaServerPort: remote.alpacaServerPort,
       alpacaAutoDiscover: remote.alpacaAutoDiscover,
-      useNativeExecution: remote.useNativeExecution,
       useSimulationMode: remote.useSimulationMode,
       imageOutputPath: remote.imageOutputPath,
       safetyFailMode: remote.safetyFailMode,
@@ -162,6 +161,19 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       bitDepth: remote.bitDepth,
       timezone: remote.timezone,
       useSystemTime: remote.useSystemTime,
+      // Settings round-trip gap closure (G5 / G7) — sequencer output path,
+      // smart-night auto-select, and the adaptive-swap scheduler-seed
+      // defaults now round-trip so they survive a phone-driven night.
+      sequencesPath: remote.sequencesPath,
+      smartNightAutoSelect: remote.smartNightAutoSelect,
+      smartNightAutoSelectCount: remote.smartNightAutoSelectCount,
+      adaptiveSwapEnabledByDefault: remote.adaptiveSwapEnabledByDefault,
+      adaptiveSwapDefaultThreshold: remote.adaptiveSwapDefaultThreshold,
+      adaptiveSwapDefaultHysteresisSecs:
+          remote.adaptiveSwapDefaultHysteresisSecs,
+      conditionsScoreWeights: Map<String, double>.from(
+        remote.conditionsScoreWeights,
+      ),
     );
   }
 
@@ -199,7 +211,6 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       alpacaServerHost: settings.alpacaServerHost,
       alpacaServerPort: settings.alpacaServerPort,
       alpacaAutoDiscover: settings.alpacaAutoDiscover,
-      useNativeExecution: settings.useNativeExecution,
       useSimulationMode: settings.useSimulationMode,
       imageOutputPath: settings.imageOutputPath,
       observer: previous?.observer ?? '',
@@ -336,6 +347,18 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       bitDepth: settings.bitDepth,
       timezone: settings.timezone,
       useSystemTime: settings.useSystemTime,
+      // Settings round-trip gap closure (G5 / G7) — push the live values to
+      // the host so a remote save doesn't silently drop them.
+      sequencesPath: settings.sequencesPath,
+      smartNightAutoSelect: settings.smartNightAutoSelect,
+      smartNightAutoSelectCount: settings.smartNightAutoSelectCount,
+      adaptiveSwapEnabledByDefault: settings.adaptiveSwapEnabledByDefault,
+      adaptiveSwapDefaultThreshold: settings.adaptiveSwapDefaultThreshold,
+      adaptiveSwapDefaultHysteresisSecs:
+          settings.adaptiveSwapDefaultHysteresisSecs,
+      conditionsScoreWeights: Map<String, double>.from(
+        settings.conditionsScoreWeights,
+      ),
     );
   }
 
@@ -437,10 +460,6 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       case 'alpacaAutoDiscover':
         return value is bool
             ? current.copyWith(alpacaAutoDiscover: value)
-            : null;
-      case 'useNativeExecution':
-        return value is bool
-            ? current.copyWith(useNativeExecution: value)
             : null;
       case 'useSimulationMode':
         return value is bool
@@ -857,6 +876,41 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
         return value is String ? current.copyWith(timezone: value) : null;
       case 'useSystemTime':
         return value is bool ? current.copyWith(useSystemTime: value) : null;
+      // Settings round-trip gap closure (G5 / G7) — keys mirror
+      // models.AppSettings.toJson() (camelCase). Pushed live from the host
+      // via the settings.changed event.
+      case 'sequencesPath':
+        return value is String ? current.copyWith(sequencesPath: value) : null;
+      case 'smartNightAutoSelect':
+        return value is bool
+            ? current.copyWith(smartNightAutoSelect: value)
+            : null;
+      case 'smartNightAutoSelectCount':
+        return value is num
+            ? current.copyWith(smartNightAutoSelectCount: value.toInt())
+            : null;
+      case 'adaptiveSwapEnabledByDefault':
+        return value is bool
+            ? current.copyWith(adaptiveSwapEnabledByDefault: value)
+            : null;
+      case 'adaptiveSwapDefaultThreshold':
+        return value is num
+            ? current.copyWith(adaptiveSwapDefaultThreshold: value.toDouble())
+            : null;
+      case 'adaptiveSwapDefaultHysteresisSecs':
+        return value is num
+            ? current.copyWith(
+                adaptiveSwapDefaultHysteresisSecs: value.toDouble(),
+              )
+            : null;
+      case 'conditionsScoreWeights':
+        return value is Map
+            ? current.copyWith(
+                conditionsScoreWeights: value.map(
+                  (k, v) => MapEntry(k.toString(), (v as num).toDouble()),
+                ),
+              )
+            : null;
       default:
         // Forward-compat: a newer host may emit settings this build
         // does not yet have a copyWith for. The persisted snapshot

@@ -237,6 +237,105 @@ class ScienceSettingsPage extends ConsumerWidget {
               isMobile: isMobile,
               children: [
                 _MpcObservatoryCodeRow(isMobile: isMobile),
+                _ScienceTextRow(
+                  isMobile: isMobile,
+                  icon: LucideIcons.bookOpen,
+                  title: 'Astrometric catalog',
+                  subtitle:
+                      'Reference catalog your solver uses (ADES astCat, e.g. '
+                      '"Gaia2"). Blank reports as UNK.',
+                  hint: 'e.g. Gaia2',
+                  width: 110,
+                  read: (s) => s.mpcAstrometricCatalog,
+                  write: (n, v) => n.setMpcAstrometricCatalog(v),
+                  isLast: true,
+                ),
+              ],
+            ),
+            SettingsSection(
+              title: 'Observer identity',
+              isMobile: isMobile,
+              children: [
+                _ScienceTextRow(
+                  isMobile: isMobile,
+                  icon: LucideIcons.user,
+                  title: 'Observer name',
+                  subtitle:
+                      'Written into MPC ADES headers and the TNS reporter '
+                      'field.',
+                  hint: 'e.g. Jane Doe',
+                  width: 160,
+                  read: (s) => s.observerName,
+                  write: (n, v) => n.setObserverName(v),
+                  isLast: true,
+                ),
+              ],
+            ),
+            SettingsSection(
+              title: 'Transient Name Server (TNS)',
+              isMobile: isMobile,
+              children: [
+                _ScienceTextRow(
+                  isMobile: isMobile,
+                  icon: LucideIcons.hash,
+                  title: 'Bot id',
+                  subtitle: 'Your TNS bot id (tns_marker tns_id).',
+                  hint: 'e.g. 12345',
+                  width: 100,
+                  numeric: true,
+                  read: (s) => s.tnsBotId == 0 ? '' : s.tnsBotId.toString(),
+                  write: (n, v) => n.setTnsBotId(int.tryParse(v) ?? 0),
+                ),
+                _ScienceTextRow(
+                  isMobile: isMobile,
+                  icon: LucideIcons.bot,
+                  title: 'Bot name',
+                  subtitle: 'Your TNS bot name (tns_marker name).',
+                  hint: 'e.g. NightshadeBot',
+                  width: 160,
+                  read: (s) => s.tnsBotName,
+                  write: (n, v) => n.setTnsBotName(v),
+                ),
+                _ScienceTextRow(
+                  isMobile: isMobile,
+                  icon: LucideIcons.users,
+                  title: 'Reporting group id',
+                  subtitle: 'Your TNS reporting_group_id.',
+                  hint: 'e.g. 42',
+                  width: 100,
+                  numeric: true,
+                  read: (s) => s.tnsReportingGroupId == 0
+                      ? ''
+                      : s.tnsReportingGroupId.toString(),
+                  write: (n, v) =>
+                      n.setTnsReportingGroupId(int.tryParse(v) ?? 0),
+                ),
+                _ScienceTextRow(
+                  isMobile: isMobile,
+                  icon: LucideIcons.database,
+                  title: 'Data source id',
+                  subtitle: 'Your TNS discovery_data_source_id.',
+                  hint: 'e.g. 7',
+                  width: 100,
+                  numeric: true,
+                  read: (s) => s.tnsDataSourceId == 0
+                      ? ''
+                      : s.tnsDataSourceId.toString(),
+                  write: (n, v) => n.setTnsDataSourceId(int.tryParse(v) ?? 0),
+                ),
+                _ScienceTextRow(
+                  isMobile: isMobile,
+                  icon: LucideIcons.edit3,
+                  title: 'Reporter name',
+                  subtitle: 'Reporter shown on TNS (falls back to observer '
+                      'name).',
+                  hint: 'e.g. Jane Doe',
+                  width: 160,
+                  read: (s) => s.tnsReporterName,
+                  write: (n, v) => n.setTnsReporterName(v),
+                ),
+                const _TnsApiKeyRow(),
+                _TnsSandboxRow(isMobile: isMobile),
               ],
             ),
             SettingsSection(
@@ -463,6 +562,214 @@ class _MpcObservatoryCodeRowState
       ),
       isLast: true,
       isMobile: widget.isMobile,
+    );
+  }
+}
+
+/// Generic single-line science-settings text row backed by a ScienceSettings
+/// getter + a notifier setter. Used for the TNS bot identifiers and the
+/// observer-name / astrometric-catalog fields (all non-secret, persisted via
+/// the science settings keyring, master/slave-aware).
+class _ScienceTextRow extends ConsumerStatefulWidget {
+  final bool isMobile;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String hint;
+  final double width;
+  final bool numeric;
+  final bool isLast;
+  final String Function(ScienceSettings) read;
+  final Future<void> Function(ScienceSettingsNotifier, String) write;
+
+  const _ScienceTextRow({
+    required this.isMobile,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.hint,
+    required this.width,
+    required this.read,
+    required this.write,
+    this.numeric = false,
+    this.isLast = false,
+  });
+
+  @override
+  ConsumerState<_ScienceTextRow> createState() => _ScienceTextRowState();
+}
+
+class _ScienceTextRowState extends ConsumerState<_ScienceTextRow> {
+  late TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+    _loadValue();
+  }
+
+  Future<void> _loadValue() async {
+    final science = ref.read(scienceSettingsProvider).valueOrNull;
+    if (science != null && mounted) {
+      final value = widget.read(science);
+      if (value.isNotEmpty) _controller.text = value;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SettingRow(
+      icon: widget.icon,
+      title: widget.title,
+      subtitle: widget.subtitle,
+      trailing: SizedBox(
+        width: widget.width,
+        child: TextField(
+          controller: _controller,
+          keyboardType: widget.numeric ? TextInputType.number : null,
+          style: TextStyle(
+            color: NightshadeColors.of(context).textPrimary,
+            fontSize: NightshadeTypography.fontSize13,
+          ),
+          decoration: InputDecoration(
+            isDense: true,
+            counterText: '',
+            hintText: widget.hint,
+            hintStyle: TextStyle(
+              color: NightshadeColors.of(context).textMuted,
+              fontSize: NightshadeTypography.fontSize13,
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+              borderSide:
+                  BorderSide(color: NightshadeColors.of(context).border),
+            ),
+          ),
+          onSubmitted: (value) async {
+            final trimmed = value.trim();
+            final notifier = ref.read(scienceSettingsProvider.notifier);
+            await widget.write(notifier, trimmed);
+            if (mounted) _controller.text = trimmed;
+          },
+        ),
+      ),
+      isLast: widget.isLast,
+      isMobile: widget.isMobile,
+    );
+  }
+}
+
+/// Secure-entry row for the TNS bot API key — stored in the keyring
+/// (SecretField.tnsApiKey), NEVER in plaintext science settings / backup.
+class _TnsApiKeyRow extends ConsumerStatefulWidget {
+  const _TnsApiKeyRow();
+  @override
+  ConsumerState<_TnsApiKeyRow> createState() => _TnsApiKeyRowState();
+}
+
+class _TnsApiKeyRowState extends ConsumerState<_TnsApiKeyRow> {
+  final _controller = TextEditingController();
+  bool _hasKey = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHas();
+  }
+
+  Future<void> _loadHas() async {
+    final has = await ref.read(secretsStoreProvider).has(SecretField.tnsApiKey);
+    if (mounted) setState(() => _hasKey = has);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SettingRow(
+      icon: LucideIcons.keyRound,
+      title: 'Bot API key',
+      subtitle: _hasKey
+          ? 'Stored securely in the keyring. Enter a new value to replace it.'
+          : 'Your TNS bot API key — stored securely, never in backups.',
+      trailing: SizedBox(
+        width: 180,
+        child: TextField(
+          controller: _controller,
+          obscureText: true,
+          style: TextStyle(
+            color: NightshadeColors.of(context).textPrimary,
+            fontSize: NightshadeTypography.fontSize13,
+          ),
+          decoration: InputDecoration(
+            isDense: true,
+            counterText: '',
+            hintText: _hasKey ? '•••••• (stored securely)' : 'paste key',
+            hintStyle: TextStyle(
+              color: NightshadeColors.of(context).textMuted,
+              fontSize: NightshadeTypography.fontSize13,
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+              borderSide:
+                  BorderSide(color: NightshadeColors.of(context).border),
+            ),
+          ),
+          onSubmitted: (value) async {
+            final trimmed = value.trim();
+            if (trimmed.isEmpty) return;
+            await ref
+                .read(secretsStoreProvider)
+                .write(SecretField.tnsApiKey, trimmed);
+            if (mounted) {
+              _controller.clear();
+              setState(() => _hasKey = true);
+            }
+          },
+        ),
+      ),
+      isMobile: false,
+    );
+  }
+}
+
+/// Toggle between the TNS production endpoint and the sandbox (for testing —
+/// sandbox submits never create a public AT record).
+class _TnsSandboxRow extends ConsumerWidget {
+  final bool isMobile;
+  const _TnsSandboxRow({required this.isMobile});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final science = ref.watch(scienceSettingsProvider).valueOrNull ??
+        const ScienceSettings();
+    return SettingRow(
+      icon: LucideIcons.flaskConical,
+      title: 'Use TNS sandbox',
+      subtitle:
+          'Submit to the TNS sandbox instead of production (no public record).',
+      trailing: SettingsSwitch(
+        value: science.tnsUseSandbox,
+        onChanged: (value) =>
+            ref.read(scienceSettingsProvider.notifier).setTnsUseSandbox(value),
+      ),
+      isLast: true,
+      isMobile: isMobile,
     );
   }
 }

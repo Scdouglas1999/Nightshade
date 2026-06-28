@@ -67,6 +67,68 @@ class SkyCalculations {
         1524.5;
   }
 
+  /// Local Sidereal Time in hours [0, 24) for `time` (treated as UTC) at the
+  /// given observer longitude (degrees, east positive).
+  ///
+  /// This is the single shared implementation behind both the dynamic
+  /// scheduler engine (`SchedulerEngine._localSiderealTime`) and the
+  /// standalone meridian-flip monitor. The arithmetic mirrors the scheduler
+  /// engine — the authoritative live path — exactly: the day fraction is
+  /// built from day/hour/minute/second WITHOUT the sub-second term, so the
+  /// scheduler's numbers are bit-for-bit unchanged. (The monitor previously
+  /// added a `millisecond/86_400_000` term, a sub-millisecond LST difference
+  /// that is astronomically negligible; it now matches the scheduler.)
+  static double localSiderealTimeHours(DateTime time, double longitudeDegrees) {
+    final utc = time.toUtc();
+    int y = utc.year;
+    int m = utc.month;
+    final d =
+        utc.day + utc.hour / 24.0 + utc.minute / 1440.0 + utc.second / 86400.0;
+    if (m <= 2) {
+      y -= 1;
+      m += 12;
+    }
+    final a = (y / 100).floor();
+    final b = 2 - a + (a / 4).floor();
+    final jd =
+        (365.25 * (y + 4716)).floor() +
+        (30.6001 * (m + 1)).floor() +
+        d +
+        b -
+        1524.5;
+    final t = (jd - 2451545.0) / 36525.0;
+    var gmst =
+        280.46061837 +
+        360.98564736629 * (jd - 2451545.0) +
+        0.000387933 * t * t -
+        t * t * t / 38710000.0;
+    gmst = gmst % 360.0;
+    if (gmst < 0) gmst += 360.0;
+    var lst = gmst / 15.0 + longitudeDegrees / 15.0;
+    while (lst < 0) {
+      lst += 24.0;
+    }
+    while (lst >= 24.0) {
+      lst -= 24.0;
+    }
+    return lst;
+  }
+
+  /// Mount hour angle in hours, normalized to (-12, +12].
+  ///
+  /// HA = LST - RA, where positive HA means the target is west of the
+  /// meridian (i.e., already crossed). Both arguments are in hours.
+  static double hourAngleHours(double raHours, double lstHours) {
+    var ha = lstHours - raHours;
+    while (ha > 12.0) {
+      ha -= 24.0;
+    }
+    while (ha <= -12.0) {
+      ha += 24.0;
+    }
+    return ha;
+  }
+
   /// NREL Solar Position Algorithm (Reda & Andreas, 2003), simplified
   /// implementation accurate to <0.01° in solar position. Returns the
   /// sun's apparent (alt, az) in degrees at `time` for the given site.

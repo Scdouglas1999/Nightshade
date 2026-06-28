@@ -4,26 +4,41 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../backend/network_backend.dart';
 import '../models/backend/device_info.dart';
+import '../models/backend/device_status.dart';
 import '../models/backend/device_types.dart';
 import '../models/backend/event_types.dart';
 import '../models/backend/sequencer_status.dart';
 import '../models/equipment/equipment_models.dart' show DeviceConnectionState;
+import '../models/sequence/active_plan_owner.dart';
 import '../models/sequence/sequence_models.dart';
 import '../models/backend/host_mutation_event.dart';
 import '../models/imaging/imaging_models.dart'
     show CapturePreviewSource, ExposureSettings;
 import '../services/capture_preview_loader.dart'
     show capturePreviewPublisherProvider, capturedImageDataFromResult;
+import '../services/imaging_service.dart' show exposureProgressProvider;
 import '../services/phd2_status_poll.dart';
+import '../services/sequence_file_service.dart'
+    show sequenceFileServiceProvider;
 import 'database_provider.dart';
 import 'equipment_provider.dart';
 import 'framing_provider.dart';
 import 'imaging_provider.dart' show exposureSettingsProvider;
+import 'observing_list_provider.dart'
+    show listedCatalogIdsProvider, observingListsProvider;
 import 'profiles_provider.dart';
 import 'remote_sync_events.dart';
+import 'planning_provider.dart' show projectListProvider;
+import 'scheduler_provider.dart'
+    show
+        integrationGoalsStreamProvider,
+        schedulerPreviewDecisionProvider,
+        targetConstraintsStreamProvider;
 import 'sequence_provider.dart';
+import 'sequence_stats_provider.dart'
+    show sequenceRunsProvider, liveSequenceStatsProvider, SequenceRunStats;
 import 'session_provider.dart';
-import 'unified_discovery_provider.dart';
+import 'settings_provider.dart' show appSettingsProvider;
 import 'target_progress_provider.dart'
     show allTargetProgressProvider, targetProgressProvider;
 
@@ -49,7 +64,7 @@ Future<void> applyRemoteSyncEvent(
       );
       break;
     case EventCategory.equipment:
-      _applyEquipmentEvent(reader, event);
+      _applyEquipmentEvent(reader, event, networkBackend: networkBackend);
       break;
     case EventCategory.guiding:
       await _applyGuidingEvent(reader, event, networkBackend: networkBackend);
@@ -78,6 +93,15 @@ Future<void> applyRemoteSyncEvent(
               event.eventType == 'ImageSaved' ||
               event.eventType == 'ImageCaptured')) {
         unawaited(_publishRemoteCurrentFrame(reader, networkBackend));
+      }
+      // Slave-only: mirror the master's per-frame exposure countdown onto the
+      // camera card + exposure-progress dashboard. These imaging events drive
+      // [cameraStateProvider.setExposing] / [exposureProgressProvider] exactly
+      // as ImagingService does on the host (whose capture loop never runs on a
+      // remote companion), so the slave's "Exposing" status and the remaining-
+      // time countdown track the master frame-for-frame.
+      if (networkBackend != null) {
+        _applyExposureMirror(reader, event.eventType, event.data);
       }
       break;
     case EventCategory.safety:
@@ -129,7 +153,11 @@ Future<void> _applySystemSyncEvent(
   }
 }
 
-void _applyEquipmentEvent(Object reader, NightshadeEvent event) {
+void _applyEquipmentEvent(
+  Object reader,
+  NightshadeEvent event, {
+  NetworkBackend? networkBackend,
+}) {
   final data = event.data;
   switch (event.eventType) {
     case 'Connecting':
@@ -147,18 +175,304 @@ void _applyEquipmentEvent(Object reader, NightshadeEvent event) {
         data['device_id'] as String?,
         data['device_name'] as String?,
       );
-      _invalidateEquipmentSyncProviders(reader);
+      // Do NOT invalidate equipmentProfilesProvider here. A device
+      // connecting/disconnecting does not change the profile LIST or the active
+      // profile, but on a slave equipmentProfilesProvider is network-backed:
+      // invalidating it round-trips to the host and cascades through
+      // opticalConfigProvider -> tonightSuggestionsProvider, so doing it on
+      // every mirrored Connected/Disconnected event made "Plan Tonight" thrash
+      // (constant refresh). Connection STATE is already applied above via the
+      // per-device state providers. Profile refreshes happen on actual profile
+      // events (profileChanged / HostMutationEntity.profile) instead.
       break;
     case 'Disconnected':
       _applyDeviceDisconnectedFromSyncPayload(reader, data);
-      _invalidateEquipmentSyncProviders(reader);
+      break;
+    default:
+      // Live telemetry mirroring is SLAVE-ONLY: on the host both
+      // DeviceService.event_handling AND host_local_sync run, so applying
+      // these here when networkBackend == null (the host path) would
+      // double-apply state DeviceService already wrote. The slave is a pure
+      // observer with no DeviceService, so networkBackend != null cleanly
+      // scopes this to the remote companion. Connection-state cases above
+      // stay unconditional (they run on both host and slave).
+      if (networkBackend != null) {
+        _applyEquipmentTelemetry(reader, event.eventType, data);
+      }
+      break;
+  }
+}
+
+/// Slave-only: mirror the master's per-frame exposure countdown by driving the
+/// same notifiers [ImagingService] drives on the host. The host capture loop
+/// never runs on a remote companion, so these imaging-category events are the
+/// slave's only source for the camera card's "Exposing" status and the
+/// remaining-time countdown. Payload keys match the host emitter
+/// (`progress`/`remainingSecs`), with snake_case fallbacks for the
+/// `ExposureStarted` frame fields.
+void _applyExposureMirror(
+  Object reader,
+  String eventType,
+  Map<String, dynamic> data,
+) {
+  final cameraNotifier = _read(reader, cameraStateProvider.notifier);
+  final progressNotifier = _read(reader, exposureProgressProvider.notifier);
+  switch (eventType) {
+    case 'ExposureStarted':
+    case 'ExposureStartedWithFrame':
+      final duration =
+          (data['durationSecs'] as num?)?.toDouble() ??
+          (data['duration_secs'] as num?)?.toDouble() ??
+          0.0;
+      final frameNumber =
+          (data['frameNumber'] as num?)?.toInt() ??
+          (data['frame_number'] as num?)?.toInt() ??
+          0;
+      final totalFrames =
+          (data['totalFrames'] as num?)?.toInt() ??
+          (data['total_frames'] as num?)?.toInt();
+      cameraNotifier.setExposing(true, progress: 0.0);
+      if (duration > 0) {
+        progressNotifier.startExposure(duration, frameNumber, totalFrames);
+      }
+      break;
+    case 'ExposureProgress':
+      final progress = (data['progress'] as num?)?.toDouble() ?? 0.0;
+      final remaining =
+          (data['remainingSecs'] as num?)?.toDouble() ??
+          (data['remaining_secs'] as num?)?.toDouble() ??
+          0.0;
+      // The slave does not know the configured exposure time locally, so derive
+      // elapsed defensively from progress + remaining.
+      final total = (progress > 0.0 && progress < 1.0)
+          ? remaining / (1.0 - progress)
+          : null;
+      final elapsed = total != null
+          ? (total - remaining).clamp(0.0, total).toDouble()
+          : 0.0;
+      cameraNotifier.setExposing(true, progress: progress);
+      progressNotifier.updateProgress(elapsed, remaining, progress * 100);
+      break;
+    case 'ExposureComplete':
+    case 'ExposureCancelled':
+      cameraNotifier.setExposing(false);
+      break;
+  }
+}
+
+/// Slave-only: mirror the master's live equipment telemetry into the same
+/// per-device notifiers [DeviceService.event_handling] writes on the host, but
+/// with NO reconnect / critical-device / heartbeat side effects (a remote
+/// companion must never originate connect commands back to the host).
+///
+/// Event names + payload shapes are kept in lock-step with
+/// `device_service/event_handling.dart`. Only camera/mount/focuser/filter-
+/// wheel/rotator carry live values; dome/weather/safetyMonitor/coverCalibrator/
+/// switch mirror CONNECTION STATE ONLY (no source telemetry events). The
+/// per-frame exposure countdown is mirrored via the imaging-category
+/// `ExposureStarted`/`ExposureProgress`/`ExposureComplete` events in
+/// [_applyExposureMirror]; the current-frame hero tile is mirrored separately
+/// via the imaging/current-frame path.
+void _applyEquipmentTelemetry(
+  Object reader,
+  String eventType,
+  Map<String, dynamic> data,
+) {
+  switch (eventType) {
+    // --- Camera temperature / cooling ------------------------------------
+    case 'CameraTemperatureChanged':
+      final temp = (data['temperature'] as num?)?.toDouble();
+      final power = (data['coolerPower'] as num?)?.toDouble() ?? 0.0;
+      if (temp != null) {
+        _read(
+          reader,
+          cameraStateProvider.notifier,
+        ).updateTemperature(temp, power);
+      }
+      break;
+    case 'CameraCoolingStarted':
+      final targetTemp = (data['target_temp'] as num?)?.toDouble();
+      _read(reader, cameraStateProvider.notifier).setCooling(true);
+      if (targetTemp != null) {
+        _read(reader, cameraStateProvider.notifier).setTargetTemp(targetTemp);
+      }
+      break;
+    case 'CameraCoolingReached':
+      final temp = (data['temperature'] as num?)?.toDouble();
+      if (temp != null) {
+        _read(
+          reader,
+          cameraStateProvider.notifier,
+        ).updateTemperature(temp, 0.0);
+      }
+      break;
+    case 'CameraWarmingStarted':
+      _read(reader, cameraStateProvider.notifier).setCooling(false);
+      break;
+    case 'CameraWarmingCompleted':
+      // No additional state change (matches event_handling.dart).
+      break;
+
+    // --- Mount position / motion -----------------------------------------
+    case 'MountPositionChanged':
+      final ra = (data['ra'] as num?)?.toDouble();
+      final dec = (data['dec'] as num?)?.toDouble();
+      final alt = (data['altitude'] as num?)?.toDouble() ?? 0.0;
+      final az = (data['azimuth'] as num?)?.toDouble() ?? 0.0;
+      if (ra != null && dec != null) {
+        _read(
+          reader,
+          mountStateProvider.notifier,
+        ).updatePosition(ra, dec, alt, az);
+      }
+      if (data['isSlewing'] is bool) {
+        _read(
+          reader,
+          mountStateProvider.notifier,
+        ).setSlewing(data['isSlewing'] as bool);
+      }
+      if (data['isTracking'] is bool) {
+        _read(
+          reader,
+          mountStateProvider.notifier,
+        ).setTracking(data['isTracking'] as bool);
+      }
+      if (data['isParked'] is bool) {
+        _read(
+          reader,
+          mountStateProvider.notifier,
+        ).setParked(data['isParked'] as bool);
+      }
+      break;
+    case 'MountSlewStarted':
+      _read(reader, mountStateProvider.notifier).setSlewing(true);
+      break;
+    case 'MountSlewCompleted':
+      _read(reader, mountStateProvider.notifier).setSlewing(false);
+      final ra = (data['ra'] as num?)?.toDouble();
+      final dec = (data['dec'] as num?)?.toDouble();
+      if (ra != null && dec != null) {
+        _read(
+          reader,
+          mountStateProvider.notifier,
+        ).updatePosition(ra, dec, 0.0, 0.0);
+      }
+      break;
+    case 'MountTrackingStarted':
+      _read(reader, mountStateProvider.notifier).setTracking(true);
+      break;
+    case 'MountTrackingStopped':
+      _read(reader, mountStateProvider.notifier).setTracking(false);
+      break;
+    case 'MountParkStarted':
+      _read(reader, mountStateProvider.notifier).setSlewing(true);
+      break;
+    case 'MountParkCompleted':
+      _read(reader, mountStateProvider.notifier).setSlewing(false);
+      _read(reader, mountStateProvider.notifier).setParked(true);
+      _read(reader, mountStateProvider.notifier).setTracking(false);
+      break;
+    case 'MountUnparked':
+      _read(reader, mountStateProvider.notifier).setParked(false);
+      break;
+
+    // --- Focuser ----------------------------------------------------------
+    case 'FocuserMoveStarted':
+      _read(reader, focuserStateProvider.notifier).setMoving(true);
+      break;
+    case 'FocuserMoveCompleted':
+      _read(reader, focuserStateProvider.notifier).setMoving(false);
+      final position = data['position'] as int?;
+      if (position != null) {
+        _read(reader, focuserStateProvider.notifier).updatePosition(position);
+      }
+      break;
+    case 'FocuserTemperatureChanged':
+      final temperature = (data['temperature'] as num?)?.toDouble();
+      if (temperature != null) {
+        _read(
+          reader,
+          focuserStateProvider.notifier,
+        ).updateTemperature(temperature);
+      }
+      break;
+    case 'FocuserPositionChanged':
+      final focuserPosition = data['position'] as int?;
+      if (focuserPosition != null) {
+        _read(
+          reader,
+          focuserStateProvider.notifier,
+        ).updatePosition(focuserPosition);
+      }
+      final focuserMoving = data['isMoving'] as bool?;
+      if (focuserMoving != null) {
+        _read(reader, focuserStateProvider.notifier).setMoving(focuserMoving);
+      }
+      final focuserTemp = (data['temperature'] as num?)?.toDouble();
+      if (focuserTemp != null) {
+        _read(
+          reader,
+          focuserStateProvider.notifier,
+        ).updateTemperature(focuserTemp);
+      }
+      break;
+
+    // --- Filter wheel -----------------------------------------------------
+    case 'FilterChanging':
+      _read(reader, filterWheelStateProvider.notifier).setMoving(true);
+      break;
+    case 'FilterChanged':
+      _read(reader, filterWheelStateProvider.notifier).setMoving(false);
+      final position = data['position'] as int?;
+      if (position != null) {
+        _read(
+          reader,
+          filterWheelStateProvider.notifier,
+        ).updatePosition(position);
+      }
+      break;
+    case 'FilterWheelPositionChanged':
+      final filterPosition = data['position'] as int?;
+      if (filterPosition != null) {
+        _read(
+          reader,
+          filterWheelStateProvider.notifier,
+        ).updatePosition(filterPosition);
+      }
+      final filterMoving = data['isMoving'] as bool?;
+      if (filterMoving != null) {
+        _read(
+          reader,
+          filterWheelStateProvider.notifier,
+        ).setMoving(filterMoving);
+      }
+      break;
+
+    // --- Rotator ----------------------------------------------------------
+    case 'RotatorMoveStarted':
+      _read(reader, rotatorStateProvider.notifier).setMoving(true);
+      break;
+    case 'RotatorMoveCompleted':
+      _read(reader, rotatorStateProvider.notifier).setMoving(false);
+      final angle = (data['angle'] as num?)?.toDouble();
+      if (angle != null) {
+        _read(reader, rotatorStateProvider.notifier).updatePosition(angle);
+      }
       break;
   }
 }
 
 void _invalidateEquipmentSyncProviders(Object reader) {
   _invalidate(reader, equipmentProfilesProvider);
-  _invalidate(reader, unifiedDiscoveryProvider);
+  // Deliberately NOT invalidating unifiedDiscoveryProvider here. It is a
+  // StateNotifier whose state resets to an EMPTY device list on invalidation
+  // and does not auto-rediscover, so invalidating it on every remote
+  // Connected/Disconnected event wipes the user's scanned "Available Devices"
+  // list (the whole panel goes blank the instant they connect a device in
+  // remote-client mode). Device connection *status* is tracked by the
+  // per-class device state providers (updated above via the sync payload),
+  // not by the discovery list, so the discovered set is stable across
+  // connect/disconnect and must be left intact.
 }
 
 Future<void> _applyGuidingEvent(
@@ -235,6 +549,12 @@ void _applySequencerEvent(
         currentNodeName: data['node_type'] as String? ?? '',
         currentNodeStatus: NodeStatus.running,
       );
+      // A new node/target means the host autopilot's live pick likely changed;
+      // refresh the mirrored preview so the slave's banner tracks the switch
+      // (no-op when the banner isn't mounted — it's autoDispose).
+      if (networkBackend != null) {
+        _invalidate(reader, schedulerPreviewDecisionProvider);
+      }
       break;
     case 'ProgressUpdated':
     case 'InstructionProgress':
@@ -267,9 +587,22 @@ void _applyHostMutation(Object reader, Map<String, dynamic> data) {
       _applyFramingMutationFromHost(reader, action, data);
     case HostMutationEntity.sequencer:
       _applySequencerMutationFromHost(reader, action, data);
+    case HostMutationEntity.sequenceEditor:
+      _applySequenceEditorMirror(reader, action, data);
     case HostMutationEntity.profile:
-    case HostMutationEntity.settings:
       _invalidateHostProfiles(reader);
+    case HostMutationEntity.settings:
+      // Deliberately NOT invalidating anything per-event here. The host
+      // broadcasts `settings/updated` at very high frequency — the scheduler
+      // persists runtime config (e.g. conditions_score) many times a second and
+      // each persist emits a settings mutation (measured ~14/s on a live rig).
+      // Reacting per-event reloaded the entire "Plan Tonight" Recommendation tab
+      // dozens of times a second on a slave (it also previously, wrongly,
+      // invalidated the equipment-PROFILE providers — a settings change is not a
+      // profile change). appSettings is already re-pulled every 30s by
+      // hydrateRemoteSessionState (and on reconnect), so a genuine settings
+      // change mirrors within one poll cycle without the churn.
+      break;
     case HostMutationEntity.sequence:
       _invalidateSequenceLibrary(reader, sequenceId: _parseSequenceId(data));
     case HostMutationEntity.target:
@@ -399,6 +732,108 @@ void _applySequencerMutationFromHost(
       sequenceProgressProvider.notifier,
     ).updateProgress(message: message);
   }
+}
+
+/// SLAVE apply: mirror the master's OPEN sequence-editor canvas.
+///
+/// The master broadcasts its working/dirty open sequence via the
+/// [HostMutationEntity.sequenceEditor] host-mutation (see
+/// `masterSequenceEditorMirrorProvider`). Here the slave reflects it onto its
+/// own [currentSequenceProvider] so the sequencer screen follows the master's
+/// live canvas — not just re-saved library rows.
+///
+/// Guards (single-hardware-owner invariant; master is authoritative but never
+/// silently clobbers a slave operator mid-edit):
+///   * If the slave editor has unsaved edits ([CurrentSequenceNotifier.isDirty])
+///     we SKIP the apply — same guard as [reloadOpenSequenceIfIdle].
+///   * `cleared` empties the slave canvas to match the master closing its
+///     editor.
+/// Applies use `discardUnsaved: true` only after the isDirty guard has already
+/// passed (the editor is clean), so no confirmed-clean work is lost.
+void _applySequenceEditorMirror(
+  Object reader,
+  String action,
+  Map<String, dynamic> data,
+) {
+  final editor = _read(reader, currentSequenceProvider.notifier);
+
+  if (action == HostMutationAction.cleared) {
+    // Don't wipe a slave operator's unsaved canvas just because the master
+    // closed its editor.
+    if (editor.isDirty) {
+      return;
+    }
+    editor.clearSequence(discardUnsaved: true);
+    // Editor closed host-side -> back to manual ownership on the slave.
+    editor.adoptOwner(ActivePlanOwner.manual);
+    return;
+  }
+
+  // Never clobber the slave operator's in-progress edits. The slave diverges
+  // until it returns to a clean state, which is the documented master-
+  // authoritative behavior.
+  if (editor.isDirty) {
+    return;
+  }
+
+  final rawSequence = data['sequence'];
+  if (rawSequence is! Map) {
+    return;
+  }
+
+  final Sequence parsed;
+  try {
+    final map = Map<String, dynamic>.from(rawSequence);
+    var seq = _read(reader, sequenceFileServiceProvider).parseFromMap(map);
+    final dbId = data['databaseId'];
+    if (dbId is int) {
+      seq = seq.copyWith(databaseId: dbId);
+    }
+    parsed = seq;
+  } catch (_) {
+    // Best-effort: a malformed mirror frame must not crash the slave's sync
+    // loop. The next frame (or a library reload) will recover.
+    return;
+  }
+
+  editor.loadSequence(parsed, discardUnsaved: true);
+  // Reflect the host's active-plan owner so the slave's UI shows WHO owns the
+  // plan (host autopilot -> slave shows autopilot-owned, not stale manual).
+  // Applied AFTER loadSequence: loadSequence resets the owner to manual (it is a
+  // manual-load primitive), so adopting here lands the correct owner last.
+  // Backward-compatible: an older host omits the field and fromWire -> manual.
+  editor.adoptOwner(ActivePlanOwnerWire.fromWire(data['activePlanOwner']));
+}
+
+/// G2: seed the slave's sequencer canvas with the master's currently-open
+/// editor sequence on connect.
+///
+/// The live master->slave editor mirror ([masterSequenceEditorMirrorProvider])
+/// only emits on edit, so a slave connecting mid-session sees a blank canvas
+/// until the next master edit. This fetches the master's open editor sequence
+/// in the SAME payload shape that mirror broadcasts (`HostStateChanged` /
+/// [HostMutationEntity.sequenceEditor]) and feeds it through the identical
+/// [_applySequenceEditorMirror] apply path, so seed and live update share one
+/// code path. Returns silently when no sequence is open host-side (the endpoint
+/// reports `open: false`) or the endpoint is unavailable on an older host.
+Future<void> _hydrateOpenEditorSequence(
+  Object reader,
+  NetworkBackend backend,
+) async {
+  final Map<String, dynamic>? payload;
+  try {
+    payload = await backend.getOpenEditorSequence();
+  } catch (_) {
+    // Older headless host without the endpoint, or a transient fetch error:
+    // the live mirror still seeds the canvas on the master's next edit.
+    return;
+  }
+  if (payload == null) {
+    // No sequence open in the master's editor — leave the slave's canvas as-is
+    // (don't clear, mirroring _applySequenceEditorMirror's dirty-safe behavior).
+    return;
+  }
+  _applySequenceEditorMirror(reader, HostMutationAction.updated, payload);
 }
 
 int? _parseSequenceId(Map<String, dynamic> data) {
@@ -810,6 +1245,15 @@ void _applySequencerStatus(Object reader, SequencerStatus status) {
     currentNodeId: status.currentNodeId,
     currentNodeName: status.currentNodeName,
   );
+
+  // Mirror the master's live run-vitals onto the slave's Session Vitals tile.
+  // The local executor never writes liveSequenceStatsProvider on a slave, so
+  // without this the Vitals tile reads idle next to a live progress bar. Null
+  // vitals (idle host, or a host build that doesn't emit them) clears the tile.
+  final vitals = status.runVitals;
+  _read(reader, liveSequenceStatsProvider.notifier).state = vitals == null
+      ? null
+      : SequenceRunStats.fromRemoteVitals(vitals);
 }
 
 SequenceExecutionState _mapSequencerState(String rawState) {
@@ -887,6 +1331,15 @@ void _applyConnectedDevice(Object reader, DeviceInfo device) {
 }
 
 /// Full session hydration for remote companions (and reconnect recovery).
+///
+/// Makes the slave correct IMMEDIATELY on first connect and TELEMETRY-STABLE
+/// across the 30s repoll: it never blanks a populated card. Per-device live
+/// status is fetched into a LOCAL BUFFER first (each fetch wrapped in its own
+/// try/catch, all run in parallel via [Future.wait]), then applied in a single
+/// pass. On a per-device failure the prior telemetry for that device is left
+/// intact — one slow device on a high-latency link can neither stall nor wipe
+/// the others. Connection state is applied first so cards exist before live
+/// values land.
 Future<void> hydrateRemoteSessionState(
   Object reader,
   NetworkBackend backend,
@@ -902,9 +1355,235 @@ Future<void> hydrateRemoteSessionState(
     _applyConnectedDevice(reader, device);
   }
 
+  // Buffer-then-apply per-device live telemetry. Only camera/mount/focuser/
+  // filterwheel/rotator expose a status GET; dome/weather/safetyMonitor/
+  // coverCalibrator/switch mirror connection state only (no status endpoint).
+  await _hydrateDeviceTelemetry(reader, backend, devices);
+
+  // G3 (current-frame hero tile): seed the master's last cached frame on
+  // connect. The host-local capture publisher never runs on a slave, so without
+  // this the dashboard's "current frame" tile stays blank until the next
+  // ImageReady event. _publishRemoteCurrentFrame resolves the connected camera
+  // from the (now-hydrated) camera state and no-ops if none is connected or no
+  // frame is cached host-side, so the guard mirrors the live-event path.
+  final cameraState = _read(reader, cameraStateProvider);
+  if (cameraState.connectionState == DeviceConnectionState.connected) {
+    unawaited(_publishRemoteCurrentFrame(reader, backend));
+  }
+
+  // G2 (open sequence-editor canvas): seed the master's live/dirty editor
+  // canvas. It otherwise mirrors only via edit-triggered WS frames, so a slave
+  // connecting mid-edit shows a blank sequencer screen until the next master
+  // edit. Fetch the master's currently-open editor sequence in the same payload
+  // shape the live mirror emits and feed it through the existing apply path.
+  await _hydrateOpenEditorSequence(reader, backend);
+
   await _hydratePhd2GuiderState(reader, backend);
+
+  // Active-profile + populated cards parity at first connect: refetch the
+  // profile providers from the (now SQLite-backed) host /api/profiles so the
+  // slave's equipment screen reflects the master's real active profile
+  // immediately, not only after the next 10s poll / profile mutation.
+  _invalidateHostProfiles(reader);
+
+  // Settings parity at first connect must not wait for the 10s poll: force a
+  // re-pull of appSettingsProvider (its build() re-fetches backend.getSettings
+  // in NetworkBackend mode). No-op cost on the host (settings are local there;
+  // hydration only runs on the slave / on BackendReconnected).
+  _invalidate(reader, appSettingsProvider);
+
+  // Framing target is NOT seeded from framing/current-position here: that GET
+  // returns the mount's current pointing (already mirrored via getMountStatus),
+  // not a chosen framing target, and FramingNotifier.setTargetCoordinates would
+  // clobber the real target + trigger a survey-image load + push back to the
+  // host. Framing target parity flows through the framingTargetChanged event +
+  // HostMutationEntity.framing path instead.
+
   _invalidateEquipmentSyncProviders(reader);
   backend.invalidateDeviceCache();
   _invalidate(reader, savedSequencesProvider);
   _invalidate(reader, savedSequenceSummariesProvider);
+
+  // Mirror the host's autopilot pick on connect (and each 30s re-hydrate): in
+  // NetworkBackend mode schedulerPreviewDecisionProvider re-fetches GET
+  // /api/scheduler/preview, so the slave's autopilot banner shows the host's
+  // real "what the rig would slew to next" instead of recomputing "nothing
+  // eligible" against the slave's empty local catalog.
+  _invalidate(reader, schedulerPreviewDecisionProvider);
+
+  // Refresh the host-mirrored planner/scheduler DATA streams on connect (and
+  // each 30s re-hydrate) so the slave's Projects tab, integration-goal editor,
+  // and target-constraint editor show the host's rows immediately rather than
+  // waiting out their first poll tick. In NetworkBackend mode these providers
+  // re-fetch GET /api/projects, /api/integration-goals, /api/target-constraints.
+  _invalidate(reader, projectListProvider);
+  _invalidate(reader, integrationGoalsStreamProvider);
+  _invalidate(reader, targetConstraintsStreamProvider);
+
+  // Run-history parity on connect: in NetworkBackend mode sequenceRunsProvider
+  // polls GET /api/sequence-runs. Invalidating restarts that poll so the
+  // dashboard "Last night" recap, cockpit Morning Report, and the sequencer
+  // History tab show the master's real run history immediately instead of
+  // waiting out the first poll tick (or, before this branch, rendering empty).
+  _invalidate(reader, sequenceRunsProvider);
+
+  // Observing-lists parity on connect: in NetworkBackend mode these providers
+  // re-poll GET /api/observing-lists (and the listed-catalog-ids markers), so
+  // the slave's planetarium Lists tab, the "add to list" pickers, and the
+  // star-chart list markers show the master's curated lists immediately rather
+  // than waiting out the first poll tick. (observingListItemsProvider is a
+  // family keyed by the open list, so it re-polls when first watched.)
+  _invalidate(reader, observingListsProvider);
+  _invalidate(reader, listedCatalogIdsProvider);
+}
+
+/// Buffer-then-apply per-device live status for the connected equipment that
+/// exposes a status GET. Each fetch is isolated in its own try/catch and run in
+/// parallel; results are applied only after ALL fetches settle, so a failed or
+/// slow device never blanks a card.
+Future<void> _hydrateDeviceTelemetry(
+  Object reader,
+  NetworkBackend backend,
+  List<DeviceInfo> devices,
+) async {
+  String? idFor(DeviceType type) =>
+      devices.where((d) => d.deviceType == type).map((d) => d.id).firstOrNull;
+
+  final cameraId = idFor(DeviceType.camera);
+  final mountId = idFor(DeviceType.mount);
+  final focuserId = idFor(DeviceType.focuser);
+  final filterWheelId = idFor(DeviceType.filterWheel);
+  final rotatorId = idFor(DeviceType.rotator);
+
+  CameraStatus? cameraStatus;
+  MountStatus? mountStatus;
+  FocuserStatus? focuserStatus;
+  FilterWheelStatus? filterWheelStatus;
+  RotatorStatus? rotatorStatus;
+
+  Future<void> fetchCamera() async {
+    if (cameraId == null) return;
+    try {
+      cameraStatus = await backend.getCameraStatus(cameraId);
+    } catch (_) {
+      // Leave prior camera telemetry intact.
+    }
+  }
+
+  Future<void> fetchMount() async {
+    if (mountId == null) return;
+    try {
+      mountStatus = await backend.getMountStatus(mountId);
+    } catch (_) {
+      // Leave prior mount telemetry intact.
+    }
+  }
+
+  Future<void> fetchFocuser() async {
+    if (focuserId == null) return;
+    try {
+      focuserStatus = await backend.getFocuserStatus(focuserId);
+    } catch (_) {
+      // Leave prior focuser telemetry intact.
+    }
+  }
+
+  Future<void> fetchFilterWheel() async {
+    if (filterWheelId == null) return;
+    try {
+      filterWheelStatus = await backend.getFilterWheelStatus(filterWheelId);
+    } catch (_) {
+      // Leave prior filter-wheel telemetry intact.
+    }
+  }
+
+  Future<void> fetchRotator() async {
+    if (rotatorId == null) return;
+    try {
+      rotatorStatus = await backend.getRotatorStatus(rotatorId);
+    } catch (_) {
+      // Leave prior rotator telemetry intact.
+    }
+  }
+
+  await Future.wait([
+    fetchCamera(),
+    fetchMount(),
+    fetchFocuser(),
+    fetchFilterWheel(),
+    fetchRotator(),
+  ]);
+
+  // Single apply pass — no intervening clear, so cards never blank.
+  final camera = cameraStatus;
+  if (camera != null) {
+    final notifier = _read(reader, cameraStateProvider.notifier);
+    final temp = camera.sensorTemp;
+    if (temp != null) {
+      notifier.updateTemperature(temp, camera.coolerPower ?? 0.0);
+    }
+    notifier.setCooling(camera.coolerOn);
+    final target = camera.targetTemp;
+    if (target != null) {
+      notifier.setTargetTemp(target);
+    }
+    // G4 (in-flight exposure): the fetched status already reports whether the
+    // master is mid-exposure. Seed the Exposing flag the same way the live
+    // ExposureStarted handler does so the card/status isn't stuck Idle on a
+    // mid-session connect. Precise remaining-time legitimately waits for the
+    // first live ExposureProgress tick; here we only flip the flag.
+    if (camera.state == CameraState.exposing) {
+      notifier.setExposing(true);
+    }
+  }
+
+  final mount = mountStatus;
+  if (mount != null) {
+    final notifier = _read(reader, mountStateProvider.notifier);
+    notifier.updatePosition(
+      mount.rightAscension,
+      mount.declination,
+      mount.altitude,
+      mount.azimuth,
+    );
+    notifier.setTracking(mount.tracking);
+    notifier.setSlewing(mount.slewing);
+    notifier.setParked(mount.parked);
+    notifier.setTrackingRate(mount.trackingRate);
+  }
+
+  final focuser = focuserStatus;
+  if (focuser != null) {
+    final notifier = _read(reader, focuserStateProvider.notifier);
+    notifier.updatePosition(focuser.position);
+    notifier.setMoving(focuser.moving);
+    final temp = focuser.temperature;
+    if (temp != null) {
+      notifier.updateTemperature(temp);
+    }
+  }
+
+  final filterWheel = filterWheelStatus;
+  if (filterWheel != null) {
+    final notifier = _read(reader, filterWheelStateProvider.notifier);
+    notifier.updatePosition(filterWheel.position);
+    notifier.setMoving(filterWheel.moving);
+    // The fetched status already carries the wheel's filter names; apply them
+    // so the slave shows the filter list (not just the position). Without this
+    // the names were fetched and silently dropped, leaving filterNames empty on
+    // the slave. setConnected preserves position/state and merges the names.
+    if (filterWheel.filterNames.isNotEmpty) {
+      notifier.setConnected(filterNames: filterWheel.filterNames);
+    }
+  }
+
+  final rotator = rotatorStatus;
+  if (rotator != null) {
+    final notifier = _read(reader, rotatorStateProvider.notifier);
+    notifier.updatePosition(
+      rotator.position,
+      mechanicalPosition: rotator.mechanicalPosition,
+    );
+    notifier.setMoving(rotator.moving || rotator.isMoving);
+  }
 }

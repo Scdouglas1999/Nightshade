@@ -1,8 +1,7 @@
 /// Declarative route table for the sequencer / automation surface.
 ///
-/// Counterpart to `handlers/sequencer_handlers.dart`. Includes the
-/// legacy `/api/sequences/*` aliases (kept for pinned mobile builds),
-/// the canonical `/api/sequencer/*` action surface, the recovery
+/// Counterpart to `handlers/sequencer_handlers.dart`. Covers the
+/// canonical `/api/sequencer/*` action surface, the recovery
 /// remote-control endpoints, and the cloud-motion / adaptive-
 /// swap endpoints. CRUD on stored sequence definitions lives in
 /// `sequence_management_routes.dart`.
@@ -15,27 +14,18 @@ import 'headless_route.dart';
 List<HeadlessRoute> buildSequencerRoutes(
   SequencerHandlers h,
 ) => <HeadlessRoute>[
-  // Sequencing (legacy). These three are direct aliases for the
-  // /api/sequencer/* surface — kept for pinned mobile builds that
-  // pre-date the rename. The router accepts the same handler refs
-  // so there is no double dispatch.
-  HeadlessRoute(
-    HttpMethod.get,
-    '/api/sequences/status',
-    h.handleSequencerStatus,
-  ),
-  HeadlessRoute(
-    HttpMethod.post,
-    '/api/sequences/start',
-    h.handleSequencerStart,
-  ),
-  HeadlessRoute(HttpMethod.post, '/api/sequences/stop', h.handleSequencerStop),
-
   // Sequencing (extended)
   HeadlessRoute(
     HttpMethod.get,
     '/api/sequencer/status',
     h.handleSequencerStatus,
+  ),
+  // G2 (remote hydration): the master's currently-open editor canvas, in the
+  // same payload shape the live WS editor mirror emits.
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/sequencer/editor-sequence',
+    h.handleSequencerEditorSequence,
   ),
   HeadlessRoute(
     HttpMethod.post,

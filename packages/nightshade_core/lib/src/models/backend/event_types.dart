@@ -17,17 +17,18 @@ enum EventSeverity { info, warning, error, critical }
 // `commandId` they received in the POST /api/settings response.
 const String settingsChangedEventType = 'settings.changed';
 
-// Hot-plug discovery wire event types. The Rust side
-// publishes these as `EquipmentEvent::PropertyChanged { property:
-// 'device_discovered' | 'device_lost', value: <json> }` (see
-// `native/nightshade_native/bridge/src/hotplug.rs`). The Dart provider
-// `hotplugEventBridgeProvider` watches the backend event stream for these
-// types and invalidates the equipment discovery providers so the equipment
-// screen refreshes without a manual pull-to-refresh. The `value` is a
-// JSON-stringified map: `{ driver, deviceClass, id, name, displayName,
-// uniqueId? }`.
-const String deviceDiscoveredProperty = 'device_discovered';
-const String deviceLostProperty = 'device_lost';
+// Hot-plug discovery event types. The Rust side publishes arrivals/removals
+// as the first-class `EquipmentEvent::DeviceDiscovered` /
+// `EquipmentEvent::DeviceLost` typed FRB variants (see
+// `native/nightshade_native/bridge/src/hotplug.rs`), which the FFI layer maps
+// to these event-type strings. The Dart provider `hotplugEventBridgeProvider`
+// watches the backend event stream for these types and invalidates the
+// equipment discovery providers so the equipment screen refreshes without a
+// manual pull-to-refresh. The event `data` map carries
+// `{ device_class, driver, id, name, display_name, unique_id? }` for an
+// arrival and `{ device_class, driver, id }` for a removal.
+const String deviceDiscoveredEventType = 'DeviceDiscovered';
+const String deviceLostEventType = 'DeviceLost';
 
 /// Event categories for filtering and routing
 enum EventCategory {

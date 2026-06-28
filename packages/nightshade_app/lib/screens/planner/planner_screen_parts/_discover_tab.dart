@@ -1,56 +1,63 @@
 // Part of ../planner_screen.dart -- extracted for maintainability.
 //
-// "Sky" tab: a segmented Framing|Planetarium toggle hosting the framing and planetarium views absorbed from the standalone /framing and /planetarium screens.
+// "Discover" tab: a segmented Your Sky | Constellation toggle hosting the
+// personal all-sky atlas and the community swarm view. These are the
+// less-frequent discovery surfaces that used to hold their own rail slots; they
+// now nest here, one tap inside Plan Tonight, leaving the rail for nightly tools.
 part of '../planner_screen.dart';
 
-/// Which view the "Sky" tab's inner segmented control shows.
-enum SkyView { framing, planetarium }
+/// Which view the "Discover" tab's inner segmented control shows.
+enum DiscoverView { yourSky, constellation }
 
-/// Maps a router `?view=` query value to a [SkyView]. Returns null for an
-/// unrecognised value so the caller can fall back to [SkyView.framing]. Public
-/// so the `/framing` and `/planetarium` redirects (and tests) share the same
-/// mapping.
-SkyView? plannerSkyViewFromQuery(String? value) {
+/// Maps a router `?view=` query value to a [DiscoverView]. Returns null for an
+/// unrecognised value so the caller can fall back to [DiscoverView.yourSky].
+/// Public so the `/your-sky` and `/constellation` redirects (and tests) share
+/// the same mapping.
+DiscoverView? plannerDiscoverViewFromQuery(String? value) {
   if (value == null) return null;
   switch (value.toLowerCase()) {
-    case 'framing':
-      return SkyView.framing;
-    case 'planetarium':
-      return SkyView.planetarium;
+    case 'yoursky':
+    case 'your-sky':
+    case 'atlas':
+      return DiscoverView.yourSky;
+    case 'constellation':
+    case 'swarm':
+      return DiscoverView.constellation;
   }
   return null;
 }
 
-class _SkyTab extends ConsumerStatefulWidget {
-  const _SkyTab();
+class _DiscoverTab extends ConsumerStatefulWidget {
+  const _DiscoverTab();
 
   @override
-  ConsumerState<_SkyTab> createState() => _SkyTabState();
+  ConsumerState<_DiscoverTab> createState() => _DiscoverTabState();
 }
 
-class _SkyTabState extends ConsumerState<_SkyTab> {
-  late SkyView _view;
+class _DiscoverTabState extends ConsumerState<_DiscoverTab> {
+  late DiscoverView _view;
   String? _lastViewQuery;
 
   @override
   void initState() {
     super.initState();
     _lastViewQuery = _viewQuery();
-    _view = plannerSkyViewFromQuery(_lastViewQuery) ?? SkyView.framing;
+    _view =
+        plannerDiscoverViewFromQuery(_lastViewQuery) ?? DiscoverView.yourSky;
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // The Sky tab lives in an always-built IndexedStack, so initState ran once
-    // at first planner build. When a `/framing` or `/planetarium` deep-link
-    // re-enters the already-mounted planner with a new `?view=`, re-apply it
-    // here (GoRouterState is an inherited dependency). Guarded on the query
-    // changing so a user's manual segment toggle isn't snapped back on rebuild.
+    // The Discover tab lives in an always-built IndexedStack, so initState ran
+    // once at first planner build. When a `/your-sky` or `/constellation`
+    // deep-link re-enters the already-mounted planner with a new `?view=`,
+    // re-apply it here (GoRouterState is an inherited dependency). Guarded on the
+    // query changing so a user's manual segment toggle isn't snapped back.
     final viewQuery = _viewQuery();
     if (viewQuery != _lastViewQuery) {
       _lastViewQuery = viewQuery;
-      final resolved = plannerSkyViewFromQuery(viewQuery);
+      final resolved = plannerDiscoverViewFromQuery(viewQuery);
       if (resolved != null && resolved != _view) {
         setState(() => _view = resolved);
       }
@@ -84,17 +91,17 @@ class _SkyTabState extends ConsumerState<_SkyTab> {
           ),
           child: Align(
             alignment: Alignment.centerLeft,
-            child: SegmentedButton<SkyView>(
+            child: SegmentedButton<DiscoverView>(
               segments: const [
                 ButtonSegment(
-                  value: SkyView.framing,
-                  label: Text('Framing'),
-                  icon: Icon(LucideIcons.crop),
+                  value: DiscoverView.yourSky,
+                  label: Text('Your Sky'),
+                  icon: Icon(LucideIcons.orbit),
                 ),
                 ButtonSegment(
-                  value: SkyView.planetarium,
-                  label: Text('Planetarium'),
-                  icon: Icon(LucideIcons.globe),
+                  value: DiscoverView.constellation,
+                  label: Text('Constellation'),
+                  icon: Icon(LucideIcons.users),
                 ),
               ],
               selected: {_view},
@@ -120,8 +127,8 @@ class _SkyTabState extends ConsumerState<_SkyTab> {
           child: IndexedStack(
             index: _view.index,
             children: const [
-              FramingView(),
-              PlanetariumView(),
+              YourSkyView(),
+              ConstellationView(),
             ],
           ),
         ),

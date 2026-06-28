@@ -15,6 +15,8 @@
 // ignore_for_file: invalid_annotation_target
 import 'package:equatable/equatable.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:nightshade_planetarium/nightshade_planetarium.dart'
+    show ScoringWeights;
 import 'package:uuid/uuid.dart';
 import '../imaging/imaging_models.dart' show FrameType;
 import '../notification/notification_categories.dart'
@@ -302,7 +304,7 @@ enum TwilightType { civil, nautical, astronomical }
 /// Base class for all sequence nodes.
 ///
 /// Sealed for exhaustive switch matching: every `switch (node)` statement
-/// must cover all 32 subtypes (or use a `_` wildcard) — adding a new node
+/// must cover all 37 subtypes (or use a `_` wildcard) — adding a new node
 /// type will produce compile-time errors at every dispatch site that
 /// hasn't been updated.
 ///

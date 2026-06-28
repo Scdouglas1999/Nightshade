@@ -23,7 +23,7 @@ use super::health::{ConnectionHealth, HealthMonitor};
 use super::variant::{
     excepinfo_to_string, extract_safearray_i32, extract_safearray_string, variant_bool,
     variant_bstr, variant_date, variant_f64, variant_i32, variant_to_bool, variant_to_date,
-    variant_to_f64, variant_to_i32, variant_to_string, DISPID_PROPERTYPUT,
+    variant_to_f64, variant_to_i32, variant_to_string, OwnedVariant, DISPID_PROPERTYPUT,
 };
 
 /// Initialize COM for the current thread
@@ -429,7 +429,7 @@ impl AscomDeviceConnection {
         // `vt`-guarded access (see variant.rs). Caller invariant: COM apartment thread.
         unsafe {
             let dispid = self.get_dispid(name)?;
-            let mut result = VARIANT::default();
+            let mut result = OwnedVariant::empty();
             let params = DISPPARAMS::default();
 
             self.dispatch
@@ -439,13 +439,16 @@ impl AscomDeviceConnection {
                     0,
                     DISPATCH_PROPERTYGET,
                     &params,
-                    Some(&mut result),
+                    Some(result.as_mut()),
                     None,
                     None,
                 )
                 .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
-            variant_to_string(&result).ok_or_else(|| format!("Property {} is not a string", name))
+            // `variant_to_string` copies the BSTR into an owned `String` before
+            // the `OwnedVariant` guard drops and frees the source BSTR.
+            variant_to_string(result.get())
+                .ok_or_else(|| format!("Property {} is not a string", name))
         }
     }
 
@@ -457,7 +460,7 @@ impl AscomDeviceConnection {
         // preconditions are documented in variant.rs). Caller invariant: STA thread.
         unsafe {
             let dispid = self.get_dispid(name)?;
-            let mut result = VARIANT::default();
+            let mut result = OwnedVariant::empty();
             let params = DISPPARAMS::default();
 
             self.dispatch
@@ -467,13 +470,15 @@ impl AscomDeviceConnection {
                     0,
                     DISPATCH_PROPERTYGET,
                     &params,
-                    Some(&mut result),
+                    Some(result.as_mut()),
                     None,
                     None,
                 )
                 .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
-            extract_safearray_string(&result)
+            // `extract_safearray_string` copies into owned `String`s before the
+            // `OwnedVariant` guard drops and frees the source SAFEARRAY.
+            extract_safearray_string(result.get())
                 .map_err(|e| format!("Property {} is not a string array: {}", name, e))
         }
     }
@@ -484,7 +489,7 @@ impl AscomDeviceConnection {
         // result is passed to `extract_safearray_i32` which validates bounds before reads.
         unsafe {
             let dispid = self.get_dispid(name)?;
-            let mut result = VARIANT::default();
+            let mut result = OwnedVariant::empty();
             let params = DISPPARAMS::default();
 
             self.dispatch
@@ -494,13 +499,15 @@ impl AscomDeviceConnection {
                     0,
                     DISPATCH_PROPERTYGET,
                     &params,
-                    Some(&mut result),
+                    Some(result.as_mut()),
                     None,
                     None,
                 )
                 .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
-            extract_safearray_i32(&result)
+            // `extract_safearray_i32` copies into an owned `Vec<i32>` before the
+            // `OwnedVariant` guard drops and frees the source SAFEARRAY.
+            extract_safearray_i32(result.get())
                 .map(|(data, _, _)| data)
                 .map_err(|e| format!("Property {} is not an int array: {}", name, e))
         }
@@ -521,7 +528,7 @@ impl AscomDeviceConnection {
                 cNamedArgs: 0,
             };
 
-            let mut result = VARIANT::default();
+            let mut result = OwnedVariant::empty();
             self.dispatch
                 .Invoke(
                     dispid,
@@ -529,13 +536,17 @@ impl AscomDeviceConnection {
                     0,
                     DISPATCH_PROPERTYGET,
                     &params,
-                    Some(&mut result),
+                    Some(result.as_mut()),
                     None,
                     None,
                 )
                 .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
-            variant_to_f64(&result).ok_or_else(|| format!("Property {} is not a double", name))
+            // VT_R8 is a non-heap arm, but routing the indexed result through
+            // `OwnedVariant` keeps cleanup uniform (and covers a driver that
+            // returns a heap-owning VARIANT here); the `VariantClear` on drop is
+            // a no-op for the scalar case.
+            variant_to_f64(result.get()).ok_or_else(|| format!("Property {} is not a double", name))
         }
     }
 
@@ -553,7 +564,7 @@ impl AscomDeviceConnection {
                 cNamedArgs: 0,
             };
 
-            let mut result = VARIANT::default();
+            let mut result = OwnedVariant::empty();
             self.dispatch
                 .Invoke(
                     dispid,
@@ -561,13 +572,16 @@ impl AscomDeviceConnection {
                     0,
                     DISPATCH_PROPERTYGET,
                     &params,
-                    Some(&mut result),
+                    Some(result.as_mut()),
                     None,
                     None,
                 )
                 .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
 
-            variant_to_string(&result).ok_or_else(|| format!("Property {} is not a string", name))
+            // `variant_to_string` copies the BSTR into an owned `String` before
+            // the `OwnedVariant` guard drops and frees the source BSTR.
+            variant_to_string(result.get())
+                .ok_or_else(|| format!("Property {} is not a string", name))
         }
     }
 

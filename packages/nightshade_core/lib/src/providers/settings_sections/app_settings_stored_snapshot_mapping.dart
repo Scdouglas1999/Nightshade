@@ -150,7 +150,6 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       ),
 
       // Sequencer Execution
-      useNativeExecution: _parseBool(allSettings['use_native_execution'], true),
       useSimulationMode: _parseBool(allSettings['use_simulation_mode'], false),
 
       // Remote Access / Web Server
@@ -572,7 +571,6 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
       'alpaca_auto_discover': s.alpacaAutoDiscover.toString(),
 
       // Sequencer Execution
-      'use_native_execution': s.useNativeExecution.toString(),
       'use_simulation_mode': s.useSimulationMode.toString(),
 
       // Remote Access / Web Server

@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../backend/network_backend.dart';
 import '../database/database.dart' as db;
 import '../models/equipment_profile.dart' as remote_profile;
+import '../models/equipment_profile_remote_mapping.dart';
 import '../database/daos/equipment_profiles_dao.dart';
 import '../database/daos/targets_dao.dart';
 import '../database/daos/sessions_dao.dart';
@@ -207,23 +209,10 @@ final allSettingsProvider = StreamProvider<Map<String, String>>((ref) {
 
 Stream<List<db.EquipmentProfile>> _pollRemoteEquipmentProfiles(
   NetworkBackend backend,
-) async* {
-  yield await _fetchRemoteEquipmentProfiles(backend);
-  while (true) {
-    await Future.delayed(const Duration(seconds: 10));
-    yield await _fetchRemoteEquipmentProfiles(backend);
-  }
-}
+) => _pollRemote(() => _fetchRemoteEquipmentProfiles(backend), listEquals);
 
-Stream<db.EquipmentProfile?> _pollRemoteActiveProfile(
-  NetworkBackend backend,
-) async* {
-  yield await _fetchRemoteActiveProfile(backend);
-  while (true) {
-    await Future.delayed(const Duration(seconds: 10));
-    yield await _fetchRemoteActiveProfile(backend);
-  }
-}
+Stream<db.EquipmentProfile?> _pollRemoteActiveProfile(NetworkBackend backend) =>
+    _pollRemote(() => _fetchRemoteActiveProfile(backend), (a, b) => a == b);
 
 Future<List<db.EquipmentProfile>> _fetchRemoteEquipmentProfiles(
   NetworkBackend backend,
@@ -246,87 +235,109 @@ Future<db.EquipmentProfile?> _fetchRemoteActiveProfile(
 db.EquipmentProfile _equipmentProfileFromRemote(
   remote_profile.EquipmentProfile profile,
 ) {
-  return db.EquipmentProfile(
-    id: int.tryParse(profile.id) ?? 0,
-    name: profile.name,
-    description: profile.description,
-    isActive: profile.isActive,
-    cameraId: profile.cameraId,
-    mountId: profile.mountId,
-    focuserId: profile.focuserId,
-    filterWheelId: profile.filterWheelId,
-    guiderId: profile.guiderId,
-    rotatorId: profile.rotatorId,
-    domeId: profile.domeId,
-    weatherId: profile.weatherId,
-    coverCalibratorId: profile.coverCalibratorId,
-    cameraName: profile.cameraName,
-    mountName: profile.mountName,
-    focuserName: profile.focuserName,
-    filterWheelName: profile.filterWheelName,
-    guiderName: profile.guiderName,
-    rotatorName: profile.rotatorName,
-    telescopeName: profile.telescopeName,
-    telescopeFocalLength: profile.telescopeFocalLength,
-    telescopeAperture: profile.telescopeAperture,
-    focalLength: profile.focalLength,
-    aperture: profile.aperture,
-    focalRatio: profile.focalRatio,
-    defaultGain: profile.defaultGain,
-    defaultOffset: profile.defaultOffset,
-    defaultBinX: profile.defaultBinX,
-    defaultBinY: profile.defaultBinY,
-    defaultCoolingTemp: profile.defaultCoolingTemp,
-    coolOnConnect: profile.coolOnConnect,
-    defaultCenteringExposure: profile.defaultCenteringExposure,
-    filterNames: profile.filterNames,
-    filterFocusOffsets: profile.filterFocusOffsets,
-    profileIcon: profile.profileIcon,
-    profileColor: profile.profileColor,
-    sortOrder: profile.sortOrder,
-    isDefault: profile.isDefault,
-    createdAt: profile.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
-    updatedAt: profile.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0),
-  );
+  // Route through the single canonical converter so the slave's profile stream
+  // stays lossless (carries safetyMonitorId/switchId/meridianFlipOverrides) and
+  // never drifts from the host's `/api/profiles` mapping. No `existing` arg =>
+  // the remote payload's own isDefault/isActive/sortOrder flags are carried
+  // through, matching the host's row.
+  return remoteProfileToDbRow(profile);
 }
 
-Stream<List<db.Target>> _pollRemoteTargets(NetworkBackend backend) async* {
-  yield await _fetchRemoteTargets(backend);
+/// Polls [fetch] every [interval], emitting the first value and thereafter
+/// ONLY when the value actually changes (per [unchanged]).
+///
+/// The remote list/profile providers below are backed by these polls. They
+/// previously re-emitted an identical payload on every 10s tick. Because the
+/// planner's `tonightSuggestionsProvider` awaits these streams, every redundant
+/// emission reloaded the whole suggestion pipeline and BLANKED the Plan Tonight
+/// Recommendation tab — with targets/sessions/profiles/active-profile all on
+/// staggered 10s timers that produced a full reload every few seconds. It also
+/// multiplied REST traffic against the host (a contributor to the slave's
+/// connection churn and momentary hangs). The change-guard makes a quiet host
+/// emit exactly once, so the UI settles.
+Stream<T> _pollRemote<T>(
+  Future<T> Function() fetch,
+  bool Function(T a, T b) unchanged, {
+  Duration interval = const Duration(seconds: 10),
+}) async* {
+  var last = await fetch();
+  yield last;
   while (true) {
-    await Future.delayed(const Duration(seconds: 10));
-    yield await _fetchRemoteTargets(backend);
+    await Future.delayed(interval);
+    final next = await fetch();
+    if (!unchanged(last, next)) {
+      last = next;
+      yield next;
+    }
   }
 }
+
+Stream<List<db.Target>> _pollRemoteTargets(NetworkBackend backend) =>
+    _pollRemote(() => _fetchRemoteTargets(backend), listEquals);
 
 Stream<List<db.Sequence>> _pollRemoteSequenceRows(
   NetworkBackend backend, {
   required bool templates,
-}) async* {
-  yield await _fetchRemoteSequenceRows(backend, templates: templates);
-  while (true) {
-    await Future.delayed(const Duration(seconds: 10));
-    yield await _fetchRemoteSequenceRows(backend, templates: templates);
-  }
+}) => _pollRemote(
+  () => _fetchRemoteSequenceRows(backend, templates: templates),
+  listEquals,
+);
+
+Stream<List<db.ImagingSession>> _pollRemoteSessions(NetworkBackend backend) =>
+    _pollRemote(() => _fetchRemoteSessions(backend), listEquals);
+
+Stream<List<db.CapturedImage>> _pollRemoteImages(NetworkBackend backend) =>
+    _pollRemote(() => _fetchRemoteImages(backend), listEquals);
+
+/// Polls the host's `/api/sequence-runs` and maps each [RemoteSequenceRun]
+/// onto the local `SequenceRun` Drift row shape the run-history consumers read
+/// (dashboard recap, cockpit Morning Report, sequencer History tab). The
+/// slave's local `sequence_runs` table is never populated, so without this
+/// poll those surfaces always render their empty state even after the master
+/// imaged all night. [sequenceId] scopes the poll to a single sequence for the
+/// family provider.
+/// Public entry point used by `sequence_stats_provider.dart` so the
+/// run-history providers can branch onto the remote transport without
+/// re-implementing the poll/mapping (both file-private here).
+Stream<List<db.SequenceRun>> pollRemoteSequenceRuns(
+  NetworkBackend backend, {
+  int? sequenceId,
+}) => _pollRemoteRuns(backend, sequenceId: sequenceId);
+
+Stream<List<db.SequenceRun>> _pollRemoteRuns(
+  NetworkBackend backend, {
+  int? sequenceId,
+}) => _pollRemote(
+  () => _fetchRemoteRuns(backend, sequenceId: sequenceId),
+  listEquals,
+);
+
+Future<List<db.SequenceRun>> _fetchRemoteRuns(
+  NetworkBackend backend, {
+  int? sequenceId,
+}) async {
+  final page = await backend.fetchSequenceRuns(sequenceId: sequenceId);
+  final mapped = page.items.map(_runRowFromRemote).toList();
+  // Host endpoint already orders by startedAt desc; keep that invariant so the
+  // ".first" the consumers read is the newest run.
+  mapped.sort((a, b) => b.startedAt.compareTo(a.startedAt));
+  return mapped;
 }
 
-Stream<List<db.ImagingSession>> _pollRemoteSessions(
-  NetworkBackend backend,
-) async* {
-  yield await _fetchRemoteSessions(backend);
-  while (true) {
-    await Future.delayed(const Duration(seconds: 10));
-    yield await _fetchRemoteSessions(backend);
-  }
-}
-
-Stream<List<db.CapturedImage>> _pollRemoteImages(
-  NetworkBackend backend,
-) async* {
-  yield await _fetchRemoteImages(backend);
-  while (true) {
-    await Future.delayed(const Duration(seconds: 10));
-    yield await _fetchRemoteImages(backend);
-  }
+db.SequenceRun _runRowFromRemote(RemoteSequenceRun run) {
+  return db.SequenceRun(
+    id: run.id,
+    sequenceId: run.sequenceId,
+    sequenceName: run.sequenceName ?? 'Sequence',
+    startedAt: run.startedAt,
+    endedAt: run.endedAt,
+    status: run.status,
+    statsJson: run.statsJson ?? '{}',
+    // The wire row does not carry the executed-sequence snapshot (it is not
+    // exposed by /api/sequence-runs); the run-history surfaces that consume
+    // this stream do not read it, so leaving it null is lossless for them.
+    sequenceSnapshotJson: null,
+  );
 }
 
 Future<List<db.Target>> _fetchRemoteTargets(NetworkBackend backend) async {

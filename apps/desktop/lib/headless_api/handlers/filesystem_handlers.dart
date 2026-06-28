@@ -135,6 +135,36 @@ class FileSystemHandlers {
     }
 
     final directory = Directory(path);
+
+    // HTTP-005: containment. Like the sibling /api/files/browse, validate must
+    // never stat or write-probe a path outside the allow-listed roots — without
+    // this it doubled as a filesystem existence/writability oracle that created
+    // a probe file at an arbitrary path. Canonicalize and reject out-of-root
+    // paths with the same `path_not_allowed` 403 browse uses, BEFORE any
+    // exists()/write-probe runs. Legitimate not-yet-created save paths under a
+    // root canonicalize to a normalized absolute path that still resolves under
+    // the root, so in-root validation (including new sub-directories) is
+    // unaffected.
+    final roots = await _resolveBrowseRoots();
+    final canonicalRequested = await _canonicalize(directory.path);
+    if (!_isPathUnderAnyRoot(canonicalRequested, roots)) {
+      _logError(
+        '[API] Validate rejected: $canonicalRequested is not under any '
+        'allow-listed root (${roots.map((r) => r.canonicalPath).join(", ")})',
+      );
+      return jsonForbidden({
+        'error': 'path_not_allowed',
+        'message':
+            'The requested path is not under an allow-listed browse root',
+        'valid': false,
+        'exists': false,
+        'writable': false,
+        'allowedRoots': roots
+            .map((r) => {'name': r.label, 'path': r.canonicalPath})
+            .toList(),
+      });
+    }
+
     final exists = await directory.exists();
     final writable =
         exists && (!mustBeWritable || await _isWritable(directory));
@@ -280,14 +310,31 @@ class FileSystemHandlers {
     try {
       return await dir.resolveSymbolicLinks();
     } on FileSystemException {
-      // Why: best-effort fallback — if the path doesn't exist or symlinks
-      // can't be resolved, fall back to absolute-and-normalized. The earlier
-      // existence check in the caller catches non-existent requested paths;
-      // this fallback exists mainly for the roots branch, where a configured
-      // setting might point at a not-yet-created directory. We deliberately
-      // do not log here because the configured-but-missing case is a normal
-      // user state, not an error.
-      return p.normalize(dir.absolute.path);
+      // The full path doesn't exist yet, so resolveSymbolicLinks can't run on
+      // it. Resolve the deepest ANCESTOR that does exist — that forces symlink
+      // resolution on every existing component, including an in-root symlink
+      // that points outside the allow-listed roots — then re-append the
+      // not-yet-created tail. A plain normalize here would leave intermediate
+      // symlinks unresolved, letting "<root>/symlink-to-outside/newfile" pass
+      // containment and turn validate into an existence/write-probe oracle for
+      // arbitrary out-of-root paths (HTTP-005). We do not log: a
+      // configured-but-missing path is a normal user state, not an error.
+      final absolute = p.normalize(dir.absolute.path);
+      final tail = <String>[p.basename(absolute)];
+      var ancestor = p.dirname(absolute);
+      while (ancestor != p.dirname(ancestor)) {
+        try {
+          final resolvedAncestor = await Directory(
+            ancestor,
+          ).resolveSymbolicLinks();
+          return p.normalize(p.joinAll([resolvedAncestor, ...tail.reversed]));
+        } on FileSystemException {
+          tail.add(p.basename(ancestor));
+          ancestor = p.dirname(ancestor);
+        }
+      }
+      // No existing ancestor (e.g. a missing drive root) — best effort.
+      return absolute;
     }
   }
 

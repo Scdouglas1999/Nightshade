@@ -530,6 +530,8 @@ class NotificationRouter {
         return 'Equipment disconnected';
       case NotificationCategory.triggerFired:
         return 'Trigger fired';
+      case NotificationCategory.transientDiscovered:
+        return 'Possible new transient';
       case NotificationCategory.custom:
         return 'Nightshade notification';
     }
@@ -583,6 +585,9 @@ class NotificationRouter {
         return 'Cloud cover decreasing.';
       case NotificationCategory.triggerFired:
         return 'Trigger \${trigger.name} fired.';
+      case NotificationCategory.transientDiscovered:
+        return 'First Light caught something at \${transient.coords} '
+            '(SNR \${transient.snr}). Chase it before it fades.';
       case NotificationCategory.sequencePaused:
         return 'Sequence paused at \${time.local}.';
       case NotificationCategory.sequenceResumed:

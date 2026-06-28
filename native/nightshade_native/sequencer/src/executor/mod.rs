@@ -81,6 +81,35 @@ fn effective_weather_verdict_staleness_secs(value: u64) -> u64 {
     }
 }
 
+/// Decide whether a mount tracking poll represents a genuine *loss* of tracking
+/// (an ON → OFF transition) rather than tracking simply not having started yet.
+///
+/// B19 root cause: the trigger monitor arms `mount_tracking_expected = true` the
+/// instant it starts — before the sequence has unparked/slewed and actually
+/// begun tracking. A level-triggered `expected && !tracking` test then fired the
+/// `MountTrackingLost` trigger on the very FIRST poll of a not-yet-tracking mount
+/// (e.g. still parked, or a headless mount reporting `Ok(false)`), self-cancelling
+/// the sequence ~1.5 s after start. Because this is a mount trigger, not a
+/// weather one, `safety_fail_mode = FailOpen` could not suppress it — matching the
+/// field report exactly.
+///
+/// "Lost" means tracking was observed ON and then went OFF, so we require the
+/// PREVIOUS reading (`previously_tracking`) to have been `Some(true)`. A first
+/// poll (`None`) or a mount that has not yet started tracking never trips it; a
+/// genuine mid-sequence drop (`Some(true)` → `false`) still does, so protection
+/// is unchanged for the case the trigger exists to catch.
+fn mount_tracking_just_lost(
+    tracking_expected: bool,
+    currently_tracking: bool,
+    previously_tracking: Option<bool>,
+    already_flagged_lost: bool,
+) -> bool {
+    tracking_expected
+        && !currently_tracking
+        && !already_flagged_lost
+        && previously_tracking == Some(true)
+}
+
 /// How a non-auto-recoverable recovery escalation (an `AttemptOutcome::
 /// PauseForOperator`, e.g. from a consecutive-reject storm) must be handled,
 /// derived purely from operator presence.
@@ -4573,10 +4602,16 @@ impl SequenceExecutor {
                                 Ok(is_tracking) => {
                                     state.mount_status_query_failed = false;
 
-                                    if state.mount_tracking_expected
-                                        && !is_tracking
-                                        && !state.mount_tracking_lost
-                                    {
+                                    // Edge-triggered (B19): only a true → false
+                                    // transition is a genuine loss. `state.mount_is_tracking`
+                                    // still holds the PREVIOUS poll's reading here — it is
+                                    // updated below, after this check.
+                                    if mount_tracking_just_lost(
+                                        state.mount_tracking_expected,
+                                        *is_tracking,
+                                        state.mount_is_tracking,
+                                        state.mount_tracking_lost,
+                                    ) {
                                         tracing::warn!("Mount tracking lost during sequence!");
                                         state.mount_tracking_lost = true;
 
@@ -6325,6 +6360,47 @@ mod tests {
             NoDataResolution::Preserve,
             "warnOnly must resolve no-data as PRESERVE (last reading wins)"
         );
+    }
+
+    /// B19 regression: `MountTrackingLost` must be edge-triggered, not
+    /// level-triggered. The trigger monitor arms `mount_tracking_expected` at
+    /// startup before the mount has begun tracking, so a not-yet-tracking poll
+    /// (`previously_tracking` is `None`, or the mount is still parked) must NOT
+    /// be reported as a loss — otherwise a loaded sequence self-cancels ~1.5 s
+    /// after start, immune to `safety_fail_mode = FailOpen` because this is a
+    /// mount trigger rather than a weather one.
+    #[test]
+    fn mount_tracking_loss_is_edge_triggered_not_level_triggered() {
+        // First poll: expected armed, mount reports not tracking, no prior
+        // reading. This is the exact B19 condition — must NOT flag a loss.
+        assert!(
+            !mount_tracking_just_lost(true, false, None, false),
+            "a not-yet-tracking mount on the first poll must not be 'lost'"
+        );
+
+        // Still parked / not tracking after the first poll recorded `false`.
+        assert!(
+            !mount_tracking_just_lost(true, false, Some(false), false),
+            "a mount that was never tracking must not be reported as 'lost'"
+        );
+
+        // The genuine case the trigger exists for: tracking was ON, now OFF.
+        assert!(
+            mount_tracking_just_lost(true, false, Some(true), false),
+            "a true -> false transition is a real tracking loss"
+        );
+
+        // Already flagged — don't re-flag (idempotent within a loss episode).
+        assert!(
+            !mount_tracking_just_lost(true, false, Some(true), true),
+            "loss must not be re-flagged once already recorded"
+        );
+
+        // Tracking healthy — never a loss regardless of history.
+        assert!(!mount_tracking_just_lost(true, true, Some(true), false));
+
+        // Not expected (no mount configured / detector disarmed) — never a loss.
+        assert!(!mount_tracking_just_lost(false, false, Some(true), false));
     }
 
     /// Subsystem 2 step 3: the weather-verdict staleness window resolver

@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../backend/network_backend.dart';
 import '../../database/database.dart' as db;
 import '../../models/scheduler/integration_goal.dart';
+import '../../providers/backend_provider.dart';
 import '../../providers/database_provider.dart';
 
 /// SQL schema for the three scheduler tables.
@@ -66,7 +68,13 @@ class IntegrationGoalService {
   // [watchAll] see the change immediately.
   final StreamController<void> _mutations = StreamController<void>.broadcast();
 
-  IntegrationGoalService(this._db);
+  /// When non-null this service is running on a remote SLAVE: the goals live
+  /// in the HOST DB, not the slave's empty local SQLite, so every read/write
+  /// routes over `/api/integration-goals`. Null on the host (FfiBackend) and
+  /// in tests — the local-DB path below is then taken verbatim, unchanged.
+  final NetworkBackend? _remote;
+
+  IntegrationGoalService(this._db, {NetworkBackend? remote}) : _remote = remote;
 
   void _notifyMutated() {
     if (!_mutations.isClosed) _mutations.add(null);
@@ -88,6 +96,12 @@ class IntegrationGoalService {
   /// the operator can iteratively tune one filter's goal without leaving
   /// duplicates.
   Future<int> upsert(IntegrationGoal goal) async {
+    final remote = _remote;
+    if (remote != null) {
+      final id = await remote.upsertIntegrationGoal(goal);
+      _notifyMutated();
+      return id;
+    }
     await _ensureSchema();
     final existing = await _db
         .customSelect(
@@ -124,6 +138,12 @@ class IntegrationGoalService {
   }
 
   Future<void> delete(int goalId) async {
+    final remote = _remote;
+    if (remote != null) {
+      await remote.deleteIntegrationGoal(goalId);
+      _notifyMutated();
+      return;
+    }
     await _ensureSchema();
     await _db.customStatement('DELETE FROM integration_goals WHERE id = ?', [
       goalId,
@@ -135,6 +155,12 @@ class IntegrationGoalService {
   /// scheduler queue's per-row delete and clear-all actions; the target
   /// itself stays in the catalog.
   Future<void> deleteForTarget(int targetId) async {
+    final remote = _remote;
+    if (remote != null) {
+      await remote.deleteIntegrationGoalsForTarget(targetId);
+      _notifyMutated();
+      return;
+    }
     await _ensureSchema();
     await _db.customStatement(
       'DELETE FROM integration_goals WHERE target_id = ?',
@@ -146,6 +172,12 @@ class IntegrationGoalService {
   /// Remove every integration goal in the database. Used by the scheduler
   /// queue's clear-all action.
   Future<void> deleteAll() async {
+    final remote = _remote;
+    if (remote != null) {
+      await remote.deleteAllIntegrationGoals();
+      _notifyMutated();
+      return;
+    }
     await _ensureSchema();
     await _db.customStatement('DELETE FROM integration_goals');
     _notifyMutated();
@@ -156,6 +188,24 @@ class IntegrationGoalService {
   /// service itself performs. Used by the scheduler provider to wake the
   /// engine on operator edits without polling.
   Stream<List<IntegrationGoal>> watchAll() async* {
+    final remote = _remote;
+    if (remote != null) {
+      // On a slave the host owns the goals; there is no local mutation stream
+      // to listen to, so poll the host on a fixed tick. A change-guard
+      // suppresses unchanged re-fetches (mirrors database_provider's
+      // _pollRemote). Our own optimistic mutations are picked up by the next
+      // poll within the interval.
+      var last = await remote.getIntegrationGoals();
+      yield last;
+      while (true) {
+        await Future<void>.delayed(const Duration(seconds: 10));
+        final next = await remote.getIntegrationGoals();
+        if (!_goalListEquals(last, next)) {
+          last = next;
+          yield next;
+        }
+      }
+    }
     await _ensureSchema();
     yield await listAll();
     await for (final _ in _mutations.stream) {
@@ -164,6 +214,10 @@ class IntegrationGoalService {
   }
 
   Future<List<IntegrationGoal>> listForTarget(int targetId) async {
+    final remote = _remote;
+    if (remote != null) {
+      return remote.getIntegrationGoals(targetId: targetId);
+    }
     await _ensureSchema();
     final rows = await _db
         .customSelect(
@@ -176,6 +230,10 @@ class IntegrationGoalService {
   }
 
   Future<List<IntegrationGoal>> listAll() async {
+    final remote = _remote;
+    if (remote != null) {
+      return remote.getIntegrationGoals();
+    }
     await _ensureSchema();
     final rows = await _db
         .customSelect(
@@ -183,6 +241,17 @@ class IntegrationGoalService {
         )
         .get();
     return rows.map(_rowToGoal).toList();
+  }
+
+  static bool _goalListEquals(
+    List<IntegrationGoal> a,
+    List<IntegrationGoal> b,
+  ) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   /// Compute the captured-frame count for one (target, filter) pair.
@@ -194,6 +263,12 @@ class IntegrationGoalService {
     required int targetId,
     required String filter,
   }) async {
+    final remote = _remote;
+    if (remote != null) {
+      // Counts MUST come from the host's captured_images, never the slave's
+      // empty local DB, or every goal looks 0/N and ranking/dwell is wrong.
+      return remote.getCapturedFrameCount(targetId: targetId, filter: filter);
+    }
     final rows = await _db
         .customSelect(
           "SELECT COUNT(*) AS c FROM captured_images "
@@ -237,7 +312,11 @@ class IntegrationGoalService {
 }
 
 final integrationGoalServiceProvider = Provider<IntegrationGoalService>((ref) {
-  return IntegrationGoalService(ref.watch(databaseProvider));
+  final backend = ref.watch(backendProvider);
+  return IntegrationGoalService(
+    ref.watch(databaseProvider),
+    remote: backend is NetworkBackend ? backend : null,
+  );
 });
 
 /// Re-used DDL strings exported so the scheduler engine init can ensure

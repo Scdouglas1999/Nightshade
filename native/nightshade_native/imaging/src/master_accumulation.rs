@@ -729,8 +729,9 @@ impl IntegratedMaster {
 
         let len = header.slot_count;
         let geom_len = (header.geometry.width as usize)
-            * (header.geometry.height as usize)
-            * (header.geometry.channels as usize);
+            .checked_mul(header.geometry.height as usize)
+            .and_then(|wh| wh.checked_mul(header.geometry.channels as usize))
+            .ok_or(MasterError::InconsistentPayload)?;
         if len != geom_len {
             return Err(MasterError::InconsistentPayload);
         }
@@ -1443,6 +1444,110 @@ mod tests {
         assert_eq!(rej[0] as u32, 1);
     }
 
+    /// IMG-003: pin the online clip's Bessel-corrected weighted variance/σ at the
+    /// accept/reject boundary, so the late-transient path is characterized beyond
+    /// the gross ~3000σ spike `online_clip_rejects_a_late_transient` exercises.
+    /// The running σ is computed independently and the clip's decision is probed
+    /// just inside, just outside, and — decisively — in the gap between the
+    /// *biased* (`Σwx²/Σw − μ²`) and the *unbiased* (effective-sample-size
+    /// corrected) σ, proving the estimator applies the Bessel correction.
+    #[test]
+    fn online_clip_variance_is_unbiased_and_pins_the_boundary() {
+        // Ten clean unit-weight samples at one pixel. With every weight == 1 the
+        // online estimator reduces to the textbook sample variance with an N−1
+        // (Bessel) denominator: var = Σ(x−μ)² / (N−1). The values are chosen so
+        // none are clipped during buildup (asserted below), so the master's
+        // internal running sums match this exact population.
+        let clean = [
+            98.0, 99.0, 100.0, 101.0, 102.0, 100.0, 99.0, 101.0, 98.0, 102.0,
+        ];
+        let n = clean.len() as f64;
+        let mean = clean.iter().sum::<f64>() / n; // 100.0
+        let ss: f64 = clean.iter().map(|x| (x - mean).powi(2)).sum(); // 20.0
+        let sigma_unbiased = (ss / (n - 1.0)).sqrt(); // sqrt(20/9)
+        let sigma_biased = (ss / n).sqrt(); // sqrt(20/10)
+        assert!(
+            sigma_unbiased > sigma_biased,
+            "the unbiased σ must exceed the biased one"
+        );
+
+        let k = 3.0;
+        // Build a master that has folded exactly the ten clean samples, asserting
+        // zero buildup rejections so its sums correspond to `clean` precisely.
+        let build = || {
+            let reference = flat_u16(1, 1, 1, 100);
+            let mut m = IntegratedMaster::create(
+                &reference,
+                &MasterCreateConfig {
+                    mode: AccumulationMode::RunningWeightedMean {
+                        clip: Some(OnlineClip { low: k, high: k }),
+                    },
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            for v in clean {
+                let f = [v];
+                let r = m.add_frames(&[iframe(&f, 1.0)], &[], "clean").unwrap();
+                assert_eq!(
+                    r.rejected, 0,
+                    "no clean sample may be clipped during buildup"
+                );
+            }
+            m
+        };
+
+        // Boundary pin: a sample 1e-6 inside the unbiased upper bound `mean+k·σ`
+        // is accepted; 1e-6 outside is rejected. The 1e-6 margin is far larger
+        // than f64 rounding, so this can only hold if the master's running σ
+        // equals the independently computed unbiased σ.
+        let hi = mean + k * sigma_unbiased;
+        {
+            let mut m = build();
+            let v = [hi - 1e-6];
+            assert_eq!(
+                m.add_frames(&[iframe(&v, 1.0)], &[], "inside")
+                    .unwrap()
+                    .rejected,
+                0,
+                "a sample just inside mean+k·σ must be accepted"
+            );
+        }
+        {
+            let mut m = build();
+            let v = [hi + 1e-6];
+            assert_eq!(
+                m.add_frames(&[iframe(&v, 1.0)], &[], "outside")
+                    .unwrap()
+                    .rejected,
+                1,
+                "a sample just outside mean+k·σ must be rejected"
+            );
+        }
+
+        // Decisive Bessel-correction pin: a sample in the gap between the biased
+        // and unbiased upper bounds must be ACCEPTED. A biased (N denom) σ would
+        // place the bound below it and wrongly reject it; only the unbiased (N−1)
+        // σ keeps it inside.
+        let between = mean + k * (sigma_biased + sigma_unbiased) / 2.0;
+        assert!(
+            between > mean + k * sigma_biased && between < mean + k * sigma_unbiased,
+            "the probe must lie strictly between the biased and unbiased bounds"
+        );
+        {
+            let mut m = build();
+            let v = [between];
+            assert_eq!(
+                m.add_frames(&[iframe(&v, 1.0)], &[], "between")
+                    .unwrap()
+                    .rejected,
+                0,
+                "a sample inside the unbiased bound but outside the biased bound \
+                 must be accepted — the clip must use the Bessel-corrected σ"
+            );
+        }
+    }
+
     #[test]
     fn no_clip_mode_folds_every_sample() {
         // With clip == None even a wild value is folded (the exact-mean mode).
@@ -1537,7 +1642,7 @@ mod tests {
     #[test]
     fn deserialize_rejects_bad_magic() {
         let err =
-            IntegratedMaster::deserialize(b"XXXX\x01\x00\x00\x00\x00\x00\x00\x00").unwrap_err();
+            IntegratedMaster::deserialize(b"BADM\x01\x00\x00\x00\x00\x00\x00\x00").unwrap_err();
         assert_eq!(err, MasterError::BadMagic);
     }
 
@@ -1562,6 +1667,37 @@ mod tests {
                 supported: MASTER_STATE_VERSION,
             }
         );
+    }
+
+    #[test]
+    fn deserialize_rejects_geometry_dimension_overflow() {
+        // A header whose width×height×channels overflows usize must be rejected
+        // as InconsistentPayload, not panic or wrap into a value that happens to
+        // match a small slot_count. slot_count is tiny here while the declared
+        // geometry product blows past usize::MAX.
+        let header = SerializedHeader {
+            mode: AccumulationMode::default(),
+            geometry: GeometryReference {
+                width: u32::MAX,
+                height: u32::MAX,
+                channels: 2,
+            },
+            norm_reference: NormalizationReference {
+                background: vec![0.0],
+                scale: vec![1.0],
+            },
+            metadata: MasterMetadata::default(),
+            slot_count: 0,
+        };
+        let header_json = serde_json::to_vec(&header).unwrap();
+        let mut blob = Vec::new();
+        blob.extend_from_slice(MASTER_MAGIC);
+        blob.extend_from_slice(&MASTER_STATE_VERSION.to_le_bytes());
+        blob.extend_from_slice(&(header_json.len() as u32).to_le_bytes());
+        blob.extend_from_slice(&header_json);
+        // (No payload bytes: slot_count == 0, and the geometry check fires first.)
+        let err = IntegratedMaster::deserialize(&blob).unwrap_err();
+        assert_eq!(err, MasterError::InconsistentPayload);
     }
 
     #[test]

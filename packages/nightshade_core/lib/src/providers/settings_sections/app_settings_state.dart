@@ -109,7 +109,6 @@ class AppSettingsState {
   final bool alpacaAutoDiscover;
 
   // Sequencer Execution Settings
-  final bool useNativeExecution;
   final bool useSimulationMode;
 
   // Remote Access / Web Server Settings
@@ -536,7 +535,6 @@ class AppSettingsState {
     this.alpacaAutoDiscover = false,
 
     // Sequencer Execution
-    this.useNativeExecution = true,
     this.useSimulationMode = false,
 
     // Remote Access / Web Server
@@ -712,7 +710,6 @@ class AppSettingsState {
     String? alpacaServerHost,
     int? alpacaServerPort,
     bool? alpacaAutoDiscover,
-    bool? useNativeExecution,
     bool? useSimulationMode,
     // Remote Access / Web Server
     bool? webServerEnabled,
@@ -904,7 +901,6 @@ class AppSettingsState {
       alpacaServerHost: alpacaServerHost ?? this.alpacaServerHost,
       alpacaServerPort: alpacaServerPort ?? this.alpacaServerPort,
       alpacaAutoDiscover: alpacaAutoDiscover ?? this.alpacaAutoDiscover,
-      useNativeExecution: useNativeExecution ?? this.useNativeExecution,
       useSimulationMode: useSimulationMode ?? this.useSimulationMode,
       // Remote Access / Web Server
       webServerEnabled: webServerEnabled ?? this.webServerEnabled,

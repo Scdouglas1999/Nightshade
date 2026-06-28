@@ -104,6 +104,7 @@ export 'src/services/auto_save_service.dart';
 // machines via WebDAV (Nextcloud / generic). Reuses BackupService bundles.
 export 'src/services/sync/sync_target.dart';
 export 'src/services/sync/webdav_sync_target.dart';
+export 'src/services/sync/s3_sync_target.dart';
 export 'src/services/sync/sync_service.dart';
 // Plugin management (upload/enable/disable/uninstall)
 export 'src/services/plugin_management_service.dart';

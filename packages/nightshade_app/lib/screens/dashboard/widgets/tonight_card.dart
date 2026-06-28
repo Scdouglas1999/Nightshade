@@ -298,7 +298,7 @@ class _SmartNightTonightActionState
     final label = locked
         ? 'Sequence running'
         : draft == null
-            ? 'Plan tonight'
+            ? 'Plan Tonight'
             : 'View tonight\'s plan';
     final icon = locked
         ? LucideIcons.lock
@@ -326,10 +326,7 @@ class _SmartNightTonightActionState
   Future<void> _openPlanner(SmartNightDraftLookup? lookup) async {
     setState(() => _busy = true);
     try {
-      await showDialog<void>(
-        context: context,
-        builder: (_) => const SmartNightDialog(),
-      );
+      await showSmartNightDialog(context);
       if (lookup != null) {
         ref.invalidate(pendingSmartNightDraftProvider(lookup));
       }

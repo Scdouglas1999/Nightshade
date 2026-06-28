@@ -20,36 +20,6 @@ final mountCapabilitiesProvider =
       return backend.getMountCapabilities(deviceId);
     });
 
-/// Provider to fetch focuser capabilities for a device
-/// Returns null if the device is not connected or doesn't support capabilities
-final focuserCapabilitiesProvider =
-    FutureProvider.family<FocuserCapabilities?, String>((ref, deviceId) async {
-      if (deviceId.isEmpty) return null;
-      final backend = ref.watch(deviceBackendProvider);
-      return backend.getFocuserCapabilities(deviceId);
-    });
-
-/// Provider to fetch filter wheel capabilities for a device
-/// Returns null if the device is not connected or doesn't support capabilities
-final filterWheelCapabilitiesProvider =
-    FutureProvider.family<FilterWheelCapabilities?, String>((
-      ref,
-      deviceId,
-    ) async {
-      if (deviceId.isEmpty) return null;
-      final backend = ref.watch(deviceBackendProvider);
-      return backend.getFilterWheelCapabilities(deviceId);
-    });
-
-/// Provider to fetch rotator capabilities for a device
-/// Returns null if the device is not connected or doesn't support capabilities
-final rotatorCapabilitiesProvider =
-    FutureProvider.family<RotatorCapabilities?, String>((ref, deviceId) async {
-      if (deviceId.isEmpty) return null;
-      final backend = ref.watch(deviceBackendProvider);
-      return backend.getRotatorCapabilities(deviceId);
-    });
-
 /// Default binning options when no capabilities are available
 const List<String> defaultBinningOptions = ['1x1', '2x2', '3x3', '4x4'];
 

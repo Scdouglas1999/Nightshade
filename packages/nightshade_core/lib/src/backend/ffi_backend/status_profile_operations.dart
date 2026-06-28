@@ -177,6 +177,6 @@ mixin _FfiStatusProfileOperations on _FfiBackendBase {
     _logger.fine(
       'setLocation: ${location != null ? "lat=${location.latitude}, lon=${location.longitude}, elev=${location.elevation}" : "null"}',
     );
-    bridge.NativeBridge.apiSetLocation(location: bridgeLoc);
+    await bridge.NativeBridge.apiSetLocation(location: bridgeLoc);
   }
 }

@@ -1,0 +1,794 @@
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+
+import 'sky_atlas_format.dart';
+import 'widgets/atlas_growth_curve.dart';
+import 'widgets/atlas_region_cutout.dart';
+import 'widgets/atlas_timescrub.dart';
+
+/// The scrub anchor for the open region detail (null = latest / all folds).
+final _scrubAnchorProvider =
+    StateProvider.autoDispose<DateTime?>((ref) => null);
+
+/// Region detail — the co-added cutout for a region with a time-scrub control
+/// that replays how the region grew, the contributing folds, and provenance.
+///
+/// Backend-agnostic: every read flows through the backend-aware atlas families
+/// ([atlasRegionProvider] / [atlasRegionTilesProvider] /
+/// [atlasRegionTimelineProvider] / [atlasRegionCutoutProvider]), so the screen
+/// renders identically on the desktop FFI backend AND a mobile network backend
+/// companion — which reads the host's `/api/atlas/region/<id>[...]` routes
+/// instead of its empty local atlas DB.
+class RegionDetailScreen extends ConsumerWidget {
+  final int regionId;
+
+  const RegionDetailScreen({super.key, required this.regionId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
+    final regionAsync = ref.watch(atlasRegionProvider(regionId));
+
+    return Scaffold(
+      backgroundColor: colors.background,
+      appBar: AppBar(
+        backgroundColor: colors.surface,
+        elevation: 0,
+        leading: IconButton(
+          icon:
+              const Icon(LucideIcons.arrowLeft, size: NightshadeTokens.iconMd),
+          color: colors.textPrimary,
+          tooltip: 'Back',
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        title: Text(
+          regionAsync.valueOrNull?.name ?? 'Region',
+          style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+        ),
+      ),
+      body: SafeArea(
+        top: false,
+        child: regionAsync.when(
+          data: (region) => region == null
+              ? _missing(colors)
+              : _RegionDetailBody(region: region),
+          loading: () => const Center(
+            child: NightshadeCircularProgress(
+              value: 0,
+              indeterminate: true,
+              size: NightshadeTokens.iconXl,
+            ),
+          ),
+          error: (error, _) => EmptyState(
+            icon: LucideIcons.alertCircle,
+            title: 'Could not load region',
+            body: describeAtlasError(error),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _missing(NightshadeColors colors) => const EmptyState(
+        icon: LucideIcons.searchX,
+        title: 'Region not found',
+        body: 'This region may have been removed since the gallery loaded.',
+      );
+}
+
+class _RegionDetailBody extends ConsumerWidget {
+  final SkyAtlasRegionRow region;
+
+  const _RegionDetailBody({required this.region});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tilesAsync = ref.watch(atlasRegionTilesProvider(region.id));
+    final timelineAsync = ref.watch(atlasRegionTimelineProvider(region.id));
+    final anchor = ref.watch(_scrubAnchorProvider);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile =
+            constraints.maxWidth < NightshadeTokens.breakpointTablet;
+        final padding = isMobile
+            ? NightshadeTokens.screenPaddingCompact
+            : NightshadeTokens.screenPadding;
+
+        final tiles = tilesAsync.valueOrNull ?? const <SkyTileRow>[];
+        final folds = timelineAsync.valueOrNull ?? const <SkyAtlasFoldRow>[];
+
+        return ListView(
+          padding: padding,
+          children: [
+            _CutoutPanel(
+              region: region,
+              folds: folds,
+              anchor: anchor,
+            ),
+            const SizedBox(height: NightshadeTokens.spaceLg),
+            _ScrubPanel(
+              regionId: region.id,
+              folds: folds,
+              anchor: anchor,
+            ),
+            const SizedBox(height: NightshadeTokens.spaceLg),
+            _ChangedPanel(folds: folds, anchor: anchor),
+            const SizedBox(height: NightshadeTokens.spaceLg),
+            _GrowthPanel(regionId: region.id),
+            const SizedBox(height: NightshadeTokens.spaceLg),
+            _ProvenancePanel(region: region, tiles: tiles, folds: folds),
+            const SizedBox(height: NightshadeTokens.spaceLg),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// The co-added region cutout — ALWAYS the latest depth (the portable cone
+/// co-add the host renders), never a per-pixel time machine the engine refuses.
+///
+/// HONEST SCRUB: the scrub anchor does NOT drive the cutout image. The native
+/// `tilePng(asOf:)` raises whenever any fold is after the anchor (an honest
+/// refusal), which previously painted a broken-image icon over an "as of
+/// `<date>`" badge on every past scrub stop. Here the cutout fetches latest
+/// only, and an honest line under it states "Showing latest depth — N of M
+/// sessions by `<date>`" so the slider clearly scrubs the FRAME LIST + growth
+/// below, not the hero image.
+class _CutoutPanel extends ConsumerWidget {
+  final SkyAtlasRegionRow region;
+  final List<SkyAtlasFoldRow> folds;
+  final DateTime? anchor;
+
+  const _CutoutPanel({
+    required this.region,
+    required this.folds,
+    required this.anchor,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
+    final isHost = ref.watch(backendProvider) is! NetworkBackend;
+
+    // Session counts by the scrub point: distinct fold days at/before the anchor
+    // out of all distinct fold days. Drives the honest depth line.
+    String dayKey(DateTime d) {
+      final u = d.toUtc();
+      return '${u.year}-${u.month}-${u.day}';
+    }
+
+    final allDays = <String>{for (final f in folds) dayKey(f.foldedAt)};
+    final shownDays = <String>{
+      for (final f in folds)
+        if (anchor == null || !f.foldedAt.toUtc().isAfter(anchor!.toUtc()))
+          dayKey(f.foldedAt),
+    };
+
+    return NightshadeCard(
+      padding: EdgeInsets.zero,
+      borderRadius: NightshadeTokens.radiusLg,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(NightshadeTokens.radiusLg),
+            ),
+            child: AspectRatio(
+              aspectRatio: 3 / 2,
+              child: folds.isEmpty
+                  ? Container(
+                      color: colors.surfaceAlt,
+                      alignment: Alignment.center,
+                      child: Icon(LucideIcons.orbit,
+                          size: NightshadeTokens.iconXl,
+                          color: colors.textMuted),
+                    )
+                  : AtlasRegionCutout(regionId: region.id, fit: BoxFit.cover),
+            ),
+          ),
+          Padding(
+            padding: NightshadeTokens.cardPadding,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(LucideIcons.mapPin,
+                        size: NightshadeTokens.iconSm,
+                        color: colors.textSecondary),
+                    const SizedBox(width: NightshadeTokens.spaceSm),
+                    Expanded(
+                      child: Text(
+                        '${formatCenter(region.centerRaDeg, region.centerDecDeg)}'
+                        '  ·  r ${region.radiusDeg.toStringAsFixed(2)}°',
+                        style: NightshadeTypography.monoSm
+                            .copyWith(color: colors.textSecondary),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                if (allDays.isNotEmpty) ...[
+                  const SizedBox(height: NightshadeTokens.spaceXs),
+                  Text(
+                    anchor == null
+                        ? 'Showing latest depth — all ${allDays.length} '
+                            'session${allDays.length == 1 ? '' : 's'}.'
+                        : 'Showing latest depth — ${shownDays.length} of '
+                            '${allDays.length} sessions by ${_dateLabel(anchor!)}.',
+                    style: NightshadeTypography.captionSm
+                        .copyWith(color: colors.textMuted),
+                  ),
+                ],
+                if (folds.isNotEmpty) ...[
+                  const SizedBox(height: NightshadeTokens.spaceMd),
+                  _CutoutActions(region: region, isHost: isHost),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _dateLabel(DateTime instant) {
+    final utc = instant.toUtc();
+    return '${utc.year.toString().padLeft(4, '0')}-'
+        '${utc.month.toString().padLeft(2, '0')}-'
+        '${utc.day.toString().padLeft(2, '0')}';
+  }
+}
+
+/// Export / Share + "Use as reference frame" for a region's co-add. Export is
+/// backend-agnostic (host shares the local PNG; a slave fetches PNG bytes over
+/// `/api/atlas/region/<id>/cutout` and shares those). "Use as reference frame"
+/// is HOST-ONLY — it co-adds the region to a photometric FITS and arms live
+/// stacking against it ([LiveStackingService.startFromFile] takes a host path);
+/// on a slave the button is hidden with a one-line "runs on your host" note.
+class _CutoutActions extends ConsumerStatefulWidget {
+  final SkyAtlasRegionRow region;
+  final bool isHost;
+
+  const _CutoutActions({required this.region, required this.isHost});
+
+  @override
+  ConsumerState<_CutoutActions> createState() => _CutoutActionsState();
+}
+
+class _CutoutActionsState extends ConsumerState<_CutoutActions> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: NightshadeTokens.spaceSm,
+          runSpacing: NightshadeTokens.spaceSm,
+          children: [
+            NightshadeButton(
+              label: 'Export',
+              icon: LucideIcons.share2,
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+              onPressed: _busy ? null : _export,
+            ),
+            if (widget.isHost)
+              NightshadeButton(
+                label: 'Use as reference frame',
+                icon: LucideIcons.crosshair,
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                onPressed: _busy ? null : _useAsReference,
+              ),
+          ],
+        ),
+        if (!widget.isHost) ...[
+          const SizedBox(height: NightshadeTokens.spaceXs),
+          Text(
+            'Use as a live-stack reference frame runs on your imaging host.',
+            style: NightshadeTypography.captionSm
+                .copyWith(color: colors.textMuted),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _export() async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      final backend = ref.read(backendProvider);
+      final String sharePath;
+      if (backend is NetworkBackend) {
+        // Slave: pull PNG bytes over the wire and stage a temp file to share.
+        final bytes = await backend.getAtlasRegionCutout(widget.region.id);
+        final dir = await getTemporaryDirectory();
+        final file = File(p.join(
+          dir.path,
+          'region_${widget.region.id}_${_safeName(widget.region.name)}.png',
+        ));
+        await file.writeAsBytes(bytes);
+        sharePath = file.path;
+      } else {
+        final export = await ref
+            .read(skyAtlasServiceProvider)
+            .exportRegionCutout(widget.region.id);
+        if (export == null || export.pngPath == null) {
+          messenger.showSnackBar(const SnackBar(
+            content: Text('No co-add to export yet.'),
+            duration: Duration(seconds: 3),
+          ));
+          return;
+        }
+        sharePath = export.pngPath!;
+      }
+      await Share.shareXFiles(
+        [XFile(sharePath)],
+        text: '${widget.region.name} — co-added in Your Sky',
+      );
+    } on Object catch (e) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Could not export: $e'),
+        duration: const Duration(seconds: 4),
+      ));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _useAsReference() async {
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      final export = await ref
+          .read(skyAtlasServiceProvider)
+          .exportRegionCutout(widget.region.id);
+      if (export == null) {
+        messenger.showSnackBar(const SnackBar(
+          content: Text('No co-add to use as a reference yet.'),
+          duration: Duration(seconds: 3),
+        ));
+        return;
+      }
+      await ref
+          .read(liveStackingProvider.notifier)
+          .startFromFile(export.fitsPath);
+      messenger.showSnackBar(SnackBar(
+        content: Text(
+          'Armed live stacking on ${widget.region.name} as the reference frame.',
+        ),
+        duration: const Duration(seconds: 4),
+      ));
+    } on Object catch (e) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Could not set reference frame: $e'),
+        duration: const Duration(seconds: 4),
+      ));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  static String _safeName(String name) {
+    final cleaned = name.replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_');
+    return cleaned.isEmpty ? 'region' : cleaned;
+  }
+}
+
+class _ScrubPanel extends ConsumerWidget {
+  final int regionId;
+  final List<SkyAtlasFoldRow> folds;
+  final DateTime? anchor;
+
+  const _ScrubPanel({
+    required this.regionId,
+    required this.folds,
+    required this.anchor,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
+    final stops = scrubStopsFromFolds(folds);
+
+    return NightshadeCard(
+      padding: NightshadeTokens.cardPadding,
+      child: stops.length < 2
+          ? Row(
+              children: [
+                Icon(LucideIcons.history,
+                    size: NightshadeTokens.iconSm, color: colors.textMuted),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                Expanded(
+                  child: Text(
+                    'Image this region across more nights to scrub it through '
+                    'time.',
+                    style: NightshadeTypography.caption
+                        .copyWith(color: colors.textMuted, height: 1.4),
+                  ),
+                ),
+              ],
+            )
+          : AtlasTimescrub(
+              stops: stops,
+              selected: anchor,
+              onChanged: (instant) {
+                ref.read(_scrubAnchorProvider.notifier).state = instant;
+              },
+            ),
+    );
+  }
+}
+
+/// "What changed" — the folds active at the current scrub anchor, newest first,
+/// each summarising the frames + integration it added (seeds Pillar B's
+/// discovery view).
+class _ChangedPanel extends StatelessWidget {
+  final List<SkyAtlasFoldRow> folds;
+  final DateTime? anchor;
+
+  const _ChangedPanel({required this.folds, required this.anchor});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final visible = [
+      for (final fold in folds)
+        if (anchor == null || !fold.foldedAt.toUtc().isAfter(anchor!.toUtc()))
+          fold,
+    ]..sort((a, b) => b.foldedAt.compareTo(a.foldedAt));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeader(
+          title: 'Contributing frames',
+          subtitle: anchor == null
+              ? 'Every session that has deepened this region.'
+              : 'Sessions up to the scrub point.',
+        ),
+        const SizedBox(height: NightshadeTokens.spaceSm),
+        if (visible.isEmpty)
+          NightshadeCard(
+            variant: CardVariant.subtle,
+            padding: NightshadeTokens.cardPadding,
+            child: Text(
+              'No folds at this point in time.',
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
+            ),
+          )
+        else
+          for (var i = 0; i < visible.length; i++)
+            Padding(
+              padding: EdgeInsets.only(
+                bottom: i == visible.length - 1 ? 0 : NightshadeTokens.spaceSm,
+              ),
+              child: _FoldRow(fold: visible[i]),
+            ),
+      ],
+    );
+  }
+}
+
+class _FoldRow extends StatelessWidget {
+  final SkyAtlasFoldRow fold;
+
+  const _FoldRow({required this.fold});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final isSwarm = fold.contributor.isNotEmpty;
+    final tint = isSwarm ? colors.info : colors.primary;
+
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      padding: NightshadeTokens.cardPadding,
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+            decoration: NightshadeDecorations.tintedBadge(tint),
+            child: Icon(
+              isSwarm ? LucideIcons.users : LucideIcons.image,
+              size: NightshadeTokens.iconSm,
+              color: tint,
+            ),
+          ),
+          const SizedBox(width: NightshadeTokens.spaceMd),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _label(fold),
+                  style: NightshadeTypography.bodySm
+                      .copyWith(color: colors.textPrimary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: NightshadeTokens.spaceXs),
+                Text(
+                  '${fold.framesAdded} frame${fold.framesAdded == 1 ? '' : 's'}'
+                  '  ·  +${formatIntegration(fold.integrationSecondsAdded)}'
+                  '  ·  tile ${fold.tileId}'
+                  '${fold.rejected > 0 ? '  ·  ${fold.rejected} rejected' : ''}',
+                  style: NightshadeTypography.captionSm
+                      .copyWith(color: colors.textMuted),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _label(SkyAtlasFoldRow fold) {
+    if (fold.label.trim().isNotEmpty) return fold.label.trim();
+    final utc = fold.foldedAt.toUtc();
+    return '${utc.year.toString().padLeft(4, '0')}-'
+        '${utc.month.toString().padLeft(2, '0')}-'
+        '${utc.day.toString().padLeft(2, '0')} fold';
+  }
+}
+
+/// The region's deepening growth curve (cumulative integration vs. night),
+/// driven by the native [atlasRegionGrowthProvider] (host) or the host's
+/// timeline `growth` payload (slave). Surfaces the per-cone deepening curve the
+/// native bridge computes — previously built + wired but never displayed.
+class _GrowthPanel extends ConsumerWidget {
+  final int regionId;
+
+  const _GrowthPanel({required this.regionId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final growthAsync = ref.watch(atlasRegionGrowthProvider(regionId));
+    final curve = growthAsync.valueOrNull ?? AtlasGrowthCurve.empty;
+    return AtlasGrowthCurvePanel(curve: curve);
+  }
+}
+
+/// Provenance trail — the native per-tile [TileProvenanceView] (coverage mean,
+/// deduplicated contributor list, per-fold log) for the region's deepest tile,
+/// driven by [atlasRegionProvenanceProvider]. Falls back to the region-level
+/// rollup while the native view loads (or when the region has no tiles yet) so
+/// the panel never blanks.
+class _ProvenancePanel extends ConsumerWidget {
+  final SkyAtlasRegionRow region;
+  final List<SkyTileRow> tiles;
+  final List<SkyAtlasFoldRow> folds;
+
+  const _ProvenancePanel({
+    required this.region,
+    required this.tiles,
+    required this.folds,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
+    final provenanceAsync = ref.watch(atlasRegionProvenanceProvider(region.id));
+    final provenance = provenanceAsync.valueOrNull;
+
+    // Region-level rollups (always available from the rows already fetched);
+    // the native tile-provenance view augments the contributors + per-fold log.
+    final maxDepth = tiles.isEmpty
+        ? 0.0
+        : tiles
+            .map((t) => t.integrationSeconds)
+            .reduce((a, b) => a > b ? a : b);
+    final contributors = provenance != null
+        ? provenance.contributors
+        : <String>{
+            for (final f in folds)
+              if (f.contributor.trim().isNotEmpty) f.contributor.trim(),
+          }.toList(growable: false);
+    final totalFrames = folds.fold<int>(0, (s, f) => s + f.framesAdded);
+    final provFolds = provenance?.folds ?? const <TileFoldView>[];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionHeader(
+          title: 'Depth & provenance',
+          subtitle: 'How this region was built, tile by tile.',
+        ),
+        const SizedBox(height: NightshadeTokens.spaceSm),
+        NightshadeCard(
+          padding: NightshadeTokens.cardPadding,
+          child: Column(
+            children: [
+              _StatLine(
+                icon: LucideIcons.clock,
+                label: 'Total integration',
+                value: formatIntegration(region.integrationSeconds),
+                colors: colors,
+              ),
+              _StatLine(
+                icon: LucideIcons.layers,
+                label: 'Deepest tile',
+                value: formatIntegration(maxDepth),
+                colors: colors,
+              ),
+              if (provenance != null)
+                _StatLine(
+                  icon: LucideIcons.target,
+                  label: 'Deepest-tile coverage',
+                  value:
+                      '${(provenance.coverageMean * 100).toStringAsFixed(0)}%',
+                  colors: colors,
+                ),
+              _StatLine(
+                icon: LucideIcons.layoutGrid,
+                label: 'Tiles',
+                value: '${region.tileCount}',
+                colors: colors,
+              ),
+              _StatLine(
+                icon: LucideIcons.image,
+                label: 'Frames folded',
+                value: '$totalFrames',
+                colors: colors,
+              ),
+              _StatLine(
+                icon: LucideIcons.users,
+                label: 'Contributors',
+                value: contributors.isEmpty
+                    ? 'You'
+                    : (contributors.length == 1 &&
+                            contributors.first.trim().isEmpty)
+                        ? 'You'
+                        : '${contributors.length}',
+                colors: colors,
+                isLast: provFolds.isEmpty,
+              ),
+            ],
+          ),
+        ),
+        if (provFolds.isNotEmpty) ...[
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          _ProvenanceTrail(folds: provFolds),
+        ],
+      ],
+    );
+  }
+}
+
+/// The per-fold provenance trail for the region's deepest tile (newest first):
+/// the native fold log every contribution left behind. Reads the native
+/// [TileFoldView] list straight from [TileProvenanceView].
+class _ProvenanceTrail extends StatelessWidget {
+  final List<TileFoldView> folds;
+
+  const _ProvenanceTrail({required this.folds});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final ordered = [...folds]..sort((a, b) => b.label.compareTo(a.label));
+
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      padding: NightshadeTokens.cardPadding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Provenance trail · deepest tile',
+            style: NightshadeTypography.labelQuiet
+                .copyWith(color: colors.textSecondary),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          for (var i = 0; i < ordered.length; i++)
+            Padding(
+              padding: EdgeInsets.only(
+                bottom: i == ordered.length - 1 ? 0 : NightshadeTokens.spaceSm,
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    ordered[i].contributor.trim().isNotEmpty
+                        ? LucideIcons.users
+                        : LucideIcons.image,
+                    size: NightshadeTokens.iconSm,
+                    color: ordered[i].contributor.trim().isNotEmpty
+                        ? colors.info
+                        : colors.primary,
+                  ),
+                  const SizedBox(width: NightshadeTokens.spaceMd),
+                  Expanded(
+                    child: Text(
+                      _trailLabel(ordered[i]),
+                      style: NightshadeTypography.bodySm
+                          .copyWith(color: colors.textPrimary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(
+                    '${ordered[i].framesAdded}f · '
+                    '+${formatIntegration(ordered[i].integrationSecondsAdded)}',
+                    style: NightshadeTypography.captionSm
+                        .copyWith(color: colors.textMuted),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static String _trailLabel(TileFoldView fold) {
+    final label = fold.label.trim();
+    if (label.isEmpty) return 'Fold';
+    final contributor = fold.contributor.trim();
+    return contributor.isEmpty ? label : '$label · $contributor';
+  }
+}
+
+class _StatLine extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final NightshadeColors colors;
+  final bool isLast;
+
+  const _StatLine({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.colors,
+    this.isLast = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: isLast ? 0 : NightshadeTokens.spaceMd,
+      ),
+      child: Row(
+        children: [
+          Icon(icon,
+              size: NightshadeTokens.iconSm, color: colors.textSecondary),
+          const SizedBox(width: NightshadeTokens.spaceMd),
+          Expanded(
+            child: Text(
+              label,
+              style: NightshadeTypography.bodySm
+                  .copyWith(color: colors.textSecondary),
+            ),
+          ),
+          Text(
+            value,
+            style:
+                NightshadeTypography.monoSm.copyWith(color: colors.textPrimary),
+          ),
+        ],
+      ),
+    );
+  }
+}

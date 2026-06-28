@@ -80,9 +80,9 @@ Get server information and capabilities.
     "GET /api/devices/connected",
     "POST /api/phd2/connect",
     "POST /api/phd2/disconnect",
-    "GET /api/sequences/status",
-    "POST /api/sequences/start",
-    "POST /api/sequences/stop",
+    "GET /api/sequencer/status",
+    "POST /api/sequencer/start",
+    "POST /api/sequencer/stop",
     "GET /api/images/recent"
   ]
 }
@@ -375,7 +375,7 @@ Disconnect from PHD2.
 
 ## Sequence Control
 
-### GET /api/sequences/status
+### GET /api/sequencer/status
 
 Get sequence status.
 
@@ -396,7 +396,7 @@ Get sequence status.
 }
 ```
 
-### POST /api/sequences/start
+### POST /api/sequencer/start
 
 Start a sequence.
 
@@ -416,7 +416,7 @@ Start a sequence.
 }
 ```
 
-### POST /api/sequences/stop
+### POST /api/sequencer/stop
 
 Stop current sequence.
 
@@ -609,15 +609,33 @@ older clients consuming `RADistanceRaw` / `DECDistanceRaw` continue to work.
 
 ## Error Responses
 
-All endpoints may return error responses:
+All endpoints may return error responses using a single, unified envelope:
 
 **Error Response:**
 ```json
 {
-  "error": "Error type",
-  "message": "Detailed error message"
+  "error": "Region 42 not found",
+  "code": "region_not_found",
+  "message": "Region 42 not found",
+  "details": { "regionId": 42 }
 }
 ```
+
+Field semantics:
+
+| Field | Meaning |
+| --- | --- |
+| `code` | **Machine-readable** error code (lower_snake_case, e.g. `region_not_found`, `rate_limited`, `pairing_required`). Clients should branch on this. |
+| `message` | Human-readable message intended for direct display. |
+| `error` | Legacy display field. Carries the same human-readable string as `message` so older clients that read `body["error"]` keep working. **Not** a machine code. |
+| `details` | Optional structured, endpoint-specific context, spread inline alongside the envelope keys. |
+
+The envelope is backward-compatible: new clients read the machine `code`,
+while clients that historically read `error` as a display string still receive
+a human-readable message there. Some endpoints still emit the older prose-only
+`{ "error": "..." }` shape during the ongoing migration; clients parsing the
+envelope treat a missing `code` as a status-derived fallback (e.g. `not_found`
+for `404`).
 
 **HTTP Status Codes:**
 - `200 OK` - Success
@@ -685,7 +703,7 @@ await fetch('http://localhost:8080/api/devices/connect', {
 });
 
 // Get sequence status
-const statusResponse = await fetch('http://localhost:8080/api/sequences/status');
+const statusResponse = await fetch('http://localhost:8080/api/sequencer/status');
 const status = await statusResponse.json();
 console.log('Sequence state:', status.state);
 ```
@@ -707,7 +725,7 @@ requests.post('http://localhost:8080/api/devices/connect', json={
 })
 
 # Get sequence status
-status = requests.get('http://localhost:8080/api/sequences/status').json()
+status = requests.get('http://localhost:8080/api/sequencer/status').json()
 print(f"Sequence state: {status['state']}")
 ```
 

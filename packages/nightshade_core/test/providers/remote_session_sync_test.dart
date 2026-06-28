@@ -8,6 +8,50 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
+/// hydrateRemoteSessionState invalidates the host-mirrored planner/scheduler
+/// data providers on connect (projects, integration goals, target constraints,
+/// scheduler preview, sequence runs, observing lists) so the slave shows the
+/// host's rows immediately. In NetworkBackend mode those providers re-fetch via
+/// these endpoints, so a mock must answer them or the (eager) StreamProvider
+/// rebuild throws a null-future and aborts hydration before PHD2/device state
+/// is asserted. These stubs are intentionally empty payloads — the test only
+/// cares that hydration completes, not what the planner data contains.
+void _stubHydrationParityEndpoints(_MockNetworkBackend backend) {
+  when(() => backend.getIntegrationGoals()).thenAnswer((_) async => const []);
+  when(
+    () => backend.getIntegrationGoals(targetId: any(named: 'targetId')),
+  ).thenAnswer((_) async => const []);
+  when(() => backend.getTargetConstraints()).thenAnswer((_) async => const []);
+  when(
+    () => backend.getTargetConstraints(targetId: any(named: 'targetId')),
+  ).thenAnswer((_) async => const []);
+  when(() => backend.getProjects()).thenAnswer((_) async => const []);
+  when(() => backend.getObservingLists()).thenAnswer((_) async => const []);
+  when(
+    () => backend.getListedCatalogIds(listId: any(named: 'listId')),
+  ).thenAnswer((_) async => const <String>{});
+  when(() => backend.getListedCatalogIds()).thenAnswer((_) async => const {});
+  when(() => backend.getSchedulerPreview()).thenAnswer(
+    (_) async => SchedulerDecision(
+      score: 0,
+      reasoning: const [],
+      scoredCandidates: const [],
+      evaluatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+    ),
+  );
+  when(() => backend.getProfiles()).thenAnswer((_) async => const []);
+  when(() => backend.getActiveProfile()).thenAnswer((_) async => null);
+  when(
+    () => backend.fetchSequenceRuns(
+      sequenceId: any(named: 'sequenceId'),
+      limit: any(named: 'limit'),
+      offset: any(named: 'offset'),
+    ),
+  ).thenAnswer(
+    (_) async => const RemotePage<RemoteSequenceRun>(items: [], total: 0),
+  );
+}
+
 class _FixedBackendNotifier extends BackendNotifier {
   _FixedBackendNotifier(super.ref, NightshadeBackend backend) : super() {
     state = backend;
@@ -128,6 +172,8 @@ void main() {
       when(
         () => backend.eventStream,
       ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+
+      _stubHydrationParityEndpoints(backend);
 
       final container = ProviderContainer(
         overrides: [

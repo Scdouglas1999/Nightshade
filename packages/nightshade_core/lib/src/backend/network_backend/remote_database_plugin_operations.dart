@@ -31,6 +31,23 @@ mixin _NetworkBackendRemoteDatabasePluginOperations
     return RemotePage.fromJson(response, RemoteNotesJournalEntry.fromJson);
   }
 
+  /// GET /api/db/notes?targetId=&runId=
+  ///
+  /// The operator's per-target / per-run journal notes (the `notes_journal`
+  /// table). Distinct from [fetchNotesJournal], which despite its name serves
+  /// the `observation_logs` table. With no filter it returns every note;
+  /// [targetId] / [runId] scope it for the family providers.
+  Future<RemotePage<RemoteJournalNote>> fetchJournalNotes({
+    String? targetId,
+    int? runId,
+  }) async {
+    final response = await _get('db/notes', {
+      if (targetId != null && targetId.isNotEmpty) 'targetId': targetId,
+      if (runId != null) 'runId': runId.toString(),
+    });
+    return RemotePage.fromJson(response, RemoteJournalNote.fromJson);
+  }
+
   /// GET /api/guide-rms-history?sinceMs=&untilMs=&limit=&offset=
   Future<RemotePage<RemoteGuideRmsHistoryEntry>> fetchGuideRmsHistory({
     int? sinceMs,

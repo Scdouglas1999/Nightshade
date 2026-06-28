@@ -27,7 +27,7 @@ class _AutopilotPreviewBanner extends ConsumerWidget {
       // A preview failure must be loud, not silently hidden: surface a compact
       // error chip with a retry rather than pretending the autopilot has no
       // opinion (a silent fallback would hide a real scoring/loader bug).
-      error: (error, _) => _buildError(context, error, ref),
+      error: (error, _) => _buildError(context, ref),
       data: (decision) => _buildBanner(context, decision),
     );
   }
@@ -111,7 +111,7 @@ class _AutopilotPreviewBanner extends ConsumerWidget {
     );
   }
 
-  Widget _buildError(BuildContext context, Object error, WidgetRef ref) {
+  Widget _buildError(BuildContext context, WidgetRef ref) {
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: NightshadeTokens.spaceLg),
@@ -127,7 +127,11 @@ class _AutopilotPreviewBanner extends ConsumerWidget {
           const SizedBox(width: NightshadeTokens.spaceSm),
           Expanded(
             child: Text(
-              'Autopilot preview unavailable: $error',
+              // Keep the user-facing copy clean; the raw exception is for
+              // logs, not the banner. A dumped `$error` here reads as a crash
+              // and is inconsistent with the planner's other error states.
+              'Autopilot preview unavailable. Tap Retry to recompute the live '
+              'scheduler pick.',
               style: TextStyle(
                 fontSize: NightshadeTypography.fontSize12,
                 color: colors.textPrimary,

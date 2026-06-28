@@ -40,9 +40,16 @@ class ProfileHandlers {
   // Profiles
   // ===========================================================================
 
+  EquipmentProfilesDao get _profilesDao =>
+      container.read(equipmentProfilesDaoProvider);
+
   Future<Response> handleGetProfiles(Request request) async {
-    final backend = container.read(profileSettingsBackendProvider);
-    final profiles = await backend.getProfiles();
+    // SQLite (Drift) is the single source of truth shared with the GUI. Map the
+    // real DB rows to the REST wire model via the canonical converter so the
+    // slave sees the profiles the user actually built (incl.
+    // meridianFlipOverrides / safetyMonitorId / switchId).
+    final rows = await _profilesDao.getAllProfiles();
+    final profiles = rows.map(dbProfileToRemote).toList();
     return jsonOk({"profiles": profiles.map((p) => p.toJson()).toList()});
   }
 
@@ -52,16 +59,37 @@ class ProfileHandlers {
     final profileJson = requireObject(payload, 'profile');
     final profile = EquipmentProfile.fromJson(profileJson);
 
-    final backend = container.read(profileSettingsBackendProvider);
-    await backend.saveProfile(profile);
+    final dao = _profilesDao;
+    // Deterministic create-vs-update by id. If the payload's id parses to an
+    // EXISTING row, issue a full-row update (preserving default/active/sort
+    // flags via the converter's `existing` arg); otherwise create a new row and
+    // capture the autoincrement id. Going through updateProfile (not
+    // createProfile) for an existing row avoids createProfile's first-row
+    // auto-default/auto-active side effect silently flipping a slave's flags.
+    final parsedId = int.tryParse(profile.id);
+    final existing = parsedId == null
+        ? null
+        : await dao.getProfileById(parsedId);
+
+    final int resultId;
+    if (existing != null) {
+      final row = remoteProfileToDbRow(profile, existing: existing);
+      await dao.updateProfile(row);
+      resultId = existing.id;
+    } else {
+      resultId = await dao.createProfile(remoteProfileToCompanion(profile));
+    }
+
     publishHostMutationFromContainer(
       container,
       entityType: HostMutationEntity.profile,
       action: HostMutationAction.updated,
-      entityId: profile.id,
+      entityId: resultId.toString(),
       extra: {'name': profile.name},
     );
-    return jsonOk({"status": "saved"});
+    // Return the resulting id so the slave's saveProfile can resolve the row
+    // deterministically instead of by (racy) name.
+    return jsonOk({"status": "saved", "id": resultId.toString()});
   }
 
   Future<Response> handleDeleteProfile(
@@ -69,8 +97,10 @@ class ProfileHandlers {
     String profileId,
   ) async {
     _logInfo('[API] DELETE /api/profiles/$profileId');
-    final backend = container.read(profileSettingsBackendProvider);
-    await backend.deleteProfile(profileId);
+    final parsedId = int.tryParse(profileId);
+    if (parsedId != null) {
+      await _profilesDao.deleteProfile(parsedId);
+    }
     publishHostMutationFromContainer(
       container,
       entityType: HostMutationEntity.profile,
@@ -82,8 +112,15 @@ class ProfileHandlers {
 
   Future<Response> handleLoadProfile(Request request, String profileId) async {
     _logInfo('[API] POST /api/profiles/$profileId/load');
-    final backend = container.read(profileSettingsBackendProvider);
-    await backend.loadProfile(profileId);
+    final parsedId = int.tryParse(profileId);
+    if (parsedId != null) {
+      await _profilesDao.setActiveProfile(parsedId);
+      // Write-through to the native (Rust) store: SQLite owns reads, but the
+      // Rust executor still resolves the active profile from its own store via
+      // load_and_set_profile. Push the now-active profile so headless
+      // sequencing keeps a correct active-profile context.
+      await _writeActiveProfileThroughToRust(parsedId);
+    }
     publishHostMutationFromContainer(
       container,
       entityType: HostMutationEntity.profile,
@@ -93,10 +130,105 @@ class ProfileHandlers {
     return jsonOk({"status": "loaded"});
   }
 
+  /// Set [profileId] as the default startup profile (and active profile),
+  /// atomically unsetting `isDefault` on every other row.
+  ///
+  /// The canonical converter's `remoteProfileToDbRow` deliberately preserves
+  /// `existing.isDefault`, so a slave's saveProfile loop could never flip the
+  /// default on the host. This dedicated endpoint routes through the DAO's
+  /// `setDefaultProfile`, which owns the unset-others-then-set transaction.
+  Future<Response> handleSetDefaultProfile(
+    Request request,
+    String profileId,
+  ) async {
+    _logInfo('[API] POST /api/profiles/$profileId/default');
+    final parsedId = int.tryParse(profileId);
+    if (parsedId != null) {
+      await _profilesDao.setDefaultProfile(parsedId, makeActive: true);
+      // Keep the native (Rust) executor's active-profile context aligned,
+      // exactly like handleLoadProfile — setDefaultProfile(makeActive:true)
+      // also makes the row active.
+      await _writeActiveProfileThroughToRust(parsedId);
+    }
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.profile,
+      action: HostMutationAction.updated,
+      entityId: profileId,
+    );
+    return jsonOk({"status": "default-set"});
+  }
+
+  /// Clear the persisted default startup profile (unset `isDefault` on every
+  /// row) without changing the current active selection.
+  ///
+  /// The generic saveProfile path can't do this: `remoteProfileToDbRow`
+  /// preserves the existing row's `isDefault`, so a slave clearing the default
+  /// would be a host-side no-op. This routes through the DAO's
+  /// `clearDefaultProfile`.
+  Future<Response> handleClearDefaultProfile(Request request) async {
+    _logInfo('[API] POST /api/profiles/default/clear');
+    await _profilesDao.clearDefaultProfile();
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.profile,
+      action: HostMutationAction.updated,
+    );
+    return jsonOk({"status": "default-cleared"});
+  }
+
+  /// Persist a new display order for the equipment profiles.
+  ///
+  /// The body is `{"profileIds": ["3","1","2"]}`; each id is assigned
+  /// `sortOrder == its index`. The converter's `remoteProfileToDbRow`
+  /// preserves `existing.sortOrder`, so a slave's saveProfile loop was a
+  /// host-side no-op — this dedicated endpoint writes sortOrder directly via
+  /// the DAO's transactional `reorderProfiles`.
+  Future<Response> handleReorderProfiles(Request request) async {
+    _logInfo('[API] POST /api/profiles/reorder');
+    final payload = await readJsonObject(request);
+    final rawIds = requireList<dynamic>(payload, 'profileIds');
+    final orderedIds = <int>[];
+    for (final raw in rawIds) {
+      final parsed = int.tryParse(raw.toString());
+      if (parsed != null) {
+        orderedIds.add(parsed);
+      }
+    }
+    await _profilesDao.reorderProfiles(orderedIds);
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.profile,
+      action: HostMutationAction.updated,
+    );
+    return jsonOk({"status": "reordered"});
+  }
+
   Future<Response> handleGetActiveProfile(Request request) async {
-    final backend = container.read(profileSettingsBackendProvider);
-    final profile = await backend.getActiveProfile();
-    return jsonOk({"profile": profile?.toJson()});
+    final row = await _profilesDao.getActiveProfile();
+    return jsonOk({
+      "profile": row == null ? null : dbProfileToRemote(row).toJson(),
+    });
+  }
+
+  /// Push the SQLite-active profile into the native (Rust) executor store so
+  /// `load_and_set_profile` side effects run. The native store keeps exactly
+  /// one job now: feed the active profile to the executor. Best-effort — a
+  /// native hiccup must not fail the REST activation.
+  Future<void> _writeActiveProfileThroughToRust(int profileId) async {
+    try {
+      final row = await _profilesDao.getProfileById(profileId);
+      if (row == null) return;
+      final remote = dbProfileToRemote(row);
+      final backend = container.read(profileSettingsBackendProvider);
+      await backend.saveProfile(remote);
+      await backend.loadProfile(remote.id);
+    } on Object catch (e) {
+      _logger.debug(
+        'Active-profile write-through to native store failed: $e',
+        source: 'ProfileHandlers',
+      );
+    }
   }
 
   // ===========================================================================

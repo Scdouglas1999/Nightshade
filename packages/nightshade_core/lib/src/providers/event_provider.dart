@@ -7,6 +7,8 @@ import '../backend/bridge_event_mapper.dart';
 import '../backend/ffi_backend.dart';
 import '../backend/network_backend.dart';
 import '../models/backend/event_types.dart' as core;
+import '../models/backend/host_mutation_event.dart'
+    show hostStateChangedEventType;
 import 'backend_provider.dart';
 import 'host_mutation_event_provider.dart';
 import 'ui_notification_provider.dart';
@@ -47,7 +49,16 @@ final nightshadeEventsProvider = StreamProvider<NightshadeEvent>((ref) {
   // backends by reconstructing `EventPayload_*` variants from the
   // collapsed envelope on `NetworkBackend.eventStream` (WebSocket).
   if (backend is NetworkBackend) {
-    return backend.eventStream.map(bridgeEventFromCoreEvent);
+    // `HostStateChanged` is a host-mutation SYNC envelope (applied separately
+    // by applyRemoteSyncEvent), NOT a Rust telemetry event. The typed bridge
+    // mapper has no case for it, so its `default` arm turns every one into a
+    // `SystemEvent.error` — which the dashboard flags critical and shows as a
+    // "Critical · System" toast. Since the master emits HostStateChanged
+    // constantly (the mirror mechanism), that produced a flood of bogus
+    // critical errors on the slave. Drop it from the typed/telemetry stream.
+    return backend.eventStream
+        .where((event) => event.eventType != hostStateChangedEventType)
+        .map(bridgeEventFromCoreEvent);
   }
 
   // Local desktop/headless: FRB stream plus host REST mutation events so the

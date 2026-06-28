@@ -128,7 +128,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
     final scienceMode = ref.watch(scienceModeStateProvider);
     final scienceOverlay = ref.watch(scienceOverlayStateProvider);
     final sessionId = ref.watch(sessionStateProvider).dbSessionId;
-    final sessionImages = ref.watch(sessionImagesProvider);
+    final sessionImages = ref.watch(recentSessionFramesProvider);
     final currentFrameImageId = _resolveCurrentFrameImageId(
       sessionImages: sessionImages,
       currentImage: currentImage,

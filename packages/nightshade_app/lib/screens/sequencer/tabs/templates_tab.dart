@@ -76,8 +76,7 @@ String _inferTemplateCategory(Sequence template) {
 
   if (name.contains('unattended') ||
       name.contains('all-night') ||
-      name.contains('remote observatory') ||
-      name.contains('mosaic multi-panel')) {
+      name.contains('remote observatory')) {
     return 'advanced';
   }
 

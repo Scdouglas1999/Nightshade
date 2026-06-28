@@ -192,6 +192,7 @@ extension _SmartNightSequenceEmitter on SmartNightService {
   ///      └─ WeatherRecovery     (parallel; optional)
   Sequence _emitSequence({
     required EquipmentProfileModel profile,
+    required double latitudeDeg,
     required SmartNightStrategy strategy,
     required SmartNightSettings settings,
     required SmartNightContext context,
@@ -242,7 +243,7 @@ extension _SmartNightSequenceEmitter on SmartNightService {
               'Polar alignment '
               '(${context.daysSinceLastPolarAlignment} days since last)',
           startFromCurrent: true,
-          isNorth: latitudeSign(profile),
+          isNorth: latitudeSign(latitudeDeg),
           parentId: rootId,
           orderIndex: childOrder.length - 1,
         ),
@@ -668,7 +669,7 @@ extension _SmartNightSequenceEmitter on SmartNightService {
               'Flats were captured for '
               '${calibrated.keys.where((f) => !uncalibrated.contains(f)).join(", ")}. '
               'No ADU-calibrated panel exposure exists for: '
-              '${uncalibrated.toSet().toList().join(", ")}. Run the Flat Wizard '
+              '${uncalibrated.toSet().join(", ")}. Run the Flat Wizard '
               'once for these filters so Smart Night can reuse the exposures.',
           level: NotificationLevel.warning,
           explicitTransports: const [NotificationTransportKind.inApp],

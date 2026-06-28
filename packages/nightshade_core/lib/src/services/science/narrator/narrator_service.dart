@@ -53,6 +53,7 @@ import '../../../providers/weather_safety_provider.dart';
 import '../../logging_service.dart';
 import '../../optical_train_diagnostics_service.dart'
     show OpticalTrainDiagnostics;
+import '../../transients/transient_candidate.dart' show TransientCandidate;
 import '../period_analysis_service.dart' show PeriodAnalysisResult;
 import '../science_status.dart' show ScienceStageOutcome, ScienceStageResult;
 import 'narrator_context.dart';
@@ -68,6 +69,7 @@ const int _kGradeEventsCap = 200;
 const int _kSolveHistoryCap = 200;
 const int _kSkySamplesCap = 400;
 const int _kGuideRmsCap = 400;
+const int _kTransientCandidatesCap = 200;
 
 /// A cloud-cover percentage at/above this reads as "cloudy" for the
 /// clouds-vs-focus disambiguation when no other signal is available.
@@ -84,6 +86,13 @@ class NarratorService {
   final Queue<bool> _solveHistory = Queue<bool>();
   final Queue<NarratorSkySample> _skySamples = Queue<NarratorSkySample>();
   final Queue<double> _guideRmsHistory = Queue<double>();
+
+  // First Light (Pillar B) cross-matched candidates fed by the difference-image
+  // scan. The narrator's transient detectors read this on the next context
+  // build; the buffer is the only path that ever populates
+  // `NarratorContext.transientCandidates`.
+  final Queue<TransientCandidate> _transientCandidates =
+      Queue<TransientCandidate>();
 
   // Pulled inputs (last-known snapshots).
   List<NarratorPeriodResult> _periodResults = const [];
@@ -488,6 +497,23 @@ class NarratorService {
     _onUpdate();
   }
 
+  /// Feed the cross-matched First Light (Pillar B) candidates surviving a
+  /// difference-image scan so the transient/brightening/mover detectors can
+  /// announce them on the next tick. Unlike the other `ingest*` seams this has a
+  /// production caller (`FirstLightService.scanFrame` -> the wiring hook), since
+  /// the difference scan is the only producer of transient candidates and there
+  /// is no provider stream to pull them from.
+  void ingestTransientCandidates(
+    List<TransientCandidate> candidates, {
+    int? capturedImageId,
+  }) {
+    if (_disposed || candidates.isEmpty) return;
+    for (final candidate in candidates) {
+      _push(_transientCandidates, candidate, _kTransientCandidatesCap);
+    }
+    _onUpdate(capturedImageId: capturedImageId);
+  }
+
   /// Set the latest weather cloud read.
   @visibleForTesting
   void setWeather(NarratorWeatherState? weather) {
@@ -606,6 +632,7 @@ class NarratorService {
       autofocusHfrBaseline: _autofocusHfrBaseline,
       guideRmsTotalHistory: _guideRmsHistory.toList(growable: false),
       guideRmsTotal: _guideRmsHistory.isEmpty ? null : _guideRmsHistory.last,
+      transientCandidates: _transientCandidates.toList(growable: false),
       filterIntegration: filterIntegration,
       gradeEvents: _gradeEvents.toList(growable: false),
       solveHistory: _solveHistory.toList(growable: false),

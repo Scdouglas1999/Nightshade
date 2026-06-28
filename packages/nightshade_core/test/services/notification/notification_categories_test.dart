@@ -13,6 +13,17 @@ void main() {
     test('fromStorageKey returns null for unknown', () {
       expect(NotificationCategory.fromStorageKey('not_a_thing'), isNull);
     });
+
+    test('transientDiscovered is critical-by-default at critical severity', () {
+      // First Light discoveries are time-critical (chase before fade): they
+      // must be critical so they push to the phone and clear the default min
+      // severity bar on the systemPush transport.
+      expect(NotificationCategory.transientDiscovered.isCritical, isTrue);
+      expect(
+        NotificationCategory.transientDiscovered.defaultSeverity,
+        EventSeverity.critical,
+      );
+    });
   });
 
   group('NotificationRoutingRule.fromJson', () {
@@ -69,6 +80,10 @@ void main() {
       );
       expect(
         matrix.ruleFor(NotificationCategory.sequenceFailed).transports,
+        contains(NotificationTransportKind.systemPush),
+      );
+      expect(
+        matrix.ruleFor(NotificationCategory.transientDiscovered).transports,
         contains(NotificationTransportKind.systemPush),
       );
     });

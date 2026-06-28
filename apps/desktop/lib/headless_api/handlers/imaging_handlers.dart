@@ -86,17 +86,7 @@ class ImagingHandlers {
             );
           }
           final solve = result as PlateSolveResult;
-          return {
-            'success': solve.success,
-            'ra': solve.ra,
-            'dec': solve.dec,
-            'pixelScale': solve.pixelScale,
-            'rotation': solve.rotation,
-            'fieldWidth': solve.fieldWidth,
-            'fieldHeight': solve.fieldHeight,
-            'solveTimeSecs': solve.solveTimeSecs,
-            'error': solve.error,
-          };
+          return _plateSolveJson(solve);
         },
       );
       return jsonOk({
@@ -114,17 +104,38 @@ class ImagingHandlers {
       fovDegrees: fovDegrees,
     );
 
-    return jsonOk({
-      'success': result.success,
-      'ra': result.ra,
-      'dec': result.dec,
-      'pixelScale': result.pixelScale,
-      'rotation': result.rotation,
-      'fieldWidth': result.fieldWidth,
-      'fieldHeight': result.fieldHeight,
-      'solveTimeSecs': result.solveTimeSecs,
-      'error': result.error,
-    });
+    return jsonOk(_plateSolveJson(result));
+  }
+
+  /// Serializes a [PlateSolveResult] to the wire shape, including the WCS CD
+  /// matrix and SIP distortion coefficients so remote (slave) clients can
+  /// reconstruct distortion-corrected pixel<->sky mapping. The SIP arrays are
+  /// emitted as plain `List<double>`; when the solve carries no SIP terms the
+  /// orders are 0 and the coefficient lists are empty.
+  static Map<String, Object?> _plateSolveJson(PlateSolveResult solve) {
+    return {
+      'success': solve.success,
+      'ra': solve.ra,
+      'dec': solve.dec,
+      'pixelScale': solve.pixelScale,
+      'rotation': solve.rotation,
+      'fieldWidth': solve.fieldWidth,
+      'fieldHeight': solve.fieldHeight,
+      'solveTimeSecs': solve.solveTimeSecs,
+      'error': solve.error,
+      'cd11': solve.cd11,
+      'cd12': solve.cd12,
+      'cd21': solve.cd21,
+      'cd22': solve.cd22,
+      'sipAOrder': solve.sipAOrder,
+      'sipBOrder': solve.sipBOrder,
+      'sipApOrder': solve.sipApOrder,
+      'sipBpOrder': solve.sipBpOrder,
+      'sipACoeffs': solve.sipACoeffs.toList(),
+      'sipBCoeffs': solve.sipBCoeffs.toList(),
+      'sipApCoeffs': solve.sipApCoeffs.toList(),
+      'sipBpCoeffs': solve.sipBpCoeffs.toList(),
+    };
   }
 
   // ===========================================================================

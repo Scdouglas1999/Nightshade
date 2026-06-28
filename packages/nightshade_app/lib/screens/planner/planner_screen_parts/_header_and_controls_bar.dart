@@ -4,32 +4,6 @@
 part of '../planner_screen.dart';
 
 // ============================================================================
-// Header
-// ============================================================================
-
-class _PlannerHeader extends StatelessWidget {
-  final NightshadeColors colors;
-
-  const _PlannerHeader({required this.colors});
-
-  @override
-  Widget build(BuildContext context) {
-    // Canonical screen chrome: the planner title routes through the shared
-    // [ScreenHeader] (design-system typography + divider) instead of a
-    // hand-rolled title row. Vertical padding is kept symmetric so the header
-    // lands at the same ~56px [appBarHeight] it occupied before.
-    return ScreenHeader(
-      icon: LucideIcons.moonStar,
-      title: context.l10n.text('plannerTitle'),
-      padding: const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceLg,
-        vertical: NightshadeTokens.spaceLg,
-      ),
-    );
-  }
-}
-
-// ============================================================================
 // Controls bar (search, filters, sort)
 // ============================================================================
 

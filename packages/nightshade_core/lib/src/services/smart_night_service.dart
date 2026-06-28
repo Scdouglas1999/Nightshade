@@ -495,6 +495,7 @@ class SmartNightService {
 
     final sequence = _emitSequence(
       profile: profile,
+      latitudeDeg: latitudeDeg,
       strategy: strategy,
       settings: settings,
       context: context,
@@ -968,13 +969,17 @@ class SmartNightService {
   }
 }
 
-/// Northern hemisphere → true (PolarAlignmentNode.isNorth). Falls back
-/// to true when no latitude info is on the profile (the user should
-/// flip the toggle in the polar-alignment dialog anyway).
-bool latitudeSign(EquipmentProfileModel profile) {
-  // EquipmentProfileModel doesn't carry latitude — use a heuristic:
-  // most installs are northern hemisphere. The polar-alignment dialog
-  // also exposes a North/South toggle the user can flip on Step 5
-  // before run.
-  return true;
+/// Northern hemisphere → true (PolarAlignmentNode.isNorth).
+///
+/// Sourced from the observer latitude the wizard already threads through
+/// [SmartNightService.build] (degrees, positive north / negative south).
+/// Southern-hemisphere sites (latitude < 0) correctly resolve to `false`
+/// so the emitted PolarAlignmentNode targets the south celestial pole.
+///
+/// Falls back to `true` when no latitude is available (e.g. an exactly-zero
+/// equatorial site or a missing fix); the polar-alignment dialog still
+/// exposes a North/South toggle the user can flip on Step 5 before run.
+bool latitudeSign(double? latitudeDeg) {
+  if (latitudeDeg == null || !latitudeDeg.isFinite) return true;
+  return latitudeDeg >= 0;
 }

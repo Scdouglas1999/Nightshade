@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:nightshade_planetarium/nightshade_planetarium.dart'
@@ -194,14 +195,25 @@ class PhotometricCatalogService {
     });
   }
 
+  /// Test seam for the online-catalog gate. Production code reaches this
+  /// through [_onlineEnabled]; tests use it to assert the fail-closed default.
+  @visibleForTesting
+  Future<bool> debugOnlineEnabled() => _onlineEnabled();
+
   Future<bool> _onlineEnabled() async {
     try {
       final stored = await _ref
           .read(settingsDaoProvider)
           .getSetting(onlineEnabledSettingKey);
       return stored == null || stored.toLowerCase() != 'false';
-    } catch (_) {
-      return true;
+    } catch (error, stack) {
+      // Fail closed: if the setting read faults we must not silently enable
+      // network egress. A persistently failing read is diagnosable here.
+      _logger.warning(
+        'Online-catalog gate read failed; defaulting to offline: $error\n$stack',
+        source: 'PhotometricCatalogService',
+      );
+      return false;
     }
   }
 

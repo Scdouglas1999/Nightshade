@@ -203,6 +203,7 @@ class _ZoomControls extends StatelessWidget {
           IconButton(
             icon: const Icon(NightshadeIcons.add, size: 14),
             onPressed: onZoomIn,
+            tooltip: 'Zoom in',
             // absolute: HUD control over the dark sky planner canvas
             color: Colors.white70,
             padding: const EdgeInsets.all(2),
@@ -216,6 +217,7 @@ class _ZoomControls extends StatelessWidget {
           IconButton(
             icon: const Icon(NightshadeIcons.remove, size: 14),
             onPressed: onZoomOut,
+            tooltip: 'Zoom out',
             // absolute: HUD control over the dark sky planner canvas
             color: Colors.white70,
             padding: const EdgeInsets.all(2),
@@ -224,6 +226,7 @@ class _ZoomControls extends StatelessWidget {
           IconButton(
             icon: const Icon(NightshadeIcons.crosshair, size: 14),
             onPressed: onReset,
+            tooltip: 'Reset zoom',
             // absolute: HUD control over the dark sky planner canvas
             color: Colors.white70,
             padding: const EdgeInsets.all(2),

@@ -11,9 +11,6 @@
 //   * Camera connect-time defaults (gain / offset / cooling) → see
 //     `equipment.dart`.
 //   * Live Pass/Reject grading → see `image_grading.dart`.
-//   * The standalone [OutputSettings] / [OutputSettingsNotifier] sibling
-//     provider lives at the bottom of the main settings_provider.dart for
-//     legacy compatibility (a few imaging screens still read it directly).
 part of '../settings_provider.dart';
 
 /// Setters for image-output format defaults.

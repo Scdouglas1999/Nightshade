@@ -61,6 +61,28 @@ class SmartNightDialog extends ConsumerStatefulWidget {
   ConsumerState<SmartNightDialog> createState() => _SmartNightDialogState();
 }
 
+/// Canonical entry point for the Smart Night "Plan Tonight" wizard.
+///
+/// Every "Plan Tonight" affordance across the app (dashboard, sequencer
+/// toolbar, planner Projects tab, cockpit standby) funnels through this single
+/// launcher so the flow, dialog, and behaviour can never drift between
+/// entrances. Optional [seedTargetIds] / [seedSourceLabel] feed a campaign's
+/// targets into the wizard (used by the Projects tab handoff); omit them for
+/// the generic "best of tonight" plan.
+Future<void> showSmartNightDialog(
+  BuildContext context, {
+  List<int>? seedTargetIds,
+  String? seedSourceLabel,
+}) {
+  return showDialog<void>(
+    context: context,
+    builder: (_) => SmartNightDialog(
+      seedTargetIds: seedTargetIds,
+      seedSourceLabel: seedSourceLabel,
+    ),
+  );
+}
+
 class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
   int _step = 0;
 

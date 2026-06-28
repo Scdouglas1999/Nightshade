@@ -12,52 +12,13 @@ class FlatExposureCalculator {
     return (adu / 65535.0) * 100.0;
   }
 
-  /// Calculate next exposure with capped adjustments
-  ///
-  /// This prevents the wild jumps seen in naive proportional adjustment
-  static double calculateNextExposure({
-    required double currentExposure,
-    required double currentAdu,
-    required double targetAdu,
-    required double minExposure,
-    required double maxExposure,
-    double maxAdjustmentFactor = 2.0,
-  }) {
-    if (currentAdu <= 0) {
-      // No signal, try middle of range
-      return math.sqrt(minExposure * maxExposure);
-    }
-
-    // Calculate raw ratio
-    final ratio = targetAdu / currentAdu;
-
-    // Cap the adjustment to prevent wild jumps
-    // Max 2x increase or 0.5x decrease per iteration
-    final cappedRatio = ratio.clamp(
-      1.0 / maxAdjustmentFactor,
-      maxAdjustmentFactor,
-    );
-
-    // Apply logarithmic damping for smoother convergence
-    // This reduces oscillation around the target
-    final dampedRatio = _applyDamping(cappedRatio);
-
-    final nextExposure = currentExposure * dampedRatio;
-
-    return nextExposure.clamp(minExposure, maxExposure);
-  }
-
-  /// Apply damping to reduce oscillation
-  static double _applyDamping(double ratio) {
-    // For ratios close to 1.0, use as-is
-    if (ratio >= 0.8 && ratio <= 1.25) {
-      return ratio;
-    }
-
-    // For larger adjustments, dampen by 30%
-    final deviation = ratio - 1.0;
-    return 1.0 + (deviation * 0.7);
-  }
+  // Next-exposure convergence math lives in the single canonical engine
+  // [FlatWizardService.calculateNextExposure], which drives both the standalone
+  // flat-wizard screen and the headless /api/flat-wizard handlers (via
+  // calibrateFilter) AND the rate-tracking fallback. A second, divergent copy
+  // used to live here as `calculateNextExposure`; it was removed so converged
+  // exposures have one source of truth (pinned by
+  // test/services/flat_convergence_snapshot_test.dart).
 
   /// Binary search with early termination
   ///

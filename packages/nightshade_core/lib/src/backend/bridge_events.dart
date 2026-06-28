@@ -69,6 +69,8 @@ export 'package:nightshade_bridge/nightshade_bridge.dart'
         EquipmentEvent_HeartbeatStatusChanged,
         EquipmentEvent_HeartbeatReconnecting,
         EquipmentEvent_HeartbeatReconnected,
+        EquipmentEvent_DeviceDiscovered,
+        EquipmentEvent_DeviceLost,
         HeartbeatStatus,
         // Guiding event family.
         GuidingEvent,

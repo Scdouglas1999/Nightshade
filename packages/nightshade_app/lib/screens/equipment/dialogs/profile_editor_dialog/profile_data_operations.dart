@@ -261,10 +261,127 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
     return offsets.isNotEmpty ? jsonEncode(offsets) : '';
   }
 
+  /// Build an [EquipmentProfileModel] from the current form state.
+  ///
+  /// Used by the REMOTE (slave) save path, which routes the full profile to the
+  /// host's `POST /api/profiles` (SQLite-backed) via the equipment-profiles
+  /// notifier instead of writing the slave's own (empty) local DB — a local
+  /// write would be a phantom row the 10s host-poll erases.
+  EquipmentProfileModel _buildModelFromForm() {
+    final focalLength = double.tryParse(_focalLengthController.text) ?? 0.0;
+    final aperture = double.tryParse(_apertureController.text) ?? 0.0;
+    final fRatio = aperture > 0 ? focalLength / aperture : null;
+
+    final names =
+        _filterControllers.map((c) => c.nameController.text.trim()).toList();
+    final offsets = <String, int>{};
+    for (final pair in _filterControllers) {
+      final name = pair.nameController.text.trim();
+      final offset = int.tryParse(pair.offsetController.text) ?? 0;
+      if (name.isNotEmpty && offset != 0) {
+        offsets[name] = offset;
+      }
+    }
+
+    return EquipmentProfileModel(
+      id: widget.profile?.id,
+      name: _nameController.text.trim(),
+      profileIcon: _selectedIcon.isEmpty ? null : _selectedIcon,
+      profileColor: _selectedColor?.toARGB32(),
+      isDefault: _isDefault,
+      isActive: widget.profile?.isActive ?? false,
+      telescopeName: _telescopeNameController.text.trimOrNull,
+      telescopeFocalLength: double.tryParse(_focalLengthController.text),
+      telescopeAperture: double.tryParse(_apertureController.text),
+      focalLength: focalLength,
+      aperture: aperture,
+      focalRatio: fRatio,
+      cameraId: _cameraId,
+      cameraName: _cameraNameController.text.trimOrNull,
+      mountId: _mountId,
+      mountName: _mountNameController.text.trimOrNull,
+      focuserId: _focuserId,
+      focuserName: _focuserNameController.text.trimOrNull,
+      filterWheelId: _filterWheelId,
+      filterWheelName: _filterWheelNameController.text.trimOrNull,
+      guiderId: _guiderId,
+      guiderName: _guiderNameController.text.trimOrNull,
+      rotatorId: _rotatorId,
+      rotatorName: _rotatorNameController.text.trimOrNull,
+      domeId: _domeId,
+      weatherId: _weatherId,
+      safetyMonitorId: _safetyMonitorId,
+      switchId: _switchId,
+      coverCalibratorId: _coverCalibratorId,
+      filterNames: names,
+      filterFocusOffsets: offsets,
+      defaultGain: int.tryParse(_gainController.text),
+      defaultOffset: int.tryParse(_offsetController.text),
+      defaultBinX: _binning,
+      defaultBinY: _binning,
+      defaultCoolingTemp: double.tryParse(_coolingTargetController.text),
+      coolOnConnect: _coolOnConnect,
+      defaultCenteringExposure:
+          double.tryParse(_centeringExposureController.text),
+      sortOrder: widget.profile?.sortOrder ?? 0,
+      createdAt: widget.profile?.createdAt,
+    );
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSaving = true);
+
+    // SLAVE-CONTROLS-MASTER: in remote mode the editor must never touch the
+    // slave's local SQLite (the 10s host-poll would erase it). Route the full
+    // profile through the notifier, which POSTs it to the host's SQLite-backed
+    // /api/profiles (the host decides create-vs-update by parsed id).
+    final isRemote = ref.read(isRemoteModeProvider);
+    if (isRemote) {
+      try {
+        final model = _buildModelFromForm();
+        final notifier = ref.read(equipmentProfilesProvider.notifier);
+        // The model carries isDefault in its payload, so the host row's default
+        // flag is set by the save itself. updateProfile() accepts a null-id
+        // model as a remote CREATE.
+        await notifier.updateProfile(model);
+        if (_isDefault) {
+          // Resolve the host-assigned id (for a create, model.id is null) so we
+          // ACTIVATE the right profile. On an update we already have the id.
+          var targetId = model.id;
+          if (targetId == null) {
+            final refreshed = await ref.read(equipmentProfilesProvider.future);
+            for (final p in refreshed.profiles) {
+              if (p.name == model.name) {
+                targetId = p.id;
+                break;
+              }
+            }
+          }
+          if (targetId != null) {
+            await notifier.setDefaultProfile(targetId, makeActive: true);
+          }
+        }
+        if (mounted) {
+          final action = widget.profile != null ? 'updated' : 'created';
+          context.showSuccessSnackBar(
+              'Profile "${_nameController.text.trim()}" $action');
+          Navigator.of(context).pop(true);
+        }
+      } catch (e, st) {
+        ref.read(loggingServiceProvider).error(
+          'ProfileEditorDialog remote save failed: $e',
+          source: 'ProfileEditorDialog',
+          fields: {'error': e.toString(), 'stack': st.toString()},
+        );
+        if (mounted) {
+          context.showErrorSnackBar(profileSaveErrorMessage(e));
+          setState(() => _isSaving = false);
+        }
+      }
+      return;
+    }
 
     try {
       final dao = ref.read(equipmentProfilesDaoProvider);
@@ -277,6 +394,11 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
       // Build filter data
       final filterNamesEncoded = _encodeFilterNames();
       final filterOffsetsEncoded = _encodeFilterOffsets();
+
+      // Tracks the row id written this save so we can publish a host-mutation
+      // (for instant slave refetch) and write the active profile through to the
+      // native Rust executor when this profile becomes the default/active.
+      int savedProfileId;
 
       if (widget.profile != null) {
         // Update existing profile
@@ -331,6 +453,7 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
         );
 
         await dao.updateProfile(updated);
+        savedProfileId = existingProfile.id;
 
         // Handle isDefault
         if (_isDefault && !existingProfile.isDefault) {
@@ -385,11 +508,34 @@ extension _ProfileEditorDataOperations on _ProfileEditorDialogState {
         );
 
         final newId = await dao.createProfile(companion);
+        savedProfileId = newId;
 
         // Set as default if requested
         if (_isDefault) {
           await dao.setDefaultProfile(newId, makeActive: true);
         }
+      }
+
+      // HOST-MODE INSTANT MIRROR: tell connected slaves to refetch profiles
+      // now (instead of waiting for the 10s poll). This fires only on the
+      // direct-DAO host path; the REST handler owns its own publish and the
+      // remote-mode editor path returned earlier — so there is exactly one
+      // publish per mutation.
+      publishHostMutationFromRef(
+        ref,
+        entityType: HostMutationEntity.profile,
+        action: widget.profile != null
+            ? HostMutationAction.updated
+            : HostMutationAction.created,
+        entityId: savedProfileId.toString(),
+      );
+
+      // HOST ACTIVATION RUST WRITE-THROUGH: if this save made the profile the
+      // default/active one, push it into the native (Rust) executor store so
+      // headless sequencing keeps a correct active-profile context (the GUI
+      // path does not go through the REST handleLoadProfile write-through).
+      if (_isDefault) {
+        await writeActiveProfileThroughToRustFromWidget(ref, savedProfileId);
       }
 
       if (mounted) {

@@ -192,9 +192,10 @@ void main() {
     expect(find.text('No run active'), findsOneWidget);
     expect(find.text('Image tonight'), findsOneWidget,
         reason: 'Standby offers the one-tap Image tonight CTA.');
-    expect(find.text('Plan manually'), findsOneWidget,
+    expect(find.text('Plan Tonight'), findsOneWidget,
         reason: 'Standby keeps the Smart Night wizard as a clearly-secondary '
-            '"you choose" action.');
+            'Plan Tonight action, consistent with every other Smart Night '
+            'entrance.');
   });
 
   testWidgets(

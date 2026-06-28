@@ -26,7 +26,7 @@ part 'suggestion_filters/sort_and_reset_controls.dart';
 /// Object type / sort / score / altitude / incomplete changes update
 /// [targetSuggestionConfigProvider]. Constellation / magnitude / size / moon /
 /// imaging-time changes update [suggestionFilterProvider]. Both trigger the
-/// suggestion list to refresh automatically via [filteredSuggestionsProvider].
+/// suggestion list to refresh automatically.
 class SuggestionFilters extends ConsumerWidget {
   /// If true, displays controls in a vertical layout suitable for mobile bottom sheets.
   /// If false, displays controls in a horizontal layout for desktop/tablet.

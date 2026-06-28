@@ -221,7 +221,8 @@ EndpointRateLimit? endpointRateLimitFor({
   }
 
   if (_controlPathPrefixes.any(path.startsWith) ||
-      _rateLimitedReadPaths.contains(path)) {
+      _rateLimitedReadPaths.contains(path) ||
+      _rateLimitedPairingPaths.contains(path)) {
     return const EndpointRateLimit(
       maxRequests: defaultControlRateLimitMaxRequests,
       window: defaultControlRateLimitWindow,
@@ -570,6 +571,23 @@ const _controlPathPrefixes = [
 ];
 
 const _rateLimitedReadPaths = {'/api/files/browse'};
+
+/// Public pairing endpoints that mint pairing codes / session tokens.
+///
+/// HTTP-002 / HTTP-003: these are unauthenticated by design, so the per-token
+/// route-class bucket never applies to them. Enrolling them here gives the
+/// legacy endpoint window (keyed off the spoof-proof socket peer) a hard cap so
+/// an attacker cannot flood `/api/pairing/start` to dilute the 6-digit code
+/// space, nor flood `/api/pairing/lan-claim` / `/api/pairing/verify` to mint
+/// session tokens without bound. The standard control window
+/// (`defaultControlRateLimitMaxRequests`/min) is far above any legitimate
+/// pairing cadence — an operator pairs a device a handful of times — while
+/// still bounding automated abuse. They reuse the existing 429 envelope.
+const _rateLimitedPairingPaths = {
+  '/api/pairing/start',
+  '/api/pairing/verify',
+  '/api/pairing/lan-claim',
+};
 
 const _highRiskControlPaths = {
   '/api/devices/connect',

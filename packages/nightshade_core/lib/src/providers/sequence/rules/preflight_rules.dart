@@ -1,11 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../backend/network_backend.dart';
 import '../../../database/database.dart' show DarkLibraryEntry, Target;
 import '../../../models/backend/device_types.dart';
+import '../../../models/calibration/remote_calibration_models.dart';
 import '../../../models/equipment/equipment_models.dart';
 import '../../../models/imaging/imaging_models.dart' show FrameType;
 import '../../../models/sequence/sequence_models.dart';
 import '../../../services/dark_library_coverage_service.dart';
+import '../../backend_provider.dart';
 import '../../dark_library_provider.dart';
 import '../../equipment/camera_state_provider.dart';
 import '../../equipment/filter_wheel_state_provider.dart';
@@ -55,6 +58,30 @@ ValidationSeverity _severityFor(
     case PreflightStrictness.strict:
       return ValidationSeverity.error;
   }
+}
+
+/// Maps a host dark-library row (fetched over the wire on a remote-client
+/// slave) into the local Drift [DarkLibraryEntry] shape the
+/// [DarkLibraryCoverageService] evaluates. Only the fields the coverage
+/// evaluator reads (frame type, gain/offset, binning, exposure, temperature,
+/// master-dark path/quorum) need to round-trip faithfully.
+DarkLibraryEntry _darkEntryFromRemote(RemoteDarkLibraryEntry r) {
+  return DarkLibraryEntry(
+    id: r.id,
+    filePath: r.filePath,
+    exposureTime: r.exposureDuration,
+    temperature: r.sensorTempC,
+    gain: r.gain,
+    offset: r.offset,
+    binX: r.binX,
+    binY: r.binY,
+    frameType: r.frameType,
+    width: r.width,
+    height: r.height,
+    masterDarkPath: r.masterPath,
+    masterFrameCount: r.frameCount,
+    createdAt: r.createdAt,
+  );
 }
 
 /// Compact key identifying a dark-coverage combination.
@@ -116,9 +143,22 @@ class DarkLibraryCoverageRule implements AsyncSequenceValidator {
 
     if (requirements.isEmpty) return const [];
 
-    // Query the dark library.
-    final service = ref.read(darkLibraryServiceProvider);
-    final entries = await service.getAllEntries();
+    // Query the dark library. On a remote-client slave the local dark library
+    // table is empty (it is never populated on a slave), so reading the local
+    // DAO would mark every required combination as "missing" and raise a false
+    // "Missing Dark Frames" pre-flight warning even though the master holds the
+    // darks. Pull the host's real library over the wire instead and map the
+    // remote rows into DarkLibraryEntry so the coverage evaluator agrees with
+    // the master; keep the local DAO path on the host.
+    final backend = ref.read(backendProvider);
+    final List<DarkLibraryEntry> entries;
+    if (backend is NetworkBackend) {
+      final remoteDarks = await backend.listDarks();
+      entries = remoteDarks.map(_darkEntryFromRemote).toList(growable: false);
+    } else {
+      final service = ref.read(darkLibraryServiceProvider);
+      entries = await service.getAllEntries();
+    }
     final coverage = const DarkLibraryCoverageService().evaluate(
       requirements: requirements,
       entries: entries,

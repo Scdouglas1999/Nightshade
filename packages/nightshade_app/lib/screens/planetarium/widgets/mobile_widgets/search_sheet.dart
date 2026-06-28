@@ -62,6 +62,7 @@ class _MobileSearchSheetState extends ConsumerState<MobileSearchSheet> {
                   ? IconButton(
                       icon: Icon(NightshadeIcons.close,
                           size: 18, color: widget.colors.textMuted),
+                      tooltip: 'Clear search',
                       onPressed: () {
                         _searchController.clear();
                         ref.read(objectSearchProvider.notifier).clear();

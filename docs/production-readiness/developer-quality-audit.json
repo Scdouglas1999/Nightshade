@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-16T19:18:04.685784Z",
+  "generatedAt": "2026-06-27T22:16:31.757383Z",
   "passed": true,
   "issueCount": 0,
   "issues": [],
@@ -32,10 +32,10 @@
       "evidence": "docs/production-readiness/headless-api-contract-audit.json",
       "passed": true,
       "metrics": {
-        "registeredRouteCount": 467,
-        "advertisedRouteCount": 467,
-        "openApiOperationCount": 464,
-        "networkBackendRouteCount": 372,
+        "registeredRouteCount": 509,
+        "advertisedRouteCount": 509,
+        "openApiOperationCount": 506,
+        "networkBackendRouteCount": 414,
         "networkBackendMissingOnServer": 0,
         "openApiMetadataCoverage": "9/9",
         "webSocketContractCoverage": "4/4",
@@ -56,7 +56,7 @@
         "ordinaryReadLimited": false,
         "fileBrowseAuditAction": "file_browse",
         "bodyLimitRouteCount": 6,
-        "bodyLimitedApiWriteRouteCount": 222,
+        "bodyLimitedApiWriteRouteCount": 268,
         "serverMiddlewareTestCount": 4
       },
       "issues": []
@@ -83,8 +83,8 @@
       "evidence": "docs/production-readiness/oversized-file-audit.json",
       "passed": true,
       "metrics": {
-        "scannedFileCount": 1788,
-        "warningFileCount": 0,
+        "scannedFileCount": 2049,
+        "warningFileCount": 48,
         "criticalFileCount": 0,
         "prioritySplitCandidateCount": 0,
         "modularizedSourceFamilyCount": 5,

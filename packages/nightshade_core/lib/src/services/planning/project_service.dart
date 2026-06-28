@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../backend/network_backend.dart';
 import '../../database/database.dart' as db;
 import '../../models/planning/project.dart';
 import '../../models/planning/project_progress.dart';
+import '../../providers/backend_provider.dart';
 import '../../providers/database_provider.dart';
 import '../scheduler/integration_goal_service.dart';
 
@@ -78,10 +80,31 @@ class ProjectService {
   // of [watchChanges] see the change immediately.
   final StreamController<void> _mutations = StreamController<void>.broadcast();
 
-  ProjectService(this._db, this._goalService);
+  /// Non-null on a remote SLAVE: the `projects` / `project_targets` tables and
+  /// the campaign roll-up live in the HOST DB, so reads route over
+  /// `/api/projects*`. Null on the host (FfiBackend) / tests — local path
+  /// unchanged.
+  final NetworkBackend? _remote;
+
+  ProjectService(this._db, this._goalService, {NetworkBackend? remote})
+    : _remote = remote;
 
   void _notifyMutated() {
     if (!_mutations.isClosed) _mutations.add(null);
+  }
+
+  /// Project CRUD is host-owned: a slave reads projects/progress over REST but
+  /// cannot mutate the campaign (no project-write endpoint exists, and writing
+  /// to the slave's throwaway local DB would silently lose the edit). Mutating
+  /// methods call this so the attempt fails loud on a slave instead of writing
+  /// to nowhere — the editor UIs gate creation host-only.
+  void _assertLocalWrite(String op) {
+    if (_remote != null) {
+      throw StateError(
+        'ProjectService.$op is not available on a remote client — projects are '
+        'managed on the imaging host.',
+      );
+    }
   }
 
   Future<void> dispose() async {
@@ -117,6 +140,7 @@ class ProjectService {
     String? description,
     int? colorArgb,
   }) async {
+    _assertLocalWrite('createProject');
     await _ensureSchema();
     final now = _nowUnix();
     final id = await _db.customInsert(
@@ -142,6 +166,7 @@ class ProjectService {
   /// passed [project.updatedAt] is ignored — the store is authoritative for the
   /// mutation timestamp). Requires a non-null [Project.id].
   Future<void> updateProject(Project project) async {
+    _assertLocalWrite('updateProject');
     await _ensureSchema();
     final id = project.id;
     if (id == null) {
@@ -163,6 +188,7 @@ class ProjectService {
   /// removes all membership rows automatically (foreign-key enforcement is
   /// enabled in the database's `beforeOpen`).
   Future<void> deleteProject(int id) async {
+    _assertLocalWrite('deleteProject');
     await _ensureSchema();
     await _db.customStatement('DELETE FROM projects WHERE id = ?', [id]);
     _notifyMutated();
@@ -170,6 +196,10 @@ class ProjectService {
 
   /// All projects, most-recently-updated first.
   Future<List<Project>> listProjects() async {
+    final remote = _remote;
+    if (remote != null) {
+      return remote.getProjects();
+    }
     await _ensureSchema();
     final rows = await _db
         .customSelect(
@@ -182,6 +212,14 @@ class ProjectService {
 
   /// Look up a single project by id, or `null` if it does not exist.
   Future<Project?> getProject(int id) async {
+    final remote = _remote;
+    if (remote != null) {
+      final projects = await remote.getProjects();
+      for (final p in projects) {
+        if (p.id == id) return p;
+      }
+      return null;
+    }
     await _ensureSchema();
     final row = await _db
         .customSelect(
@@ -207,6 +245,7 @@ class ProjectService {
     required int targetId,
     int? priorityOverride,
   }) async {
+    _assertLocalWrite('addTarget');
     await _ensureSchema();
     await _db.customInsert(
       'INSERT OR IGNORE INTO project_targets '
@@ -229,6 +268,7 @@ class ProjectService {
     required int projectId,
     required int targetId,
   }) async {
+    _assertLocalWrite('removeTarget');
     await _ensureSchema();
     await _db.customStatement(
       'DELETE FROM project_targets WHERE project_id = ? AND target_id = ?',
@@ -245,6 +285,7 @@ class ProjectService {
     required int targetId,
     int? priorityOverride,
   }) async {
+    _assertLocalWrite('setPriorityOverride');
     await _ensureSchema();
     await _db.customStatement(
       'UPDATE project_targets SET priority_override = ? '
@@ -256,6 +297,10 @@ class ProjectService {
 
   /// All memberships for a project, oldest-added first (stable display order).
   Future<List<ProjectTarget>> listTargets(int projectId) async {
+    final remote = _remote;
+    if (remote != null) {
+      return remote.getProjectTargets(projectId);
+    }
     await _ensureSchema();
     final rows = await _db
         .customSelect(
@@ -270,6 +315,11 @@ class ProjectService {
   /// The bare target ids attached to a project — used by the scheduler
   /// candidate loader to filter the candidate set to the active project.
   Future<List<int>> targetIdsForProject(int projectId) async {
+    final remote = _remote;
+    if (remote != null) {
+      final targets = await remote.getProjectTargets(projectId);
+      return targets.map((t) => t.targetId).toList();
+    }
     await _ensureSchema();
     final rows = await _db
         .customSelect(
@@ -299,6 +349,12 @@ class ProjectService {
   /// deleted out from under the membership likewise throws — a dangling
   /// membership is a data-integrity error, not something to silently skip.
   Future<CampaignProgress> buildProgress(int projectId) async {
+    final remote = _remote;
+    if (remote != null) {
+      // The roll-up is derived from the host's captured_images + goals; the
+      // slave's local DB is empty, so compute it host-side and mirror it.
+      return remote.getProjectProgress(projectId);
+    }
     await _ensureSchema();
     final project = await getProject(projectId);
     if (project == null) {
@@ -393,8 +449,10 @@ const String projectTargetsProjectIndexSql = _projectTargetsProjectIndex;
 const String projectTargetsTargetIndexSql = _projectTargetsTargetIndex;
 
 final projectServiceProvider = Provider<ProjectService>((ref) {
+  final backend = ref.watch(backendProvider);
   return ProjectService(
     ref.watch(databaseProvider),
     ref.watch(integrationGoalServiceProvider),
+    remote: backend is NetworkBackend ? backend : null,
   );
 });

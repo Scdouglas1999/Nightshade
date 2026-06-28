@@ -338,21 +338,41 @@ class _ActionButtons extends ConsumerWidget {
       // Mark filter complete
       notifier.updateFilterStatus(filterIdx, FilterCalibrationStatus.complete);
 
-      // Record calibration to history database
+      // Record calibration to history database.
+      //
+      // On a remote client the local `db` is the throwaway slave DB; writing
+      // there means the master's flat library never learns from this remotely
+      // driven session. Route the record to the host via `recordFlat` so it
+      // persists in the master's `flat_history` instead.
       try {
-        await db.flatHistoryDao.recordCalibration(
-          filterName: filterSetting.filterName,
-          exposureTime: calibrationResult.exposure,
-          histogramTarget: state.globalSettings.histogramTarget,
-          actualAdu: calibrationResult.adu.toInt(),
-          equipmentProfileId: profileId,
-          skyAduRate: state.mode == FlatWizardMode.skyFlats
-              ? brightnessTracker.calculateRate()
-              : null,
-          twilightPhase: state.mode == FlatWizardMode.skyFlats
-              ? (state.twilightMode == TwilightMode.dawn ? 'dawn' : 'dusk')
-              : null,
-        );
+        final skyAduRate = state.mode == FlatWizardMode.skyFlats
+            ? brightnessTracker.calculateRate()
+            : null;
+        final twilightPhase = state.mode == FlatWizardMode.skyFlats
+            ? (state.twilightMode == TwilightMode.dawn ? 'dawn' : 'dusk')
+            : null;
+        if (backend is NetworkBackend) {
+          await backend.recordFlat(
+            filter: filterSetting.filterName,
+            exposureDuration: calibrationResult.exposure,
+            adu: calibrationResult.adu.toInt(),
+            histogramTarget: state.globalSettings.histogramTarget,
+            gain: defaultGain,
+            skyAduRate: skyAduRate,
+            twilightPhase: twilightPhase,
+            equipmentProfileId: profileId,
+          );
+        } else {
+          await db.flatHistoryDao.recordCalibration(
+            filterName: filterSetting.filterName,
+            exposureTime: calibrationResult.exposure,
+            histogramTarget: state.globalSettings.histogramTarget,
+            actualAdu: calibrationResult.adu.toInt(),
+            equipmentProfileId: profileId,
+            skyAduRate: skyAduRate,
+            twilightPhase: twilightPhase,
+          );
+        }
       } catch (e) {
         debugPrint('[FlatWizard] Failed to record calibration to history: $e');
       }

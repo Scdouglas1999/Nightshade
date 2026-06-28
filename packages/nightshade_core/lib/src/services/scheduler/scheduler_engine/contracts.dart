@@ -113,6 +113,17 @@ abstract class SchedulerSequenceSink {
   /// engine stop or a hard target swap).
   Future<void> stopSequence();
 
+  /// Called exactly once when the autopilot is fully DISENGAGED (engine
+  /// `stop()` / `dispose()`), as opposed to a mid-night target swap or a
+  /// transient no-eligible tick (which use [stopSequence] and keep the
+  /// autopilot engaged).
+  ///
+  /// Implementations restore manual ownership of the editor slot, returning the
+  /// operator's stashed unsaved sequence that [dispatchSequence] preserved when
+  /// the autopilot first took over. Default no-op so test/headless sinks that
+  /// don't model editor ownership need no change.
+  Future<void> releaseSequenceOwnership() async {}
+
   /// Called exactly once when the engine determines the observing night is
   /// genuinely over — every candidate is rejected AND the Sun has risen above
   /// the configured darkness limit ([SchedulerConfig.maxSunAltitudeDegrees]).

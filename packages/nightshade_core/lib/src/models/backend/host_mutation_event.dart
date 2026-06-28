@@ -15,6 +15,12 @@ abstract final class HostMutationEntity {
   static const guider = 'guider';
   static const profile = 'profile';
   static const sequencer = 'sequencer';
+
+  /// The OPEN sequence-editor canvas (the working/dirty sequence the master is
+  /// authoring). Distinct from [sequence] (persisted library rows) and
+  /// [sequencer] (run-state control): this mirrors the master's live editor so
+  /// a slave's sequencer screen reflects the open canvas in real time.
+  static const sequenceEditor = 'sequenceEditor';
   static const framing = 'framing';
   static const settings = 'settings';
   static const session = 'session';
@@ -33,6 +39,10 @@ abstract final class HostMutationAction {
   static const paused = 'paused';
   static const resumed = 'resumed';
   static const loaded = 'loaded';
+
+  /// The editor canvas was emptied (master closed/cleared the open sequence).
+  /// Used by the sequence-editor mirror so a slave clears its canvas to match.
+  static const cleared = 'cleared';
 }
 
 /// Build a [NightshadeEvent] with the standardized host-mutation schema:

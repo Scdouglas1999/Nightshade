@@ -10,9 +10,6 @@
 // Does NOT own:
 //   * Bortle-class / horizon profile / effective-horizon → see
 //     `environment.dart` (those are sky-quality, not location).
-//   * The dedicated [LocationSettings] / [LocationSettingsNotifier] sibling
-//     provider lives at the bottom of the main settings_provider.dart for
-//     legacy compatibility.
 part of '../settings_provider.dart';
 
 /// Setters for observer-location settings.

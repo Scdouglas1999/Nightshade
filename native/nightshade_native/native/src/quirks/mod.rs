@@ -368,9 +368,30 @@ pub fn get_discovery_skip_operations(vendor: &NativeVendor) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    /// Serializes tests that read or mutate the process-global `QUIRK_REGISTRY`
+    /// using the shared `native:zwo:ASI294MC Pro` device key.
+    ///
+    /// `test_disable_quirks` temporarily inserts that key into the global
+    /// `disabled_devices` set (so `get_quirks_for_device` returns an empty
+    /// vector) before re-enabling it, while `test_get_zwo_quirks` reads the same
+    /// key and asserts the result is non-empty. Without serialization the cargo
+    /// test harness can interleave these on separate threads and the reader
+    /// observes the transient disabled window, producing a non-deterministic
+    /// failure. Holding this guard for the duration of each affected test
+    /// removes that ordering dependency. Poisoning is recovered from because the
+    /// guarded state is process-global and a panic in one test must not wedge
+    /// the others.
+    static REGISTRY_GUARD: Mutex<()> = Mutex::new(());
+
+    fn registry_guard() -> std::sync::MutexGuard<'static, ()> {
+        REGISTRY_GUARD.lock().unwrap_or_else(|e| e.into_inner())
+    }
 
     #[test]
     fn test_get_zwo_quirks() {
+        let _guard = registry_guard();
         let quirks = get_quirks_for_device("native:zwo:ASI294MC Pro");
         assert!(!quirks.is_empty(), "ZWO ASI294 should have model quirks");
 
@@ -406,6 +427,7 @@ mod tests {
         // `vendor/zwo.rs` ~828/1162), so the database intentionally has no
         // ScaleFactor quirk for ZWO cameras. apply_temperature_quirks must
         // therefore be a no-op for ZWO cameras to avoid double-scaling.
+        let _guard = registry_guard();
         let raw_temp = 20.0;
         let corrected = apply_temperature_quirks("native:zwo:ASI294MC Pro", raw_temp);
         assert!(
@@ -525,7 +547,7 @@ mod tests {
 
     #[test]
     fn test_disable_quirks() {
-        // Use a different device ID to avoid conflicts with parallel tests
+        let _guard = registry_guard();
         let device_id = "native:zwo:ASI294MC Pro";
 
         // Should have quirks by default (model-specific SkipFirstRead)

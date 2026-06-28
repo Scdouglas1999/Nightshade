@@ -215,6 +215,18 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
     )..where((i) => i.filePath.equals(filePath))).getSingleOrNull();
   }
 
+  /// Stamp [id] as folded into the personal sky atlas (Pillar A).
+  ///
+  /// The solved-frame fold hook calls this after a successful fold; it then
+  /// skips re-folding any image whose `atlasFoldedAt` is already set, so a
+  /// duplicate inbound `updateCapturedImage{isPlateSolved:true}` cannot
+  /// double-count photons. Returns the number of rows updated.
+  Future<int> stampAtlasFolded(int id, {DateTime? at}) {
+    return (update(capturedImages)..where((i) => i.id.equals(id))).write(
+      CapturedImagesCompanion(atlasFoldedAt: Value(at ?? DateTime.now())),
+    );
+  }
+
   Future<List<CapturedImage>> getRecentImagesForSession(
     int sessionId, {
     int limit = 5,

@@ -4,11 +4,13 @@ import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
 import '../models/update_manifest.dart';
 import 'archive_extraction.dart';
+import 'update_service.dart' show persistStagedManifest;
 import 'update_verifier.dart';
 
 /// Callback for push progress updates
@@ -498,7 +500,56 @@ class LanPushReceiver {
       );
     }
 
-    onProgress?.call(actualSize, actualSize, 1.0, 'Extracting...');
+    final extractPath = await extractVerifyAndStage(
+      staging,
+      packageFile,
+      manifest,
+      actualSize,
+    );
+
+    // Send success response (may fail if pusher already disconnected, which is OK)
+    try {
+      socket.write(
+        jsonEncode({'status': 'complete', 'version': manifest.version}),
+      );
+      await socket.flush();
+    } catch (e) {
+      // Pusher may have disconnected - that's fine, update is complete
+      developer.log(
+        'Could not send completion response (pusher disconnected): $e',
+        name: 'LanPushReceiver',
+        level: 900,
+      );
+    }
+
+    onProgress?.call(actualSize, actualSize, 1.0, 'Update ready!');
+    onUpdateReceived?.call(manifest, extractPath);
+  }
+
+  /// Extract a fully-received, size-checked package, verify every staged
+  /// file against the (already signature-verified) [manifest], then persist
+  /// the trusted apply-time handoff and return the extracted-tree path.
+  ///
+  /// The persisted handoff is the same pair the HTTPS staging path writes in
+  /// [UpdateService.downloadAndStage]: `manifest.json` plus the
+  /// `staged_verified.marker`, alongside the `ready.json` discovery marker.
+  /// [persistStagedManifest] runs ONLY after
+  /// [UpdateVerifier.verifyDirectory] succeeds, so a tree that fails
+  /// per-file hashing never gains a verified marker and
+  /// [UpdateService.applyUpdate] keeps refusing it (§7A.9).
+  ///
+  /// Exposed for tests: the socket-driven [_receiveUpdate] entry point owns
+  /// a single-subscription [Socket] that cannot be re-driven in isolation,
+  /// but the staging behaviour this method performs is exactly what
+  /// PERSIST-001 guarantees.
+  @visibleForTesting
+  Future<String> extractVerifyAndStage(
+    Directory staging,
+    File packageFile,
+    UpdateManifest manifest,
+    int packageBytes,
+  ) async {
+    onProgress?.call(packageBytes, packageBytes, 1.0, 'Extracting...');
 
     // Extract package
     final extractDir = Directory(path.join(staging.path, 'extracted'));
@@ -509,7 +560,7 @@ class LanPushReceiver {
 
     await extractZipSafely(packageFile, extractDir);
 
-    onProgress?.call(actualSize, actualSize, 1.0, 'Verifying...');
+    onProgress?.call(packageBytes, packageBytes, 1.0, 'Verifying...');
 
     // Verify extracted files
     final verification = await _verifier.verifyDirectory(extractDir, manifest);
@@ -517,6 +568,15 @@ class LanPushReceiver {
       await extractDir.delete(recursive: true);
       throw Exception('Verification failed: $verification');
     }
+
+    // Persist the verified manifest + staged_verified marker so
+    // UpdateService.applyUpdate() can recover the exact trusted manifest
+    // and confirm end-to-end verification before touching the install
+    // (§7A.9). This is the same handoff the HTTPS staging path performs
+    // in downloadAndStage(); it is reached ONLY here, after the manifest
+    // signature, package size, and per-file hashes have all verified, so
+    // the marker is never written over an unverified or partial tree.
+    await persistStagedManifest(staging, manifest);
 
     // Write ready marker
     final markerFile = File(path.join(staging.path, 'ready.json'));
@@ -535,23 +595,7 @@ class LanPushReceiver {
     );
     developer.log('Ready marker written successfully', name: 'LanPushReceiver');
 
-    // Send success response (may fail if pusher already disconnected, which is OK)
-    try {
-      socket.write(
-        jsonEncode({'status': 'complete', 'version': manifest.version}),
-      );
-      await socket.flush();
-    } catch (e) {
-      // Pusher may have disconnected - that's fine, update is complete
-      developer.log(
-        'Could not send completion response (pusher disconnected): $e',
-        name: 'LanPushReceiver',
-        level: 900,
-      );
-    }
-
-    onProgress?.call(actualSize, actualSize, 1.0, 'Update ready!');
-    onUpdateReceived?.call(manifest, extractDir.path);
+    return extractDir.path;
   }
 
   /// Get staging directory

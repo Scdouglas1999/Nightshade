@@ -14,6 +14,11 @@ List<HeadlessRoute> buildSchedulerRoutes(SchedulerHandlers h) =>
     <HeadlessRoute>[
       HeadlessRoute(
         HttpMethod.get,
+        '/api/scheduler/preview',
+        h.handlePreviewDecision,
+      ),
+      HeadlessRoute(
+        HttpMethod.get,
         '/api/scheduler/altitude',
         h.handleCalculateAltitude,
       ),

@@ -1,6 +1,10 @@
 /// Compatibility policy for discovered Nightshade remote/headless servers.
 ///
-/// Keep this policy in sync with nightshade_core's RemoteApiCompatibility.
+/// This is the single source of truth for the Nightshade version-negotiation
+/// policy. nightshade_core's `RemoteApiCompatibility` is a thin adapter that
+/// delegates here, so the two halves of the connect flow (mobile pre-flight and
+/// the [NetworkBackend] WS-handshake gate) cannot drift. Changing the floor /
+/// current API version or the wire header here changes it everywhere.
 class NightshadeServerCompatibility {
   static const apiVersionHeader = 'x-nightshade-api-version';
   // 2.4.0 is the floor: prior releases lacked the auth/pairing surface and the

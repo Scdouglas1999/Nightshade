@@ -186,6 +186,22 @@ class EquipmentProfilesDao extends DatabaseAccessor<NightshadeDatabase>
     ).write(const EquipmentProfilesCompanion(isDefault: Value(false)));
   }
 
+  /// Persist a new display order for the given profiles.
+  ///
+  /// Each id in [orderedIds] is assigned `sortOrder == its index` in a single
+  /// transaction. Ids that no longer resolve to a row (deleted between the
+  /// caller's read and this write) are skipped rather than failing the whole
+  /// reorder. Other columns are left untouched.
+  Future<void> reorderProfiles(List<int> orderedIds) async {
+    await transaction(() async {
+      for (var i = 0; i < orderedIds.length; i++) {
+        await (update(equipmentProfiles)
+              ..where((p) => p.id.equals(orderedIds[i])))
+            .write(EquipmentProfilesCompanion(sortOrder: Value(i)));
+      }
+    });
+  }
+
   /// Duplicate a profile
   Future<int> duplicateProfile(int sourceId, String newName) async {
     final source = await getProfileById(sourceId);

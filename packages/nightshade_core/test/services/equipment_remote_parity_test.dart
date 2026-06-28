@@ -194,7 +194,66 @@ void main() {
       },
     );
 
-    test('equipment Connected WS event invalidates profile catalog', () async {
+    // A mirrored equipment Connected/Disconnected event must NOT reload the
+    // profile catalog: connecting a device does not change the profile LIST or
+    // the active profile, and on a slave equipmentProfilesProvider is
+    // network-backed, so invalidating it round-trips to the host and cascades
+    // through opticalConfig -> tonightSuggestions, making "Plan Tonight" thrash
+    // on every Connected/Disconnected. Connection STATE is mirrored via the
+    // per-device state providers instead. (See remote_sync_handler.dart's
+    // _applyEquipmentEvent 'Connected' case.) Catalog refreshes are driven by
+    // actual PROFILE events (profile_changed / HostMutationEntity.profile),
+    // asserted in the next test.
+    test(
+      'equipment Connected WS event does NOT reload profile catalog',
+      () async {
+        final backend = _MockNetworkBackend();
+        when(
+          () => backend.eventStream,
+        ).thenAnswer((_) => const Stream<NightshadeEvent>.empty());
+
+        var loadCount = 0;
+        final container = ProviderContainer(
+          overrides: [
+            backendProvider.overrideWith(
+              (ref) => _FixedBackendNotifier(ref, backend),
+            ),
+            equipmentProfilesProvider.overrideWith(() {
+              return _TestProfilesNotifier(onLoad: () => loadCount++);
+            }),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await container.read(equipmentProfilesProvider.future);
+        expect(loadCount, 1, reason: 'one initial build');
+
+        await applyRemoteSyncEvent(
+          container,
+          const NightshadeEvent(
+            timestamp: 1,
+            severity: EventSeverity.info,
+            category: EventCategory.equipment,
+            eventType: 'Connected',
+            data: {'device_type': 'camera', 'device_id': 'cam-42'},
+          ),
+        );
+
+        await container.read(equipmentProfilesProvider.future);
+        expect(
+          loadCount,
+          1,
+          reason:
+              'Connected must not invalidate the profile catalog (no thrash)',
+        );
+      },
+    );
+
+    // The replacement mechanism for catalog parity: a genuine PROFILE change
+    // (profile_changed) DOES invalidate equipmentProfilesProvider, so the slave
+    // re-pulls the host's profile list / active profile on real profile
+    // mutations without thrashing on device connects.
+    test('profile_changed WS event reloads profile catalog', () async {
       final backend = _MockNetworkBackend();
       when(
         () => backend.eventStream,
@@ -214,20 +273,25 @@ void main() {
       addTearDown(container.dispose);
 
       await container.read(equipmentProfilesProvider.future);
+      expect(loadCount, 1, reason: 'one initial build');
 
       await applyRemoteSyncEvent(
         container,
         const NightshadeEvent(
           timestamp: 1,
           severity: EventSeverity.info,
-          category: EventCategory.equipment,
-          eventType: 'Connected',
-          data: {'device_type': 'camera', 'device_id': 'cam-42'},
+          category: EventCategory.system,
+          eventType: 'profile_changed',
+          data: {},
         ),
       );
 
       await container.read(equipmentProfilesProvider.future);
-      expect(loadCount, greaterThanOrEqualTo(2));
+      expect(
+        loadCount,
+        greaterThanOrEqualTo(2),
+        reason: 'a real profile change must re-pull the catalog',
+      );
     });
   });
 }

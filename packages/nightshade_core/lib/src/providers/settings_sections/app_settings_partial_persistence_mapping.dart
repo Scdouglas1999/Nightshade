@@ -15,20 +15,19 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
   ///   * Desktop-shell / window UI prefs that are host-machine-local and
   ///     meaningless to drive from a phone: `start_minimized`,
   ///     `sidebar_collapsed`, `auto_save_sequences`, `confirm_before_closing`.
+  ///     A remote write to any of these intentionally FAILS LOUD via
+  ///     [_assertKeysRemotable] (they're absent here) rather than appearing to
+  ///     succeed then dropping on the host — same fail-loud contract as every
+  ///     other non-remotable setting.
   ///   * Host-filesystem infra paths whose remote edit is unsafe / restart-
-  ///     affecting: `database_path`, `logs_path`, `sequences_path`.
-  ///     (`image_output_path` / `astap_path` / `astrometry_path` ARE remoted —
-  ///     they're per-run imaging config, not infra.)
+  ///     affecting: `database_path`, `logs_path`.
+  ///     (`image_output_path` / `sequences_path` / `astap_path` /
+  ///     `astrometry_path` ARE remoted — they're per-run imaging/output
+  ///     config, not host infra.)
   ///   * The full 8-point horizon-mask blob `horizon_profile_json` — a larger
   ///     JSON sub-model; the scalar `effective_horizon_deg` floor (used by the
   ///     scheduler / dashboard / planetarium) IS remoted. Remoting the full
   ///     mask wants its own typed wire field — tracked separately.
-  ///   * The Wave-8 adaptive-swap scheduler-SEED defaults
-  ///     (`adaptive_swap.enabled_by_default`, `adaptive_swap.default_threshold`,
-  ///     `adaptive_swap.default_hysteresis_secs`, `adaptive_swap.score_weights`)
-  ///     — these pre-fill a new TargetSchedulerNode and form a distinct
-  ///     map/JSON cluster that `_applySettingsMap` does not even map; tracked
-  ///     separately.
   /// NOTE: weather threshold *values* live in a separate `WeatherSettings`
   /// model with its own endpoint — remoting them is a distinct out-of-scope
   /// item, not part of this allow-set.
@@ -70,7 +69,6 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
     'alpaca_server_port',
     'alpaca_auto_discover',
     // Sequencer execution / output
-    'use_native_execution',
     'use_simulation_mode',
     'image_output_path',
     // Image Grading
@@ -197,6 +195,20 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
     'bit_depth',
     'timezone',
     'use_system_time',
+    // Settings round-trip gap closure (G5 / G7) — the remaining
+    // setter-reachable knobs now carried by models.AppSettings. Previously
+    // these threw via the fail-loud guard on a remote save; now they
+    // round-trip.
+    // Sequencer output path default.
+    'sequences_path',
+    // Smart Night target auto-select.
+    'smart_night.auto_select',
+    'smart_night.auto_select_count',
+    // Adaptive sky-conditions target-swap scheduler-seed defaults.
+    'adaptive_swap.enabled_by_default',
+    'adaptive_swap.default_threshold',
+    'adaptive_swap.default_hysteresis_secs',
+    'adaptive_swap.score_weights',
   };
 
   /// FAIL-LOUD guard for the remote-write path. Throws an [UnsupportedError]
@@ -407,12 +419,6 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
           ? _parseBool(
               settings['alpaca_auto_discover'],
               current.alpacaAutoDiscover,
-            )
-          : null,
-      useNativeExecution: settings.containsKey('use_native_execution')
-          ? _parseBool(
-              settings['use_native_execution'],
-              current.useNativeExecution,
             )
           : null,
       useSimulationMode: settings.containsKey('use_simulation_mode')
@@ -845,6 +851,53 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
           settings.containsKey('campaign_rollup.grouping_mode')
           ? _parseCampaignGroupingMode(
               settings['campaign_rollup.grouping_mode'],
+            )
+          : null,
+      // Settings round-trip gap closure (G5 / G7) partial-update wiring.
+      // Required so a remote save of one of these (now carried by the wire
+      // model) actually reaches state and is forwarded to the host by
+      // `_toRemoteSettings`.
+      smartNightAutoSelect: settings.containsKey('smart_night.auto_select')
+          ? _parseBool(
+              settings['smart_night.auto_select'],
+              current.smartNightAutoSelect,
+            )
+          : null,
+      smartNightAutoSelectCount:
+          settings.containsKey('smart_night.auto_select_count')
+          ? _parseInt(
+              settings['smart_night.auto_select_count'],
+              current.smartNightAutoSelectCount,
+            )
+          : null,
+      adaptiveSwapEnabledByDefault:
+          settings.containsKey('adaptive_swap.enabled_by_default')
+          ? _parseBool(
+              settings['adaptive_swap.enabled_by_default'],
+              current.adaptiveSwapEnabledByDefault,
+            )
+          : null,
+      adaptiveSwapDefaultThreshold:
+          settings.containsKey('adaptive_swap.default_threshold')
+          ? _parseDouble(
+              settings['adaptive_swap.default_threshold'],
+              current.adaptiveSwapDefaultThreshold,
+            ).clamp(0.0, 100.0)
+          : null,
+      adaptiveSwapDefaultHysteresisSecs:
+          settings.containsKey('adaptive_swap.default_hysteresis_secs')
+          ? _parseDouble(
+              settings['adaptive_swap.default_hysteresis_secs'],
+              current.adaptiveSwapDefaultHysteresisSecs,
+            ).clamp(0.0, 3600.0)
+          : null,
+      // The score-weights map is persisted JSON-encoded; reuse the same
+      // parser as the stored-snapshot loader so malformed / incomplete
+      // payloads fall back to the canonical defaults.
+      conditionsScoreWeights:
+          settings.containsKey('adaptive_swap.score_weights')
+          ? _parseConditionsScoreWeights(
+              settings['adaptive_swap.score_weights'],
             )
           : null,
     );

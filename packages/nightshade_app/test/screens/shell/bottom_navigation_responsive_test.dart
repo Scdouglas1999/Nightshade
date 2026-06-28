@@ -72,7 +72,7 @@ void main() {
         // All six fixed destinations lay out at once (no horizontal scroll).
         expect(find.byType(NightshadeBottomNavigation), findsOneWidget);
         expect(find.text('Dashboard'), findsOneWidget);
-        expect(find.text('Science'), findsOneWidget);
+        expect(find.text('Guiding'), findsOneWidget);
         expect(find.text('Plan Tonight'), findsOneWidget);
         expect(find.byType(Scrollable), findsNothing);
       });

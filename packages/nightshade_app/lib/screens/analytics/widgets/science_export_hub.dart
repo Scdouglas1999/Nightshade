@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../../services/observation_report_service.dart';
 import '../../../utils/snackbar_helper.dart';
 import 'mpc_export_panel.dart';
+import 'transient_report_panel.dart';
 
 part 'science_export_hub/export_controls.dart';
 
@@ -28,6 +29,7 @@ enum ScienceExportDataset {
   calibration,
   movingObjects,
   mpcReport,
+  transientReport,
 }
 
 /// Dialog listing all exportable science data types with CSV export and filters.
@@ -42,10 +44,16 @@ class ScienceExportHub extends ConsumerStatefulWidget {
   /// rendering, so the hub does not need to re-query the database.
   final List<MovingObjectCandidateRow> mpcCandidates;
 
+  /// Optional First Light transient detections used by the transient-report row
+  /// (AAVSO / MPC / TNS discovery export). Defaults to the global detection
+  /// snapshot watched inside the hub when not supplied.
+  final List<TransientDetectionRow> transientDetections;
+
   const ScienceExportHub({
     super.key,
     this.initialDataset,
     this.mpcCandidates = const [],
+    this.transientDetections = const [],
   });
 
   @override
@@ -90,6 +98,12 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
     final colors = NightshadeColors.of(context);
     final sessions = ref.watch(allSessionsProvider).valueOrNull ?? const [];
     final dateFormat = DateFormat('yyyy-MM-dd');
+
+    // First Light transient detections: prefer the caller's snapshot, else the
+    // global newest-first feed.
+    final transientDetections = widget.transientDetections.isNotEmpty
+        ? widget.transientDetections
+        : (ref.watch(allTransientDetectionsProvider).valueOrNull ?? const []);
 
     return Dialog(
       backgroundColor: colors.surface,
@@ -342,6 +356,25 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                       actionIcon: LucideIcons.externalLink,
                       onExport: _openMpcPanel,
                     ),
+                    const SizedBox(height: 8),
+                    // First Light transient discovery report (AAVSO / MPC / TNS).
+                    _ExportTypeCard(
+                      key: _rowKeys[ScienceExportDataset.transientReport],
+                      colors: colors,
+                      title: 'Transient Discovery Report',
+                      description: transientDetections.isEmpty
+                          ? 'No First Light transient detections available yet.'
+                          : 'Submit a confirmed difference-image detection to '
+                              'AAVSO, the MPC, or the TNS',
+                      icon: LucideIcons.sparkles,
+                      isExporting: _isExporting,
+                      highlight: widget.initialDataset ==
+                          ScienceExportDataset.transientReport,
+                      enabled: transientDetections.isNotEmpty,
+                      actionLabel: 'Open',
+                      actionIcon: LucideIcons.externalLink,
+                      onExport: () => _openTransientPanel(transientDetections),
+                    ),
                     const SizedBox(height: 16),
                     Divider(color: colors.border),
                     const SizedBox(height: 12),
@@ -448,6 +481,40 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
     );
   }
 
+  Future<void> _openTransientPanel(
+    List<TransientDetectionRow> detections,
+  ) async {
+    if (detections.isEmpty) {
+      context.showInfoSnackBar(
+        'No First Light transient detections available yet.',
+      );
+      return;
+    }
+    final colors = NightshadeColors.of(context);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: colors.surface,
+          child: ConstrainedBox(
+            constraints: AdaptiveDialogConstraints.hybrid(
+              dialogContext,
+              designMaxWidth: 720,
+              designMaxHeight: 720,
+            ),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: TransientReportPanel(
+                colors: colors,
+                detections: detections,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Future<void> _exportData(ScienceExportDataset dataType) async {
     setState(() {
       _isExporting = true;
@@ -496,6 +563,11 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
           // routes a "Download CSV" intent to the wrong dataset.
           throw StateError(
               'MPC report uses the dedicated panel, not CSV export.');
+        case ScienceExportDataset.transientReport:
+          // Transient discovery reports use the dedicated panel (per-network
+          // format), not inline CSV export.
+          throw StateError(
+              'Transient report uses the dedicated panel, not CSV export.');
       }
 
       if (rows.length <= 1) {

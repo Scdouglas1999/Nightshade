@@ -216,6 +216,43 @@ bridge.SequencerEvent _sequencerEventFromCore(
         lastError: _optionalString(data, 'last_error'),
         abortedByUser: data['aborted_by_user'] as bool? ?? false,
       );
+    // Benign lifecycle / progress events. These were previously unhandled and
+    // fell through to the `default` arm below, which synthesizes a
+    // SequencerEvent.error — flagged critical by isCriticalEvent and shown as a
+    // false "Sequencer error" banner on the dashboard. This bit slaves hard:
+    // when the master merely PAUSED a sequence, the mirrored 'Paused' event
+    // became a bogus critical error. Map them to their real, non-critical
+    // variants. Both bare and 'Sequence'-prefixed names are accepted so the
+    // mapping is robust to either emission convention.
+    case 'Paused':
+    case 'SequencePaused':
+      return const bridge.SequencerEvent.paused();
+    case 'Resumed':
+    case 'SequenceResumed':
+      return const bridge.SequencerEvent.resumed();
+    case 'Stopped':
+    case 'SequenceStopped':
+      return const bridge.SequencerEvent.stopped();
+    case 'Completed':
+    case 'SequenceCompleted':
+      return const bridge.SequencerEvent.completed();
+    case 'NodeStarted':
+      return bridge.SequencerEvent.nodeStarted(
+        nodeId: _stringField(data, 'node_id'),
+        nodeType: _stringField(data, 'node_type'),
+      );
+    case 'NodeCompleted':
+      return bridge.SequencerEvent.nodeCompleted(
+        nodeId: _stringField(data, 'node_id'),
+        status: _stringField(data, 'status'),
+      );
+    case 'ProgressUpdated':
+    case 'Progress':
+    case 'InstructionProgress':
+      return bridge.SequencerEvent.progress(
+        current: _intField(data, 'current'),
+        total: _intField(data, 'total'),
+      );
     default:
       return bridge.SequencerEvent.error(
         message: data['message'] as String? ?? eventType,
@@ -290,16 +327,33 @@ bridge.EquipmentEvent _equipmentEventFromCore(
         deviceId: _stringField(data, 'device_id'),
       );
     case 'PropertyChanged':
-      // Hot-plug device_discovered / device_lost events
-      // and other property changes ride the PropertyChanged channel. The
+      // Other property changes ride the PropertyChanged channel. The
       // mapper rebuilds the typed variant verbatim so round-tripping
-      // through WS does not lose the property name or value the
-      // hotplug_event_bridge_provider depends on.
+      // through WS does not lose the property name or value.
       return bridge.EquipmentEvent.propertyChanged(
         deviceType: _stringField(data, 'device_type'),
         deviceId: _stringField(data, 'device_id'),
         property: _stringField(data, 'property'),
         value: data['value'] as String? ?? '',
+      );
+    case 'DeviceDiscovered':
+      // Hot-plug arrival. Rebuild the typed variant field-for-field from the
+      // wire envelope serialized by `_extractEquipmentEventInfo` so remote
+      // (network-backend) subscribers receive the same typed variant the local
+      // FFI path does and `hotplugEventBridgeProvider` refreshes the list.
+      return bridge.EquipmentEvent.deviceDiscovered(
+        deviceClass: _stringField(data, 'device_class'),
+        driver: _stringField(data, 'driver'),
+        id: _stringField(data, 'id'),
+        name: data['name'] as String? ?? '',
+        displayName: data['display_name'] as String? ?? '',
+        uniqueId: _optionalString(data, 'unique_id'),
+      );
+    case 'DeviceLost':
+      return bridge.EquipmentEvent.deviceLost(
+        deviceClass: _stringField(data, 'device_class'),
+        driver: _stringField(data, 'driver'),
+        id: _stringField(data, 'id'),
       );
     default:
       return bridge.EquipmentEvent.error(

@@ -19,27 +19,37 @@ class GuideDataPoint {
   });
 }
 
+/// Static contract for an option rendered by [GuideGraphAdvanced]'s scale
+/// selector. Both scale enums implement this so the selector can read `label`
+/// through a typed interface instead of a `dynamic` dispatch.
+abstract interface class GraphScaleOption {
+  /// Human-readable label shown in the selector trigger and menu.
+  String get label;
+}
+
 /// Time scale options for the graph
-enum GraphTimeScale {
+enum GraphTimeScale implements GraphScaleOption {
   oneMinute(Duration(minutes: 1), '1m'),
   fiveMinutes(Duration(minutes: 5), '5m'),
   fifteenMinutes(Duration(minutes: 15), '15m'),
   thirtyMinutes(Duration(minutes: 30), '30m');
 
   final Duration duration;
+  @override
   final String label;
 
   const GraphTimeScale(this.duration, this.label);
 }
 
 /// Y-axis scale options for the graph
-enum GraphYScale {
+enum GraphYScale implements GraphScaleOption {
   one(1.0, '±1"'),
   two(2.0, '±2"'),
   four(4.0, '±4"'),
   eight(8.0, '±8"');
 
   final double arcsec;
+  @override
   final String label;
 
   const GraphYScale(this.arcsec, this.label);
@@ -163,9 +173,7 @@ class GuideGraphAdvanced extends StatelessWidget {
                 label: isCompact ? 'T:' : 'Time:',
                 value: timeScale.label,
                 items: GraphTimeScale.values,
-                onChanged: onTimeScaleChanged != null
-                    ? (scale) => onTimeScaleChanged!(scale as GraphTimeScale)
-                    : null,
+                onChanged: onTimeScaleChanged,
                 compact: isCompact,
               ),
               SizedBox(width: isCompact ? 8 : 16),
@@ -175,9 +183,7 @@ class GuideGraphAdvanced extends StatelessWidget {
                 label: isCompact ? 'Y:' : 'Scale:',
                 value: yScale.label,
                 items: GraphYScale.values,
-                onChanged: onYScaleChanged != null
-                    ? (scale) => onYScaleChanged!(scale as GraphYScale)
-                    : null,
+                onChanged: onYScaleChanged,
                 compact: isCompact,
               ),
             ],
@@ -261,7 +267,7 @@ class GuideGraphAdvanced extends StatelessWidget {
     );
   }
 
-  Widget _buildScaleSelector<T>({
+  Widget _buildScaleSelector<T extends GraphScaleOption>({
     required NightshadeColors colors,
     required String label,
     required String value,
@@ -284,7 +290,7 @@ class GuideGraphAdvanced extends StatelessWidget {
         const SizedBox(width: 4),
         PopupMenuButton<T>(
           initialValue: items.firstWhere(
-            (item) => (item as dynamic).label == value,
+            (item) => item.label == value,
             orElse: () => items.first,
           ),
           onSelected: onChanged,
@@ -313,10 +319,7 @@ class GuideGraphAdvanced extends StatelessWidget {
             ),
           ),
           itemBuilder: (context) => items.map((item) {
-            return PopupMenuItem<T>(
-              value: item,
-              child: Text((item as dynamic).label as String),
-            );
+            return PopupMenuItem<T>(value: item, child: Text(item.label));
           }).toList(),
         ),
       ],

@@ -299,6 +299,155 @@ mixin _NetworkBackendSessionScienceOperations on _NetworkBackendTransport {
   }
 
   // =========================================================================
+  // First Light — difference-imaging transient discovery (read + triage)
+  // =========================================================================
+
+  /// Fetch the appliance's First Light transient detections (newest-first).
+  /// Pass [sessionId] for a single session, or null for the across-sessions
+  /// feed. The difference pipeline runs on the host, so a remote client reads
+  /// its persisted candidates here instead of the local DB. Callers
+  /// reconstruct rows via `transientDetectionFromWireJson`.
+  Future<List<Map<String, dynamic>>> getFirstLightCandidates({
+    int? sessionId,
+  }) async {
+    final json = await _get(
+      'firstlight/candidates',
+      sessionId == null ? null : {'sessionId': sessionId.toString()},
+    );
+    final raw = json['candidates'];
+    if (raw is! List) return const [];
+    return raw.whereType<Map<String, dynamic>>().toList(growable: false);
+  }
+
+  /// Fetch the host's cross-night history for one transient: every persisted
+  /// detection within [radiusDeg] of ([raDeg], [decDeg]), oldest-first. Backs
+  /// the multi-night light-curve detail view so the same source seen over
+  /// several nights groups into one Δmag-vs-time history on a slave too.
+  Future<List<Map<String, dynamic>>> getFirstLightHistory({
+    required double raDeg,
+    required double decDeg,
+    double radiusDeg = 0.02,
+  }) async {
+    final json = await _get('firstlight/near', {
+      'ra': raDeg.toString(),
+      'dec': decDeg.toString(),
+      'radius': radiusDeg.toString(),
+    });
+    final raw = json['detections'];
+    if (raw is! List) return const [];
+    return raw.whereType<Map<String, dynamic>>().toList(growable: false);
+  }
+
+  /// Mark a First Light detection reviewed (confirmed) on the host.
+  Future<void> reviewFirstLightCandidate(int id) async {
+    await _post('firstlight/$id/review');
+  }
+
+  /// Dismiss a First Light detection as a triaged artefact on the host so the
+  /// next difference scan suppresses the same position.
+  Future<void> dismissFirstLightCandidate(int id) async {
+    await _post('firstlight/$id/dismiss');
+  }
+
+  /// Fetch a REAL per-detection pixel postage stamp (PNG bytes) for detection
+  /// [id], [stage] = `template` | `science` | `residual`. The host re-derives the
+  /// deterministic crop filename from the persisted detection row and streams the
+  /// PNG the difference pass wrote, so a companion tablet sees the actual pixels
+  /// around the candidate — not a host-local file path. Maps to the advertised
+  /// `GET /api/firstlight/<id>/crops/<stage>`.
+  Future<Uint8List> getFirstLightCrop(int id, String stage) {
+    return _downloadBytes('firstlight/$id/crops/$stage');
+  }
+
+  /// Trigger a REAL TNS submission for detection [id] ON THE HOST. The host
+  /// holds the bot credentials + api key (the api key never crosses the wire);
+  /// the slave only triggers and surfaces the result. Returns the host's
+  /// `{success, atName?, reportId?, message}` payload.
+  Future<Map<String, dynamic>> submitFirstLightToTns(int id) async {
+    return _post('firstlight/$id/submit/tns');
+  }
+
+  /// Ask the host to generate an ingestible AAVSO Extended File Format report
+  /// for detection [id] and return the bytes (the slave saves / share-sheets
+  /// them — there is no per-observer AAVSO upload API; WebObs upload is manual).
+  /// [magZeroPoint] is required (a calibrated magnitude); the host returns 400
+  /// if unavailable.
+  Future<Uint8List> exportFirstLightAavso(
+    int id, {
+    required double magZeroPoint,
+    String? standardBand,
+  }) async {
+    return _postRawBytes('firstlight/$id/export/aavso', {
+      'magZeroPoint': magZeroPoint,
+      if (standardBand != null && standardBand.isNotEmpty)
+        'standardBand': standardBand,
+    });
+  }
+
+  /// Ask the host to generate an MPC ADES PSV astrometry report for detection
+  /// [id] and return the bytes (MPC submission is via the web form / email).
+  Future<Uint8List> exportFirstLightMpc(int id) async {
+    return _postRawBytes('firstlight/$id/export/mpc', const {});
+  }
+
+  // =========================================================================
+  // Sky Atlas — Pillar A ("Your Sky") personal atlas (read-only)
+  // =========================================================================
+
+  /// Fetch the host's persisted atlas regions (the "Your Sky" browser list).
+  /// The imaging pipeline that folds frames into the atlas runs on the host, so
+  /// a remote client reads its regions here instead of its (empty) local store.
+  /// Callers reconstruct rows via `skyAtlasRegionFromWireJson`.
+  Future<List<Map<String, dynamic>>> getAtlasRegions() async {
+    final json = await _get('atlas/regions');
+    final raw = json['regions'];
+    if (raw is! List) return const [];
+    return raw.whereType<Map<String, dynamic>>().toList(growable: false);
+  }
+
+  /// Fetch the host's per-tile atlas coverage (deepest first) — the heat-overlay
+  /// / gallery feed and the source of the Constellation "your contribution" sum.
+  /// The native coverage query runs on the host. Callers reconstruct rows via
+  /// `AtlasTileCoverage.fromJson`.
+  Future<List<Map<String, dynamic>>> getAtlasCoverage() async {
+    final json = await _get('atlas/coverage');
+    final raw = json['tiles'];
+    if (raw is! List) return const [];
+    return raw.whereType<Map<String, dynamic>>().toList(growable: false);
+  }
+
+  /// Fetch one region's detail from the host: its row (`region`), live native
+  /// cone coverage (`coverage`) and the region's tiles (`tiles`). Backs the
+  /// companion's region-detail screen, which reads an empty local store on a
+  /// slave and so must branch here. Maps to the already-advertised
+  /// `GET /api/atlas/region/<id>` route (no catalog change).
+  Future<Map<String, dynamic>> getAtlasRegion(int regionId) async {
+    return _get('atlas/region/$regionId');
+  }
+
+  /// Fetch a region's fold timeline (`folds`) + deepening growth curve
+  /// (`growth`) from the host — the scrubber stops + contributing-frames list on
+  /// a slave. Maps to the advertised `GET /api/atlas/region/<id>/timeline`.
+  Future<Map<String, dynamic>> getAtlasRegionTimeline(int regionId) async {
+    return _get('atlas/region/$regionId/timeline');
+  }
+
+  /// Fetch the co-added region cone as PNG bytes (latest depth) so the companion
+  /// renders the cutout via `Image.memory` — the host-local file path the FFI
+  /// path uses is not portable over the wire. Maps to the advertised
+  /// `GET /api/atlas/region/<id>/cutout`.
+  Future<Uint8List> getAtlasRegionCutout(
+    int regionId, {
+    int outPixels = 2048,
+    String? interp,
+  }) {
+    return _downloadBytes('atlas/region/$regionId/cutout', {
+      'outPixels': outPixels.toString(),
+      if (interp != null) 'interp': interp,
+    });
+  }
+
+  // =========================================================================
   // Target Suggestions
   // =========================================================================
 

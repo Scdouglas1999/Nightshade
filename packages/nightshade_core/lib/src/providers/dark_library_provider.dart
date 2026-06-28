@@ -1,11 +1,17 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../backend/network_backend.dart';
 import '../database/daos/dark_library_dao.dart';
 import '../database/daos/settings_dao.dart';
 import '../database/database.dart';
 import '../models/calibration/dark_library_match_tolerances.dart';
+import '../models/calibration/remote_calibration_models.dart';
 import '../services/calibration_service.dart';
 import '../services/dark_library_service.dart';
+import 'backend_provider.dart';
 import 'database_provider.dart';
 
 /// DAO provider for DarkLibraryDao.
@@ -19,24 +25,57 @@ final darkLibraryServiceProvider = Provider<DarkLibraryService>((ref) {
 });
 
 /// Reactive stream of all dark library entries (newest first).
+///
+/// On a remote client (`NetworkBackend`) the slave's local `dark_library`
+/// table is never populated — the user's darks/biases live on the master —
+/// so the DAO stream would render empty. We branch to a poll of the host's
+/// `GET /api/calibration/darks` (`listDarks()`) and map each
+/// [RemoteDarkLibraryEntry] onto the local [DarkLibraryEntry] shape the
+/// settings panel + coverage stats read. The stats/groups providers below
+/// already `ref.watch(darkLibraryEntriesProvider)`, so they become
+/// remote-correct transitively.
 final darkLibraryEntriesProvider = StreamProvider<List<DarkLibraryEntry>>((
   ref,
 ) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return _pollRemoteDarkEntries(backend);
+  }
   return ref.watch(darkLibraryDaoProvider).watchAllEntries();
 });
 
 /// Reactive stream of dark-only entries.
 final darkFrameEntriesProvider = StreamProvider<List<DarkLibraryEntry>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return _pollRemoteDarkEntries(
+      backend,
+    ).map((entries) => entries.where((e) => e.frameType == 'dark').toList());
+  }
   return ref.watch(darkLibraryDaoProvider).watchEntriesByFrameType('dark');
 });
 
 /// Reactive stream of bias-only entries.
 final biasFrameEntriesProvider = StreamProvider<List<DarkLibraryEntry>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return _pollRemoteDarkEntries(
+      backend,
+    ).map((entries) => entries.where((e) => e.frameType == 'bias').toList());
+  }
   return ref.watch(darkLibraryDaoProvider).watchEntriesByFrameType('bias');
 });
 
 /// Library statistics (refreshes when entries change).
+///
+/// On a remote client the local DAO `getStats()` reads the empty slave DB, so
+/// derive the stats from the (remote-aware) entries stream instead.
 final darkLibraryStatsProvider = FutureProvider<DarkLibraryStats>((ref) async {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    final entries = await ref.watch(darkLibraryEntriesProvider.future);
+    return _statsFromEntries(entries);
+  }
   // Depend on the entries stream so stats refresh on any change
   ref.watch(darkLibraryEntriesProvider);
   return ref.read(darkLibraryDaoProvider).getStats();
@@ -46,9 +85,102 @@ final darkLibraryStatsProvider = FutureProvider<DarkLibraryStats>((ref) async {
 final darkLibraryGroupsProvider = FutureProvider<List<DarkGroupKey>>((
   ref,
 ) async {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    final entries = await ref.watch(darkLibraryEntriesProvider.future);
+    return _groupsFromEntries(entries);
+  }
   ref.watch(darkLibraryEntriesProvider);
   return ref.read(darkLibraryDaoProvider).getDistinctGroups();
 });
+
+/// Polls the host's dark library and emits only on change, mirroring the
+/// `_pollRemote` change-guard used by the canonical remote list providers in
+/// `database_provider.dart`.
+Stream<List<DarkLibraryEntry>> _pollRemoteDarkEntries(
+  NetworkBackend backend, {
+  Duration interval = const Duration(seconds: 10),
+}) async* {
+  var last = await _fetchRemoteDarkEntries(backend);
+  yield last;
+  while (true) {
+    await Future<void>.delayed(interval);
+    final next = await _fetchRemoteDarkEntries(backend);
+    if (!listEquals(last, next)) {
+      last = next;
+      yield next;
+    }
+  }
+}
+
+Future<List<DarkLibraryEntry>> _fetchRemoteDarkEntries(
+  NetworkBackend backend,
+) async {
+  // listDarks() with no filter returns both darks and biases (frameType
+  // carried on each row). Order newest-first to match `watchAllEntries()`.
+  final rows = await backend.listDarks();
+  final mapped = rows.map(_darkEntryFromRemote).toList()
+    ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  return mapped;
+}
+
+DarkLibraryEntry _darkEntryFromRemote(RemoteDarkLibraryEntry row) {
+  return DarkLibraryEntry(
+    id: row.id,
+    filePath: row.filePath,
+    exposureTime: row.exposureDuration,
+    temperature: row.sensorTempC,
+    gain: row.gain,
+    offset: row.offset,
+    binX: row.binX,
+    binY: row.binY,
+    frameType: row.frameType,
+    width: row.width,
+    height: row.height,
+    masterDarkPath: row.masterPath,
+    masterFrameCount: row.frameCount,
+    createdAt: row.createdAt,
+  );
+}
+
+/// Reconstructs [DarkLibraryStats] from a flat entry list so the remote
+/// (host-polled) path produces the same counts the local DAO would.
+DarkLibraryStats _statsFromEntries(List<DarkLibraryEntry> entries) {
+  var darkCount = 0;
+  var biasCount = 0;
+  var masterCount = 0;
+  for (final e in entries) {
+    if (e.frameType == 'bias') {
+      biasCount++;
+    } else {
+      darkCount++;
+    }
+    if (e.masterDarkPath != null) masterCount++;
+  }
+  return DarkLibraryStats(
+    totalEntries: entries.length,
+    darkCount: darkCount,
+    biasCount: biasCount,
+    masterCount: masterCount,
+  );
+}
+
+/// Reconstructs the distinct parameter groups from a flat entry list.
+List<DarkGroupKey> _groupsFromEntries(List<DarkLibraryEntry> entries) {
+  final seen = <String, DarkGroupKey>{};
+  for (final e in entries) {
+    final key = DarkGroupKey(
+      exposureTime: e.exposureTime,
+      gain: e.gain,
+      binX: e.binX,
+      binY: e.binY,
+      frameType: e.frameType,
+    );
+    seen['${e.exposureTime}|${e.gain}|${e.binX}|${e.binY}|${e.frameType}'] =
+        key;
+  }
+  return seen.values.toList();
+}
 
 /// Whether auto-dark-subtraction is enabled.
 ///

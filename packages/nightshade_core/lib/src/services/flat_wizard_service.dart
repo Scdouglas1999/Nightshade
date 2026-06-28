@@ -463,8 +463,12 @@ class FlatWizardService {
       if (predictedExposure != null) {
         exposure = predictedExposure;
       } else {
-        // Fall back to capped proportional adjustment
-        exposure = FlatExposureCalculator.calculateNextExposure(
+        // Fall back to the single canonical proportional-adjustment engine
+        // (the same [calculateNextExposure] that drives the standalone wizard
+        // screen and the headless /api/flat-wizard handlers via
+        // [calibrateFilter]). Previously this used a second, divergent copy in
+        // FlatExposureCalculator; collapsed to one source of truth.
+        exposure = calculateNextExposure(
           currentExposure: exposure,
           currentAdu: adu,
           targetAdu: targetAdu,

@@ -358,6 +358,42 @@ void main() {
       },
     );
   });
+
+  // The standalone monitor's LST/HA math used to be an acknowledged copy of
+  // SchedulerEngine._localSiderealTime. Both now delegate to the single
+  // SkyCalculations implementation. These pin that the monitor's public
+  // free-function entry points are exact aliases and carry no behaviour delta.
+  group('LST/HA helpers share one implementation', () {
+    test(
+      'computeLocalSiderealTimeHours == SkyCalculations.localSiderealTimeHours',
+      () {
+        final t = DateTime.utc(2024, 3, 1, 6, 45, 0);
+        const lon = -71.0;
+        expect(
+          computeLocalSiderealTimeHours(t, lon),
+          equals(SkyCalculations.localSiderealTimeHours(t, lon)),
+        );
+      },
+    );
+
+    test('computeHourAngleHours == SkyCalculations.hourAngleHours', () {
+      expect(
+        computeHourAngleHours(5.5, 9.25),
+        equals(SkyCalculations.hourAngleHours(5.5, 9.25)),
+      );
+    });
+
+    test('pinned LST (Meeus 12.a) and HA convention', () {
+      // GMST at 1987-04-10 00:00 UTC, Greenwich = 197.693195° (Meeus 12.a).
+      final lst = computeLocalSiderealTimeHours(
+        DateTime.utc(1987, 4, 10, 0, 0, 0),
+        0.0,
+      );
+      expect(lst * 15.0, closeTo(197.693195, 1e-4));
+      // HA = LST - RA, positive => west of meridian / already flipped.
+      expect(computeHourAngleHours(lst - 2.0, lst), closeTo(2.0, 1e-9));
+    });
+  });
 }
 
 /// Why: appSettingsProvider is an AsyncNotifierProvider so the test needs a

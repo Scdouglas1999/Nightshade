@@ -95,6 +95,12 @@ mixin _GuidingMobileSections
         break;
     }
 
+    // Title + sub-tabs share ONE row (this section had no title row of its own
+    // above the tabs — the outer nav named the screen). Fold the title inline
+    // to the left of the tab strip; this section is phone-only so the icon-only
+    // form is what renders, but the label is gated on the same `!isPhone` check
+    // the other screens use for consistency.
+    final isPhone = Responsive.isPhone(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -103,17 +109,52 @@ mixin _GuidingMobileSections
             color: colors.surface,
             border: Border(bottom: BorderSide(color: colors.border)),
           ),
-          child: AdaptiveTabBar(
-            horizontalPadding: 8,
-            selectedIndex: _tabController.index,
-            onSelected: (i) {
-              _tabController.index = i;
-              setState(() {});
-            },
-            tabs: const [
-              AdaptiveTab(label: 'Star View', icon: NightshadeIcons.star),
-              AdaptiveTab(label: 'Controls', icon: NightshadeIcons.sliders),
-              AdaptiveTab(label: 'Settings', icon: NightshadeIcons.settings),
+          child: Row(
+            children: [
+              Padding(
+                padding: EdgeInsets.only(
+                  left: NightshadeTokens.spaceLg,
+                  right: isPhone
+                      ? NightshadeTokens.spaceSm
+                      : NightshadeTokens.spaceMd,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      NightshadeIcons.guider,
+                      size: 18,
+                      color: colors.primary,
+                    ),
+                    if (!isPhone) ...[
+                      const SizedBox(width: NightshadeTokens.spaceSm),
+                      Text(
+                        'Guiding',
+                        style: NightshadeTypography.h5.copyWith(
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Expanded(
+                child: AdaptiveTabBar(
+                  horizontalPadding: 8,
+                  selectedIndex: _tabController.index,
+                  onSelected: (i) {
+                    _tabController.index = i;
+                    setState(() {});
+                  },
+                  tabs: const [
+                    AdaptiveTab(label: 'Star View', icon: NightshadeIcons.star),
+                    AdaptiveTab(
+                        label: 'Controls', icon: NightshadeIcons.sliders),
+                    AdaptiveTab(
+                        label: 'Settings', icon: NightshadeIcons.settings),
+                  ],
+                ),
+              ),
             ],
           ),
         ),

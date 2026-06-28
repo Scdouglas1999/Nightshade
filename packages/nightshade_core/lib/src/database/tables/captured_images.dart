@@ -94,6 +94,13 @@ class CapturedImages extends Table {
   DateTimeColumn get capturedAt => dateTime()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 
+  /// When this frame was folded into the personal sky atlas (Pillar A), or null
+  /// if it has not been folded. The solved-frame fold hook stamps this after a
+  /// successful fold and skips re-folding when it is already set, so a duplicate
+  /// inbound `updateCapturedImage{isPlateSolved:true}` (plausible in the
+  /// master/slave sync architecture) cannot double-count photons.
+  DateTimeColumn get atlasFoldedAt => dateTime().nullable()();
+
   // Flags
   BoolColumn get isAccepted =>
       boolean().withDefault(const Constant(true))(); // For rejection marking

@@ -203,20 +203,6 @@ class SequenceExecutor {
 
   SequenceExecutor(this._ref);
 
-  /// Check if native execution is enabled in settings
-  bool get _useNativeExecution {
-    try {
-      final settings = _ref.read(appSettingsProvider).valueOrNull;
-      return settings?.useNativeExecution ?? false;
-    } catch (error, stack) {
-      _logger.warning(
-        'Failed to read useNativeExecution setting; defaulting to false: $error\n$stack',
-        source: 'SequenceExecutor',
-      );
-      return false;
-    }
-  }
-
   /// Check if simulation mode is enabled in settings
   bool get _useSimulationMode {
     if (kReleaseMode) {
@@ -461,13 +447,6 @@ class SequenceExecutor {
 
     _startCheckpointTimer();
     _startDiskSpaceWatchdog();
-
-    if (!_useNativeExecution) {
-      _logger.warning(
-        'Legacy Dart sequencer path is deprecated; forcing backend executor for deterministic behavior',
-        source: 'SequenceExecutor',
-      );
-    }
 
     // Always use backend/native sequencer engine to avoid divergent semantics.
     //

@@ -136,26 +136,6 @@ final suggestionFilterProvider = StateProvider<SuggestionFilterState>(
   (ref) => const SuggestionFilterState(),
 );
 
-/// Applies [SuggestionFilterState] on top of [tonightSuggestionsProvider].
-///
-/// The upstream provider handles scoring, sorting, min-altitude, min-score,
-/// object-type, and sort-mode. This provider only does additional client-side
-/// filtering on the already-generated list.
-final filteredSuggestionsProvider =
-    Provider.autoDispose<AsyncValue<List<TargetSuggestion>>>((ref) {
-      final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
-      final filters = ref.watch(suggestionFilterProvider);
-
-      return suggestionsAsync.when(
-        data: (suggestions) {
-          final filtered = _applyFilters(suggestions, filters);
-          return AsyncData(filtered);
-        },
-        loading: () => const AsyncLoading(),
-        error: (error, stackTrace) => AsyncError(error, stackTrace),
-      );
-    });
-
 List<TargetSuggestion> _applyFilters(
   List<TargetSuggestion> suggestions,
   SuggestionFilterState filters,
@@ -377,7 +357,6 @@ class FilterExclusionBreakdown {
 }
 
 /// Suggestions after applying the planner filters AND the planner sort.
-/// Distinct from [filteredSuggestionsProvider] (which keeps upstream sort).
 final plannerFilteredSuggestionsProvider =
     Provider.autoDispose<AsyncValue<List<TargetSuggestion>>>((ref) {
       final suggestionsAsync = ref.watch(tonightSuggestionsProvider);

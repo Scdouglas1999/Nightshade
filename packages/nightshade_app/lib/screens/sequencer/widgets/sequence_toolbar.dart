@@ -84,14 +84,13 @@ class SequenceToolbar extends ConsumerWidget {
                 builder: (_) => const QuickStartWizardDialog(),
               );
 
-          // Smart Night auto-builder. One-click "Plan tonight"
+          // Smart Night auto-builder. One-click "Plan Tonight"
           // entry point. Always reachable while the sequencer is idle so
           // a user with a fully-connected rig can go from "I want to
-          // image something" to "press Run" in 6 clicks.
-          void openSmartNight() => showDialog(
-                context: context,
-                builder: (_) => const SmartNightDialog(),
-              );
+          // image something" to "press Run" in 6 clicks. Funnels through the
+          // canonical launcher so this matches every other "Plan Tonight"
+          // affordance in the app.
+          void openSmartNight() => showSmartNightDialog(context);
 
           List<ExposureTriggerConfig> currentExposureTriggers() {
             final exposureNodes =
@@ -336,7 +335,7 @@ class SequenceToolbar extends ConsumerWidget {
             ),
             _ToolbarAction(
               icon: LucideIcons.sparkles,
-              label: 'Plan Tonight (Smart Night)$lockedTooltipSuffix',
+              label: 'Plan Tonight$lockedTooltipSuffix',
               onPressed: canEdit ? openSmartNight : null,
             ),
             _ToolbarAction(

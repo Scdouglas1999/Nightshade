@@ -18,6 +18,7 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
 rand = "0.8"
 base64.workspace = true
 parking_lot = "0.12"
+libc = "0.2"
 nightshade_imaging = { path = "../imaging" }
 
 [dev-dependencies]

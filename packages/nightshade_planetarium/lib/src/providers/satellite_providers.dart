@@ -154,12 +154,6 @@ final currentSatellitesProvider = Provider<List<SatelliteData>>((ref) {
   return ref.watch(satellitePositionProvider).satellites;
 });
 
-/// Provider for only visible (above horizon, illuminated) satellites.
-final visibleSatellitesProvider = Provider<List<SatelliteData>>((ref) {
-  final satellites = ref.watch(currentSatellitesProvider);
-  return satellites.where((s) => s.isVisible).toList();
-});
-
 // ============================================================================
 // Pass Prediction Provider
 // ============================================================================

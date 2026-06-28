@@ -15,7 +15,11 @@ on:
 jobs:
   linux-release-build:
     name: Build Linux Release Artifact
-    runs-on: ubuntu-latest
+    # ubuntu-22.04 ships glibc 2.35, under the 2.36 Bookworm/Raspberry Pi OS
+    # floor the artifact targets — so binaries built here link symbols the
+    # appliance can resolve. Building on ubuntu-latest (glibc 2.39) produces
+    # binaries that abort on boot there (caught by the glibc-floor step below).
+    runs-on: ubuntu-22.04
     timeout-minutes: 45
 
     steps:
@@ -65,7 +69,8 @@ jobs:
       - name: Bundle native libs + verify the bridge is present
         run: |
           set -euo pipefail
-          BUNDLE_LIB="apps/desktop/build/linux/x64/release/bundle/lib"
+          BUNDLE="apps/desktop/build/linux/x64/release/bundle"
+          BUNDLE_LIB="$BUNDLE/lib"
           if [ ! -d "$BUNDLE_LIB" ]; then
             echo "Bundle lib dir not found: $BUNDLE_LIB" >&2
             exit 1
@@ -87,8 +92,65 @@ jobs:
             exit 1
           fi
           cp -Lv "$LIBRAW_PATH" "$BUNDLE_LIB/"
+          # Bundle sqlite too. sqlite3_flutter_libs dynamically links the host's
+          # libsqlite3.so.0; a bundle compiled against this runner's sqlite ABI
+          # crashes in sqlite3_initialize when loaded against a *different*
+          # system sqlite on the user's distro (e.g. a rolling-release desktop
+          # with a much newer sqlite). Ship the matching sqlite and load it via
+          # the launcher below so the app is ABI-consistent everywhere. This
+          # MUST match release.yml so the artifact this job produces is the same
+          # runnable bundle that ships (BUILD-002).
+          SQLITE_PATH="$(ldconfig -p | awk '/libsqlite3\.so\.0/ {print $NF; exit}')"
+          if [ -z "${SQLITE_PATH:-}" ] || [ ! -e "$SQLITE_PATH" ]; then
+            echo "libsqlite3.so.0 not found via ldconfig" >&2
+            exit 1
+          fi
+          cp -Lv "$SQLITE_PATH" "$BUNDLE_LIB/libsqlite3.so.0"
+          # The plugin's DT_NEEDED is "libsqlite3.so.0", but the Dart sqlite3
+          # FFI dlopens the unversioned "libsqlite3.so". Provide both names so
+          # BOTH resolve to this one bundled copy — otherwise the FFI misses the
+          # bundle, falls back to the host's libsqlite3.so, and two mismatched
+          # sqlite instances crash in sqlite3_initialize on boot.
+          ln -sf libsqlite3.so.0 "$BUNDLE_LIB/libsqlite3.so"
+          # Launcher: prepend the bundled lib/ to the loader path so the
+          # ABI-matched sqlite/libraw win over whatever the host ships. This is
+          # the recommended entry point for the desktop bundle. Written with
+          # printf (not a heredoc) so YAML block-indentation can't corrupt it.
+          {
+            printf '%s\n' '#!/usr/bin/env bash'
+            printf '%s\n' 'HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]:-$0}")")" && pwd)"'
+            printf '%s\n' 'export LD_LIBRARY_PATH="$HERE/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"'
+            printf '%s\n' 'exec "$HERE/nightshade_desktop" "$@"'
+          } > "$BUNDLE/nightshade"
+          chmod +x "$BUNDLE/nightshade"
           echo "Bundle lib contents:"
-          ls -l "$BUNDLE_LIB"
+          ls -l "$BUNDLE_LIB" "$BUNDLE/nightshade"
+
+      - name: Verify runnable-bundle parity with release.yml (sqlite + launcher)
+        run: |
+          set -euo pipefail
+          # BUILD-002 guard: this job's artifact must carry the SAME
+          # cross-distro fix release.yml ships — the ABI-matched libsqlite3,
+          # the unversioned symlink the Dart FFI dlopens, and the launcher
+          # wrapper. Fail loudly if any is missing so the two Linux artifacts
+          # can never silently diverge again.
+          BUNDLE="apps/desktop/build/linux/x64/release/bundle"
+          BUNDLE_LIB="$BUNDLE/lib"
+          fail=0
+          if [ ! -e "$BUNDLE_LIB/libsqlite3.so.0" ]; then
+            echo "MISSING: $BUNDLE_LIB/libsqlite3.so.0 (ABI-matched sqlite)" >&2; fail=1
+          fi
+          if [ ! -L "$BUNDLE_LIB/libsqlite3.so" ]; then
+            echo "MISSING: $BUNDLE_LIB/libsqlite3.so symlink (Dart FFI dlopen target)" >&2; fail=1
+          fi
+          if [ ! -x "$BUNDLE/nightshade" ]; then
+            echo "MISSING: $BUNDLE/nightshade launcher wrapper" >&2; fail=1
+          fi
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::Linux release artifact diverges from release.yml — not a runnable cross-distro bundle (BUILD-002)." >&2
+            exit 1
+          fi
+          echo "Runnable-bundle parity OK (sqlite + symlink + launcher present)."
 
       - name: Verify glibc floor (Bookworm / Raspberry Pi OS compatibility)
         run: |

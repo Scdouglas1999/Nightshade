@@ -57,6 +57,24 @@ abstract class SecretField {
   /// (see `services/sync/sync_service.dart`). Lives here so it rides the
   /// same keyring-backed store as the other transport secrets.
   static const String cloudSyncPassword = 'sync.webdav_password';
+
+  /// Cloud backup/sync — S3 secret key for an S3-compatible sync target
+  /// (AWS / MinIO / Backblaze B2; see `services/sync/sync_service.dart`).
+  /// The S3 secret key is a credential and MUST live here in the keyring,
+  /// never in `app_settings` (which rides export/backup) — exactly like
+  /// the WebDAV password. The S3 access key is non-secret and lives in
+  /// `app_settings` alongside the WebDAV username.
+  static const String cloudSyncS3SecretKey = 'sync.s3_secret_key';
+
+  /// TNS (Transient Name Server) bot API key used by the First Light
+  /// submission path to authenticate real `set/bulk-report` calls.
+  ///
+  /// This is the SUBMISSION key and MUST live in the keyring, never in
+  /// `app_settings`/science settings (those are plaintext and ride
+  /// export/backup). The unrelated plaintext `tnsApiKey` on
+  /// `TransientAlertSettings` is for the alert-INGEST side and should also move
+  /// to secure storage in a later pass; do not reuse it for submission.
+  static const String tnsApiKey = 'tns.api_key';
 }
 
 /// Minimal interface for the backing secure-storage implementation.

@@ -153,6 +153,8 @@ String _equipmentTitle(EquipmentEvent v) {
     EquipmentEvent_HeartbeatStatusChanged() => 'Heartbeat status',
     EquipmentEvent_HeartbeatReconnecting() => 'Reconnecting',
     EquipmentEvent_HeartbeatReconnected() => 'Reconnected',
+    EquipmentEvent_DeviceDiscovered() => 'Device connected',
+    EquipmentEvent_DeviceLost() => 'Device removed',
   };
 }
 
@@ -231,6 +233,12 @@ String _equipmentDetail(EquipmentEvent v) {
       afterAttempts: final n,
     ) =>
       '$t/$id after $n attempts',
+    EquipmentEvent_DeviceDiscovered(
+      deviceClass: final c,
+      displayName: final name,
+    ) =>
+      name.isNotEmpty ? '$name ($c)' : c,
+    EquipmentEvent_DeviceLost(deviceClass: final c, id: final id) => '$c · $id',
   };
 }
 

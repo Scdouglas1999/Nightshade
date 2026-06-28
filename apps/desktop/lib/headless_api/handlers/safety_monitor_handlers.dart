@@ -25,12 +25,11 @@ class SafetyMonitorHandlers {
   void _logError(String message) =>
       _logger.error(message, source: 'SafetyMonitorHandlers');
 
-  static const _kCheckIntervalKey = 'safety_check_interval_seconds';
-  static const _kWarningDelayKey = 'safety_warning_delay_seconds';
-  static const _kRequiredSafeDurationKey =
-      'safety_required_safe_duration_seconds';
-  static const _kAutoStopKey = 'safety_auto_stop_on_unsafe';
-  static const _kAutoCloseRoofKey = 'safety_auto_close_roof_on_unsafe';
+  // Safety-config persistence keys now live on the canonical
+  // [SafetyConfigStore] so the read/write routing has one owner. The
+  // last-acknowledgement key is endpoint-local (not part of SafetyConfig) and
+  // stays here.
+  static const _kWarningDelayKey = SafetyConfigStore.kWarningDelayKey;
   static const _kLastAckKey = 'safety_last_acknowledgement';
 
   String _failModeToApi(SafetyFailMode mode) => switch (mode) {
@@ -58,47 +57,24 @@ class SafetyMonitorHandlers {
     return int.tryParse(raw) ?? fallback;
   }
 
-  bool _parseBoolSetting(
-    Map<String, String> settings,
-    String key,
-    bool fallback,
-  ) {
-    final raw = settings[key];
-    if (raw == null) return fallback;
-    return raw.toLowerCase() == 'true' || raw == '1';
-  }
-
+  /// Build the `/api/safety/settings` payload from the single consolidated
+  /// [SafetyConfig]. The JSON keys/shape are unchanged — the read path that
+  /// stitches the three stores now lives behind [SafetyConfigStore.load], so
+  /// this and any other consumer can no longer compute a divergent view.
   Future<Map<String, dynamic>> _buildSettingsPayload() async {
     final appSettings = container.read(appSettingsProvider).valueOrNull;
-    final weatherSettings = container.read(weatherSettingsProvider);
-    final dao = container.read(settingsDaoProvider);
-    final stored = await dao.getAllSettings();
-
-    final failMode = appSettings?.safetyFailMode ?? SafetyFailMode.failClosed;
-    final autoParkOnUnsafe =
-        (appSettings?.parkOnUnsafeWeather ?? true) &&
-        weatherSettings.autoParkEnabled;
+    final config = await container
+        .read(safetyConfigStoreProvider)
+        .load(appSettings: appSettings);
 
     return {
-      'failMode': _failModeToApi(failMode),
-      'checkIntervalSeconds': _parseIntSetting(stored, _kCheckIntervalKey, 300),
-      'autoStopOnUnsafe': _parseBoolSetting(
-        stored,
-        _kAutoStopKey,
-        weatherSettings.weatherSafetyEnabled,
-      ),
-      'autoParkOnUnsafe': autoParkOnUnsafe,
-      'autoCloseRoofOnUnsafe': _parseBoolSetting(
-        stored,
-        _kAutoCloseRoofKey,
-        weatherSettings.weatherSafetyEnabled,
-      ),
-      'warningDelaySeconds': _parseIntSetting(stored, _kWarningDelayKey, 60),
-      'requiredSafeDurationSeconds': _parseIntSetting(
-        stored,
-        _kRequiredSafeDurationKey,
-        300,
-      ),
+      'failMode': _failModeToApi(config.safetyFailMode),
+      'checkIntervalSeconds': config.checkIntervalSeconds,
+      'autoStopOnUnsafe': config.autoStopOnUnsafe,
+      'autoParkOnUnsafe': config.autoParkOnUnsafe,
+      'autoCloseRoofOnUnsafe': config.autoCloseRoofOnUnsafe,
+      'warningDelaySeconds': config.warningDelaySeconds,
+      'requiredSafeDurationSeconds': config.requiredSafeDurationSeconds,
       'enabledMonitors': <String>[],
     };
   }
@@ -277,30 +253,28 @@ class SafetyMonitorHandlers {
     optionalInt(payload, 'requiredSafeDurationSeconds', min: 0);
 
     final settingsNotifier = container.read(appSettingsProvider.notifier);
-    final database = container.read(databaseProvider);
     final backend = container.read(sequencerBackendProvider);
-    final toPersist = <String, String>{};
+    final safetyConfig = container.read(safetyConfigStoreProvider);
 
     if (failMode != null) {
       final mode = _failModeFromApi(failMode);
+      // safety_fail_mode is owned by app_settings; the notifier setter is the
+      // canonical writer so state + persistence stay in lockstep.
       await settingsNotifier.setSafetyFailMode(mode);
       await backend.sequencerSetSafetyFailMode(_failModeToSequencer(mode));
     }
 
     final autoParkOnUnsafe = optionalBool(payload, 'autoParkOnUnsafe');
     if (autoParkOnUnsafe != null) {
+      // park_on_unsafe_weather lives in app_settings (notifier-owned) and is
+      // combined with the weather-side autoParkEnabled toggle in the facade.
       await settingsNotifier.setParkOnUnsafeWeather(autoParkOnUnsafe);
-      await database.weatherSettingsDao.updateSettings(
-        autoParkEnabled: autoParkOnUnsafe,
-      );
+      await safetyConfig.setAutoParkOnUnsafe(autoParkOnUnsafe);
     }
 
     final autoStopOnUnsafe = optionalBool(payload, 'autoStopOnUnsafe');
     if (autoStopOnUnsafe != null) {
-      await database.weatherSettingsDao.updateSettings(
-        weatherSafetyEnabled: autoStopOnUnsafe,
-      );
-      toPersist[_kAutoStopKey] = autoStopOnUnsafe.toString();
+      await safetyConfig.setAutoStopOnUnsafe(autoStopOnUnsafe);
     }
 
     final autoCloseRoofOnUnsafe = optionalBool(
@@ -308,27 +282,23 @@ class SafetyMonitorHandlers {
       'autoCloseRoofOnUnsafe',
     );
     if (autoCloseRoofOnUnsafe != null) {
-      toPersist[_kAutoCloseRoofKey] = autoCloseRoofOnUnsafe.toString();
+      await safetyConfig.setAutoCloseRoofOnUnsafe(autoCloseRoofOnUnsafe);
     }
 
     final checkInterval = optionalInt(payload, 'checkIntervalSeconds');
     if (checkInterval != null) {
       await backend.sequencerSetSafetyCheckIntervalSeconds(checkInterval);
-      toPersist[_kCheckIntervalKey] = checkInterval.toString();
+      await safetyConfig.setCheckIntervalSeconds(checkInterval);
     }
 
     final warningDelay = optionalInt(payload, 'warningDelaySeconds');
     if (warningDelay != null) {
-      toPersist[_kWarningDelayKey] = warningDelay.toString();
+      await safetyConfig.setWarningDelaySeconds(warningDelay);
     }
 
     final requiredSafe = optionalInt(payload, 'requiredSafeDurationSeconds');
     if (requiredSafe != null) {
-      toPersist[_kRequiredSafeDurationKey] = requiredSafe.toString();
-    }
-
-    if (toPersist.isNotEmpty) {
-      await container.read(settingsDaoProvider).setSettings(toPersist);
+      await safetyConfig.setRequiredSafeDurationSeconds(requiredSafe);
     }
 
     final updated = await _buildSettingsPayload();

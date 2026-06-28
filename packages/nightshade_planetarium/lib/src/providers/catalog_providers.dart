@@ -170,12 +170,6 @@ final catalogStateProvider =
       (ref) => CatalogStateNotifier(),
     );
 
-/// Provider for whether catalogs need to be downloaded
-final catalogsNeedDownloadProvider = Provider<bool>((ref) {
-  final state = ref.watch(catalogStateProvider);
-  return state.isInitialized && !state.catalogsInstalled;
-});
-
 /// Provider for the star catalog
 final starCatalogProvider = Provider<HygStarCatalog>((ref) {
   return HygStarCatalog();
@@ -196,54 +190,4 @@ final starsProvider = FutureProvider<List<Star>>((ref) async {
 final dsosProvider = FutureProvider<List<DeepSkyObject>>((ref) async {
   final catalog = ref.watch(dsoCatalogProvider);
   return catalog.loadObjects();
-});
-
-/// Provider for star count
-final starCountProvider = FutureProvider<int>((ref) async {
-  final stars = await ref.watch(starsProvider.future);
-  return stars.length;
-});
-
-/// Provider for DSO count
-final dsoCountProvider = FutureProvider<int>((ref) async {
-  final dsos = await ref.watch(dsosProvider.future);
-  return dsos.length;
-});
-
-/// Provider for searching stars
-final starSearchProvider = FutureProvider.family<List<Star>, String>((
-  ref,
-  query,
-) async {
-  if (query.isEmpty) return [];
-  final catalog = ref.watch(starCatalogProvider);
-  return catalog.search(query);
-});
-
-/// Provider for searching DSOs
-final dsoSearchProvider = FutureProvider.family<List<DeepSkyObject>, String>((
-  ref,
-  query,
-) async {
-  if (query.isEmpty) return [];
-  final catalog = ref.watch(dsoCatalogProvider);
-  return catalog.search(query);
-});
-
-/// Provider for Messier objects only
-final messierObjectsProvider = FutureProvider<List<DeepSkyObject>>((ref) async {
-  final catalog = ref.watch(dsoCatalogProvider);
-  return catalog.getMessierObjects();
-});
-
-/// Provider for bright stars (magnitude < 6.0)
-final brightStarsProvider = FutureProvider<List<Star>>((ref) async {
-  final catalog = ref.watch(starCatalogProvider);
-  return catalog.getStarsByMagnitude(6.0);
-});
-
-/// Provider for visible DSOs (magnitude < 10.0)
-final visibleDsosProvider = FutureProvider<List<DeepSkyObject>>((ref) async {
-  final catalog = ref.watch(dsoCatalogProvider);
-  return catalog.getByMagnitude(10.0);
 });

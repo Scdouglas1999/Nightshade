@@ -36,6 +36,21 @@ jobs:
         run: |
           set -euo pipefail
           pubspec_version="$(grep '^version:' apps/desktop/pubspec.yaml | head -1 | sed -E 's/^version:[[:space:]]*//; s/\+.*$//')"
+          # BUILD-001: the desktop pubspec is the artifact-version source of
+          # truth, but the mobile pubspec and version.yaml (the OTA/Linux
+          # packaging source) must denote the SAME release or the OTA manifest,
+          # the Android APK, and the desktop binary could ship mismatched
+          # versions under one tag. Fail loudly if they disagree.
+          mobile_version="$(grep '^version:' apps/mobile/pubspec.yaml | head -1 | sed -E 's/^version:[[:space:]]*//; s/\+.*$//')"
+          version_yaml="$(grep '^version:' version.yaml | head -1 | sed -E 's/^version:[[:space:]]*//; s/[" ]//g; s/#.*$//')"
+          if [ "$mobile_version" != "$pubspec_version" ]; then
+            echo "::error::apps/mobile/pubspec.yaml (${mobile_version}) does not match apps/desktop/pubspec.yaml (${pubspec_version}). Reconcile all version sources to one release."
+            exit 1
+          fi
+          if [ "$version_yaml" != "$pubspec_version" ]; then
+            echo "::error::version.yaml (${version_yaml}) does not match apps/desktop/pubspec.yaml (${pubspec_version}). version.yaml feeds the OTA/Linux packaging version; reconcile all version sources to one release."
+            exit 1
+          fi
           if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
             tag_version="${GITHUB_REF_NAME#v}"
             if [ "$tag_version" != "$pubspec_version" ]; then

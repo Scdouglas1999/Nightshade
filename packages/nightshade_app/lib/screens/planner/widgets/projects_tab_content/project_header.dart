@@ -86,7 +86,7 @@ class _ProjectHeaderBar extends StatelessWidget {
           ),
           const SizedBox(width: NightshadeTokens.spaceSm),
           NightshadeButton(
-            label: 'Plan in Smart Night',
+            label: 'Plan Tonight',
             icon: LucideIcons.sparkles,
             variant: ButtonVariant.outline,
             size: ButtonSize.small,

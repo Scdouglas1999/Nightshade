@@ -34,6 +34,37 @@ class ScienceSettings {
   /// Required for generating AAVSO Extended Format reports.
   final String aavsoObserverCode;
 
+  /// Observer name written into the MPC ADES `observers`/`measurers` /
+  /// `submitter` header blocks and the TNS `reporter` field. Free text.
+  final String observerName;
+
+  /// Astrometric reference catalog the plate-solver used (ADES `astCat`, e.g.
+  /// "Gaia2"/"Gaia3"). Empty defaults to "UNK" in the ADES report (flagged).
+  final String mpcAstrometricCatalog;
+
+  // ── TNS bot credentials (non-secret identifiers; the API key is in the
+  //    keyring via SecretField.tnsApiKey, never here). ──────────────────────
+
+  /// TNS bot id (the integer in the mandatory `tns_marker` User-Agent header).
+  final int tnsBotId;
+
+  /// TNS bot name (the `name` field in the `tns_marker` User-Agent header).
+  final String tnsBotName;
+
+  /// TNS reporting-group id (`reporting_group_id` in the at_report JSON).
+  final int tnsReportingGroupId;
+
+  /// TNS data-source / survey id (`discovery_data_source_id`).
+  final int tnsDataSourceId;
+
+  /// Free-text reporter name(s) for the TNS `reporter` field. Falls back to
+  /// [observerName] when empty.
+  final String tnsReporterName;
+
+  /// Use the TNS sandbox base URL (`sandbox.wis-tns.org`) instead of
+  /// production. Production submits create real, public AT records.
+  final bool tnsUseSandbox;
+
   /// When true, each captured light frame is evaluated against
   /// [frameGradeRulesJson] (or [FrameGradeRules.conservativeDefaults] when
   /// unset) and rejected in the database when it fails — same semantics as
@@ -62,6 +93,14 @@ class ScienceSettings {
     this.fitsHeaderWritebackEnabled = true,
     this.mpcObservatoryCode = '',
     this.aavsoObserverCode = '',
+    this.observerName = '',
+    this.mpcAstrometricCatalog = '',
+    this.tnsBotId = 0,
+    this.tnsBotName = '',
+    this.tnsReportingGroupId = 0,
+    this.tnsDataSourceId = 0,
+    this.tnsReporterName = '',
+    this.tnsUseSandbox = false,
     this.autoFrameGradingEnabled = false,
     this.frameGradeRulesJson,
     this.scienceGuideCollapsed = false,
@@ -91,6 +130,14 @@ class ScienceSettings {
     bool? fitsHeaderWritebackEnabled,
     String? mpcObservatoryCode,
     String? aavsoObserverCode,
+    String? observerName,
+    String? mpcAstrometricCatalog,
+    int? tnsBotId,
+    String? tnsBotName,
+    int? tnsReportingGroupId,
+    int? tnsDataSourceId,
+    String? tnsReporterName,
+    bool? tnsUseSandbox,
     bool? autoFrameGradingEnabled,
     String? frameGradeRulesJson,
     bool clearFrameGradeRulesJson = false,
@@ -117,6 +164,15 @@ class ScienceSettings {
           fitsHeaderWritebackEnabled ?? this.fitsHeaderWritebackEnabled,
       mpcObservatoryCode: mpcObservatoryCode ?? this.mpcObservatoryCode,
       aavsoObserverCode: aavsoObserverCode ?? this.aavsoObserverCode,
+      observerName: observerName ?? this.observerName,
+      mpcAstrometricCatalog:
+          mpcAstrometricCatalog ?? this.mpcAstrometricCatalog,
+      tnsBotId: tnsBotId ?? this.tnsBotId,
+      tnsBotName: tnsBotName ?? this.tnsBotName,
+      tnsReportingGroupId: tnsReportingGroupId ?? this.tnsReportingGroupId,
+      tnsDataSourceId: tnsDataSourceId ?? this.tnsDataSourceId,
+      tnsReporterName: tnsReporterName ?? this.tnsReporterName,
+      tnsUseSandbox: tnsUseSandbox ?? this.tnsUseSandbox,
       autoFrameGradingEnabled:
           autoFrameGradingEnabled ?? this.autoFrameGradingEnabled,
       frameGradeRulesJson: clearFrameGradeRulesJson
@@ -145,6 +201,14 @@ class ScienceSettingsNotifier extends AsyncNotifier<ScienceSettings> {
     'fitsHeaderWriteback': 'science.writeback.fits_header_enabled',
     'mpcObservatoryCode': 'science.mpc.observatory_code',
     'aavsoObserverCode': 'science.aavso.observer_code',
+    'observerName': 'science.observer.name',
+    'mpcAstrometricCatalog': 'science.mpc.ast_cat',
+    'tnsBotId': 'science.tns.bot_id',
+    'tnsBotName': 'science.tns.bot_name',
+    'tnsReportingGroupId': 'science.tns.group_id',
+    'tnsDataSourceId': 'science.tns.source_id',
+    'tnsReporterName': 'science.tns.reporter',
+    'tnsUseSandbox': 'science.tns.use_sandbox',
     'autoFrameGrading': 'science.grading.auto_enabled',
     'frameGradeRules': 'science.grading.rules_json',
     'guideCollapsed': 'science.guide.collapsed',
@@ -185,6 +249,16 @@ class ScienceSettingsNotifier extends AsyncNotifier<ScienceSettings> {
       ),
       mpcObservatoryCode: settings[_keys['mpcObservatoryCode']] ?? '',
       aavsoObserverCode: settings[_keys['aavsoObserverCode']] ?? '',
+      observerName: settings[_keys['observerName']] ?? '',
+      mpcAstrometricCatalog: settings[_keys['mpcAstrometricCatalog']] ?? '',
+      tnsBotId: int.tryParse(settings[_keys['tnsBotId']] ?? '') ?? 0,
+      tnsBotName: settings[_keys['tnsBotName']] ?? '',
+      tnsReportingGroupId:
+          int.tryParse(settings[_keys['tnsReportingGroupId']] ?? '') ?? 0,
+      tnsDataSourceId:
+          int.tryParse(settings[_keys['tnsDataSourceId']] ?? '') ?? 0,
+      tnsReporterName: settings[_keys['tnsReporterName']] ?? '',
+      tnsUseSandbox: _parseBool(settings[_keys['tnsUseSandbox']], false),
       autoFrameGradingEnabled:
           _parseBool(settings[_keys['autoFrameGrading']], false) ||
           _parseBool(settings['image_grading_enabled'], false),
@@ -314,6 +388,66 @@ class ScienceSettingsNotifier extends AsyncNotifier<ScienceSettings> {
       (state.value ?? const ScienceSettings()).copyWith(
         aavsoObserverCode: code,
       ),
+    );
+  }
+
+  Future<void> setObserverName(String name) async {
+    await _setStringSetting(_keys['observerName']!, name);
+    state = AsyncData(
+      (state.value ?? const ScienceSettings()).copyWith(observerName: name),
+    );
+  }
+
+  Future<void> setMpcAstrometricCatalog(String catalog) async {
+    await _setStringSetting(_keys['mpcAstrometricCatalog']!, catalog);
+    state = AsyncData(
+      (state.value ?? const ScienceSettings()).copyWith(
+        mpcAstrometricCatalog: catalog,
+      ),
+    );
+  }
+
+  Future<void> setTnsBotId(int id) async {
+    await _setStringSetting(_keys['tnsBotId']!, id.toString());
+    state = AsyncData(
+      (state.value ?? const ScienceSettings()).copyWith(tnsBotId: id),
+    );
+  }
+
+  Future<void> setTnsBotName(String name) async {
+    await _setStringSetting(_keys['tnsBotName']!, name);
+    state = AsyncData(
+      (state.value ?? const ScienceSettings()).copyWith(tnsBotName: name),
+    );
+  }
+
+  Future<void> setTnsReportingGroupId(int id) async {
+    await _setStringSetting(_keys['tnsReportingGroupId']!, id.toString());
+    state = AsyncData(
+      (state.value ?? const ScienceSettings()).copyWith(
+        tnsReportingGroupId: id,
+      ),
+    );
+  }
+
+  Future<void> setTnsDataSourceId(int id) async {
+    await _setStringSetting(_keys['tnsDataSourceId']!, id.toString());
+    state = AsyncData(
+      (state.value ?? const ScienceSettings()).copyWith(tnsDataSourceId: id),
+    );
+  }
+
+  Future<void> setTnsReporterName(String name) async {
+    await _setStringSetting(_keys['tnsReporterName']!, name);
+    state = AsyncData(
+      (state.value ?? const ScienceSettings()).copyWith(tnsReporterName: name),
+    );
+  }
+
+  Future<void> setTnsUseSandbox(bool enabled) async {
+    await _setSetting(_keys['tnsUseSandbox']!, enabled);
+    state = AsyncData(
+      (state.value ?? const ScienceSettings()).copyWith(tnsUseSandbox: enabled),
     );
   }
 

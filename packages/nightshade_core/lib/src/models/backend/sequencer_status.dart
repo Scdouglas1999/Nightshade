@@ -18,12 +18,23 @@ class SequencerStatus {
   /// Status message
   final String? message;
 
+  /// Live run-vitals snapshot for the in-flight run, when one is active.
+  ///
+  /// Carried on the status poll so a slave can mirror the master's Session
+  /// Vitals tile (captured/rejected/autofocus/flips/dithers/triggers and the
+  /// integration/overhead split). `null` when no run is active or the host did
+  /// not include vitals. The local executor never populates these on a slave,
+  /// so without this the slave's Vitals tile reads idle next to a live progress
+  /// bar.
+  final SequencerRunVitals? runVitals;
+
   const SequencerStatus({
     required this.state,
     this.currentNodeId,
     this.currentNodeName,
     required this.progress,
     this.message,
+    this.runVitals,
   });
 
   /// Create from JSON (for network transport)
@@ -34,6 +45,11 @@ class SequencerStatus {
       currentNodeName: json['currentNodeName'] as String?,
       progress: (json['progress'] as num).toDouble(),
       message: json['message'] as String?,
+      runVitals: json['runVitals'] is Map<String, dynamic>
+          ? SequencerRunVitals.fromJson(
+              json['runVitals'] as Map<String, dynamic>,
+            )
+          : null,
     );
   }
 
@@ -44,6 +60,7 @@ class SequencerStatus {
     'currentNodeName': currentNodeName,
     'progress': progress,
     'message': message,
+    if (runVitals != null) 'runVitals': runVitals!.toJson(),
   };
 
   /// Check if sequencer is running
@@ -54,6 +71,72 @@ class SequencerStatus {
 
   /// Check if sequencer is idle
   bool get isIdle => state == 'idle';
+}
+
+/// Live run-vitals counters mirrored from the master's in-flight
+/// `SequenceRunStats` so a slave can reconstruct its Session Vitals tile.
+///
+/// This is a flat wire shape (no provider dependency) holding exactly the
+/// counters the Vitals tile and warnings panel read; the client maps it back
+/// onto a `SequenceRunStats` in the remote sync handler.
+class SequencerRunVitals {
+  final DateTime startTime;
+  final DateTime? endTime;
+  final int framesCaptured;
+  final int framesRejected;
+  final double integrationSecs;
+  final int triggerFires;
+  final int autofocusRuns;
+  final int meridianFlips;
+  final int ditherCount;
+  final List<String> warningMessages;
+
+  const SequencerRunVitals({
+    required this.startTime,
+    this.endTime,
+    required this.framesCaptured,
+    required this.framesRejected,
+    required this.integrationSecs,
+    required this.triggerFires,
+    required this.autofocusRuns,
+    required this.meridianFlips,
+    required this.ditherCount,
+    this.warningMessages = const [],
+  });
+
+  factory SequencerRunVitals.fromJson(Map<String, dynamic> json) {
+    return SequencerRunVitals(
+      startTime:
+          DateTime.tryParse(json['startTime'] as String? ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+      endTime: json['endTime'] is String
+          ? DateTime.tryParse(json['endTime'] as String)
+          : null,
+      framesCaptured: (json['framesCaptured'] as num?)?.toInt() ?? 0,
+      framesRejected: (json['framesRejected'] as num?)?.toInt() ?? 0,
+      integrationSecs: (json['integrationSecs'] as num?)?.toDouble() ?? 0.0,
+      triggerFires: (json['triggerFires'] as num?)?.toInt() ?? 0,
+      autofocusRuns: (json['autofocusRuns'] as num?)?.toInt() ?? 0,
+      meridianFlips: (json['meridianFlips'] as num?)?.toInt() ?? 0,
+      ditherCount: (json['ditherCount'] as num?)?.toInt() ?? 0,
+      warningMessages:
+          (json['warningMessages'] as List<dynamic>?)?.cast<String>() ??
+          const [],
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'startTime': startTime.toIso8601String(),
+    if (endTime != null) 'endTime': endTime!.toIso8601String(),
+    'framesCaptured': framesCaptured,
+    'framesRejected': framesRejected,
+    'integrationSecs': integrationSecs,
+    'triggerFires': triggerFires,
+    'autofocusRuns': autofocusRuns,
+    'meridianFlips': meridianFlips,
+    'ditherCount': ditherCount,
+    'warningMessages': warningMessages,
+  };
 }
 
 /// Checkpoint information for crash recovery

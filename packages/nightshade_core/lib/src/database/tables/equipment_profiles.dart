@@ -55,6 +55,8 @@ class EquipmentProfiles extends Table {
   TextColumn get filterWheelName => text().nullable()();
   TextColumn get guiderName => text().nullable()();
   TextColumn get rotatorName => text().nullable()();
+  TextColumn get safetyMonitorName => text().nullable()();
+  TextColumn get switchName => text().nullable()();
 
   // Telescope/OTA information (separate from profile-level optical settings)
   TextColumn get telescopeName => text().nullable()();

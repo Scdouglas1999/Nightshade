@@ -5,6 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../sequencer/widgets/smart_night_dialog.dart';
+import 'smart_night_prompt_card.dart' show smartNightAutoPromptShowingProvider;
 import 'standby/last_night_recap_card.dart';
 import 'standby/moon_card.dart';
 import 'standby/night_timeline.dart';
@@ -225,17 +226,24 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _Ctas extends StatelessWidget {
+class _Ctas extends ConsumerWidget {
   final NightshadeColors colors;
 
   const _Ctas({required this.colors});
 
   @override
-  Widget build(BuildContext context) {
-    // One primary action. "Image tonight" and "Plan Tonight (advanced)" read
-    // as the same thing to a new user; the wizard is now a quiet ghost action
-    // whose verb ("Plan manually") says how it differs — you choose, instead
-    // of the app choosing for you.
+  Widget build(BuildContext context, WidgetRef ref) {
+    // One primary action. "Image tonight" launches the opinionated one-tap
+    // auto-imaging flow; "Plan Tonight" is the quiet ghost that opens the
+    // Smart Night wizard so you build a plan you can see and edit. Same verb
+    // ("Plan Tonight") as every other Smart Night entrance in the app, with a
+    // tooltip that says how it differs from the one-tap primary.
+    //
+    // Suppress this ghost while the floating Smart Night auto-prompt is on
+    // screen: that prompt is already a louder "Plan Tonight" affordance, so
+    // showing both at once is a redundant double-CTA. The primary "Image
+    // tonight" stays; the prompt remains the plan-it path until dismissed.
+    final autoPromptShowing = ref.watch(smartNightAutoPromptShowingProvider);
     return Wrap(
       spacing: NightshadeTokens.spaceSm,
       runSpacing: NightshadeTokens.spaceSm,
@@ -247,19 +255,17 @@ class _Ctas extends StatelessWidget {
           variant: ButtonVariant.primary,
           onPressed: () => context.go('/tonight'),
         ),
-        Tooltip(
-          message: 'Pick the target and exposures yourself with the '
-              'Smart Night wizard',
-          child: NightshadeButton(
-            label: 'Plan manually',
-            icon: LucideIcons.slidersHorizontal,
-            variant: ButtonVariant.ghost,
-            onPressed: () => showDialog<void>(
-              context: context,
-              builder: (_) => const SmartNightDialog(),
+        if (!autoPromptShowing)
+          Tooltip(
+            message: 'Build a plan you can see and edit — pick the target and '
+                'exposures yourself with the Smart Night wizard',
+            child: NightshadeButton(
+              label: 'Plan Tonight',
+              icon: LucideIcons.sparkles,
+              variant: ButtonVariant.ghost,
+              onPressed: () => showSmartNightDialog(context),
             ),
           ),
-        ),
       ],
     );
   }

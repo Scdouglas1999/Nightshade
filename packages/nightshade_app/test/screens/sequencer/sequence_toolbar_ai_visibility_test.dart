@@ -21,7 +21,7 @@ void main() {
     );
 
     expect(find.byTooltip('Quick-Start Wizard'), findsOneWidget);
-    expect(find.byTooltip('Plan Tonight (Smart Night)'), findsOneWidget);
+    expect(find.byTooltip('Plan Tonight'), findsOneWidget);
     expect(find.byTooltip('Conversational Builder (AI)'), findsNothing);
   });
 }

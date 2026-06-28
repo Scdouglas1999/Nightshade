@@ -245,6 +245,21 @@ void _emitSequenceCatalogUpdate({
 }
 
 /// Reload the in-editor sequence when a remote/tablet save touched the same row.
+///
+/// This is the SAVE-PATH fallback for editor-canvas parity: when the master
+/// re-saves the SAME sequence the slave currently has open AND the slave has no
+/// unsaved edits, the slave reloads it so the canvas stays in sync. Run-state +
+/// library list parity are handled elsewhere (executor events +
+/// [sequenceLibrarySyncProvider]).
+///
+/// LIVE open-canvas mirroring ("the master edits its open sequence, or opens a
+/// different one, and the slave's canvas follows in real time") is handled by
+/// the dedicated [HostMutationEntity.sequenceEditor] path:
+/// `masterSequenceEditorMirrorProvider` serializes the master's working/dirty
+/// open sequence and broadcasts it over WS, and `_applySequenceEditorMirror`
+/// applies it on the slave. This function remains as the belt-and-suspenders
+/// reload for the case where only a persisted save fired; both share the same
+/// [isDirty] clobber-guard so a slave operator's unsaved work is never lost.
 Future<void> reloadOpenSequenceIfIdle(Ref ref, int sequenceId) async {
   final current = ref.read(currentSequenceProvider);
   if (current?.databaseId != sequenceId) {

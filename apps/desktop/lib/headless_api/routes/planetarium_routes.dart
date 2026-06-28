@@ -55,4 +55,60 @@ List<HeadlessRoute> buildPlanetariumRoutes(
     '/api/planetarium/location',
     h.handleGetLocation,
   ),
+  // Observing lists (host-backed favorites/lists subsystem).
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/observing-lists',
+    h.handleGetObservingLists,
+  ),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/observing-lists/items',
+    h.handleGetObservingListItems,
+  ),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/observing-lists/listed-catalog-ids',
+    h.handleGetListedCatalogIds,
+  ),
+  HeadlessRoute(
+    HttpMethod.get,
+    '/api/observing-lists/containing',
+    h.handleGetListsContaining,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/observing-lists',
+    h.handleCreateObservingList,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/observing-lists/update',
+    h.handleUpdateObservingList,
+  ),
+  HeadlessRoute(
+    HttpMethod.delete,
+    '/api/observing-lists',
+    h.handleDeleteObservingList,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/observing-lists/duplicate',
+    h.handleDuplicateObservingList,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/observing-lists/items',
+    h.handleAddObservingListItem,
+  ),
+  HeadlessRoute(
+    HttpMethod.delete,
+    '/api/observing-lists/items',
+    h.handleRemoveObservingListItem,
+  ),
+  HeadlessRoute(
+    HttpMethod.post,
+    '/api/observing-lists/items/update-notes',
+    h.handleUpdateObservingListItemNotes,
+  ),
 ];

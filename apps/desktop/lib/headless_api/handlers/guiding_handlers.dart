@@ -18,6 +18,20 @@ class GuidingHandlers {
   void _logInfo(String message) =>
       _logger.info(message, source: 'GuidingHandlers');
 
+  Future<Response> handlePhd2IsRunning(Request request) async {
+    // Probe whether a PHD2 event server is reachable. This runs on the host,
+    // so the loopback PHD2 socket (or any host-reachable host:port) the
+    // remote client can't touch directly is probed here on its behalf.
+    final host = request.url.queryParameters['host'] ?? 'localhost';
+    final port =
+        int.tryParse(request.url.queryParameters['port'] ?? '') ?? 4400;
+
+    final backend = container.read(guidingBackendProvider);
+    final running = await backend.isPhd2Running(host: host, port: port);
+
+    return jsonOk({"running": running});
+  }
+
   Future<Response> handlePhd2Connect(Request request) async {
     _logInfo('[API] POST /api/phd2/connect');
     // Route through DeviceService so the host auto-launches PHD2 when

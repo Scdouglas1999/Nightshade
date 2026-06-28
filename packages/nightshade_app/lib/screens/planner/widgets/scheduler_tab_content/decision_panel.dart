@@ -43,17 +43,31 @@ class _DecisionPanel extends ConsumerWidget {
               Icon(LucideIcons.brain,
                   size: NightshadeTokens.iconLg, color: colors.primary),
               const SizedBox(width: NightshadeTokens.spaceSm),
-              Text(
-                'Scheduler',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize18,
-                  fontWeight: FontWeight.w700,
-                  color: colors.textPrimary,
+              Flexible(
+                child: Text(
+                  'Unattended Autopilot',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize18,
+                    fontWeight: FontWeight.w700,
+                    color: colors.textPrimary,
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: NightshadeTokens.spaceSm),
               _StateBadge(state: status.state, colors: colors),
             ],
+          ),
+          const SizedBox(height: NightshadeTokens.spaceXs),
+          Text(
+            'Runs hands-off and re-picks the best target all night as the sky '
+            'changes. For a plan you can see and edit before it runs, use '
+            'Plan Tonight instead.',
+            style: TextStyle(
+              fontSize: NightshadeTypography.fontSize12,
+              color: colors.textSecondary,
+              height: 1.35,
+            ),
           ),
           const SizedBox(height: NightshadeTokens.spaceMd),
           _CurrentTargetSummary(
@@ -133,8 +147,8 @@ class _CurrentTargetSummary extends StatelessWidget {
       return Text(
         status.state == SchedulerState.running
             ? 'No eligible target right now.'
-            : 'Scheduler is stopped. Press Start to begin evaluating '
-                'targets every 60s.',
+            : 'Autopilot is stopped. Run unattended all night to begin '
+                'evaluating targets every 60s.',
         style: TextStyle(
             fontSize: NightshadeTypography.fontSize13,
             color: colors.textSecondary),
@@ -244,11 +258,16 @@ class _ControlsRow extends StatelessWidget {
       runSpacing: 6,
       children: [
         if (status.state == SchedulerState.idle)
-          NightshadeButton(
-            label: 'Start scheduler',
-            icon: LucideIcons.play,
-            size: ButtonSize.medium,
-            onPressed: () => onStart(),
+          Tooltip(
+            message: 'Hand the night to the autopilot: it runs unattended and '
+                're-picks the best target as conditions change. This does not '
+                'build an editable plan — use Plan Tonight for that.',
+            child: NightshadeButton(
+              label: 'Run unattended all night',
+              icon: LucideIcons.play,
+              size: ButtonSize.medium,
+              onPressed: () => onStart(),
+            ),
           ),
         if (status.state == SchedulerState.running)
           NightshadeButton(
@@ -295,8 +314,8 @@ class _ReasoningList extends StatelessWidget {
     final lines = decision?.reasoning ?? const <String>[];
     if (lines.isEmpty) {
       return Text(
-        'Scheduler is stopped. Press Start to begin evaluating targets '
-        'every 60s.',
+        'Autopilot is stopped. Run unattended all night to begin evaluating '
+        'targets every 60s.',
         style: TextStyle(
             fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
       );

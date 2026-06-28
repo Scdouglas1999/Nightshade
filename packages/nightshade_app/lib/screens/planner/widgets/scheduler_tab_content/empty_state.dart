@@ -74,7 +74,10 @@ class _NoTargetsEmptyStateState extends State<_NoTargetsEmptyState> {
                 label: 'Open target catalog',
                 icon: LucideIcons.listOrdered,
                 size: ButtonSize.small,
-                onPressed: () => context.go('/planner'),
+                // The add-target / integration-goals surface is the Projects
+                // tab, not the default (Recommendation) landing page that a
+                // bare `/planner` resolves to.
+                onPressed: () => context.go('/planner?tab=projects'),
               ),
               NightshadeButton(
                 label: _learnMoreExpanded ? 'Hide details' : 'Learn more',

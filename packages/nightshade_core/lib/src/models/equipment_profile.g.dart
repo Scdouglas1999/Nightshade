@@ -42,6 +42,8 @@ _EquipmentProfile _$EquipmentProfileFromJson(Map<String, dynamic> json) =>
       filterWheelName: json['filterWheelName'] as String?,
       guiderName: json['guiderName'] as String?,
       rotatorName: json['rotatorName'] as String?,
+      safetyMonitorName: json['safetyMonitorName'] as String?,
+      switchName: json['switchName'] as String?,
       telescopeName: json['telescopeName'] as String?,
       telescopeFocalLength:
           (json['telescopeFocalLength'] as num?)?.toDouble() ?? 0.0,
@@ -95,6 +97,8 @@ Map<String, dynamic> _$EquipmentProfileToJson(_EquipmentProfile instance) =>
       'filterWheelName': instance.filterWheelName,
       'guiderName': instance.guiderName,
       'rotatorName': instance.rotatorName,
+      'safetyMonitorName': instance.safetyMonitorName,
+      'switchName': instance.switchName,
       'telescopeName': instance.telescopeName,
       'telescopeFocalLength': instance.telescopeFocalLength,
       'telescopeAperture': instance.telescopeAperture,

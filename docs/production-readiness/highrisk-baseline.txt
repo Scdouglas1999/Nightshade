@@ -25,6 +25,12 @@ native/nightshade_native/bridge/src/api/post_session.rs:1957:    let data = mast
 native/nightshade_native/bridge/src/api/secondary_rig.rs:138:    let policy = InFlightDitherPolicy::from_str_opt(&config.in_flight_policy).unwrap_or_default();
 native/nightshade_native/bridge/src/api/sequencer.rs:3084:            auth_token: s.config.auth_token.clone().unwrap_or_default(),
 native/nightshade_native/bridge/src/api/sequencer.rs:3085:            watermark_template: s.config.watermark_text.clone().unwrap_or_default(),
+native/nightshade_native/bridge/src/api/sky_atlas.rs:1446:        std::fs::remove_dir_all(&dir).ok();
+native/nightshade_native/bridge/src/api/sky_atlas.rs:1466:        std::fs::remove_dir_all(&dir).ok();
+native/nightshade_native/bridge/src/api/sky_atlas.rs:1507:        std::fs::remove_dir_all(&dir).ok();
+native/nightshade_native/bridge/src/api/sky_atlas.rs:1577:        std::fs::remove_dir_all(&dir).ok();
+native/nightshade_native/bridge/src/api/sky_atlas.rs:1618:        std::fs::remove_dir_all(&dir).ok();
+native/nightshade_native/bridge/src/api/sky_atlas.rs:1646:        std::fs::remove_dir_all(&dir).ok();
 native/nightshade_native/bridge/src/ascom_wrapper/camera.rs:1178:            .unwrap_or_default()
 native/nightshade_native/bridge/src/ascom_wrapper/camera.rs:1306:            .unwrap_or_default()
 native/nightshade_native/bridge/src/ascom_wrapper/camera.rs:1498:            Err("not implemented".to_string())

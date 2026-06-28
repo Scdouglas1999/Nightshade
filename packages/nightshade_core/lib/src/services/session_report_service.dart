@@ -171,10 +171,21 @@ class SessionReportService {
     final targetNames = <int, String>{};
     final knownIds = byTarget.keys.whereType<int>().toList(growable: false);
     if (knownIds.isNotEmpty) {
-      final all = await _targetsDao.getAllTargets();
-      for (final t in all) {
-        if (knownIds.contains(t.id)) {
-          targetNames[t.id] = t.name;
+      // On a slave the local `targets` table is empty, so resolve names through
+      // the remote-aware records repository (host `/api/targets`); otherwise the
+      // report shows "Target N" for every imaged object.
+      if (_records.isRemote) {
+        final remoteNames = await _records.getTargetNamesRemote();
+        for (final id in knownIds) {
+          final name = remoteNames[id];
+          if (name != null) targetNames[id] = name;
+        }
+      } else {
+        final all = await _targetsDao.getAllTargets();
+        for (final t in all) {
+          if (knownIds.contains(t.id)) {
+            targetNames[t.id] = t.name;
+          }
         }
       }
     }
@@ -455,7 +466,13 @@ class SessionReportService {
   Future<List<SequenceRun>> _findRelatedSequenceRuns(
     ImagingSession session,
   ) async {
-    final allRuns = await _sequenceRunsDao.getAllRuns();
+    // On a slave the local `sequence_runs` table is never populated, so reading
+    // the DAO yields []  — the mount/op counts and error/warning sections would
+    // render a confident-but-false "no flips, no autofocus, no errors". Pull the
+    // master's real run history through the remote-aware records repository.
+    final allRuns = _records.isRemote
+        ? await _records.getAllSequenceRunsRemote()
+        : await _sequenceRunsDao.getAllRuns();
     final start = session.startTime;
     final end = session.endTime ?? DateTime.now();
     return allRuns

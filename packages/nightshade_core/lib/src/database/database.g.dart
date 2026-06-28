@@ -383,6 +383,29 @@ class $EquipmentProfilesTable extends EquipmentProfiles
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _safetyMonitorNameMeta = const VerificationMeta(
+    'safetyMonitorName',
+  );
+  @override
+  late final GeneratedColumn<String> safetyMonitorName =
+      GeneratedColumn<String>(
+        'safety_monitor_name',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _switchNameMeta = const VerificationMeta(
+    'switchName',
+  );
+  @override
+  late final GeneratedColumn<String> switchName = GeneratedColumn<String>(
+    'switch_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _telescopeNameMeta = const VerificationMeta(
     'telescopeName',
   );
@@ -540,6 +563,8 @@ class $EquipmentProfilesTable extends EquipmentProfiles
     filterWheelName,
     guiderName,
     rotatorName,
+    safetyMonitorName,
+    switchName,
     telescopeName,
     telescopeFocalLength,
     telescopeAperture,
@@ -814,6 +839,21 @@ class $EquipmentProfilesTable extends EquipmentProfiles
         ),
       );
     }
+    if (data.containsKey('safety_monitor_name')) {
+      context.handle(
+        _safetyMonitorNameMeta,
+        safetyMonitorName.isAcceptableOrUnknown(
+          data['safety_monitor_name']!,
+          _safetyMonitorNameMeta,
+        ),
+      );
+    }
+    if (data.containsKey('switch_name')) {
+      context.handle(
+        _switchNameMeta,
+        switchName.isAcceptableOrUnknown(data['switch_name']!, _switchNameMeta),
+      );
+    }
     if (data.containsKey('telescope_name')) {
       context.handle(
         _telescopeNameMeta,
@@ -1030,6 +1070,14 @@ class $EquipmentProfilesTable extends EquipmentProfiles
         DriftSqlType.string,
         data['${effectivePrefix}rotator_name'],
       ),
+      safetyMonitorName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}safety_monitor_name'],
+      ),
+      switchName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}switch_name'],
+      ),
       telescopeName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}telescope_name'],
@@ -1114,6 +1162,8 @@ class EquipmentProfile extends DataClass
   final String? filterWheelName;
   final String? guiderName;
   final String? rotatorName;
+  final String? safetyMonitorName;
+  final String? switchName;
   final String? telescopeName;
   final double? telescopeFocalLength;
   final double? telescopeAperture;
@@ -1158,6 +1208,8 @@ class EquipmentProfile extends DataClass
     this.filterWheelName,
     this.guiderName,
     this.rotatorName,
+    this.safetyMonitorName,
+    this.switchName,
     this.telescopeName,
     this.telescopeFocalLength,
     this.telescopeAperture,
@@ -1258,6 +1310,12 @@ class EquipmentProfile extends DataClass
     }
     if (!nullToAbsent || rotatorName != null) {
       map['rotator_name'] = Variable<String>(rotatorName);
+    }
+    if (!nullToAbsent || safetyMonitorName != null) {
+      map['safety_monitor_name'] = Variable<String>(safetyMonitorName);
+    }
+    if (!nullToAbsent || switchName != null) {
+      map['switch_name'] = Variable<String>(switchName);
     }
     if (!nullToAbsent || telescopeName != null) {
       map['telescope_name'] = Variable<String>(telescopeName);
@@ -1369,6 +1427,12 @@ class EquipmentProfile extends DataClass
       rotatorName: rotatorName == null && nullToAbsent
           ? const Value.absent()
           : Value(rotatorName),
+      safetyMonitorName: safetyMonitorName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(safetyMonitorName),
+      switchName: switchName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(switchName),
       telescopeName: telescopeName == null && nullToAbsent
           ? const Value.absent()
           : Value(telescopeName),
@@ -1441,6 +1505,10 @@ class EquipmentProfile extends DataClass
       filterWheelName: serializer.fromJson<String?>(json['filterWheelName']),
       guiderName: serializer.fromJson<String?>(json['guiderName']),
       rotatorName: serializer.fromJson<String?>(json['rotatorName']),
+      safetyMonitorName: serializer.fromJson<String?>(
+        json['safetyMonitorName'],
+      ),
+      switchName: serializer.fromJson<String?>(json['switchName']),
       telescopeName: serializer.fromJson<String?>(json['telescopeName']),
       telescopeFocalLength: serializer.fromJson<double?>(
         json['telescopeFocalLength'],
@@ -1498,6 +1566,8 @@ class EquipmentProfile extends DataClass
       'filterWheelName': serializer.toJson<String?>(filterWheelName),
       'guiderName': serializer.toJson<String?>(guiderName),
       'rotatorName': serializer.toJson<String?>(rotatorName),
+      'safetyMonitorName': serializer.toJson<String?>(safetyMonitorName),
+      'switchName': serializer.toJson<String?>(switchName),
       'telescopeName': serializer.toJson<String?>(telescopeName),
       'telescopeFocalLength': serializer.toJson<double?>(telescopeFocalLength),
       'telescopeAperture': serializer.toJson<double?>(telescopeAperture),
@@ -1545,6 +1615,8 @@ class EquipmentProfile extends DataClass
     Value<String?> filterWheelName = const Value.absent(),
     Value<String?> guiderName = const Value.absent(),
     Value<String?> rotatorName = const Value.absent(),
+    Value<String?> safetyMonitorName = const Value.absent(),
+    Value<String?> switchName = const Value.absent(),
     Value<String?> telescopeName = const Value.absent(),
     Value<double?> telescopeFocalLength = const Value.absent(),
     Value<double?> telescopeAperture = const Value.absent(),
@@ -1607,6 +1679,10 @@ class EquipmentProfile extends DataClass
         : this.filterWheelName,
     guiderName: guiderName.present ? guiderName.value : this.guiderName,
     rotatorName: rotatorName.present ? rotatorName.value : this.rotatorName,
+    safetyMonitorName: safetyMonitorName.present
+        ? safetyMonitorName.value
+        : this.safetyMonitorName,
+    switchName: switchName.present ? switchName.value : this.switchName,
     telescopeName: telescopeName.present
         ? telescopeName.value
         : this.telescopeName,
@@ -1701,6 +1777,12 @@ class EquipmentProfile extends DataClass
       rotatorName: data.rotatorName.present
           ? data.rotatorName.value
           : this.rotatorName,
+      safetyMonitorName: data.safetyMonitorName.present
+          ? data.safetyMonitorName.value
+          : this.safetyMonitorName,
+      switchName: data.switchName.present
+          ? data.switchName.value
+          : this.switchName,
       telescopeName: data.telescopeName.present
           ? data.telescopeName.value
           : this.telescopeName,
@@ -1760,6 +1842,8 @@ class EquipmentProfile extends DataClass
           ..write('filterWheelName: $filterWheelName, ')
           ..write('guiderName: $guiderName, ')
           ..write('rotatorName: $rotatorName, ')
+          ..write('safetyMonitorName: $safetyMonitorName, ')
+          ..write('switchName: $switchName, ')
           ..write('telescopeName: $telescopeName, ')
           ..write('telescopeFocalLength: $telescopeFocalLength, ')
           ..write('telescopeAperture: $telescopeAperture, ')
@@ -1809,6 +1893,8 @@ class EquipmentProfile extends DataClass
     filterWheelName,
     guiderName,
     rotatorName,
+    safetyMonitorName,
+    switchName,
     telescopeName,
     telescopeFocalLength,
     telescopeAperture,
@@ -1857,6 +1943,8 @@ class EquipmentProfile extends DataClass
           other.filterWheelName == this.filterWheelName &&
           other.guiderName == this.guiderName &&
           other.rotatorName == this.rotatorName &&
+          other.safetyMonitorName == this.safetyMonitorName &&
+          other.switchName == this.switchName &&
           other.telescopeName == this.telescopeName &&
           other.telescopeFocalLength == this.telescopeFocalLength &&
           other.telescopeAperture == this.telescopeAperture &&
@@ -1903,6 +1991,8 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
   final Value<String?> filterWheelName;
   final Value<String?> guiderName;
   final Value<String?> rotatorName;
+  final Value<String?> safetyMonitorName;
+  final Value<String?> switchName;
   final Value<String?> telescopeName;
   final Value<double?> telescopeFocalLength;
   final Value<double?> telescopeAperture;
@@ -1947,6 +2037,8 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     this.filterWheelName = const Value.absent(),
     this.guiderName = const Value.absent(),
     this.rotatorName = const Value.absent(),
+    this.safetyMonitorName = const Value.absent(),
+    this.switchName = const Value.absent(),
     this.telescopeName = const Value.absent(),
     this.telescopeFocalLength = const Value.absent(),
     this.telescopeAperture = const Value.absent(),
@@ -1992,6 +2084,8 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     this.filterWheelName = const Value.absent(),
     this.guiderName = const Value.absent(),
     this.rotatorName = const Value.absent(),
+    this.safetyMonitorName = const Value.absent(),
+    this.switchName = const Value.absent(),
     this.telescopeName = const Value.absent(),
     this.telescopeFocalLength = const Value.absent(),
     this.telescopeAperture = const Value.absent(),
@@ -2037,6 +2131,8 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     Expression<String>? filterWheelName,
     Expression<String>? guiderName,
     Expression<String>? rotatorName,
+    Expression<String>? safetyMonitorName,
+    Expression<String>? switchName,
     Expression<String>? telescopeName,
     Expression<double>? telescopeFocalLength,
     Expression<double>? telescopeAperture,
@@ -2086,6 +2182,8 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
       if (filterWheelName != null) 'filter_wheel_name': filterWheelName,
       if (guiderName != null) 'guider_name': guiderName,
       if (rotatorName != null) 'rotator_name': rotatorName,
+      if (safetyMonitorName != null) 'safety_monitor_name': safetyMonitorName,
+      if (switchName != null) 'switch_name': switchName,
       if (telescopeName != null) 'telescope_name': telescopeName,
       if (telescopeFocalLength != null)
         'telescope_focal_length': telescopeFocalLength,
@@ -2134,6 +2232,8 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     Value<String?>? filterWheelName,
     Value<String?>? guiderName,
     Value<String?>? rotatorName,
+    Value<String?>? safetyMonitorName,
+    Value<String?>? switchName,
     Value<String?>? telescopeName,
     Value<double?>? telescopeFocalLength,
     Value<double?>? telescopeAperture,
@@ -2181,6 +2281,8 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
       filterWheelName: filterWheelName ?? this.filterWheelName,
       guiderName: guiderName ?? this.guiderName,
       rotatorName: rotatorName ?? this.rotatorName,
+      safetyMonitorName: safetyMonitorName ?? this.safetyMonitorName,
+      switchName: switchName ?? this.switchName,
       telescopeName: telescopeName ?? this.telescopeName,
       telescopeFocalLength: telescopeFocalLength ?? this.telescopeFocalLength,
       telescopeAperture: telescopeAperture ?? this.telescopeAperture,
@@ -2300,6 +2402,12 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     if (rotatorName.present) {
       map['rotator_name'] = Variable<String>(rotatorName.value);
     }
+    if (safetyMonitorName.present) {
+      map['safety_monitor_name'] = Variable<String>(safetyMonitorName.value);
+    }
+    if (switchName.present) {
+      map['switch_name'] = Variable<String>(switchName.value);
+    }
     if (telescopeName.present) {
       map['telescope_name'] = Variable<String>(telescopeName.value);
     }
@@ -2371,6 +2479,8 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
           ..write('filterWheelName: $filterWheelName, ')
           ..write('guiderName: $guiderName, ')
           ..write('rotatorName: $rotatorName, ')
+          ..write('safetyMonitorName: $safetyMonitorName, ')
+          ..write('switchName: $switchName, ')
           ..write('telescopeName: $telescopeName, ')
           ..write('telescopeFocalLength: $telescopeFocalLength, ')
           ..write('telescopeAperture: $telescopeAperture, ')
@@ -6971,6 +7081,18 @@ class $CapturedImagesTable extends CapturedImages
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _atlasFoldedAtMeta = const VerificationMeta(
+    'atlasFoldedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> atlasFoldedAt =
+      GeneratedColumn<DateTime>(
+        'atlas_folded_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _isAcceptedMeta = const VerificationMeta(
     'isAccepted',
   );
@@ -7038,6 +7160,7 @@ class $CapturedImagesTable extends CapturedImages
     solvedPixelScale,
     capturedAt,
     createdAt,
+    atlasFoldedAt,
     isAccepted,
     rejectionReason,
   ];
@@ -7334,6 +7457,15 @@ class $CapturedImagesTable extends CapturedImages
         createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
       );
     }
+    if (data.containsKey('atlas_folded_at')) {
+      context.handle(
+        _atlasFoldedAtMeta,
+        atlasFoldedAt.isAcceptableOrUnknown(
+          data['atlas_folded_at']!,
+          _atlasFoldedAtMeta,
+        ),
+      );
+    }
     if (data.containsKey('is_accepted')) {
       context.handle(
         _isAcceptedMeta,
@@ -7514,6 +7646,10 @@ class $CapturedImagesTable extends CapturedImages
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
       )!,
+      atlasFoldedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}atlas_folded_at'],
+      ),
       isAccepted: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_accepted'],
@@ -7571,6 +7707,13 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
   final double? solvedPixelScale;
   final DateTime capturedAt;
   final DateTime createdAt;
+
+  /// When this frame was folded into the personal sky atlas (Pillar A), or null
+  /// if it has not been folded. The solved-frame fold hook stamps this after a
+  /// successful fold and skips re-folding when it is already set, so a duplicate
+  /// inbound `updateCapturedImage{isPlateSolved:true}` (plausible in the
+  /// master/slave sync architecture) cannot double-count photons.
+  final DateTime? atlasFoldedAt;
   final bool isAccepted;
   final String? rejectionReason;
   const CapturedImage({
@@ -7613,6 +7756,7 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
     this.solvedPixelScale,
     required this.capturedAt,
     required this.createdAt,
+    this.atlasFoldedAt,
     required this.isAccepted,
     this.rejectionReason,
   });
@@ -7714,6 +7858,9 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
     }
     map['captured_at'] = Variable<DateTime>(capturedAt);
     map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || atlasFoldedAt != null) {
+      map['atlas_folded_at'] = Variable<DateTime>(atlasFoldedAt);
+    }
     map['is_accepted'] = Variable<bool>(isAccepted);
     if (!nullToAbsent || rejectionReason != null) {
       map['rejection_reason'] = Variable<String>(rejectionReason);
@@ -7814,6 +7961,9 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
           : Value(solvedPixelScale),
       capturedAt: Value(capturedAt),
       createdAt: Value(createdAt),
+      atlasFoldedAt: atlasFoldedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(atlasFoldedAt),
       isAccepted: Value(isAccepted),
       rejectionReason: rejectionReason == null && nullToAbsent
           ? const Value.absent()
@@ -7866,6 +8016,7 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
       solvedPixelScale: serializer.fromJson<double?>(json['solvedPixelScale']),
       capturedAt: serializer.fromJson<DateTime>(json['capturedAt']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      atlasFoldedAt: serializer.fromJson<DateTime?>(json['atlasFoldedAt']),
       isAccepted: serializer.fromJson<bool>(json['isAccepted']),
       rejectionReason: serializer.fromJson<String?>(json['rejectionReason']),
     );
@@ -7913,6 +8064,7 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
       'solvedPixelScale': serializer.toJson<double?>(solvedPixelScale),
       'capturedAt': serializer.toJson<DateTime>(capturedAt),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'atlasFoldedAt': serializer.toJson<DateTime?>(atlasFoldedAt),
       'isAccepted': serializer.toJson<bool>(isAccepted),
       'rejectionReason': serializer.toJson<String?>(rejectionReason),
     };
@@ -7958,6 +8110,7 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
     Value<double?> solvedPixelScale = const Value.absent(),
     DateTime? capturedAt,
     DateTime? createdAt,
+    Value<DateTime?> atlasFoldedAt = const Value.absent(),
     bool? isAccepted,
     Value<String?> rejectionReason = const Value.absent(),
   }) => CapturedImage(
@@ -8012,6 +8165,9 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
         : this.solvedPixelScale,
     capturedAt: capturedAt ?? this.capturedAt,
     createdAt: createdAt ?? this.createdAt,
+    atlasFoldedAt: atlasFoldedAt.present
+        ? atlasFoldedAt.value
+        : this.atlasFoldedAt,
     isAccepted: isAccepted ?? this.isAccepted,
     rejectionReason: rejectionReason.present
         ? rejectionReason.value
@@ -8094,6 +8250,9 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
           ? data.capturedAt.value
           : this.capturedAt,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      atlasFoldedAt: data.atlasFoldedAt.present
+          ? data.atlasFoldedAt.value
+          : this.atlasFoldedAt,
       isAccepted: data.isAccepted.present
           ? data.isAccepted.value
           : this.isAccepted,
@@ -8145,6 +8304,7 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
           ..write('solvedPixelScale: $solvedPixelScale, ')
           ..write('capturedAt: $capturedAt, ')
           ..write('createdAt: $createdAt, ')
+          ..write('atlasFoldedAt: $atlasFoldedAt, ')
           ..write('isAccepted: $isAccepted, ')
           ..write('rejectionReason: $rejectionReason')
           ..write(')'))
@@ -8192,6 +8352,7 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
     solvedPixelScale,
     capturedAt,
     createdAt,
+    atlasFoldedAt,
     isAccepted,
     rejectionReason,
   ]);
@@ -8238,6 +8399,7 @@ class CapturedImage extends DataClass implements Insertable<CapturedImage> {
           other.solvedPixelScale == this.solvedPixelScale &&
           other.capturedAt == this.capturedAt &&
           other.createdAt == this.createdAt &&
+          other.atlasFoldedAt == this.atlasFoldedAt &&
           other.isAccepted == this.isAccepted &&
           other.rejectionReason == this.rejectionReason);
 }
@@ -8282,6 +8444,7 @@ class CapturedImagesCompanion extends UpdateCompanion<CapturedImage> {
   final Value<double?> solvedPixelScale;
   final Value<DateTime> capturedAt;
   final Value<DateTime> createdAt;
+  final Value<DateTime?> atlasFoldedAt;
   final Value<bool> isAccepted;
   final Value<String?> rejectionReason;
   const CapturedImagesCompanion({
@@ -8324,6 +8487,7 @@ class CapturedImagesCompanion extends UpdateCompanion<CapturedImage> {
     this.solvedPixelScale = const Value.absent(),
     this.capturedAt = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.atlasFoldedAt = const Value.absent(),
     this.isAccepted = const Value.absent(),
     this.rejectionReason = const Value.absent(),
   });
@@ -8367,6 +8531,7 @@ class CapturedImagesCompanion extends UpdateCompanion<CapturedImage> {
     this.solvedPixelScale = const Value.absent(),
     required DateTime capturedAt,
     this.createdAt = const Value.absent(),
+    this.atlasFoldedAt = const Value.absent(),
     this.isAccepted = const Value.absent(),
     this.rejectionReason = const Value.absent(),
   }) : filePath = Value(filePath),
@@ -8413,6 +8578,7 @@ class CapturedImagesCompanion extends UpdateCompanion<CapturedImage> {
     Expression<double>? solvedPixelScale,
     Expression<DateTime>? capturedAt,
     Expression<DateTime>? createdAt,
+    Expression<DateTime>? atlasFoldedAt,
     Expression<bool>? isAccepted,
     Expression<String>? rejectionReason,
   }) {
@@ -8456,6 +8622,7 @@ class CapturedImagesCompanion extends UpdateCompanion<CapturedImage> {
       if (solvedPixelScale != null) 'solved_pixel_scale': solvedPixelScale,
       if (capturedAt != null) 'captured_at': capturedAt,
       if (createdAt != null) 'created_at': createdAt,
+      if (atlasFoldedAt != null) 'atlas_folded_at': atlasFoldedAt,
       if (isAccepted != null) 'is_accepted': isAccepted,
       if (rejectionReason != null) 'rejection_reason': rejectionReason,
     });
@@ -8501,6 +8668,7 @@ class CapturedImagesCompanion extends UpdateCompanion<CapturedImage> {
     Value<double?>? solvedPixelScale,
     Value<DateTime>? capturedAt,
     Value<DateTime>? createdAt,
+    Value<DateTime?>? atlasFoldedAt,
     Value<bool>? isAccepted,
     Value<String?>? rejectionReason,
   }) {
@@ -8544,6 +8712,7 @@ class CapturedImagesCompanion extends UpdateCompanion<CapturedImage> {
       solvedPixelScale: solvedPixelScale ?? this.solvedPixelScale,
       capturedAt: capturedAt ?? this.capturedAt,
       createdAt: createdAt ?? this.createdAt,
+      atlasFoldedAt: atlasFoldedAt ?? this.atlasFoldedAt,
       isAccepted: isAccepted ?? this.isAccepted,
       rejectionReason: rejectionReason ?? this.rejectionReason,
     );
@@ -8669,6 +8838,9 @@ class CapturedImagesCompanion extends UpdateCompanion<CapturedImage> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (atlasFoldedAt.present) {
+      map['atlas_folded_at'] = Variable<DateTime>(atlasFoldedAt.value);
+    }
     if (isAccepted.present) {
       map['is_accepted'] = Variable<bool>(isAccepted.value);
     }
@@ -8720,6 +8892,7 @@ class CapturedImagesCompanion extends UpdateCompanion<CapturedImage> {
           ..write('solvedPixelScale: $solvedPixelScale, ')
           ..write('capturedAt: $capturedAt, ')
           ..write('createdAt: $createdAt, ')
+          ..write('atlasFoldedAt: $atlasFoldedAt, ')
           ..write('isAccepted: $isAccepted, ')
           ..write('rejectionReason: $rejectionReason')
           ..write(')'))
@@ -28030,6 +28203,4894 @@ class NarratorEventsCompanion extends UpdateCompanion<NarratorEventRow> {
   }
 }
 
+class $SkyAtlasRegionsTable extends SkyAtlasRegions
+    with TableInfo<$SkyAtlasRegionsTable, SkyAtlasRegionRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SkyAtlasRegionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _centerRaDegMeta = const VerificationMeta(
+    'centerRaDeg',
+  );
+  @override
+  late final GeneratedColumn<double> centerRaDeg = GeneratedColumn<double>(
+    'center_ra_deg',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _centerDecDegMeta = const VerificationMeta(
+    'centerDecDeg',
+  );
+  @override
+  late final GeneratedColumn<double> centerDecDeg = GeneratedColumn<double>(
+    'center_dec_deg',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _radiusDegMeta = const VerificationMeta(
+    'radiusDeg',
+  );
+  @override
+  late final GeneratedColumn<double> radiusDeg = GeneratedColumn<double>(
+    'radius_deg',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _targetIdMeta = const VerificationMeta(
+    'targetId',
+  );
+  @override
+  late final GeneratedColumn<int> targetId = GeneratedColumn<int>(
+    'target_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES targets (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _tileCountMeta = const VerificationMeta(
+    'tileCount',
+  );
+  @override
+  late final GeneratedColumn<int> tileCount = GeneratedColumn<int>(
+    'tile_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _integrationSecondsMeta =
+      const VerificationMeta('integrationSeconds');
+  @override
+  late final GeneratedColumn<double> integrationSeconds =
+      GeneratedColumn<double>(
+        'integration_seconds',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0),
+      );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    kind,
+    centerRaDeg,
+    centerDecDeg,
+    radiusDeg,
+    targetId,
+    tileCount,
+    integrationSeconds,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'sky_atlas_regions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SkyAtlasRegionRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('center_ra_deg')) {
+      context.handle(
+        _centerRaDegMeta,
+        centerRaDeg.isAcceptableOrUnknown(
+          data['center_ra_deg']!,
+          _centerRaDegMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_centerRaDegMeta);
+    }
+    if (data.containsKey('center_dec_deg')) {
+      context.handle(
+        _centerDecDegMeta,
+        centerDecDeg.isAcceptableOrUnknown(
+          data['center_dec_deg']!,
+          _centerDecDegMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_centerDecDegMeta);
+    }
+    if (data.containsKey('radius_deg')) {
+      context.handle(
+        _radiusDegMeta,
+        radiusDeg.isAcceptableOrUnknown(data['radius_deg']!, _radiusDegMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_radiusDegMeta);
+    }
+    if (data.containsKey('target_id')) {
+      context.handle(
+        _targetIdMeta,
+        targetId.isAcceptableOrUnknown(data['target_id']!, _targetIdMeta),
+      );
+    }
+    if (data.containsKey('tile_count')) {
+      context.handle(
+        _tileCountMeta,
+        tileCount.isAcceptableOrUnknown(data['tile_count']!, _tileCountMeta),
+      );
+    }
+    if (data.containsKey('integration_seconds')) {
+      context.handle(
+        _integrationSecondsMeta,
+        integrationSeconds.isAcceptableOrUnknown(
+          data['integration_seconds']!,
+          _integrationSecondsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SkyAtlasRegionRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SkyAtlasRegionRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      centerRaDeg: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}center_ra_deg'],
+      )!,
+      centerDecDeg: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}center_dec_deg'],
+      )!,
+      radiusDeg: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}radius_deg'],
+      )!,
+      targetId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}target_id'],
+      ),
+      tileCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}tile_count'],
+      )!,
+      integrationSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}integration_seconds'],
+      )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $SkyAtlasRegionsTable createAlias(String alias) {
+    return $SkyAtlasRegionsTable(attachedDatabase, alias);
+  }
+}
+
+class SkyAtlasRegionRow extends DataClass
+    implements Insertable<SkyAtlasRegionRow> {
+  final int id;
+  final String name;
+
+  /// `target` | `mosaic` | `custom` | `polar` (stored as stable text).
+  final String kind;
+
+  /// Region center + cone radius, degrees.
+  final double centerRaDeg;
+  final double centerDecDeg;
+  final double radiusDeg;
+
+  /// The target this region tracks, if it was created from one (null when the
+  /// target was deleted, or the region is freestanding).
+  final int? targetId;
+
+  /// Denormalized rollups so the region list renders without scanning tiles.
+  final int tileCount;
+  final double integrationSeconds;
+  final DateTime createdAt;
+  const SkyAtlasRegionRow({
+    required this.id,
+    required this.name,
+    required this.kind,
+    required this.centerRaDeg,
+    required this.centerDecDeg,
+    required this.radiusDeg,
+    this.targetId,
+    required this.tileCount,
+    required this.integrationSeconds,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['name'] = Variable<String>(name);
+    map['kind'] = Variable<String>(kind);
+    map['center_ra_deg'] = Variable<double>(centerRaDeg);
+    map['center_dec_deg'] = Variable<double>(centerDecDeg);
+    map['radius_deg'] = Variable<double>(radiusDeg);
+    if (!nullToAbsent || targetId != null) {
+      map['target_id'] = Variable<int>(targetId);
+    }
+    map['tile_count'] = Variable<int>(tileCount);
+    map['integration_seconds'] = Variable<double>(integrationSeconds);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  SkyAtlasRegionsCompanion toCompanion(bool nullToAbsent) {
+    return SkyAtlasRegionsCompanion(
+      id: Value(id),
+      name: Value(name),
+      kind: Value(kind),
+      centerRaDeg: Value(centerRaDeg),
+      centerDecDeg: Value(centerDecDeg),
+      radiusDeg: Value(radiusDeg),
+      targetId: targetId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetId),
+      tileCount: Value(tileCount),
+      integrationSeconds: Value(integrationSeconds),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory SkyAtlasRegionRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SkyAtlasRegionRow(
+      id: serializer.fromJson<int>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      kind: serializer.fromJson<String>(json['kind']),
+      centerRaDeg: serializer.fromJson<double>(json['centerRaDeg']),
+      centerDecDeg: serializer.fromJson<double>(json['centerDecDeg']),
+      radiusDeg: serializer.fromJson<double>(json['radiusDeg']),
+      targetId: serializer.fromJson<int?>(json['targetId']),
+      tileCount: serializer.fromJson<int>(json['tileCount']),
+      integrationSeconds: serializer.fromJson<double>(
+        json['integrationSeconds'],
+      ),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'name': serializer.toJson<String>(name),
+      'kind': serializer.toJson<String>(kind),
+      'centerRaDeg': serializer.toJson<double>(centerRaDeg),
+      'centerDecDeg': serializer.toJson<double>(centerDecDeg),
+      'radiusDeg': serializer.toJson<double>(radiusDeg),
+      'targetId': serializer.toJson<int?>(targetId),
+      'tileCount': serializer.toJson<int>(tileCount),
+      'integrationSeconds': serializer.toJson<double>(integrationSeconds),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  SkyAtlasRegionRow copyWith({
+    int? id,
+    String? name,
+    String? kind,
+    double? centerRaDeg,
+    double? centerDecDeg,
+    double? radiusDeg,
+    Value<int?> targetId = const Value.absent(),
+    int? tileCount,
+    double? integrationSeconds,
+    DateTime? createdAt,
+  }) => SkyAtlasRegionRow(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    kind: kind ?? this.kind,
+    centerRaDeg: centerRaDeg ?? this.centerRaDeg,
+    centerDecDeg: centerDecDeg ?? this.centerDecDeg,
+    radiusDeg: radiusDeg ?? this.radiusDeg,
+    targetId: targetId.present ? targetId.value : this.targetId,
+    tileCount: tileCount ?? this.tileCount,
+    integrationSeconds: integrationSeconds ?? this.integrationSeconds,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  SkyAtlasRegionRow copyWithCompanion(SkyAtlasRegionsCompanion data) {
+    return SkyAtlasRegionRow(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      centerRaDeg: data.centerRaDeg.present
+          ? data.centerRaDeg.value
+          : this.centerRaDeg,
+      centerDecDeg: data.centerDecDeg.present
+          ? data.centerDecDeg.value
+          : this.centerDecDeg,
+      radiusDeg: data.radiusDeg.present ? data.radiusDeg.value : this.radiusDeg,
+      targetId: data.targetId.present ? data.targetId.value : this.targetId,
+      tileCount: data.tileCount.present ? data.tileCount.value : this.tileCount,
+      integrationSeconds: data.integrationSeconds.present
+          ? data.integrationSeconds.value
+          : this.integrationSeconds,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SkyAtlasRegionRow(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('kind: $kind, ')
+          ..write('centerRaDeg: $centerRaDeg, ')
+          ..write('centerDecDeg: $centerDecDeg, ')
+          ..write('radiusDeg: $radiusDeg, ')
+          ..write('targetId: $targetId, ')
+          ..write('tileCount: $tileCount, ')
+          ..write('integrationSeconds: $integrationSeconds, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    kind,
+    centerRaDeg,
+    centerDecDeg,
+    radiusDeg,
+    targetId,
+    tileCount,
+    integrationSeconds,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SkyAtlasRegionRow &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.kind == this.kind &&
+          other.centerRaDeg == this.centerRaDeg &&
+          other.centerDecDeg == this.centerDecDeg &&
+          other.radiusDeg == this.radiusDeg &&
+          other.targetId == this.targetId &&
+          other.tileCount == this.tileCount &&
+          other.integrationSeconds == this.integrationSeconds &&
+          other.createdAt == this.createdAt);
+}
+
+class SkyAtlasRegionsCompanion extends UpdateCompanion<SkyAtlasRegionRow> {
+  final Value<int> id;
+  final Value<String> name;
+  final Value<String> kind;
+  final Value<double> centerRaDeg;
+  final Value<double> centerDecDeg;
+  final Value<double> radiusDeg;
+  final Value<int?> targetId;
+  final Value<int> tileCount;
+  final Value<double> integrationSeconds;
+  final Value<DateTime> createdAt;
+  const SkyAtlasRegionsCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.centerRaDeg = const Value.absent(),
+    this.centerDecDeg = const Value.absent(),
+    this.radiusDeg = const Value.absent(),
+    this.targetId = const Value.absent(),
+    this.tileCount = const Value.absent(),
+    this.integrationSeconds = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  SkyAtlasRegionsCompanion.insert({
+    this.id = const Value.absent(),
+    required String name,
+    required String kind,
+    required double centerRaDeg,
+    required double centerDecDeg,
+    required double radiusDeg,
+    this.targetId = const Value.absent(),
+    this.tileCount = const Value.absent(),
+    this.integrationSeconds = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  }) : name = Value(name),
+       kind = Value(kind),
+       centerRaDeg = Value(centerRaDeg),
+       centerDecDeg = Value(centerDecDeg),
+       radiusDeg = Value(radiusDeg);
+  static Insertable<SkyAtlasRegionRow> custom({
+    Expression<int>? id,
+    Expression<String>? name,
+    Expression<String>? kind,
+    Expression<double>? centerRaDeg,
+    Expression<double>? centerDecDeg,
+    Expression<double>? radiusDeg,
+    Expression<int>? targetId,
+    Expression<int>? tileCount,
+    Expression<double>? integrationSeconds,
+    Expression<DateTime>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (kind != null) 'kind': kind,
+      if (centerRaDeg != null) 'center_ra_deg': centerRaDeg,
+      if (centerDecDeg != null) 'center_dec_deg': centerDecDeg,
+      if (radiusDeg != null) 'radius_deg': radiusDeg,
+      if (targetId != null) 'target_id': targetId,
+      if (tileCount != null) 'tile_count': tileCount,
+      if (integrationSeconds != null) 'integration_seconds': integrationSeconds,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  SkyAtlasRegionsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? name,
+    Value<String>? kind,
+    Value<double>? centerRaDeg,
+    Value<double>? centerDecDeg,
+    Value<double>? radiusDeg,
+    Value<int?>? targetId,
+    Value<int>? tileCount,
+    Value<double>? integrationSeconds,
+    Value<DateTime>? createdAt,
+  }) {
+    return SkyAtlasRegionsCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      kind: kind ?? this.kind,
+      centerRaDeg: centerRaDeg ?? this.centerRaDeg,
+      centerDecDeg: centerDecDeg ?? this.centerDecDeg,
+      radiusDeg: radiusDeg ?? this.radiusDeg,
+      targetId: targetId ?? this.targetId,
+      tileCount: tileCount ?? this.tileCount,
+      integrationSeconds: integrationSeconds ?? this.integrationSeconds,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (centerRaDeg.present) {
+      map['center_ra_deg'] = Variable<double>(centerRaDeg.value);
+    }
+    if (centerDecDeg.present) {
+      map['center_dec_deg'] = Variable<double>(centerDecDeg.value);
+    }
+    if (radiusDeg.present) {
+      map['radius_deg'] = Variable<double>(radiusDeg.value);
+    }
+    if (targetId.present) {
+      map['target_id'] = Variable<int>(targetId.value);
+    }
+    if (tileCount.present) {
+      map['tile_count'] = Variable<int>(tileCount.value);
+    }
+    if (integrationSeconds.present) {
+      map['integration_seconds'] = Variable<double>(integrationSeconds.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SkyAtlasRegionsCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('kind: $kind, ')
+          ..write('centerRaDeg: $centerRaDeg, ')
+          ..write('centerDecDeg: $centerDecDeg, ')
+          ..write('radiusDeg: $radiusDeg, ')
+          ..write('targetId: $targetId, ')
+          ..write('tileCount: $tileCount, ')
+          ..write('integrationSeconds: $integrationSeconds, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SkyTilesTable extends SkyTiles
+    with TableInfo<$SkyTilesTable, SkyTileRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SkyTilesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _tileIdMeta = const VerificationMeta('tileId');
+  @override
+  late final GeneratedColumn<int> tileId = GeneratedColumn<int>(
+    'tile_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _healpixOrderMeta = const VerificationMeta(
+    'healpixOrder',
+  );
+  @override
+  late final GeneratedColumn<int> healpixOrder = GeneratedColumn<int>(
+    'healpix_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _channelsMeta = const VerificationMeta(
+    'channels',
+  );
+  @override
+  late final GeneratedColumn<int> channels = GeneratedColumn<int>(
+    'channels',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _centerRaDegMeta = const VerificationMeta(
+    'centerRaDeg',
+  );
+  @override
+  late final GeneratedColumn<double> centerRaDeg = GeneratedColumn<double>(
+    'center_ra_deg',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _centerDecDegMeta = const VerificationMeta(
+    'centerDecDeg',
+  );
+  @override
+  late final GeneratedColumn<double> centerDecDeg = GeneratedColumn<double>(
+    'center_dec_deg',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _coverageMeanMeta = const VerificationMeta(
+    'coverageMean',
+  );
+  @override
+  late final GeneratedColumn<double> coverageMean = GeneratedColumn<double>(
+    'coverage_mean',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _totalFramesMeta = const VerificationMeta(
+    'totalFrames',
+  );
+  @override
+  late final GeneratedColumn<int> totalFrames = GeneratedColumn<int>(
+    'total_frames',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _integrationSecondsMeta =
+      const VerificationMeta('integrationSeconds');
+  @override
+  late final GeneratedColumn<double> integrationSeconds =
+      GeneratedColumn<double>(
+        'integration_seconds',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0),
+      );
+  static const VerificationMeta _swarmOverlayFramesMeta =
+      const VerificationMeta('swarmOverlayFrames');
+  @override
+  late final GeneratedColumn<int> swarmOverlayFrames = GeneratedColumn<int>(
+    'swarm_overlay_frames',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _swarmOverlayIntegrationSecondsMeta =
+      const VerificationMeta('swarmOverlayIntegrationSeconds');
+  @override
+  late final GeneratedColumn<double> swarmOverlayIntegrationSeconds =
+      GeneratedColumn<double>(
+        'swarm_overlay_integration_seconds',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0),
+      );
+  static const VerificationMeta _sidecarPathMeta = const VerificationMeta(
+    'sidecarPath',
+  );
+  @override
+  late final GeneratedColumn<String> sidecarPath = GeneratedColumn<String>(
+    'sidecar_path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastFoldSessionIdMeta = const VerificationMeta(
+    'lastFoldSessionId',
+  );
+  @override
+  late final GeneratedColumn<int> lastFoldSessionId = GeneratedColumn<int>(
+    'last_fold_session_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES imaging_sessions (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _lastFoldAtMeta = const VerificationMeta(
+    'lastFoldAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastFoldAt = GeneratedColumn<DateTime>(
+    'last_fold_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _regionIdMeta = const VerificationMeta(
+    'regionId',
+  );
+  @override
+  late final GeneratedColumn<int> regionId = GeneratedColumn<int>(
+    'region_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES sky_atlas_regions (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    tileId,
+    healpixOrder,
+    channels,
+    centerRaDeg,
+    centerDecDeg,
+    coverageMean,
+    totalFrames,
+    integrationSeconds,
+    swarmOverlayFrames,
+    swarmOverlayIntegrationSeconds,
+    sidecarPath,
+    lastFoldSessionId,
+    lastFoldAt,
+    regionId,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'sky_tiles';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SkyTileRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('tile_id')) {
+      context.handle(
+        _tileIdMeta,
+        tileId.isAcceptableOrUnknown(data['tile_id']!, _tileIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_tileIdMeta);
+    }
+    if (data.containsKey('healpix_order')) {
+      context.handle(
+        _healpixOrderMeta,
+        healpixOrder.isAcceptableOrUnknown(
+          data['healpix_order']!,
+          _healpixOrderMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_healpixOrderMeta);
+    }
+    if (data.containsKey('channels')) {
+      context.handle(
+        _channelsMeta,
+        channels.isAcceptableOrUnknown(data['channels']!, _channelsMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_channelsMeta);
+    }
+    if (data.containsKey('center_ra_deg')) {
+      context.handle(
+        _centerRaDegMeta,
+        centerRaDeg.isAcceptableOrUnknown(
+          data['center_ra_deg']!,
+          _centerRaDegMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_centerRaDegMeta);
+    }
+    if (data.containsKey('center_dec_deg')) {
+      context.handle(
+        _centerDecDegMeta,
+        centerDecDeg.isAcceptableOrUnknown(
+          data['center_dec_deg']!,
+          _centerDecDegMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_centerDecDegMeta);
+    }
+    if (data.containsKey('coverage_mean')) {
+      context.handle(
+        _coverageMeanMeta,
+        coverageMean.isAcceptableOrUnknown(
+          data['coverage_mean']!,
+          _coverageMeanMeta,
+        ),
+      );
+    }
+    if (data.containsKey('total_frames')) {
+      context.handle(
+        _totalFramesMeta,
+        totalFrames.isAcceptableOrUnknown(
+          data['total_frames']!,
+          _totalFramesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('integration_seconds')) {
+      context.handle(
+        _integrationSecondsMeta,
+        integrationSeconds.isAcceptableOrUnknown(
+          data['integration_seconds']!,
+          _integrationSecondsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('swarm_overlay_frames')) {
+      context.handle(
+        _swarmOverlayFramesMeta,
+        swarmOverlayFrames.isAcceptableOrUnknown(
+          data['swarm_overlay_frames']!,
+          _swarmOverlayFramesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('swarm_overlay_integration_seconds')) {
+      context.handle(
+        _swarmOverlayIntegrationSecondsMeta,
+        swarmOverlayIntegrationSeconds.isAcceptableOrUnknown(
+          data['swarm_overlay_integration_seconds']!,
+          _swarmOverlayIntegrationSecondsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('sidecar_path')) {
+      context.handle(
+        _sidecarPathMeta,
+        sidecarPath.isAcceptableOrUnknown(
+          data['sidecar_path']!,
+          _sidecarPathMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_sidecarPathMeta);
+    }
+    if (data.containsKey('last_fold_session_id')) {
+      context.handle(
+        _lastFoldSessionIdMeta,
+        lastFoldSessionId.isAcceptableOrUnknown(
+          data['last_fold_session_id']!,
+          _lastFoldSessionIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_fold_at')) {
+      context.handle(
+        _lastFoldAtMeta,
+        lastFoldAt.isAcceptableOrUnknown(
+          data['last_fold_at']!,
+          _lastFoldAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('region_id')) {
+      context.handle(
+        _regionIdMeta,
+        regionId.isAcceptableOrUnknown(data['region_id']!, _regionIdMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SkyTileRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SkyTileRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      tileId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}tile_id'],
+      )!,
+      healpixOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}healpix_order'],
+      )!,
+      channels: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}channels'],
+      )!,
+      centerRaDeg: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}center_ra_deg'],
+      )!,
+      centerDecDeg: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}center_dec_deg'],
+      )!,
+      coverageMean: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}coverage_mean'],
+      )!,
+      totalFrames: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}total_frames'],
+      )!,
+      integrationSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}integration_seconds'],
+      )!,
+      swarmOverlayFrames: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}swarm_overlay_frames'],
+      )!,
+      swarmOverlayIntegrationSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}swarm_overlay_integration_seconds'],
+      )!,
+      sidecarPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sidecar_path'],
+      )!,
+      lastFoldSessionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_fold_session_id'],
+      ),
+      lastFoldAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_fold_at'],
+      ),
+      regionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}region_id'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $SkyTilesTable createAlias(String alias) {
+    return $SkyTilesTable(attachedDatabase, alias);
+  }
+}
+
+class SkyTileRow extends DataClass implements Insertable<SkyTileRow> {
+  final int id;
+
+  /// HEALPix NESTED pixel id.
+  final int tileId;
+
+  /// HEALPix order the [tileId] was computed at (= [skyAtlasHealpixOrder] for
+  /// tiles folded by this build).
+  final int healpixOrder;
+
+  /// Channel count of the accumulator (1 = mono, 3 = colour).
+  final int channels;
+
+  /// Tile-center sky coordinates, degrees, for spatial lookup without reopening
+  /// the sidecar.
+  final double centerRaDeg;
+  final double centerDecDeg;
+
+  /// Mean sum-count across the tile's pixels — a cheap "how deep is this tile"
+  /// coverage proxy for the atlas browser.
+  final double coverageMean;
+
+  /// Running totals across every fold into this tile.
+  final int totalFrames;
+  final double integrationSeconds;
+
+  /// Blended community ("swarm") depth pulled into the separate overlay sidecar
+  /// for DISPLAY only — kept OUT of [totalFrames]/[integrationSeconds] so the
+  /// own-light contribution math (and the "your contribution" bar) stays honest
+  /// after a pull. `mergeSwarmDelta` writes these from the overlay tree; the
+  /// Your Sky co-add view adds them on top of own-light for display.
+  final int swarmOverlayFrames;
+  final double swarmOverlayIntegrationSeconds;
+
+  /// Path to the on-disk `.nst` streaming accumulator sidecar.
+  final String sidecarPath;
+
+  /// The session whose fold last touched this tile (null when that session was
+  /// deleted, or the fold was sessionless).
+  final int? lastFoldSessionId;
+  final DateTime? lastFoldAt;
+
+  /// The region this tile belongs to, if any (null = orphan / not yet grouped).
+  final int? regionId;
+  final DateTime createdAt;
+  const SkyTileRow({
+    required this.id,
+    required this.tileId,
+    required this.healpixOrder,
+    required this.channels,
+    required this.centerRaDeg,
+    required this.centerDecDeg,
+    required this.coverageMean,
+    required this.totalFrames,
+    required this.integrationSeconds,
+    required this.swarmOverlayFrames,
+    required this.swarmOverlayIntegrationSeconds,
+    required this.sidecarPath,
+    this.lastFoldSessionId,
+    this.lastFoldAt,
+    this.regionId,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['tile_id'] = Variable<int>(tileId);
+    map['healpix_order'] = Variable<int>(healpixOrder);
+    map['channels'] = Variable<int>(channels);
+    map['center_ra_deg'] = Variable<double>(centerRaDeg);
+    map['center_dec_deg'] = Variable<double>(centerDecDeg);
+    map['coverage_mean'] = Variable<double>(coverageMean);
+    map['total_frames'] = Variable<int>(totalFrames);
+    map['integration_seconds'] = Variable<double>(integrationSeconds);
+    map['swarm_overlay_frames'] = Variable<int>(swarmOverlayFrames);
+    map['swarm_overlay_integration_seconds'] = Variable<double>(
+      swarmOverlayIntegrationSeconds,
+    );
+    map['sidecar_path'] = Variable<String>(sidecarPath);
+    if (!nullToAbsent || lastFoldSessionId != null) {
+      map['last_fold_session_id'] = Variable<int>(lastFoldSessionId);
+    }
+    if (!nullToAbsent || lastFoldAt != null) {
+      map['last_fold_at'] = Variable<DateTime>(lastFoldAt);
+    }
+    if (!nullToAbsent || regionId != null) {
+      map['region_id'] = Variable<int>(regionId);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  SkyTilesCompanion toCompanion(bool nullToAbsent) {
+    return SkyTilesCompanion(
+      id: Value(id),
+      tileId: Value(tileId),
+      healpixOrder: Value(healpixOrder),
+      channels: Value(channels),
+      centerRaDeg: Value(centerRaDeg),
+      centerDecDeg: Value(centerDecDeg),
+      coverageMean: Value(coverageMean),
+      totalFrames: Value(totalFrames),
+      integrationSeconds: Value(integrationSeconds),
+      swarmOverlayFrames: Value(swarmOverlayFrames),
+      swarmOverlayIntegrationSeconds: Value(swarmOverlayIntegrationSeconds),
+      sidecarPath: Value(sidecarPath),
+      lastFoldSessionId: lastFoldSessionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastFoldSessionId),
+      lastFoldAt: lastFoldAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastFoldAt),
+      regionId: regionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(regionId),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory SkyTileRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SkyTileRow(
+      id: serializer.fromJson<int>(json['id']),
+      tileId: serializer.fromJson<int>(json['tileId']),
+      healpixOrder: serializer.fromJson<int>(json['healpixOrder']),
+      channels: serializer.fromJson<int>(json['channels']),
+      centerRaDeg: serializer.fromJson<double>(json['centerRaDeg']),
+      centerDecDeg: serializer.fromJson<double>(json['centerDecDeg']),
+      coverageMean: serializer.fromJson<double>(json['coverageMean']),
+      totalFrames: serializer.fromJson<int>(json['totalFrames']),
+      integrationSeconds: serializer.fromJson<double>(
+        json['integrationSeconds'],
+      ),
+      swarmOverlayFrames: serializer.fromJson<int>(json['swarmOverlayFrames']),
+      swarmOverlayIntegrationSeconds: serializer.fromJson<double>(
+        json['swarmOverlayIntegrationSeconds'],
+      ),
+      sidecarPath: serializer.fromJson<String>(json['sidecarPath']),
+      lastFoldSessionId: serializer.fromJson<int?>(json['lastFoldSessionId']),
+      lastFoldAt: serializer.fromJson<DateTime?>(json['lastFoldAt']),
+      regionId: serializer.fromJson<int?>(json['regionId']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'tileId': serializer.toJson<int>(tileId),
+      'healpixOrder': serializer.toJson<int>(healpixOrder),
+      'channels': serializer.toJson<int>(channels),
+      'centerRaDeg': serializer.toJson<double>(centerRaDeg),
+      'centerDecDeg': serializer.toJson<double>(centerDecDeg),
+      'coverageMean': serializer.toJson<double>(coverageMean),
+      'totalFrames': serializer.toJson<int>(totalFrames),
+      'integrationSeconds': serializer.toJson<double>(integrationSeconds),
+      'swarmOverlayFrames': serializer.toJson<int>(swarmOverlayFrames),
+      'swarmOverlayIntegrationSeconds': serializer.toJson<double>(
+        swarmOverlayIntegrationSeconds,
+      ),
+      'sidecarPath': serializer.toJson<String>(sidecarPath),
+      'lastFoldSessionId': serializer.toJson<int?>(lastFoldSessionId),
+      'lastFoldAt': serializer.toJson<DateTime?>(lastFoldAt),
+      'regionId': serializer.toJson<int?>(regionId),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  SkyTileRow copyWith({
+    int? id,
+    int? tileId,
+    int? healpixOrder,
+    int? channels,
+    double? centerRaDeg,
+    double? centerDecDeg,
+    double? coverageMean,
+    int? totalFrames,
+    double? integrationSeconds,
+    int? swarmOverlayFrames,
+    double? swarmOverlayIntegrationSeconds,
+    String? sidecarPath,
+    Value<int?> lastFoldSessionId = const Value.absent(),
+    Value<DateTime?> lastFoldAt = const Value.absent(),
+    Value<int?> regionId = const Value.absent(),
+    DateTime? createdAt,
+  }) => SkyTileRow(
+    id: id ?? this.id,
+    tileId: tileId ?? this.tileId,
+    healpixOrder: healpixOrder ?? this.healpixOrder,
+    channels: channels ?? this.channels,
+    centerRaDeg: centerRaDeg ?? this.centerRaDeg,
+    centerDecDeg: centerDecDeg ?? this.centerDecDeg,
+    coverageMean: coverageMean ?? this.coverageMean,
+    totalFrames: totalFrames ?? this.totalFrames,
+    integrationSeconds: integrationSeconds ?? this.integrationSeconds,
+    swarmOverlayFrames: swarmOverlayFrames ?? this.swarmOverlayFrames,
+    swarmOverlayIntegrationSeconds:
+        swarmOverlayIntegrationSeconds ?? this.swarmOverlayIntegrationSeconds,
+    sidecarPath: sidecarPath ?? this.sidecarPath,
+    lastFoldSessionId: lastFoldSessionId.present
+        ? lastFoldSessionId.value
+        : this.lastFoldSessionId,
+    lastFoldAt: lastFoldAt.present ? lastFoldAt.value : this.lastFoldAt,
+    regionId: regionId.present ? regionId.value : this.regionId,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  SkyTileRow copyWithCompanion(SkyTilesCompanion data) {
+    return SkyTileRow(
+      id: data.id.present ? data.id.value : this.id,
+      tileId: data.tileId.present ? data.tileId.value : this.tileId,
+      healpixOrder: data.healpixOrder.present
+          ? data.healpixOrder.value
+          : this.healpixOrder,
+      channels: data.channels.present ? data.channels.value : this.channels,
+      centerRaDeg: data.centerRaDeg.present
+          ? data.centerRaDeg.value
+          : this.centerRaDeg,
+      centerDecDeg: data.centerDecDeg.present
+          ? data.centerDecDeg.value
+          : this.centerDecDeg,
+      coverageMean: data.coverageMean.present
+          ? data.coverageMean.value
+          : this.coverageMean,
+      totalFrames: data.totalFrames.present
+          ? data.totalFrames.value
+          : this.totalFrames,
+      integrationSeconds: data.integrationSeconds.present
+          ? data.integrationSeconds.value
+          : this.integrationSeconds,
+      swarmOverlayFrames: data.swarmOverlayFrames.present
+          ? data.swarmOverlayFrames.value
+          : this.swarmOverlayFrames,
+      swarmOverlayIntegrationSeconds:
+          data.swarmOverlayIntegrationSeconds.present
+          ? data.swarmOverlayIntegrationSeconds.value
+          : this.swarmOverlayIntegrationSeconds,
+      sidecarPath: data.sidecarPath.present
+          ? data.sidecarPath.value
+          : this.sidecarPath,
+      lastFoldSessionId: data.lastFoldSessionId.present
+          ? data.lastFoldSessionId.value
+          : this.lastFoldSessionId,
+      lastFoldAt: data.lastFoldAt.present
+          ? data.lastFoldAt.value
+          : this.lastFoldAt,
+      regionId: data.regionId.present ? data.regionId.value : this.regionId,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SkyTileRow(')
+          ..write('id: $id, ')
+          ..write('tileId: $tileId, ')
+          ..write('healpixOrder: $healpixOrder, ')
+          ..write('channels: $channels, ')
+          ..write('centerRaDeg: $centerRaDeg, ')
+          ..write('centerDecDeg: $centerDecDeg, ')
+          ..write('coverageMean: $coverageMean, ')
+          ..write('totalFrames: $totalFrames, ')
+          ..write('integrationSeconds: $integrationSeconds, ')
+          ..write('swarmOverlayFrames: $swarmOverlayFrames, ')
+          ..write(
+            'swarmOverlayIntegrationSeconds: $swarmOverlayIntegrationSeconds, ',
+          )
+          ..write('sidecarPath: $sidecarPath, ')
+          ..write('lastFoldSessionId: $lastFoldSessionId, ')
+          ..write('lastFoldAt: $lastFoldAt, ')
+          ..write('regionId: $regionId, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    tileId,
+    healpixOrder,
+    channels,
+    centerRaDeg,
+    centerDecDeg,
+    coverageMean,
+    totalFrames,
+    integrationSeconds,
+    swarmOverlayFrames,
+    swarmOverlayIntegrationSeconds,
+    sidecarPath,
+    lastFoldSessionId,
+    lastFoldAt,
+    regionId,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SkyTileRow &&
+          other.id == this.id &&
+          other.tileId == this.tileId &&
+          other.healpixOrder == this.healpixOrder &&
+          other.channels == this.channels &&
+          other.centerRaDeg == this.centerRaDeg &&
+          other.centerDecDeg == this.centerDecDeg &&
+          other.coverageMean == this.coverageMean &&
+          other.totalFrames == this.totalFrames &&
+          other.integrationSeconds == this.integrationSeconds &&
+          other.swarmOverlayFrames == this.swarmOverlayFrames &&
+          other.swarmOverlayIntegrationSeconds ==
+              this.swarmOverlayIntegrationSeconds &&
+          other.sidecarPath == this.sidecarPath &&
+          other.lastFoldSessionId == this.lastFoldSessionId &&
+          other.lastFoldAt == this.lastFoldAt &&
+          other.regionId == this.regionId &&
+          other.createdAt == this.createdAt);
+}
+
+class SkyTilesCompanion extends UpdateCompanion<SkyTileRow> {
+  final Value<int> id;
+  final Value<int> tileId;
+  final Value<int> healpixOrder;
+  final Value<int> channels;
+  final Value<double> centerRaDeg;
+  final Value<double> centerDecDeg;
+  final Value<double> coverageMean;
+  final Value<int> totalFrames;
+  final Value<double> integrationSeconds;
+  final Value<int> swarmOverlayFrames;
+  final Value<double> swarmOverlayIntegrationSeconds;
+  final Value<String> sidecarPath;
+  final Value<int?> lastFoldSessionId;
+  final Value<DateTime?> lastFoldAt;
+  final Value<int?> regionId;
+  final Value<DateTime> createdAt;
+  const SkyTilesCompanion({
+    this.id = const Value.absent(),
+    this.tileId = const Value.absent(),
+    this.healpixOrder = const Value.absent(),
+    this.channels = const Value.absent(),
+    this.centerRaDeg = const Value.absent(),
+    this.centerDecDeg = const Value.absent(),
+    this.coverageMean = const Value.absent(),
+    this.totalFrames = const Value.absent(),
+    this.integrationSeconds = const Value.absent(),
+    this.swarmOverlayFrames = const Value.absent(),
+    this.swarmOverlayIntegrationSeconds = const Value.absent(),
+    this.sidecarPath = const Value.absent(),
+    this.lastFoldSessionId = const Value.absent(),
+    this.lastFoldAt = const Value.absent(),
+    this.regionId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  SkyTilesCompanion.insert({
+    this.id = const Value.absent(),
+    required int tileId,
+    required int healpixOrder,
+    required int channels,
+    required double centerRaDeg,
+    required double centerDecDeg,
+    this.coverageMean = const Value.absent(),
+    this.totalFrames = const Value.absent(),
+    this.integrationSeconds = const Value.absent(),
+    this.swarmOverlayFrames = const Value.absent(),
+    this.swarmOverlayIntegrationSeconds = const Value.absent(),
+    required String sidecarPath,
+    this.lastFoldSessionId = const Value.absent(),
+    this.lastFoldAt = const Value.absent(),
+    this.regionId = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  }) : tileId = Value(tileId),
+       healpixOrder = Value(healpixOrder),
+       channels = Value(channels),
+       centerRaDeg = Value(centerRaDeg),
+       centerDecDeg = Value(centerDecDeg),
+       sidecarPath = Value(sidecarPath);
+  static Insertable<SkyTileRow> custom({
+    Expression<int>? id,
+    Expression<int>? tileId,
+    Expression<int>? healpixOrder,
+    Expression<int>? channels,
+    Expression<double>? centerRaDeg,
+    Expression<double>? centerDecDeg,
+    Expression<double>? coverageMean,
+    Expression<int>? totalFrames,
+    Expression<double>? integrationSeconds,
+    Expression<int>? swarmOverlayFrames,
+    Expression<double>? swarmOverlayIntegrationSeconds,
+    Expression<String>? sidecarPath,
+    Expression<int>? lastFoldSessionId,
+    Expression<DateTime>? lastFoldAt,
+    Expression<int>? regionId,
+    Expression<DateTime>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (tileId != null) 'tile_id': tileId,
+      if (healpixOrder != null) 'healpix_order': healpixOrder,
+      if (channels != null) 'channels': channels,
+      if (centerRaDeg != null) 'center_ra_deg': centerRaDeg,
+      if (centerDecDeg != null) 'center_dec_deg': centerDecDeg,
+      if (coverageMean != null) 'coverage_mean': coverageMean,
+      if (totalFrames != null) 'total_frames': totalFrames,
+      if (integrationSeconds != null) 'integration_seconds': integrationSeconds,
+      if (swarmOverlayFrames != null)
+        'swarm_overlay_frames': swarmOverlayFrames,
+      if (swarmOverlayIntegrationSeconds != null)
+        'swarm_overlay_integration_seconds': swarmOverlayIntegrationSeconds,
+      if (sidecarPath != null) 'sidecar_path': sidecarPath,
+      if (lastFoldSessionId != null) 'last_fold_session_id': lastFoldSessionId,
+      if (lastFoldAt != null) 'last_fold_at': lastFoldAt,
+      if (regionId != null) 'region_id': regionId,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  SkyTilesCompanion copyWith({
+    Value<int>? id,
+    Value<int>? tileId,
+    Value<int>? healpixOrder,
+    Value<int>? channels,
+    Value<double>? centerRaDeg,
+    Value<double>? centerDecDeg,
+    Value<double>? coverageMean,
+    Value<int>? totalFrames,
+    Value<double>? integrationSeconds,
+    Value<int>? swarmOverlayFrames,
+    Value<double>? swarmOverlayIntegrationSeconds,
+    Value<String>? sidecarPath,
+    Value<int?>? lastFoldSessionId,
+    Value<DateTime?>? lastFoldAt,
+    Value<int?>? regionId,
+    Value<DateTime>? createdAt,
+  }) {
+    return SkyTilesCompanion(
+      id: id ?? this.id,
+      tileId: tileId ?? this.tileId,
+      healpixOrder: healpixOrder ?? this.healpixOrder,
+      channels: channels ?? this.channels,
+      centerRaDeg: centerRaDeg ?? this.centerRaDeg,
+      centerDecDeg: centerDecDeg ?? this.centerDecDeg,
+      coverageMean: coverageMean ?? this.coverageMean,
+      totalFrames: totalFrames ?? this.totalFrames,
+      integrationSeconds: integrationSeconds ?? this.integrationSeconds,
+      swarmOverlayFrames: swarmOverlayFrames ?? this.swarmOverlayFrames,
+      swarmOverlayIntegrationSeconds:
+          swarmOverlayIntegrationSeconds ?? this.swarmOverlayIntegrationSeconds,
+      sidecarPath: sidecarPath ?? this.sidecarPath,
+      lastFoldSessionId: lastFoldSessionId ?? this.lastFoldSessionId,
+      lastFoldAt: lastFoldAt ?? this.lastFoldAt,
+      regionId: regionId ?? this.regionId,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (tileId.present) {
+      map['tile_id'] = Variable<int>(tileId.value);
+    }
+    if (healpixOrder.present) {
+      map['healpix_order'] = Variable<int>(healpixOrder.value);
+    }
+    if (channels.present) {
+      map['channels'] = Variable<int>(channels.value);
+    }
+    if (centerRaDeg.present) {
+      map['center_ra_deg'] = Variable<double>(centerRaDeg.value);
+    }
+    if (centerDecDeg.present) {
+      map['center_dec_deg'] = Variable<double>(centerDecDeg.value);
+    }
+    if (coverageMean.present) {
+      map['coverage_mean'] = Variable<double>(coverageMean.value);
+    }
+    if (totalFrames.present) {
+      map['total_frames'] = Variable<int>(totalFrames.value);
+    }
+    if (integrationSeconds.present) {
+      map['integration_seconds'] = Variable<double>(integrationSeconds.value);
+    }
+    if (swarmOverlayFrames.present) {
+      map['swarm_overlay_frames'] = Variable<int>(swarmOverlayFrames.value);
+    }
+    if (swarmOverlayIntegrationSeconds.present) {
+      map['swarm_overlay_integration_seconds'] = Variable<double>(
+        swarmOverlayIntegrationSeconds.value,
+      );
+    }
+    if (sidecarPath.present) {
+      map['sidecar_path'] = Variable<String>(sidecarPath.value);
+    }
+    if (lastFoldSessionId.present) {
+      map['last_fold_session_id'] = Variable<int>(lastFoldSessionId.value);
+    }
+    if (lastFoldAt.present) {
+      map['last_fold_at'] = Variable<DateTime>(lastFoldAt.value);
+    }
+    if (regionId.present) {
+      map['region_id'] = Variable<int>(regionId.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SkyTilesCompanion(')
+          ..write('id: $id, ')
+          ..write('tileId: $tileId, ')
+          ..write('healpixOrder: $healpixOrder, ')
+          ..write('channels: $channels, ')
+          ..write('centerRaDeg: $centerRaDeg, ')
+          ..write('centerDecDeg: $centerDecDeg, ')
+          ..write('coverageMean: $coverageMean, ')
+          ..write('totalFrames: $totalFrames, ')
+          ..write('integrationSeconds: $integrationSeconds, ')
+          ..write('swarmOverlayFrames: $swarmOverlayFrames, ')
+          ..write(
+            'swarmOverlayIntegrationSeconds: $swarmOverlayIntegrationSeconds, ',
+          )
+          ..write('sidecarPath: $sidecarPath, ')
+          ..write('lastFoldSessionId: $lastFoldSessionId, ')
+          ..write('lastFoldAt: $lastFoldAt, ')
+          ..write('regionId: $regionId, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $SkyAtlasFoldsTable extends SkyAtlasFolds
+    with TableInfo<$SkyAtlasFoldsTable, SkyAtlasFoldRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SkyAtlasFoldsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _tileIdMeta = const VerificationMeta('tileId');
+  @override
+  late final GeneratedColumn<int> tileId = GeneratedColumn<int>(
+    'tile_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _healpixOrderMeta = const VerificationMeta(
+    'healpixOrder',
+  );
+  @override
+  late final GeneratedColumn<int> healpixOrder = GeneratedColumn<int>(
+    'healpix_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _sessionIdMeta = const VerificationMeta(
+    'sessionId',
+  );
+  @override
+  late final GeneratedColumn<int> sessionId = GeneratedColumn<int>(
+    'session_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES imaging_sessions (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _foldedAtMeta = const VerificationMeta(
+    'foldedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> foldedAt = GeneratedColumn<DateTime>(
+    'folded_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _framesAddedMeta = const VerificationMeta(
+    'framesAdded',
+  );
+  @override
+  late final GeneratedColumn<int> framesAdded = GeneratedColumn<int>(
+    'frames_added',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _weightAddedMeta = const VerificationMeta(
+    'weightAdded',
+  );
+  @override
+  late final GeneratedColumn<double> weightAdded = GeneratedColumn<double>(
+    'weight_added',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _integrationSecondsAddedMeta =
+      const VerificationMeta('integrationSecondsAdded');
+  @override
+  late final GeneratedColumn<double> integrationSecondsAdded =
+      GeneratedColumn<double>(
+        'integration_seconds_added',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: true,
+      );
+  static const VerificationMeta _rejectedMeta = const VerificationMeta(
+    'rejected',
+  );
+  @override
+  late final GeneratedColumn<int> rejected = GeneratedColumn<int>(
+    'rejected',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _contributorMeta = const VerificationMeta(
+    'contributor',
+  );
+  @override
+  late final GeneratedColumn<String> contributor = GeneratedColumn<String>(
+    'contributor',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _labelMeta = const VerificationMeta('label');
+  @override
+  late final GeneratedColumn<String> label = GeneratedColumn<String>(
+    'label',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    tileId,
+    healpixOrder,
+    sessionId,
+    foldedAt,
+    framesAdded,
+    weightAdded,
+    integrationSecondsAdded,
+    rejected,
+    contributor,
+    label,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'sky_atlas_folds';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<SkyAtlasFoldRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('tile_id')) {
+      context.handle(
+        _tileIdMeta,
+        tileId.isAcceptableOrUnknown(data['tile_id']!, _tileIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_tileIdMeta);
+    }
+    if (data.containsKey('healpix_order')) {
+      context.handle(
+        _healpixOrderMeta,
+        healpixOrder.isAcceptableOrUnknown(
+          data['healpix_order']!,
+          _healpixOrderMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_healpixOrderMeta);
+    }
+    if (data.containsKey('session_id')) {
+      context.handle(
+        _sessionIdMeta,
+        sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta),
+      );
+    }
+    if (data.containsKey('folded_at')) {
+      context.handle(
+        _foldedAtMeta,
+        foldedAt.isAcceptableOrUnknown(data['folded_at']!, _foldedAtMeta),
+      );
+    }
+    if (data.containsKey('frames_added')) {
+      context.handle(
+        _framesAddedMeta,
+        framesAdded.isAcceptableOrUnknown(
+          data['frames_added']!,
+          _framesAddedMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_framesAddedMeta);
+    }
+    if (data.containsKey('weight_added')) {
+      context.handle(
+        _weightAddedMeta,
+        weightAdded.isAcceptableOrUnknown(
+          data['weight_added']!,
+          _weightAddedMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_weightAddedMeta);
+    }
+    if (data.containsKey('integration_seconds_added')) {
+      context.handle(
+        _integrationSecondsAddedMeta,
+        integrationSecondsAdded.isAcceptableOrUnknown(
+          data['integration_seconds_added']!,
+          _integrationSecondsAddedMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_integrationSecondsAddedMeta);
+    }
+    if (data.containsKey('rejected')) {
+      context.handle(
+        _rejectedMeta,
+        rejected.isAcceptableOrUnknown(data['rejected']!, _rejectedMeta),
+      );
+    }
+    if (data.containsKey('contributor')) {
+      context.handle(
+        _contributorMeta,
+        contributor.isAcceptableOrUnknown(
+          data['contributor']!,
+          _contributorMeta,
+        ),
+      );
+    }
+    if (data.containsKey('label')) {
+      context.handle(
+        _labelMeta,
+        label.isAcceptableOrUnknown(data['label']!, _labelMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_labelMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  SkyAtlasFoldRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return SkyAtlasFoldRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      tileId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}tile_id'],
+      )!,
+      healpixOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}healpix_order'],
+      )!,
+      sessionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}session_id'],
+      ),
+      foldedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}folded_at'],
+      )!,
+      framesAdded: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}frames_added'],
+      )!,
+      weightAdded: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}weight_added'],
+      )!,
+      integrationSecondsAdded: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}integration_seconds_added'],
+      )!,
+      rejected: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}rejected'],
+      )!,
+      contributor: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}contributor'],
+      )!,
+      label: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}label'],
+      )!,
+    );
+  }
+
+  @override
+  $SkyAtlasFoldsTable createAlias(String alias) {
+    return $SkyAtlasFoldsTable(attachedDatabase, alias);
+  }
+}
+
+class SkyAtlasFoldRow extends DataClass implements Insertable<SkyAtlasFoldRow> {
+  final int id;
+
+  /// HEALPix NESTED pixel id + order the fold targeted (mirrors [SkyTiles] so
+  /// the timeline is walkable without a join through the tile row).
+  final int tileId;
+  final int healpixOrder;
+
+  /// The session that contributed this fold (null when sessionless, or when
+  /// that session was later deleted).
+  final int? sessionId;
+  final DateTime foldedAt;
+
+  /// What this fold added to the tile.
+  final int framesAdded;
+  final double weightAdded;
+  final double integrationSecondsAdded;
+
+  /// Frames rejected by the accumulator's clipping during this fold.
+  final int rejected;
+
+  /// Originating contributor — empty for local folds, a hub identity for
+  /// constellation pulls.
+  final String contributor;
+
+  /// Short human label for the fold (e.g. the session name or "swarm pull").
+  final String label;
+  const SkyAtlasFoldRow({
+    required this.id,
+    required this.tileId,
+    required this.healpixOrder,
+    this.sessionId,
+    required this.foldedAt,
+    required this.framesAdded,
+    required this.weightAdded,
+    required this.integrationSecondsAdded,
+    required this.rejected,
+    required this.contributor,
+    required this.label,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['tile_id'] = Variable<int>(tileId);
+    map['healpix_order'] = Variable<int>(healpixOrder);
+    if (!nullToAbsent || sessionId != null) {
+      map['session_id'] = Variable<int>(sessionId);
+    }
+    map['folded_at'] = Variable<DateTime>(foldedAt);
+    map['frames_added'] = Variable<int>(framesAdded);
+    map['weight_added'] = Variable<double>(weightAdded);
+    map['integration_seconds_added'] = Variable<double>(
+      integrationSecondsAdded,
+    );
+    map['rejected'] = Variable<int>(rejected);
+    map['contributor'] = Variable<String>(contributor);
+    map['label'] = Variable<String>(label);
+    return map;
+  }
+
+  SkyAtlasFoldsCompanion toCompanion(bool nullToAbsent) {
+    return SkyAtlasFoldsCompanion(
+      id: Value(id),
+      tileId: Value(tileId),
+      healpixOrder: Value(healpixOrder),
+      sessionId: sessionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sessionId),
+      foldedAt: Value(foldedAt),
+      framesAdded: Value(framesAdded),
+      weightAdded: Value(weightAdded),
+      integrationSecondsAdded: Value(integrationSecondsAdded),
+      rejected: Value(rejected),
+      contributor: Value(contributor),
+      label: Value(label),
+    );
+  }
+
+  factory SkyAtlasFoldRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return SkyAtlasFoldRow(
+      id: serializer.fromJson<int>(json['id']),
+      tileId: serializer.fromJson<int>(json['tileId']),
+      healpixOrder: serializer.fromJson<int>(json['healpixOrder']),
+      sessionId: serializer.fromJson<int?>(json['sessionId']),
+      foldedAt: serializer.fromJson<DateTime>(json['foldedAt']),
+      framesAdded: serializer.fromJson<int>(json['framesAdded']),
+      weightAdded: serializer.fromJson<double>(json['weightAdded']),
+      integrationSecondsAdded: serializer.fromJson<double>(
+        json['integrationSecondsAdded'],
+      ),
+      rejected: serializer.fromJson<int>(json['rejected']),
+      contributor: serializer.fromJson<String>(json['contributor']),
+      label: serializer.fromJson<String>(json['label']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'tileId': serializer.toJson<int>(tileId),
+      'healpixOrder': serializer.toJson<int>(healpixOrder),
+      'sessionId': serializer.toJson<int?>(sessionId),
+      'foldedAt': serializer.toJson<DateTime>(foldedAt),
+      'framesAdded': serializer.toJson<int>(framesAdded),
+      'weightAdded': serializer.toJson<double>(weightAdded),
+      'integrationSecondsAdded': serializer.toJson<double>(
+        integrationSecondsAdded,
+      ),
+      'rejected': serializer.toJson<int>(rejected),
+      'contributor': serializer.toJson<String>(contributor),
+      'label': serializer.toJson<String>(label),
+    };
+  }
+
+  SkyAtlasFoldRow copyWith({
+    int? id,
+    int? tileId,
+    int? healpixOrder,
+    Value<int?> sessionId = const Value.absent(),
+    DateTime? foldedAt,
+    int? framesAdded,
+    double? weightAdded,
+    double? integrationSecondsAdded,
+    int? rejected,
+    String? contributor,
+    String? label,
+  }) => SkyAtlasFoldRow(
+    id: id ?? this.id,
+    tileId: tileId ?? this.tileId,
+    healpixOrder: healpixOrder ?? this.healpixOrder,
+    sessionId: sessionId.present ? sessionId.value : this.sessionId,
+    foldedAt: foldedAt ?? this.foldedAt,
+    framesAdded: framesAdded ?? this.framesAdded,
+    weightAdded: weightAdded ?? this.weightAdded,
+    integrationSecondsAdded:
+        integrationSecondsAdded ?? this.integrationSecondsAdded,
+    rejected: rejected ?? this.rejected,
+    contributor: contributor ?? this.contributor,
+    label: label ?? this.label,
+  );
+  SkyAtlasFoldRow copyWithCompanion(SkyAtlasFoldsCompanion data) {
+    return SkyAtlasFoldRow(
+      id: data.id.present ? data.id.value : this.id,
+      tileId: data.tileId.present ? data.tileId.value : this.tileId,
+      healpixOrder: data.healpixOrder.present
+          ? data.healpixOrder.value
+          : this.healpixOrder,
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
+      foldedAt: data.foldedAt.present ? data.foldedAt.value : this.foldedAt,
+      framesAdded: data.framesAdded.present
+          ? data.framesAdded.value
+          : this.framesAdded,
+      weightAdded: data.weightAdded.present
+          ? data.weightAdded.value
+          : this.weightAdded,
+      integrationSecondsAdded: data.integrationSecondsAdded.present
+          ? data.integrationSecondsAdded.value
+          : this.integrationSecondsAdded,
+      rejected: data.rejected.present ? data.rejected.value : this.rejected,
+      contributor: data.contributor.present
+          ? data.contributor.value
+          : this.contributor,
+      label: data.label.present ? data.label.value : this.label,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SkyAtlasFoldRow(')
+          ..write('id: $id, ')
+          ..write('tileId: $tileId, ')
+          ..write('healpixOrder: $healpixOrder, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('foldedAt: $foldedAt, ')
+          ..write('framesAdded: $framesAdded, ')
+          ..write('weightAdded: $weightAdded, ')
+          ..write('integrationSecondsAdded: $integrationSecondsAdded, ')
+          ..write('rejected: $rejected, ')
+          ..write('contributor: $contributor, ')
+          ..write('label: $label')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    tileId,
+    healpixOrder,
+    sessionId,
+    foldedAt,
+    framesAdded,
+    weightAdded,
+    integrationSecondsAdded,
+    rejected,
+    contributor,
+    label,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is SkyAtlasFoldRow &&
+          other.id == this.id &&
+          other.tileId == this.tileId &&
+          other.healpixOrder == this.healpixOrder &&
+          other.sessionId == this.sessionId &&
+          other.foldedAt == this.foldedAt &&
+          other.framesAdded == this.framesAdded &&
+          other.weightAdded == this.weightAdded &&
+          other.integrationSecondsAdded == this.integrationSecondsAdded &&
+          other.rejected == this.rejected &&
+          other.contributor == this.contributor &&
+          other.label == this.label);
+}
+
+class SkyAtlasFoldsCompanion extends UpdateCompanion<SkyAtlasFoldRow> {
+  final Value<int> id;
+  final Value<int> tileId;
+  final Value<int> healpixOrder;
+  final Value<int?> sessionId;
+  final Value<DateTime> foldedAt;
+  final Value<int> framesAdded;
+  final Value<double> weightAdded;
+  final Value<double> integrationSecondsAdded;
+  final Value<int> rejected;
+  final Value<String> contributor;
+  final Value<String> label;
+  const SkyAtlasFoldsCompanion({
+    this.id = const Value.absent(),
+    this.tileId = const Value.absent(),
+    this.healpixOrder = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.foldedAt = const Value.absent(),
+    this.framesAdded = const Value.absent(),
+    this.weightAdded = const Value.absent(),
+    this.integrationSecondsAdded = const Value.absent(),
+    this.rejected = const Value.absent(),
+    this.contributor = const Value.absent(),
+    this.label = const Value.absent(),
+  });
+  SkyAtlasFoldsCompanion.insert({
+    this.id = const Value.absent(),
+    required int tileId,
+    required int healpixOrder,
+    this.sessionId = const Value.absent(),
+    this.foldedAt = const Value.absent(),
+    required int framesAdded,
+    required double weightAdded,
+    required double integrationSecondsAdded,
+    this.rejected = const Value.absent(),
+    this.contributor = const Value.absent(),
+    required String label,
+  }) : tileId = Value(tileId),
+       healpixOrder = Value(healpixOrder),
+       framesAdded = Value(framesAdded),
+       weightAdded = Value(weightAdded),
+       integrationSecondsAdded = Value(integrationSecondsAdded),
+       label = Value(label);
+  static Insertable<SkyAtlasFoldRow> custom({
+    Expression<int>? id,
+    Expression<int>? tileId,
+    Expression<int>? healpixOrder,
+    Expression<int>? sessionId,
+    Expression<DateTime>? foldedAt,
+    Expression<int>? framesAdded,
+    Expression<double>? weightAdded,
+    Expression<double>? integrationSecondsAdded,
+    Expression<int>? rejected,
+    Expression<String>? contributor,
+    Expression<String>? label,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (tileId != null) 'tile_id': tileId,
+      if (healpixOrder != null) 'healpix_order': healpixOrder,
+      if (sessionId != null) 'session_id': sessionId,
+      if (foldedAt != null) 'folded_at': foldedAt,
+      if (framesAdded != null) 'frames_added': framesAdded,
+      if (weightAdded != null) 'weight_added': weightAdded,
+      if (integrationSecondsAdded != null)
+        'integration_seconds_added': integrationSecondsAdded,
+      if (rejected != null) 'rejected': rejected,
+      if (contributor != null) 'contributor': contributor,
+      if (label != null) 'label': label,
+    });
+  }
+
+  SkyAtlasFoldsCompanion copyWith({
+    Value<int>? id,
+    Value<int>? tileId,
+    Value<int>? healpixOrder,
+    Value<int?>? sessionId,
+    Value<DateTime>? foldedAt,
+    Value<int>? framesAdded,
+    Value<double>? weightAdded,
+    Value<double>? integrationSecondsAdded,
+    Value<int>? rejected,
+    Value<String>? contributor,
+    Value<String>? label,
+  }) {
+    return SkyAtlasFoldsCompanion(
+      id: id ?? this.id,
+      tileId: tileId ?? this.tileId,
+      healpixOrder: healpixOrder ?? this.healpixOrder,
+      sessionId: sessionId ?? this.sessionId,
+      foldedAt: foldedAt ?? this.foldedAt,
+      framesAdded: framesAdded ?? this.framesAdded,
+      weightAdded: weightAdded ?? this.weightAdded,
+      integrationSecondsAdded:
+          integrationSecondsAdded ?? this.integrationSecondsAdded,
+      rejected: rejected ?? this.rejected,
+      contributor: contributor ?? this.contributor,
+      label: label ?? this.label,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (tileId.present) {
+      map['tile_id'] = Variable<int>(tileId.value);
+    }
+    if (healpixOrder.present) {
+      map['healpix_order'] = Variable<int>(healpixOrder.value);
+    }
+    if (sessionId.present) {
+      map['session_id'] = Variable<int>(sessionId.value);
+    }
+    if (foldedAt.present) {
+      map['folded_at'] = Variable<DateTime>(foldedAt.value);
+    }
+    if (framesAdded.present) {
+      map['frames_added'] = Variable<int>(framesAdded.value);
+    }
+    if (weightAdded.present) {
+      map['weight_added'] = Variable<double>(weightAdded.value);
+    }
+    if (integrationSecondsAdded.present) {
+      map['integration_seconds_added'] = Variable<double>(
+        integrationSecondsAdded.value,
+      );
+    }
+    if (rejected.present) {
+      map['rejected'] = Variable<int>(rejected.value);
+    }
+    if (contributor.present) {
+      map['contributor'] = Variable<String>(contributor.value);
+    }
+    if (label.present) {
+      map['label'] = Variable<String>(label.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SkyAtlasFoldsCompanion(')
+          ..write('id: $id, ')
+          ..write('tileId: $tileId, ')
+          ..write('healpixOrder: $healpixOrder, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('foldedAt: $foldedAt, ')
+          ..write('framesAdded: $framesAdded, ')
+          ..write('weightAdded: $weightAdded, ')
+          ..write('integrationSecondsAdded: $integrationSecondsAdded, ')
+          ..write('rejected: $rejected, ')
+          ..write('contributor: $contributor, ')
+          ..write('label: $label')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $ConstellationContributionsTable extends ConstellationContributions
+    with
+        TableInfo<
+          $ConstellationContributionsTable,
+          ConstellationContributionRow
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ConstellationContributionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _hubKeyMeta = const VerificationMeta('hubKey');
+  @override
+  late final GeneratedColumn<String> hubKey = GeneratedColumn<String>(
+    'hub_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _tileIdMeta = const VerificationMeta('tileId');
+  @override
+  late final GeneratedColumn<int> tileId = GeneratedColumn<int>(
+    'tile_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _healpixOrderMeta = const VerificationMeta(
+    'healpixOrder',
+  );
+  @override
+  late final GeneratedColumn<int> healpixOrder = GeneratedColumn<int>(
+    'healpix_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastContributedAtMeta = const VerificationMeta(
+    'lastContributedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastContributedAt =
+      GeneratedColumn<DateTime>(
+        'last_contributed_at',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastContributedLabelMeta =
+      const VerificationMeta('lastContributedLabel');
+  @override
+  late final GeneratedColumn<String> lastContributedLabel =
+      GeneratedColumn<String>(
+        'last_contributed_label',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _contributionIdMeta = const VerificationMeta(
+    'contributionId',
+  );
+  @override
+  late final GeneratedColumn<String> contributionId = GeneratedColumn<String>(
+    'contribution_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _contributedFramesMeta = const VerificationMeta(
+    'contributedFrames',
+  );
+  @override
+  late final GeneratedColumn<int> contributedFrames = GeneratedColumn<int>(
+    'contributed_frames',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _contributedIntegrationSecondsMeta =
+      const VerificationMeta('contributedIntegrationSeconds');
+  @override
+  late final GeneratedColumn<double> contributedIntegrationSeconds =
+      GeneratedColumn<double>(
+        'contributed_integration_seconds',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0),
+      );
+  static const VerificationMeta _lastPulledFramesMeta = const VerificationMeta(
+    'lastPulledFrames',
+  );
+  @override
+  late final GeneratedColumn<int> lastPulledFrames = GeneratedColumn<int>(
+    'last_pulled_frames',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastPulledIntegrationSecondsMeta =
+      const VerificationMeta('lastPulledIntegrationSeconds');
+  @override
+  late final GeneratedColumn<double> lastPulledIntegrationSeconds =
+      GeneratedColumn<double>(
+        'last_pulled_integration_seconds',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastPulledAtMeta = const VerificationMeta(
+    'lastPulledAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastPulledAt = GeneratedColumn<DateTime>(
+    'last_pulled_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _joinedMeta = const VerificationMeta('joined');
+  @override
+  late final GeneratedColumn<bool> joined = GeneratedColumn<bool>(
+    'joined',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("joined" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _targetNameMeta = const VerificationMeta(
+    'targetName',
+  );
+  @override
+  late final GeneratedColumn<String> targetName = GeneratedColumn<String>(
+    'target_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _targetRaDegMeta = const VerificationMeta(
+    'targetRaDeg',
+  );
+  @override
+  late final GeneratedColumn<double> targetRaDeg = GeneratedColumn<double>(
+    'target_ra_deg',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _targetDecDegMeta = const VerificationMeta(
+    'targetDecDeg',
+  );
+  @override
+  late final GeneratedColumn<double> targetDecDeg = GeneratedColumn<double>(
+    'target_dec_deg',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    hubKey,
+    tileId,
+    healpixOrder,
+    lastContributedAt,
+    lastContributedLabel,
+    contributionId,
+    contributedFrames,
+    contributedIntegrationSeconds,
+    lastPulledFrames,
+    lastPulledIntegrationSeconds,
+    lastPulledAt,
+    joined,
+    targetName,
+    targetRaDeg,
+    targetDecDeg,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'constellation_contributions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ConstellationContributionRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('hub_key')) {
+      context.handle(
+        _hubKeyMeta,
+        hubKey.isAcceptableOrUnknown(data['hub_key']!, _hubKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_hubKeyMeta);
+    }
+    if (data.containsKey('tile_id')) {
+      context.handle(
+        _tileIdMeta,
+        tileId.isAcceptableOrUnknown(data['tile_id']!, _tileIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_tileIdMeta);
+    }
+    if (data.containsKey('healpix_order')) {
+      context.handle(
+        _healpixOrderMeta,
+        healpixOrder.isAcceptableOrUnknown(
+          data['healpix_order']!,
+          _healpixOrderMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_healpixOrderMeta);
+    }
+    if (data.containsKey('last_contributed_at')) {
+      context.handle(
+        _lastContributedAtMeta,
+        lastContributedAt.isAcceptableOrUnknown(
+          data['last_contributed_at']!,
+          _lastContributedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_contributed_label')) {
+      context.handle(
+        _lastContributedLabelMeta,
+        lastContributedLabel.isAcceptableOrUnknown(
+          data['last_contributed_label']!,
+          _lastContributedLabelMeta,
+        ),
+      );
+    }
+    if (data.containsKey('contribution_id')) {
+      context.handle(
+        _contributionIdMeta,
+        contributionId.isAcceptableOrUnknown(
+          data['contribution_id']!,
+          _contributionIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('contributed_frames')) {
+      context.handle(
+        _contributedFramesMeta,
+        contributedFrames.isAcceptableOrUnknown(
+          data['contributed_frames']!,
+          _contributedFramesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('contributed_integration_seconds')) {
+      context.handle(
+        _contributedIntegrationSecondsMeta,
+        contributedIntegrationSeconds.isAcceptableOrUnknown(
+          data['contributed_integration_seconds']!,
+          _contributedIntegrationSecondsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_pulled_frames')) {
+      context.handle(
+        _lastPulledFramesMeta,
+        lastPulledFrames.isAcceptableOrUnknown(
+          data['last_pulled_frames']!,
+          _lastPulledFramesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_pulled_integration_seconds')) {
+      context.handle(
+        _lastPulledIntegrationSecondsMeta,
+        lastPulledIntegrationSeconds.isAcceptableOrUnknown(
+          data['last_pulled_integration_seconds']!,
+          _lastPulledIntegrationSecondsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_pulled_at')) {
+      context.handle(
+        _lastPulledAtMeta,
+        lastPulledAt.isAcceptableOrUnknown(
+          data['last_pulled_at']!,
+          _lastPulledAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('joined')) {
+      context.handle(
+        _joinedMeta,
+        joined.isAcceptableOrUnknown(data['joined']!, _joinedMeta),
+      );
+    }
+    if (data.containsKey('target_name')) {
+      context.handle(
+        _targetNameMeta,
+        targetName.isAcceptableOrUnknown(data['target_name']!, _targetNameMeta),
+      );
+    }
+    if (data.containsKey('target_ra_deg')) {
+      context.handle(
+        _targetRaDegMeta,
+        targetRaDeg.isAcceptableOrUnknown(
+          data['target_ra_deg']!,
+          _targetRaDegMeta,
+        ),
+      );
+    }
+    if (data.containsKey('target_dec_deg')) {
+      context.handle(
+        _targetDecDegMeta,
+        targetDecDeg.isAcceptableOrUnknown(
+          data['target_dec_deg']!,
+          _targetDecDegMeta,
+        ),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ConstellationContributionRow map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ConstellationContributionRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      hubKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}hub_key'],
+      )!,
+      tileId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}tile_id'],
+      )!,
+      healpixOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}healpix_order'],
+      )!,
+      lastContributedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_contributed_at'],
+      ),
+      lastContributedLabel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_contributed_label'],
+      ),
+      contributionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}contribution_id'],
+      ),
+      contributedFrames: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}contributed_frames'],
+      )!,
+      contributedIntegrationSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}contributed_integration_seconds'],
+      )!,
+      lastPulledFrames: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_pulled_frames'],
+      ),
+      lastPulledIntegrationSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}last_pulled_integration_seconds'],
+      ),
+      lastPulledAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_pulled_at'],
+      ),
+      joined: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}joined'],
+      )!,
+      targetName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}target_name'],
+      ),
+      targetRaDeg: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}target_ra_deg'],
+      ),
+      targetDecDeg: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}target_dec_deg'],
+      ),
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ConstellationContributionsTable createAlias(String alias) {
+    return $ConstellationContributionsTable(attachedDatabase, alias);
+  }
+}
+
+class ConstellationContributionRow extends DataClass
+    implements Insertable<ConstellationContributionRow> {
+  final int id;
+
+  /// Federation endpoint identity — the normalized hub base URL.
+  final String hubKey;
+
+  /// HEALPix NESTED pixel id this receipt is for.
+  final int tileId;
+
+  /// HEALPix order [tileId] was computed at (mirrors the atlas tables so a
+  /// future order change is detectable rather than silently mis-addressing).
+  final int healpixOrder;
+
+  /// Anchor timestamp for the next `exportDelta(since:)` — the fold time of the
+  /// newest own-light fold already shipped to this hub. Null = nothing shipped
+  /// yet (anchor falls back to epoch, i.e. the first contribution ships all
+  /// post-epoch own-light folds).
+  final DateTime? lastContributedAt;
+
+  /// ISO fold label of the newest fold shipped (mirrors the fold-label scheme
+  /// `capturedAt.toIso8601String()` used at fold time) — the human-readable
+  /// twin of [lastContributedAt], retained so the export anchor can be matched
+  /// against per-fold labels without re-deriving it from a timestamp.
+  final String? lastContributedLabel;
+
+  /// Remote receipt id returned by the hub for this tile's contribution.
+  /// Unblocks the privacy "Retract" action (subtract exactly what was shipped).
+  final String? contributionId;
+
+  /// Running tally of own-light frames / integration shipped to this hub for
+  /// this tile (cumulative across contributions).
+  final int contributedFrames;
+  final double contributedIntegrationSeconds;
+
+  /// Community depth last pulled for this tile, as advertised by the hub. A
+  /// re-pull whose advertised frames equal this is a no-op (the overlay already
+  /// holds exactly that snapshot). Null = never pulled.
+  final int? lastPulledFrames;
+  final double? lastPulledIntegrationSeconds;
+  final DateTime? lastPulledAt;
+
+  /// Whether the user has joined the target this tile belongs to on this hub.
+  final bool joined;
+  final String? targetName;
+  final double? targetRaDeg;
+  final double? targetDecDeg;
+  final DateTime updatedAt;
+  const ConstellationContributionRow({
+    required this.id,
+    required this.hubKey,
+    required this.tileId,
+    required this.healpixOrder,
+    this.lastContributedAt,
+    this.lastContributedLabel,
+    this.contributionId,
+    required this.contributedFrames,
+    required this.contributedIntegrationSeconds,
+    this.lastPulledFrames,
+    this.lastPulledIntegrationSeconds,
+    this.lastPulledAt,
+    required this.joined,
+    this.targetName,
+    this.targetRaDeg,
+    this.targetDecDeg,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['hub_key'] = Variable<String>(hubKey);
+    map['tile_id'] = Variable<int>(tileId);
+    map['healpix_order'] = Variable<int>(healpixOrder);
+    if (!nullToAbsent || lastContributedAt != null) {
+      map['last_contributed_at'] = Variable<DateTime>(lastContributedAt);
+    }
+    if (!nullToAbsent || lastContributedLabel != null) {
+      map['last_contributed_label'] = Variable<String>(lastContributedLabel);
+    }
+    if (!nullToAbsent || contributionId != null) {
+      map['contribution_id'] = Variable<String>(contributionId);
+    }
+    map['contributed_frames'] = Variable<int>(contributedFrames);
+    map['contributed_integration_seconds'] = Variable<double>(
+      contributedIntegrationSeconds,
+    );
+    if (!nullToAbsent || lastPulledFrames != null) {
+      map['last_pulled_frames'] = Variable<int>(lastPulledFrames);
+    }
+    if (!nullToAbsent || lastPulledIntegrationSeconds != null) {
+      map['last_pulled_integration_seconds'] = Variable<double>(
+        lastPulledIntegrationSeconds,
+      );
+    }
+    if (!nullToAbsent || lastPulledAt != null) {
+      map['last_pulled_at'] = Variable<DateTime>(lastPulledAt);
+    }
+    map['joined'] = Variable<bool>(joined);
+    if (!nullToAbsent || targetName != null) {
+      map['target_name'] = Variable<String>(targetName);
+    }
+    if (!nullToAbsent || targetRaDeg != null) {
+      map['target_ra_deg'] = Variable<double>(targetRaDeg);
+    }
+    if (!nullToAbsent || targetDecDeg != null) {
+      map['target_dec_deg'] = Variable<double>(targetDecDeg);
+    }
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  ConstellationContributionsCompanion toCompanion(bool nullToAbsent) {
+    return ConstellationContributionsCompanion(
+      id: Value(id),
+      hubKey: Value(hubKey),
+      tileId: Value(tileId),
+      healpixOrder: Value(healpixOrder),
+      lastContributedAt: lastContributedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastContributedAt),
+      lastContributedLabel: lastContributedLabel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastContributedLabel),
+      contributionId: contributionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(contributionId),
+      contributedFrames: Value(contributedFrames),
+      contributedIntegrationSeconds: Value(contributedIntegrationSeconds),
+      lastPulledFrames: lastPulledFrames == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastPulledFrames),
+      lastPulledIntegrationSeconds:
+          lastPulledIntegrationSeconds == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastPulledIntegrationSeconds),
+      lastPulledAt: lastPulledAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastPulledAt),
+      joined: Value(joined),
+      targetName: targetName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetName),
+      targetRaDeg: targetRaDeg == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetRaDeg),
+      targetDecDeg: targetDecDeg == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetDecDeg),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory ConstellationContributionRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ConstellationContributionRow(
+      id: serializer.fromJson<int>(json['id']),
+      hubKey: serializer.fromJson<String>(json['hubKey']),
+      tileId: serializer.fromJson<int>(json['tileId']),
+      healpixOrder: serializer.fromJson<int>(json['healpixOrder']),
+      lastContributedAt: serializer.fromJson<DateTime?>(
+        json['lastContributedAt'],
+      ),
+      lastContributedLabel: serializer.fromJson<String?>(
+        json['lastContributedLabel'],
+      ),
+      contributionId: serializer.fromJson<String?>(json['contributionId']),
+      contributedFrames: serializer.fromJson<int>(json['contributedFrames']),
+      contributedIntegrationSeconds: serializer.fromJson<double>(
+        json['contributedIntegrationSeconds'],
+      ),
+      lastPulledFrames: serializer.fromJson<int?>(json['lastPulledFrames']),
+      lastPulledIntegrationSeconds: serializer.fromJson<double?>(
+        json['lastPulledIntegrationSeconds'],
+      ),
+      lastPulledAt: serializer.fromJson<DateTime?>(json['lastPulledAt']),
+      joined: serializer.fromJson<bool>(json['joined']),
+      targetName: serializer.fromJson<String?>(json['targetName']),
+      targetRaDeg: serializer.fromJson<double?>(json['targetRaDeg']),
+      targetDecDeg: serializer.fromJson<double?>(json['targetDecDeg']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'hubKey': serializer.toJson<String>(hubKey),
+      'tileId': serializer.toJson<int>(tileId),
+      'healpixOrder': serializer.toJson<int>(healpixOrder),
+      'lastContributedAt': serializer.toJson<DateTime?>(lastContributedAt),
+      'lastContributedLabel': serializer.toJson<String?>(lastContributedLabel),
+      'contributionId': serializer.toJson<String?>(contributionId),
+      'contributedFrames': serializer.toJson<int>(contributedFrames),
+      'contributedIntegrationSeconds': serializer.toJson<double>(
+        contributedIntegrationSeconds,
+      ),
+      'lastPulledFrames': serializer.toJson<int?>(lastPulledFrames),
+      'lastPulledIntegrationSeconds': serializer.toJson<double?>(
+        lastPulledIntegrationSeconds,
+      ),
+      'lastPulledAt': serializer.toJson<DateTime?>(lastPulledAt),
+      'joined': serializer.toJson<bool>(joined),
+      'targetName': serializer.toJson<String?>(targetName),
+      'targetRaDeg': serializer.toJson<double?>(targetRaDeg),
+      'targetDecDeg': serializer.toJson<double?>(targetDecDeg),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  ConstellationContributionRow copyWith({
+    int? id,
+    String? hubKey,
+    int? tileId,
+    int? healpixOrder,
+    Value<DateTime?> lastContributedAt = const Value.absent(),
+    Value<String?> lastContributedLabel = const Value.absent(),
+    Value<String?> contributionId = const Value.absent(),
+    int? contributedFrames,
+    double? contributedIntegrationSeconds,
+    Value<int?> lastPulledFrames = const Value.absent(),
+    Value<double?> lastPulledIntegrationSeconds = const Value.absent(),
+    Value<DateTime?> lastPulledAt = const Value.absent(),
+    bool? joined,
+    Value<String?> targetName = const Value.absent(),
+    Value<double?> targetRaDeg = const Value.absent(),
+    Value<double?> targetDecDeg = const Value.absent(),
+    DateTime? updatedAt,
+  }) => ConstellationContributionRow(
+    id: id ?? this.id,
+    hubKey: hubKey ?? this.hubKey,
+    tileId: tileId ?? this.tileId,
+    healpixOrder: healpixOrder ?? this.healpixOrder,
+    lastContributedAt: lastContributedAt.present
+        ? lastContributedAt.value
+        : this.lastContributedAt,
+    lastContributedLabel: lastContributedLabel.present
+        ? lastContributedLabel.value
+        : this.lastContributedLabel,
+    contributionId: contributionId.present
+        ? contributionId.value
+        : this.contributionId,
+    contributedFrames: contributedFrames ?? this.contributedFrames,
+    contributedIntegrationSeconds:
+        contributedIntegrationSeconds ?? this.contributedIntegrationSeconds,
+    lastPulledFrames: lastPulledFrames.present
+        ? lastPulledFrames.value
+        : this.lastPulledFrames,
+    lastPulledIntegrationSeconds: lastPulledIntegrationSeconds.present
+        ? lastPulledIntegrationSeconds.value
+        : this.lastPulledIntegrationSeconds,
+    lastPulledAt: lastPulledAt.present ? lastPulledAt.value : this.lastPulledAt,
+    joined: joined ?? this.joined,
+    targetName: targetName.present ? targetName.value : this.targetName,
+    targetRaDeg: targetRaDeg.present ? targetRaDeg.value : this.targetRaDeg,
+    targetDecDeg: targetDecDeg.present ? targetDecDeg.value : this.targetDecDeg,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  ConstellationContributionRow copyWithCompanion(
+    ConstellationContributionsCompanion data,
+  ) {
+    return ConstellationContributionRow(
+      id: data.id.present ? data.id.value : this.id,
+      hubKey: data.hubKey.present ? data.hubKey.value : this.hubKey,
+      tileId: data.tileId.present ? data.tileId.value : this.tileId,
+      healpixOrder: data.healpixOrder.present
+          ? data.healpixOrder.value
+          : this.healpixOrder,
+      lastContributedAt: data.lastContributedAt.present
+          ? data.lastContributedAt.value
+          : this.lastContributedAt,
+      lastContributedLabel: data.lastContributedLabel.present
+          ? data.lastContributedLabel.value
+          : this.lastContributedLabel,
+      contributionId: data.contributionId.present
+          ? data.contributionId.value
+          : this.contributionId,
+      contributedFrames: data.contributedFrames.present
+          ? data.contributedFrames.value
+          : this.contributedFrames,
+      contributedIntegrationSeconds: data.contributedIntegrationSeconds.present
+          ? data.contributedIntegrationSeconds.value
+          : this.contributedIntegrationSeconds,
+      lastPulledFrames: data.lastPulledFrames.present
+          ? data.lastPulledFrames.value
+          : this.lastPulledFrames,
+      lastPulledIntegrationSeconds: data.lastPulledIntegrationSeconds.present
+          ? data.lastPulledIntegrationSeconds.value
+          : this.lastPulledIntegrationSeconds,
+      lastPulledAt: data.lastPulledAt.present
+          ? data.lastPulledAt.value
+          : this.lastPulledAt,
+      joined: data.joined.present ? data.joined.value : this.joined,
+      targetName: data.targetName.present
+          ? data.targetName.value
+          : this.targetName,
+      targetRaDeg: data.targetRaDeg.present
+          ? data.targetRaDeg.value
+          : this.targetRaDeg,
+      targetDecDeg: data.targetDecDeg.present
+          ? data.targetDecDeg.value
+          : this.targetDecDeg,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ConstellationContributionRow(')
+          ..write('id: $id, ')
+          ..write('hubKey: $hubKey, ')
+          ..write('tileId: $tileId, ')
+          ..write('healpixOrder: $healpixOrder, ')
+          ..write('lastContributedAt: $lastContributedAt, ')
+          ..write('lastContributedLabel: $lastContributedLabel, ')
+          ..write('contributionId: $contributionId, ')
+          ..write('contributedFrames: $contributedFrames, ')
+          ..write(
+            'contributedIntegrationSeconds: $contributedIntegrationSeconds, ',
+          )
+          ..write('lastPulledFrames: $lastPulledFrames, ')
+          ..write(
+            'lastPulledIntegrationSeconds: $lastPulledIntegrationSeconds, ',
+          )
+          ..write('lastPulledAt: $lastPulledAt, ')
+          ..write('joined: $joined, ')
+          ..write('targetName: $targetName, ')
+          ..write('targetRaDeg: $targetRaDeg, ')
+          ..write('targetDecDeg: $targetDecDeg, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    hubKey,
+    tileId,
+    healpixOrder,
+    lastContributedAt,
+    lastContributedLabel,
+    contributionId,
+    contributedFrames,
+    contributedIntegrationSeconds,
+    lastPulledFrames,
+    lastPulledIntegrationSeconds,
+    lastPulledAt,
+    joined,
+    targetName,
+    targetRaDeg,
+    targetDecDeg,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ConstellationContributionRow &&
+          other.id == this.id &&
+          other.hubKey == this.hubKey &&
+          other.tileId == this.tileId &&
+          other.healpixOrder == this.healpixOrder &&
+          other.lastContributedAt == this.lastContributedAt &&
+          other.lastContributedLabel == this.lastContributedLabel &&
+          other.contributionId == this.contributionId &&
+          other.contributedFrames == this.contributedFrames &&
+          other.contributedIntegrationSeconds ==
+              this.contributedIntegrationSeconds &&
+          other.lastPulledFrames == this.lastPulledFrames &&
+          other.lastPulledIntegrationSeconds ==
+              this.lastPulledIntegrationSeconds &&
+          other.lastPulledAt == this.lastPulledAt &&
+          other.joined == this.joined &&
+          other.targetName == this.targetName &&
+          other.targetRaDeg == this.targetRaDeg &&
+          other.targetDecDeg == this.targetDecDeg &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ConstellationContributionsCompanion
+    extends UpdateCompanion<ConstellationContributionRow> {
+  final Value<int> id;
+  final Value<String> hubKey;
+  final Value<int> tileId;
+  final Value<int> healpixOrder;
+  final Value<DateTime?> lastContributedAt;
+  final Value<String?> lastContributedLabel;
+  final Value<String?> contributionId;
+  final Value<int> contributedFrames;
+  final Value<double> contributedIntegrationSeconds;
+  final Value<int?> lastPulledFrames;
+  final Value<double?> lastPulledIntegrationSeconds;
+  final Value<DateTime?> lastPulledAt;
+  final Value<bool> joined;
+  final Value<String?> targetName;
+  final Value<double?> targetRaDeg;
+  final Value<double?> targetDecDeg;
+  final Value<DateTime> updatedAt;
+  const ConstellationContributionsCompanion({
+    this.id = const Value.absent(),
+    this.hubKey = const Value.absent(),
+    this.tileId = const Value.absent(),
+    this.healpixOrder = const Value.absent(),
+    this.lastContributedAt = const Value.absent(),
+    this.lastContributedLabel = const Value.absent(),
+    this.contributionId = const Value.absent(),
+    this.contributedFrames = const Value.absent(),
+    this.contributedIntegrationSeconds = const Value.absent(),
+    this.lastPulledFrames = const Value.absent(),
+    this.lastPulledIntegrationSeconds = const Value.absent(),
+    this.lastPulledAt = const Value.absent(),
+    this.joined = const Value.absent(),
+    this.targetName = const Value.absent(),
+    this.targetRaDeg = const Value.absent(),
+    this.targetDecDeg = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  ConstellationContributionsCompanion.insert({
+    this.id = const Value.absent(),
+    required String hubKey,
+    required int tileId,
+    required int healpixOrder,
+    this.lastContributedAt = const Value.absent(),
+    this.lastContributedLabel = const Value.absent(),
+    this.contributionId = const Value.absent(),
+    this.contributedFrames = const Value.absent(),
+    this.contributedIntegrationSeconds = const Value.absent(),
+    this.lastPulledFrames = const Value.absent(),
+    this.lastPulledIntegrationSeconds = const Value.absent(),
+    this.lastPulledAt = const Value.absent(),
+    this.joined = const Value.absent(),
+    this.targetName = const Value.absent(),
+    this.targetRaDeg = const Value.absent(),
+    this.targetDecDeg = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  }) : hubKey = Value(hubKey),
+       tileId = Value(tileId),
+       healpixOrder = Value(healpixOrder);
+  static Insertable<ConstellationContributionRow> custom({
+    Expression<int>? id,
+    Expression<String>? hubKey,
+    Expression<int>? tileId,
+    Expression<int>? healpixOrder,
+    Expression<DateTime>? lastContributedAt,
+    Expression<String>? lastContributedLabel,
+    Expression<String>? contributionId,
+    Expression<int>? contributedFrames,
+    Expression<double>? contributedIntegrationSeconds,
+    Expression<int>? lastPulledFrames,
+    Expression<double>? lastPulledIntegrationSeconds,
+    Expression<DateTime>? lastPulledAt,
+    Expression<bool>? joined,
+    Expression<String>? targetName,
+    Expression<double>? targetRaDeg,
+    Expression<double>? targetDecDeg,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (hubKey != null) 'hub_key': hubKey,
+      if (tileId != null) 'tile_id': tileId,
+      if (healpixOrder != null) 'healpix_order': healpixOrder,
+      if (lastContributedAt != null) 'last_contributed_at': lastContributedAt,
+      if (lastContributedLabel != null)
+        'last_contributed_label': lastContributedLabel,
+      if (contributionId != null) 'contribution_id': contributionId,
+      if (contributedFrames != null) 'contributed_frames': contributedFrames,
+      if (contributedIntegrationSeconds != null)
+        'contributed_integration_seconds': contributedIntegrationSeconds,
+      if (lastPulledFrames != null) 'last_pulled_frames': lastPulledFrames,
+      if (lastPulledIntegrationSeconds != null)
+        'last_pulled_integration_seconds': lastPulledIntegrationSeconds,
+      if (lastPulledAt != null) 'last_pulled_at': lastPulledAt,
+      if (joined != null) 'joined': joined,
+      if (targetName != null) 'target_name': targetName,
+      if (targetRaDeg != null) 'target_ra_deg': targetRaDeg,
+      if (targetDecDeg != null) 'target_dec_deg': targetDecDeg,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  ConstellationContributionsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? hubKey,
+    Value<int>? tileId,
+    Value<int>? healpixOrder,
+    Value<DateTime?>? lastContributedAt,
+    Value<String?>? lastContributedLabel,
+    Value<String?>? contributionId,
+    Value<int>? contributedFrames,
+    Value<double>? contributedIntegrationSeconds,
+    Value<int?>? lastPulledFrames,
+    Value<double?>? lastPulledIntegrationSeconds,
+    Value<DateTime?>? lastPulledAt,
+    Value<bool>? joined,
+    Value<String?>? targetName,
+    Value<double?>? targetRaDeg,
+    Value<double?>? targetDecDeg,
+    Value<DateTime>? updatedAt,
+  }) {
+    return ConstellationContributionsCompanion(
+      id: id ?? this.id,
+      hubKey: hubKey ?? this.hubKey,
+      tileId: tileId ?? this.tileId,
+      healpixOrder: healpixOrder ?? this.healpixOrder,
+      lastContributedAt: lastContributedAt ?? this.lastContributedAt,
+      lastContributedLabel: lastContributedLabel ?? this.lastContributedLabel,
+      contributionId: contributionId ?? this.contributionId,
+      contributedFrames: contributedFrames ?? this.contributedFrames,
+      contributedIntegrationSeconds:
+          contributedIntegrationSeconds ?? this.contributedIntegrationSeconds,
+      lastPulledFrames: lastPulledFrames ?? this.lastPulledFrames,
+      lastPulledIntegrationSeconds:
+          lastPulledIntegrationSeconds ?? this.lastPulledIntegrationSeconds,
+      lastPulledAt: lastPulledAt ?? this.lastPulledAt,
+      joined: joined ?? this.joined,
+      targetName: targetName ?? this.targetName,
+      targetRaDeg: targetRaDeg ?? this.targetRaDeg,
+      targetDecDeg: targetDecDeg ?? this.targetDecDeg,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (hubKey.present) {
+      map['hub_key'] = Variable<String>(hubKey.value);
+    }
+    if (tileId.present) {
+      map['tile_id'] = Variable<int>(tileId.value);
+    }
+    if (healpixOrder.present) {
+      map['healpix_order'] = Variable<int>(healpixOrder.value);
+    }
+    if (lastContributedAt.present) {
+      map['last_contributed_at'] = Variable<DateTime>(lastContributedAt.value);
+    }
+    if (lastContributedLabel.present) {
+      map['last_contributed_label'] = Variable<String>(
+        lastContributedLabel.value,
+      );
+    }
+    if (contributionId.present) {
+      map['contribution_id'] = Variable<String>(contributionId.value);
+    }
+    if (contributedFrames.present) {
+      map['contributed_frames'] = Variable<int>(contributedFrames.value);
+    }
+    if (contributedIntegrationSeconds.present) {
+      map['contributed_integration_seconds'] = Variable<double>(
+        contributedIntegrationSeconds.value,
+      );
+    }
+    if (lastPulledFrames.present) {
+      map['last_pulled_frames'] = Variable<int>(lastPulledFrames.value);
+    }
+    if (lastPulledIntegrationSeconds.present) {
+      map['last_pulled_integration_seconds'] = Variable<double>(
+        lastPulledIntegrationSeconds.value,
+      );
+    }
+    if (lastPulledAt.present) {
+      map['last_pulled_at'] = Variable<DateTime>(lastPulledAt.value);
+    }
+    if (joined.present) {
+      map['joined'] = Variable<bool>(joined.value);
+    }
+    if (targetName.present) {
+      map['target_name'] = Variable<String>(targetName.value);
+    }
+    if (targetRaDeg.present) {
+      map['target_ra_deg'] = Variable<double>(targetRaDeg.value);
+    }
+    if (targetDecDeg.present) {
+      map['target_dec_deg'] = Variable<double>(targetDecDeg.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ConstellationContributionsCompanion(')
+          ..write('id: $id, ')
+          ..write('hubKey: $hubKey, ')
+          ..write('tileId: $tileId, ')
+          ..write('healpixOrder: $healpixOrder, ')
+          ..write('lastContributedAt: $lastContributedAt, ')
+          ..write('lastContributedLabel: $lastContributedLabel, ')
+          ..write('contributionId: $contributionId, ')
+          ..write('contributedFrames: $contributedFrames, ')
+          ..write(
+            'contributedIntegrationSeconds: $contributedIntegrationSeconds, ',
+          )
+          ..write('lastPulledFrames: $lastPulledFrames, ')
+          ..write(
+            'lastPulledIntegrationSeconds: $lastPulledIntegrationSeconds, ',
+          )
+          ..write('lastPulledAt: $lastPulledAt, ')
+          ..write('joined: $joined, ')
+          ..write('targetName: $targetName, ')
+          ..write('targetRaDeg: $targetRaDeg, ')
+          ..write('targetDecDeg: $targetDecDeg, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $TransientDetectionsTable extends TransientDetections
+    with TableInfo<$TransientDetectionsTable, TransientDetectionRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TransientDetectionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _sessionIdMeta = const VerificationMeta(
+    'sessionId',
+  );
+  @override
+  late final GeneratedColumn<int> sessionId = GeneratedColumn<int>(
+    'session_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES imaging_sessions (id) ON DELETE CASCADE',
+    ),
+  );
+  static const VerificationMeta _capturedImageIdMeta = const VerificationMeta(
+    'capturedImageId',
+  );
+  @override
+  late final GeneratedColumn<int> capturedImageId = GeneratedColumn<int>(
+    'captured_image_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES captured_images (id) ON DELETE SET NULL',
+    ),
+  );
+  static const VerificationMeta _tileIdMeta = const VerificationMeta('tileId');
+  @override
+  late final GeneratedColumn<int> tileId = GeneratedColumn<int>(
+    'tile_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _detectedAtMeta = const VerificationMeta(
+    'detectedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> detectedAt = GeneratedColumn<DateTime>(
+    'detected_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  static const VerificationMeta _raDegMeta = const VerificationMeta('raDeg');
+  @override
+  late final GeneratedColumn<double> raDeg = GeneratedColumn<double>(
+    'ra_deg',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _decDegMeta = const VerificationMeta('decDeg');
+  @override
+  late final GeneratedColumn<double> decDeg = GeneratedColumn<double>(
+    'dec_deg',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _residualFluxMeta = const VerificationMeta(
+    'residualFlux',
+  );
+  @override
+  late final GeneratedColumn<double> residualFlux = GeneratedColumn<double>(
+    'residual_flux',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deltaMagMeta = const VerificationMeta(
+    'deltaMag',
+  );
+  @override
+  late final GeneratedColumn<double> deltaMag = GeneratedColumn<double>(
+    'delta_mag',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _snrMeta = const VerificationMeta('snr');
+  @override
+  late final GeneratedColumn<double> snr = GeneratedColumn<double>(
+    'snr',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _fwhmMeta = const VerificationMeta('fwhm');
+  @override
+  late final GeneratedColumn<double> fwhm = GeneratedColumn<double>(
+    'fwhm',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _eccentricityMeta = const VerificationMeta(
+    'eccentricity',
+  );
+  @override
+  late final GeneratedColumn<double> eccentricity = GeneratedColumn<double>(
+    'eccentricity',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _positionAngleDegMeta = const VerificationMeta(
+    'positionAngleDeg',
+  );
+  @override
+  late final GeneratedColumn<double> positionAngleDeg = GeneratedColumn<double>(
+    'position_angle_deg',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.0),
+  );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<String> kind = GeneratedColumn<String>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _catalogMatchMeta = const VerificationMeta(
+    'catalogMatch',
+  );
+  @override
+  late final GeneratedColumn<String> catalogMatch = GeneratedColumn<String>(
+    'catalog_match',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _confidenceMeta = const VerificationMeta(
+    'confidence',
+  );
+  @override
+  late final GeneratedColumn<double> confidence = GeneratedColumn<double>(
+    'confidence',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _reviewedMeta = const VerificationMeta(
+    'reviewed',
+  );
+  @override
+  late final GeneratedColumn<bool> reviewed = GeneratedColumn<bool>(
+    'reviewed',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("reviewed" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _dismissedMeta = const VerificationMeta(
+    'dismissed',
+  );
+  @override
+  late final GeneratedColumn<bool> dismissed = GeneratedColumn<bool>(
+    'dismissed',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("dismissed" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    sessionId,
+    capturedImageId,
+    tileId,
+    detectedAt,
+    raDeg,
+    decDeg,
+    residualFlux,
+    deltaMag,
+    snr,
+    fwhm,
+    eccentricity,
+    positionAngleDeg,
+    kind,
+    catalogMatch,
+    confidence,
+    reviewed,
+    dismissed,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'transient_detections';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<TransientDetectionRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('session_id')) {
+      context.handle(
+        _sessionIdMeta,
+        sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta),
+      );
+    }
+    if (data.containsKey('captured_image_id')) {
+      context.handle(
+        _capturedImageIdMeta,
+        capturedImageId.isAcceptableOrUnknown(
+          data['captured_image_id']!,
+          _capturedImageIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('tile_id')) {
+      context.handle(
+        _tileIdMeta,
+        tileId.isAcceptableOrUnknown(data['tile_id']!, _tileIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_tileIdMeta);
+    }
+    if (data.containsKey('detected_at')) {
+      context.handle(
+        _detectedAtMeta,
+        detectedAt.isAcceptableOrUnknown(data['detected_at']!, _detectedAtMeta),
+      );
+    }
+    if (data.containsKey('ra_deg')) {
+      context.handle(
+        _raDegMeta,
+        raDeg.isAcceptableOrUnknown(data['ra_deg']!, _raDegMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_raDegMeta);
+    }
+    if (data.containsKey('dec_deg')) {
+      context.handle(
+        _decDegMeta,
+        decDeg.isAcceptableOrUnknown(data['dec_deg']!, _decDegMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_decDegMeta);
+    }
+    if (data.containsKey('residual_flux')) {
+      context.handle(
+        _residualFluxMeta,
+        residualFlux.isAcceptableOrUnknown(
+          data['residual_flux']!,
+          _residualFluxMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_residualFluxMeta);
+    }
+    if (data.containsKey('delta_mag')) {
+      context.handle(
+        _deltaMagMeta,
+        deltaMag.isAcceptableOrUnknown(data['delta_mag']!, _deltaMagMeta),
+      );
+    }
+    if (data.containsKey('snr')) {
+      context.handle(
+        _snrMeta,
+        snr.isAcceptableOrUnknown(data['snr']!, _snrMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_snrMeta);
+    }
+    if (data.containsKey('fwhm')) {
+      context.handle(
+        _fwhmMeta,
+        fwhm.isAcceptableOrUnknown(data['fwhm']!, _fwhmMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_fwhmMeta);
+    }
+    if (data.containsKey('eccentricity')) {
+      context.handle(
+        _eccentricityMeta,
+        eccentricity.isAcceptableOrUnknown(
+          data['eccentricity']!,
+          _eccentricityMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_eccentricityMeta);
+    }
+    if (data.containsKey('position_angle_deg')) {
+      context.handle(
+        _positionAngleDegMeta,
+        positionAngleDeg.isAcceptableOrUnknown(
+          data['position_angle_deg']!,
+          _positionAngleDegMeta,
+        ),
+      );
+    }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kindMeta);
+    }
+    if (data.containsKey('catalog_match')) {
+      context.handle(
+        _catalogMatchMeta,
+        catalogMatch.isAcceptableOrUnknown(
+          data['catalog_match']!,
+          _catalogMatchMeta,
+        ),
+      );
+    }
+    if (data.containsKey('confidence')) {
+      context.handle(
+        _confidenceMeta,
+        confidence.isAcceptableOrUnknown(data['confidence']!, _confidenceMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_confidenceMeta);
+    }
+    if (data.containsKey('reviewed')) {
+      context.handle(
+        _reviewedMeta,
+        reviewed.isAcceptableOrUnknown(data['reviewed']!, _reviewedMeta),
+      );
+    }
+    if (data.containsKey('dismissed')) {
+      context.handle(
+        _dismissedMeta,
+        dismissed.isAcceptableOrUnknown(data['dismissed']!, _dismissedMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TransientDetectionRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TransientDetectionRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      sessionId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}session_id'],
+      ),
+      capturedImageId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}captured_image_id'],
+      ),
+      tileId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}tile_id'],
+      )!,
+      detectedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}detected_at'],
+      )!,
+      raDeg: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}ra_deg'],
+      )!,
+      decDeg: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}dec_deg'],
+      )!,
+      residualFlux: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}residual_flux'],
+      )!,
+      deltaMag: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}delta_mag'],
+      ),
+      snr: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}snr'],
+      )!,
+      fwhm: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}fwhm'],
+      )!,
+      eccentricity: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}eccentricity'],
+      )!,
+      positionAngleDeg: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}position_angle_deg'],
+      )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}kind'],
+      )!,
+      catalogMatch: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}catalog_match'],
+      ),
+      confidence: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}confidence'],
+      )!,
+      reviewed: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}reviewed'],
+      )!,
+      dismissed: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}dismissed'],
+      )!,
+    );
+  }
+
+  @override
+  $TransientDetectionsTable createAlias(String alias) {
+    return $TransientDetectionsTable(attachedDatabase, alias);
+  }
+}
+
+class TransientDetectionRow extends DataClass
+    implements Insertable<TransientDetectionRow> {
+  final int id;
+  final int? sessionId;
+  final int? capturedImageId;
+
+  /// HEALPix NESTED tile id the residual fell on.
+  final int tileId;
+  final DateTime detectedAt;
+
+  /// Sky position resolved through the tile WCS, degrees, J2000.
+  final double raDeg;
+  final double decDeg;
+
+  /// Template-subtracted flux (signed; positive = brighter than the template).
+  final double residualFlux;
+
+  /// Estimated brightness change in magnitudes (negative = brighter). Null for
+  /// a true new source with no template flux to compare against.
+  final double? deltaMag;
+  final double snr;
+  final double fwhm;
+  final double eccentricity;
+
+  /// Major-axis position angle (degrees, `[0, 180)`) from the residual's
+  /// second-moment covariance — the real measured orientation of an elongated
+  /// source (a streak's trail direction). Defaults to 0 for pre-existing rows
+  /// written before the native fit reported it.
+  final double positionAngleDeg;
+
+  /// Shape/sign class: `pointBrightening` | `movingStreak` | `dipole` |
+  /// `newSource`.
+  final String kind;
+
+  /// Resolved object name from the Dart-side cross-match, or null when no
+  /// catalog / photometric / moving-object match was found — the headline case
+  /// of a possible unknown transient.
+  final String? catalogMatch;
+
+  /// Cross-match confidence in [0, 1]: how strongly the residual is believed to
+  /// be a real astrophysical change versus a subtraction artefact.
+  final double confidence;
+
+  /// Whether a human has triaged this detection.
+  final bool reviewed;
+
+  /// Whether a human dismissed it as an artefact (kept, not deleted, so the
+  /// difference pipeline does not re-surface the same residual every night).
+  final bool dismissed;
+  const TransientDetectionRow({
+    required this.id,
+    this.sessionId,
+    this.capturedImageId,
+    required this.tileId,
+    required this.detectedAt,
+    required this.raDeg,
+    required this.decDeg,
+    required this.residualFlux,
+    this.deltaMag,
+    required this.snr,
+    required this.fwhm,
+    required this.eccentricity,
+    required this.positionAngleDeg,
+    required this.kind,
+    this.catalogMatch,
+    required this.confidence,
+    required this.reviewed,
+    required this.dismissed,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    if (!nullToAbsent || sessionId != null) {
+      map['session_id'] = Variable<int>(sessionId);
+    }
+    if (!nullToAbsent || capturedImageId != null) {
+      map['captured_image_id'] = Variable<int>(capturedImageId);
+    }
+    map['tile_id'] = Variable<int>(tileId);
+    map['detected_at'] = Variable<DateTime>(detectedAt);
+    map['ra_deg'] = Variable<double>(raDeg);
+    map['dec_deg'] = Variable<double>(decDeg);
+    map['residual_flux'] = Variable<double>(residualFlux);
+    if (!nullToAbsent || deltaMag != null) {
+      map['delta_mag'] = Variable<double>(deltaMag);
+    }
+    map['snr'] = Variable<double>(snr);
+    map['fwhm'] = Variable<double>(fwhm);
+    map['eccentricity'] = Variable<double>(eccentricity);
+    map['position_angle_deg'] = Variable<double>(positionAngleDeg);
+    map['kind'] = Variable<String>(kind);
+    if (!nullToAbsent || catalogMatch != null) {
+      map['catalog_match'] = Variable<String>(catalogMatch);
+    }
+    map['confidence'] = Variable<double>(confidence);
+    map['reviewed'] = Variable<bool>(reviewed);
+    map['dismissed'] = Variable<bool>(dismissed);
+    return map;
+  }
+
+  TransientDetectionsCompanion toCompanion(bool nullToAbsent) {
+    return TransientDetectionsCompanion(
+      id: Value(id),
+      sessionId: sessionId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sessionId),
+      capturedImageId: capturedImageId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(capturedImageId),
+      tileId: Value(tileId),
+      detectedAt: Value(detectedAt),
+      raDeg: Value(raDeg),
+      decDeg: Value(decDeg),
+      residualFlux: Value(residualFlux),
+      deltaMag: deltaMag == null && nullToAbsent
+          ? const Value.absent()
+          : Value(deltaMag),
+      snr: Value(snr),
+      fwhm: Value(fwhm),
+      eccentricity: Value(eccentricity),
+      positionAngleDeg: Value(positionAngleDeg),
+      kind: Value(kind),
+      catalogMatch: catalogMatch == null && nullToAbsent
+          ? const Value.absent()
+          : Value(catalogMatch),
+      confidence: Value(confidence),
+      reviewed: Value(reviewed),
+      dismissed: Value(dismissed),
+    );
+  }
+
+  factory TransientDetectionRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TransientDetectionRow(
+      id: serializer.fromJson<int>(json['id']),
+      sessionId: serializer.fromJson<int?>(json['sessionId']),
+      capturedImageId: serializer.fromJson<int?>(json['capturedImageId']),
+      tileId: serializer.fromJson<int>(json['tileId']),
+      detectedAt: serializer.fromJson<DateTime>(json['detectedAt']),
+      raDeg: serializer.fromJson<double>(json['raDeg']),
+      decDeg: serializer.fromJson<double>(json['decDeg']),
+      residualFlux: serializer.fromJson<double>(json['residualFlux']),
+      deltaMag: serializer.fromJson<double?>(json['deltaMag']),
+      snr: serializer.fromJson<double>(json['snr']),
+      fwhm: serializer.fromJson<double>(json['fwhm']),
+      eccentricity: serializer.fromJson<double>(json['eccentricity']),
+      positionAngleDeg: serializer.fromJson<double>(json['positionAngleDeg']),
+      kind: serializer.fromJson<String>(json['kind']),
+      catalogMatch: serializer.fromJson<String?>(json['catalogMatch']),
+      confidence: serializer.fromJson<double>(json['confidence']),
+      reviewed: serializer.fromJson<bool>(json['reviewed']),
+      dismissed: serializer.fromJson<bool>(json['dismissed']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'sessionId': serializer.toJson<int?>(sessionId),
+      'capturedImageId': serializer.toJson<int?>(capturedImageId),
+      'tileId': serializer.toJson<int>(tileId),
+      'detectedAt': serializer.toJson<DateTime>(detectedAt),
+      'raDeg': serializer.toJson<double>(raDeg),
+      'decDeg': serializer.toJson<double>(decDeg),
+      'residualFlux': serializer.toJson<double>(residualFlux),
+      'deltaMag': serializer.toJson<double?>(deltaMag),
+      'snr': serializer.toJson<double>(snr),
+      'fwhm': serializer.toJson<double>(fwhm),
+      'eccentricity': serializer.toJson<double>(eccentricity),
+      'positionAngleDeg': serializer.toJson<double>(positionAngleDeg),
+      'kind': serializer.toJson<String>(kind),
+      'catalogMatch': serializer.toJson<String?>(catalogMatch),
+      'confidence': serializer.toJson<double>(confidence),
+      'reviewed': serializer.toJson<bool>(reviewed),
+      'dismissed': serializer.toJson<bool>(dismissed),
+    };
+  }
+
+  TransientDetectionRow copyWith({
+    int? id,
+    Value<int?> sessionId = const Value.absent(),
+    Value<int?> capturedImageId = const Value.absent(),
+    int? tileId,
+    DateTime? detectedAt,
+    double? raDeg,
+    double? decDeg,
+    double? residualFlux,
+    Value<double?> deltaMag = const Value.absent(),
+    double? snr,
+    double? fwhm,
+    double? eccentricity,
+    double? positionAngleDeg,
+    String? kind,
+    Value<String?> catalogMatch = const Value.absent(),
+    double? confidence,
+    bool? reviewed,
+    bool? dismissed,
+  }) => TransientDetectionRow(
+    id: id ?? this.id,
+    sessionId: sessionId.present ? sessionId.value : this.sessionId,
+    capturedImageId: capturedImageId.present
+        ? capturedImageId.value
+        : this.capturedImageId,
+    tileId: tileId ?? this.tileId,
+    detectedAt: detectedAt ?? this.detectedAt,
+    raDeg: raDeg ?? this.raDeg,
+    decDeg: decDeg ?? this.decDeg,
+    residualFlux: residualFlux ?? this.residualFlux,
+    deltaMag: deltaMag.present ? deltaMag.value : this.deltaMag,
+    snr: snr ?? this.snr,
+    fwhm: fwhm ?? this.fwhm,
+    eccentricity: eccentricity ?? this.eccentricity,
+    positionAngleDeg: positionAngleDeg ?? this.positionAngleDeg,
+    kind: kind ?? this.kind,
+    catalogMatch: catalogMatch.present ? catalogMatch.value : this.catalogMatch,
+    confidence: confidence ?? this.confidence,
+    reviewed: reviewed ?? this.reviewed,
+    dismissed: dismissed ?? this.dismissed,
+  );
+  TransientDetectionRow copyWithCompanion(TransientDetectionsCompanion data) {
+    return TransientDetectionRow(
+      id: data.id.present ? data.id.value : this.id,
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
+      capturedImageId: data.capturedImageId.present
+          ? data.capturedImageId.value
+          : this.capturedImageId,
+      tileId: data.tileId.present ? data.tileId.value : this.tileId,
+      detectedAt: data.detectedAt.present
+          ? data.detectedAt.value
+          : this.detectedAt,
+      raDeg: data.raDeg.present ? data.raDeg.value : this.raDeg,
+      decDeg: data.decDeg.present ? data.decDeg.value : this.decDeg,
+      residualFlux: data.residualFlux.present
+          ? data.residualFlux.value
+          : this.residualFlux,
+      deltaMag: data.deltaMag.present ? data.deltaMag.value : this.deltaMag,
+      snr: data.snr.present ? data.snr.value : this.snr,
+      fwhm: data.fwhm.present ? data.fwhm.value : this.fwhm,
+      eccentricity: data.eccentricity.present
+          ? data.eccentricity.value
+          : this.eccentricity,
+      positionAngleDeg: data.positionAngleDeg.present
+          ? data.positionAngleDeg.value
+          : this.positionAngleDeg,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      catalogMatch: data.catalogMatch.present
+          ? data.catalogMatch.value
+          : this.catalogMatch,
+      confidence: data.confidence.present
+          ? data.confidence.value
+          : this.confidence,
+      reviewed: data.reviewed.present ? data.reviewed.value : this.reviewed,
+      dismissed: data.dismissed.present ? data.dismissed.value : this.dismissed,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TransientDetectionRow(')
+          ..write('id: $id, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('capturedImageId: $capturedImageId, ')
+          ..write('tileId: $tileId, ')
+          ..write('detectedAt: $detectedAt, ')
+          ..write('raDeg: $raDeg, ')
+          ..write('decDeg: $decDeg, ')
+          ..write('residualFlux: $residualFlux, ')
+          ..write('deltaMag: $deltaMag, ')
+          ..write('snr: $snr, ')
+          ..write('fwhm: $fwhm, ')
+          ..write('eccentricity: $eccentricity, ')
+          ..write('positionAngleDeg: $positionAngleDeg, ')
+          ..write('kind: $kind, ')
+          ..write('catalogMatch: $catalogMatch, ')
+          ..write('confidence: $confidence, ')
+          ..write('reviewed: $reviewed, ')
+          ..write('dismissed: $dismissed')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    sessionId,
+    capturedImageId,
+    tileId,
+    detectedAt,
+    raDeg,
+    decDeg,
+    residualFlux,
+    deltaMag,
+    snr,
+    fwhm,
+    eccentricity,
+    positionAngleDeg,
+    kind,
+    catalogMatch,
+    confidence,
+    reviewed,
+    dismissed,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TransientDetectionRow &&
+          other.id == this.id &&
+          other.sessionId == this.sessionId &&
+          other.capturedImageId == this.capturedImageId &&
+          other.tileId == this.tileId &&
+          other.detectedAt == this.detectedAt &&
+          other.raDeg == this.raDeg &&
+          other.decDeg == this.decDeg &&
+          other.residualFlux == this.residualFlux &&
+          other.deltaMag == this.deltaMag &&
+          other.snr == this.snr &&
+          other.fwhm == this.fwhm &&
+          other.eccentricity == this.eccentricity &&
+          other.positionAngleDeg == this.positionAngleDeg &&
+          other.kind == this.kind &&
+          other.catalogMatch == this.catalogMatch &&
+          other.confidence == this.confidence &&
+          other.reviewed == this.reviewed &&
+          other.dismissed == this.dismissed);
+}
+
+class TransientDetectionsCompanion
+    extends UpdateCompanion<TransientDetectionRow> {
+  final Value<int> id;
+  final Value<int?> sessionId;
+  final Value<int?> capturedImageId;
+  final Value<int> tileId;
+  final Value<DateTime> detectedAt;
+  final Value<double> raDeg;
+  final Value<double> decDeg;
+  final Value<double> residualFlux;
+  final Value<double?> deltaMag;
+  final Value<double> snr;
+  final Value<double> fwhm;
+  final Value<double> eccentricity;
+  final Value<double> positionAngleDeg;
+  final Value<String> kind;
+  final Value<String?> catalogMatch;
+  final Value<double> confidence;
+  final Value<bool> reviewed;
+  final Value<bool> dismissed;
+  const TransientDetectionsCompanion({
+    this.id = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.capturedImageId = const Value.absent(),
+    this.tileId = const Value.absent(),
+    this.detectedAt = const Value.absent(),
+    this.raDeg = const Value.absent(),
+    this.decDeg = const Value.absent(),
+    this.residualFlux = const Value.absent(),
+    this.deltaMag = const Value.absent(),
+    this.snr = const Value.absent(),
+    this.fwhm = const Value.absent(),
+    this.eccentricity = const Value.absent(),
+    this.positionAngleDeg = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.catalogMatch = const Value.absent(),
+    this.confidence = const Value.absent(),
+    this.reviewed = const Value.absent(),
+    this.dismissed = const Value.absent(),
+  });
+  TransientDetectionsCompanion.insert({
+    this.id = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.capturedImageId = const Value.absent(),
+    required int tileId,
+    this.detectedAt = const Value.absent(),
+    required double raDeg,
+    required double decDeg,
+    required double residualFlux,
+    this.deltaMag = const Value.absent(),
+    required double snr,
+    required double fwhm,
+    required double eccentricity,
+    this.positionAngleDeg = const Value.absent(),
+    required String kind,
+    this.catalogMatch = const Value.absent(),
+    required double confidence,
+    this.reviewed = const Value.absent(),
+    this.dismissed = const Value.absent(),
+  }) : tileId = Value(tileId),
+       raDeg = Value(raDeg),
+       decDeg = Value(decDeg),
+       residualFlux = Value(residualFlux),
+       snr = Value(snr),
+       fwhm = Value(fwhm),
+       eccentricity = Value(eccentricity),
+       kind = Value(kind),
+       confidence = Value(confidence);
+  static Insertable<TransientDetectionRow> custom({
+    Expression<int>? id,
+    Expression<int>? sessionId,
+    Expression<int>? capturedImageId,
+    Expression<int>? tileId,
+    Expression<DateTime>? detectedAt,
+    Expression<double>? raDeg,
+    Expression<double>? decDeg,
+    Expression<double>? residualFlux,
+    Expression<double>? deltaMag,
+    Expression<double>? snr,
+    Expression<double>? fwhm,
+    Expression<double>? eccentricity,
+    Expression<double>? positionAngleDeg,
+    Expression<String>? kind,
+    Expression<String>? catalogMatch,
+    Expression<double>? confidence,
+    Expression<bool>? reviewed,
+    Expression<bool>? dismissed,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (sessionId != null) 'session_id': sessionId,
+      if (capturedImageId != null) 'captured_image_id': capturedImageId,
+      if (tileId != null) 'tile_id': tileId,
+      if (detectedAt != null) 'detected_at': detectedAt,
+      if (raDeg != null) 'ra_deg': raDeg,
+      if (decDeg != null) 'dec_deg': decDeg,
+      if (residualFlux != null) 'residual_flux': residualFlux,
+      if (deltaMag != null) 'delta_mag': deltaMag,
+      if (snr != null) 'snr': snr,
+      if (fwhm != null) 'fwhm': fwhm,
+      if (eccentricity != null) 'eccentricity': eccentricity,
+      if (positionAngleDeg != null) 'position_angle_deg': positionAngleDeg,
+      if (kind != null) 'kind': kind,
+      if (catalogMatch != null) 'catalog_match': catalogMatch,
+      if (confidence != null) 'confidence': confidence,
+      if (reviewed != null) 'reviewed': reviewed,
+      if (dismissed != null) 'dismissed': dismissed,
+    });
+  }
+
+  TransientDetectionsCompanion copyWith({
+    Value<int>? id,
+    Value<int?>? sessionId,
+    Value<int?>? capturedImageId,
+    Value<int>? tileId,
+    Value<DateTime>? detectedAt,
+    Value<double>? raDeg,
+    Value<double>? decDeg,
+    Value<double>? residualFlux,
+    Value<double?>? deltaMag,
+    Value<double>? snr,
+    Value<double>? fwhm,
+    Value<double>? eccentricity,
+    Value<double>? positionAngleDeg,
+    Value<String>? kind,
+    Value<String?>? catalogMatch,
+    Value<double>? confidence,
+    Value<bool>? reviewed,
+    Value<bool>? dismissed,
+  }) {
+    return TransientDetectionsCompanion(
+      id: id ?? this.id,
+      sessionId: sessionId ?? this.sessionId,
+      capturedImageId: capturedImageId ?? this.capturedImageId,
+      tileId: tileId ?? this.tileId,
+      detectedAt: detectedAt ?? this.detectedAt,
+      raDeg: raDeg ?? this.raDeg,
+      decDeg: decDeg ?? this.decDeg,
+      residualFlux: residualFlux ?? this.residualFlux,
+      deltaMag: deltaMag ?? this.deltaMag,
+      snr: snr ?? this.snr,
+      fwhm: fwhm ?? this.fwhm,
+      eccentricity: eccentricity ?? this.eccentricity,
+      positionAngleDeg: positionAngleDeg ?? this.positionAngleDeg,
+      kind: kind ?? this.kind,
+      catalogMatch: catalogMatch ?? this.catalogMatch,
+      confidence: confidence ?? this.confidence,
+      reviewed: reviewed ?? this.reviewed,
+      dismissed: dismissed ?? this.dismissed,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (sessionId.present) {
+      map['session_id'] = Variable<int>(sessionId.value);
+    }
+    if (capturedImageId.present) {
+      map['captured_image_id'] = Variable<int>(capturedImageId.value);
+    }
+    if (tileId.present) {
+      map['tile_id'] = Variable<int>(tileId.value);
+    }
+    if (detectedAt.present) {
+      map['detected_at'] = Variable<DateTime>(detectedAt.value);
+    }
+    if (raDeg.present) {
+      map['ra_deg'] = Variable<double>(raDeg.value);
+    }
+    if (decDeg.present) {
+      map['dec_deg'] = Variable<double>(decDeg.value);
+    }
+    if (residualFlux.present) {
+      map['residual_flux'] = Variable<double>(residualFlux.value);
+    }
+    if (deltaMag.present) {
+      map['delta_mag'] = Variable<double>(deltaMag.value);
+    }
+    if (snr.present) {
+      map['snr'] = Variable<double>(snr.value);
+    }
+    if (fwhm.present) {
+      map['fwhm'] = Variable<double>(fwhm.value);
+    }
+    if (eccentricity.present) {
+      map['eccentricity'] = Variable<double>(eccentricity.value);
+    }
+    if (positionAngleDeg.present) {
+      map['position_angle_deg'] = Variable<double>(positionAngleDeg.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<String>(kind.value);
+    }
+    if (catalogMatch.present) {
+      map['catalog_match'] = Variable<String>(catalogMatch.value);
+    }
+    if (confidence.present) {
+      map['confidence'] = Variable<double>(confidence.value);
+    }
+    if (reviewed.present) {
+      map['reviewed'] = Variable<bool>(reviewed.value);
+    }
+    if (dismissed.present) {
+      map['dismissed'] = Variable<bool>(dismissed.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TransientDetectionsCompanion(')
+          ..write('id: $id, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('capturedImageId: $capturedImageId, ')
+          ..write('tileId: $tileId, ')
+          ..write('detectedAt: $detectedAt, ')
+          ..write('raDeg: $raDeg, ')
+          ..write('decDeg: $decDeg, ')
+          ..write('residualFlux: $residualFlux, ')
+          ..write('deltaMag: $deltaMag, ')
+          ..write('snr: $snr, ')
+          ..write('fwhm: $fwhm, ')
+          ..write('eccentricity: $eccentricity, ')
+          ..write('positionAngleDeg: $positionAngleDeg, ')
+          ..write('kind: $kind, ')
+          ..write('catalogMatch: $catalogMatch, ')
+          ..write('confidence: $confidence, ')
+          ..write('reviewed: $reviewed, ')
+          ..write('dismissed: $dismissed')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $LivingSkyRetentionTable extends LivingSkyRetention
+    with TableInfo<$LivingSkyRetentionTable, LivingSkyRetentionRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LivingSkyRetentionTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _scopeMeta = const VerificationMeta('scope');
+  @override
+  late final GeneratedColumn<String> scope = GeneratedColumn<String>(
+    'scope',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastPrunedAtMeta = const VerificationMeta(
+    'lastPrunedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> lastPrunedAt = GeneratedColumn<DateTime>(
+    'last_pruned_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastPrunedIdMeta = const VerificationMeta(
+    'lastPrunedId',
+  );
+  @override
+  late final GeneratedColumn<int> lastPrunedId = GeneratedColumn<int>(
+    'last_pruned_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _prunedCountMeta = const VerificationMeta(
+    'prunedCount',
+  );
+  @override
+  late final GeneratedColumn<int> prunedCount = GeneratedColumn<int>(
+    'pruned_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    scope,
+    lastPrunedAt,
+    lastPrunedId,
+    prunedCount,
+    note,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'living_sky_retention';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LivingSkyRetentionRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('scope')) {
+      context.handle(
+        _scopeMeta,
+        scope.isAcceptableOrUnknown(data['scope']!, _scopeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_scopeMeta);
+    }
+    if (data.containsKey('last_pruned_at')) {
+      context.handle(
+        _lastPrunedAtMeta,
+        lastPrunedAt.isAcceptableOrUnknown(
+          data['last_pruned_at']!,
+          _lastPrunedAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_pruned_id')) {
+      context.handle(
+        _lastPrunedIdMeta,
+        lastPrunedId.isAcceptableOrUnknown(
+          data['last_pruned_id']!,
+          _lastPrunedIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('pruned_count')) {
+      context.handle(
+        _prunedCountMeta,
+        prunedCount.isAcceptableOrUnknown(
+          data['pruned_count']!,
+          _prunedCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  LivingSkyRetentionRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LivingSkyRetentionRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      scope: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}scope'],
+      )!,
+      lastPrunedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_pruned_at'],
+      ),
+      lastPrunedId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_pruned_id'],
+      ),
+      prunedCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}pruned_count'],
+      )!,
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $LivingSkyRetentionTable createAlias(String alias) {
+    return $LivingSkyRetentionTable(attachedDatabase, alias);
+  }
+}
+
+class LivingSkyRetentionRow extends DataClass
+    implements Insertable<LivingSkyRetentionRow> {
+  final int id;
+
+  /// Stable sweep key — one of [LivingSkyRetentionScope]'s constants.
+  final String scope;
+
+  /// Timestamp high-water the sweep has pruned up to (null = never run).
+  final DateTime? lastPrunedAt;
+
+  /// Monotonic id high-water the sweep has considered (null = never run).
+  final int? lastPrunedId;
+
+  /// Running count of records reclaimed across all runs of this sweep.
+  final int prunedCount;
+
+  /// Free-form note the sweep owns (e.g. bytes reclaimed, retention window).
+  final String? note;
+  final DateTime updatedAt;
+  const LivingSkyRetentionRow({
+    required this.id,
+    required this.scope,
+    this.lastPrunedAt,
+    this.lastPrunedId,
+    required this.prunedCount,
+    this.note,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['scope'] = Variable<String>(scope);
+    if (!nullToAbsent || lastPrunedAt != null) {
+      map['last_pruned_at'] = Variable<DateTime>(lastPrunedAt);
+    }
+    if (!nullToAbsent || lastPrunedId != null) {
+      map['last_pruned_id'] = Variable<int>(lastPrunedId);
+    }
+    map['pruned_count'] = Variable<int>(prunedCount);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  LivingSkyRetentionCompanion toCompanion(bool nullToAbsent) {
+    return LivingSkyRetentionCompanion(
+      id: Value(id),
+      scope: Value(scope),
+      lastPrunedAt: lastPrunedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastPrunedAt),
+      lastPrunedId: lastPrunedId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastPrunedId),
+      prunedCount: Value(prunedCount),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory LivingSkyRetentionRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LivingSkyRetentionRow(
+      id: serializer.fromJson<int>(json['id']),
+      scope: serializer.fromJson<String>(json['scope']),
+      lastPrunedAt: serializer.fromJson<DateTime?>(json['lastPrunedAt']),
+      lastPrunedId: serializer.fromJson<int?>(json['lastPrunedId']),
+      prunedCount: serializer.fromJson<int>(json['prunedCount']),
+      note: serializer.fromJson<String?>(json['note']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'scope': serializer.toJson<String>(scope),
+      'lastPrunedAt': serializer.toJson<DateTime?>(lastPrunedAt),
+      'lastPrunedId': serializer.toJson<int?>(lastPrunedId),
+      'prunedCount': serializer.toJson<int>(prunedCount),
+      'note': serializer.toJson<String?>(note),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  LivingSkyRetentionRow copyWith({
+    int? id,
+    String? scope,
+    Value<DateTime?> lastPrunedAt = const Value.absent(),
+    Value<int?> lastPrunedId = const Value.absent(),
+    int? prunedCount,
+    Value<String?> note = const Value.absent(),
+    DateTime? updatedAt,
+  }) => LivingSkyRetentionRow(
+    id: id ?? this.id,
+    scope: scope ?? this.scope,
+    lastPrunedAt: lastPrunedAt.present ? lastPrunedAt.value : this.lastPrunedAt,
+    lastPrunedId: lastPrunedId.present ? lastPrunedId.value : this.lastPrunedId,
+    prunedCount: prunedCount ?? this.prunedCount,
+    note: note.present ? note.value : this.note,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  LivingSkyRetentionRow copyWithCompanion(LivingSkyRetentionCompanion data) {
+    return LivingSkyRetentionRow(
+      id: data.id.present ? data.id.value : this.id,
+      scope: data.scope.present ? data.scope.value : this.scope,
+      lastPrunedAt: data.lastPrunedAt.present
+          ? data.lastPrunedAt.value
+          : this.lastPrunedAt,
+      lastPrunedId: data.lastPrunedId.present
+          ? data.lastPrunedId.value
+          : this.lastPrunedId,
+      prunedCount: data.prunedCount.present
+          ? data.prunedCount.value
+          : this.prunedCount,
+      note: data.note.present ? data.note.value : this.note,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LivingSkyRetentionRow(')
+          ..write('id: $id, ')
+          ..write('scope: $scope, ')
+          ..write('lastPrunedAt: $lastPrunedAt, ')
+          ..write('lastPrunedId: $lastPrunedId, ')
+          ..write('prunedCount: $prunedCount, ')
+          ..write('note: $note, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    scope,
+    lastPrunedAt,
+    lastPrunedId,
+    prunedCount,
+    note,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LivingSkyRetentionRow &&
+          other.id == this.id &&
+          other.scope == this.scope &&
+          other.lastPrunedAt == this.lastPrunedAt &&
+          other.lastPrunedId == this.lastPrunedId &&
+          other.prunedCount == this.prunedCount &&
+          other.note == this.note &&
+          other.updatedAt == this.updatedAt);
+}
+
+class LivingSkyRetentionCompanion
+    extends UpdateCompanion<LivingSkyRetentionRow> {
+  final Value<int> id;
+  final Value<String> scope;
+  final Value<DateTime?> lastPrunedAt;
+  final Value<int?> lastPrunedId;
+  final Value<int> prunedCount;
+  final Value<String?> note;
+  final Value<DateTime> updatedAt;
+  const LivingSkyRetentionCompanion({
+    this.id = const Value.absent(),
+    this.scope = const Value.absent(),
+    this.lastPrunedAt = const Value.absent(),
+    this.lastPrunedId = const Value.absent(),
+    this.prunedCount = const Value.absent(),
+    this.note = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  LivingSkyRetentionCompanion.insert({
+    this.id = const Value.absent(),
+    required String scope,
+    this.lastPrunedAt = const Value.absent(),
+    this.lastPrunedId = const Value.absent(),
+    this.prunedCount = const Value.absent(),
+    this.note = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  }) : scope = Value(scope);
+  static Insertable<LivingSkyRetentionRow> custom({
+    Expression<int>? id,
+    Expression<String>? scope,
+    Expression<DateTime>? lastPrunedAt,
+    Expression<int>? lastPrunedId,
+    Expression<int>? prunedCount,
+    Expression<String>? note,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (scope != null) 'scope': scope,
+      if (lastPrunedAt != null) 'last_pruned_at': lastPrunedAt,
+      if (lastPrunedId != null) 'last_pruned_id': lastPrunedId,
+      if (prunedCount != null) 'pruned_count': prunedCount,
+      if (note != null) 'note': note,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  LivingSkyRetentionCompanion copyWith({
+    Value<int>? id,
+    Value<String>? scope,
+    Value<DateTime?>? lastPrunedAt,
+    Value<int?>? lastPrunedId,
+    Value<int>? prunedCount,
+    Value<String?>? note,
+    Value<DateTime>? updatedAt,
+  }) {
+    return LivingSkyRetentionCompanion(
+      id: id ?? this.id,
+      scope: scope ?? this.scope,
+      lastPrunedAt: lastPrunedAt ?? this.lastPrunedAt,
+      lastPrunedId: lastPrunedId ?? this.lastPrunedId,
+      prunedCount: prunedCount ?? this.prunedCount,
+      note: note ?? this.note,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (scope.present) {
+      map['scope'] = Variable<String>(scope.value);
+    }
+    if (lastPrunedAt.present) {
+      map['last_pruned_at'] = Variable<DateTime>(lastPrunedAt.value);
+    }
+    if (lastPrunedId.present) {
+      map['last_pruned_id'] = Variable<int>(lastPrunedId.value);
+    }
+    if (prunedCount.present) {
+      map['pruned_count'] = Variable<int>(prunedCount.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LivingSkyRetentionCompanion(')
+          ..write('id: $id, ')
+          ..write('scope: $scope, ')
+          ..write('lastPrunedAt: $lastPrunedAt, ')
+          ..write('lastPrunedId: $lastPrunedId, ')
+          ..write('prunedCount: $prunedCount, ')
+          ..write('note: $note, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$NightshadeDatabase extends GeneratedDatabase {
   _$NightshadeDatabase(QueryExecutor e) : super(e);
   $NightshadeDatabaseManager get managers => $NightshadeDatabaseManager(this);
@@ -28095,6 +33156,17 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
     this,
   );
   late final $NarratorEventsTable narratorEvents = $NarratorEventsTable(this);
+  late final $SkyAtlasRegionsTable skyAtlasRegions = $SkyAtlasRegionsTable(
+    this,
+  );
+  late final $SkyTilesTable skyTiles = $SkyTilesTable(this);
+  late final $SkyAtlasFoldsTable skyAtlasFolds = $SkyAtlasFoldsTable(this);
+  late final $ConstellationContributionsTable constellationContributions =
+      $ConstellationContributionsTable(this);
+  late final $TransientDetectionsTable transientDetections =
+      $TransientDetectionsTable(this);
+  late final $LivingSkyRetentionTable livingSkyRetention =
+      $LivingSkyRetentionTable(this);
   late final Index idxProfilesName = Index(
     'idx_profiles_name',
     'CREATE INDEX idx_profiles_name ON equipment_profiles (name)',
@@ -28483,6 +33555,46 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
     'idx_narrator_events_dedupe',
     'CREATE INDEX idx_narrator_events_dedupe ON narrator_events (session_id, dedupe_key)',
   );
+  late final Index idxSkyTilesPixel = Index(
+    'idx_sky_tiles_pixel',
+    'CREATE UNIQUE INDEX idx_sky_tiles_pixel ON sky_tiles (tile_id, healpix_order)',
+  );
+  late final Index idxSkyTilesRegion = Index(
+    'idx_sky_tiles_region',
+    'CREATE INDEX idx_sky_tiles_region ON sky_tiles (region_id)',
+  );
+  late final Index idxSkyAtlasRegionsTarget = Index(
+    'idx_sky_atlas_regions_target',
+    'CREATE INDEX idx_sky_atlas_regions_target ON sky_atlas_regions (target_id)',
+  );
+  late final Index idxSkyAtlasFoldsTileTime = Index(
+    'idx_sky_atlas_folds_tile_time',
+    'CREATE INDEX idx_sky_atlas_folds_tile_time ON sky_atlas_folds (tile_id, healpix_order, folded_at)',
+  );
+  late final Index idxSkyAtlasFoldsSession = Index(
+    'idx_sky_atlas_folds_session',
+    'CREATE INDEX idx_sky_atlas_folds_session ON sky_atlas_folds (session_id)',
+  );
+  late final Index idxConstellationContributionsKey = Index(
+    'idx_constellation_contributions_key',
+    'CREATE UNIQUE INDEX idx_constellation_contributions_key ON constellation_contributions (hub_key, tile_id, healpix_order)',
+  );
+  late final Index idxTransientDetectionsSession = Index(
+    'idx_transient_detections_session',
+    'CREATE INDEX idx_transient_detections_session ON transient_detections (session_id)',
+  );
+  late final Index idxTransientDetectionsTile = Index(
+    'idx_transient_detections_tile',
+    'CREATE INDEX idx_transient_detections_tile ON transient_detections (tile_id)',
+  );
+  late final Index idxTransientDetectionsDetected = Index(
+    'idx_transient_detections_detected',
+    'CREATE INDEX idx_transient_detections_detected ON transient_detections (detected_at)',
+  );
+  late final Index idxLivingSkyRetentionScope = Index(
+    'idx_living_sky_retention_scope',
+    'CREATE UNIQUE INDEX idx_living_sky_retention_scope ON living_sky_retention (scope)',
+  );
   late final ImagesDao imagesDao = ImagesDao(this as NightshadeDatabase);
   late final EquipmentProfilesDao equipmentProfilesDao = EquipmentProfilesDao(
     this as NightshadeDatabase,
@@ -28530,6 +33642,13 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
   late final NarratorEventsDao narratorEventsDao = NarratorEventsDao(
     this as NightshadeDatabase,
   );
+  late final SkyAtlasDao skyAtlasDao = SkyAtlasDao(this as NightshadeDatabase);
+  late final ConstellationContributionsDao constellationContributionsDao =
+      ConstellationContributionsDao(this as NightshadeDatabase);
+  late final TransientDetectionsDao transientDetectionsDao =
+      TransientDetectionsDao(this as NightshadeDatabase);
+  late final LivingSkyRetentionDao livingSkyRetentionDao =
+      LivingSkyRetentionDao(this as NightshadeDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -28570,6 +33689,12 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
     focusModels,
     guideRmsHistory,
     narratorEvents,
+    skyAtlasRegions,
+    skyTiles,
+    skyAtlasFolds,
+    constellationContributions,
+    transientDetections,
+    livingSkyRetention,
     idxProfilesName,
     idxProfilesActive,
     idxSessionsTarget,
@@ -28667,6 +33792,16 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
     idxNarratorEventsImage,
     idxNarratorEventsTimestamp,
     idxNarratorEventsDedupe,
+    idxSkyTilesPixel,
+    idxSkyTilesRegion,
+    idxSkyAtlasRegionsTarget,
+    idxSkyAtlasFoldsTileTime,
+    idxSkyAtlasFoldsSession,
+    idxConstellationContributionsKey,
+    idxTransientDetectionsSession,
+    idxTransientDetectionsTile,
+    idxTransientDetectionsDetected,
+    idxLivingSkyRetentionScope,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -28973,6 +34108,48 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
       ),
       result: [TableUpdate('narrator_events', kind: UpdateKind.update)],
     ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'targets',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('sky_atlas_regions', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'imaging_sessions',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('sky_tiles', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'sky_atlas_regions',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('sky_tiles', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'imaging_sessions',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('sky_atlas_folds', kind: UpdateKind.update)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'imaging_sessions',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('transient_detections', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName(
+        'captured_images',
+        limitUpdateKind: UpdateKind.delete,
+      ),
+      result: [TableUpdate('transient_detections', kind: UpdateKind.update)],
+    ),
   ]);
 }
 
@@ -29011,6 +34188,8 @@ typedef $$EquipmentProfilesTableCreateCompanionBuilder =
       Value<String?> filterWheelName,
       Value<String?> guiderName,
       Value<String?> rotatorName,
+      Value<String?> safetyMonitorName,
+      Value<String?> switchName,
       Value<String?> telescopeName,
       Value<double?> telescopeFocalLength,
       Value<double?> telescopeAperture,
@@ -29057,6 +34236,8 @@ typedef $$EquipmentProfilesTableUpdateCompanionBuilder =
       Value<String?> filterWheelName,
       Value<String?> guiderName,
       Value<String?> rotatorName,
+      Value<String?> safetyMonitorName,
+      Value<String?> switchName,
       Value<String?> telescopeName,
       Value<double?> telescopeFocalLength,
       Value<double?> telescopeAperture,
@@ -29408,6 +34589,16 @@ class $$EquipmentProfilesTableFilterComposer
 
   ColumnFilters<String> get rotatorName => $composableBuilder(
     column: $table.rotatorName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get safetyMonitorName => $composableBuilder(
+    column: $table.safetyMonitorName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get switchName => $composableBuilder(
+    column: $table.switchName,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -29788,6 +34979,16 @@ class $$EquipmentProfilesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get safetyMonitorName => $composableBuilder(
+    column: $table.safetyMonitorName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get switchName => $composableBuilder(
+    column: $table.switchName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get telescopeName => $composableBuilder(
     column: $table.telescopeName,
     builder: (column) => ColumnOrderings(column),
@@ -29986,6 +35187,16 @@ class $$EquipmentProfilesTableAnnotationComposer
 
   GeneratedColumn<String> get rotatorName => $composableBuilder(
     column: $table.rotatorName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get safetyMonitorName => $composableBuilder(
+    column: $table.safetyMonitorName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get switchName => $composableBuilder(
+    column: $table.switchName,
     builder: (column) => column,
   );
 
@@ -30255,6 +35466,8 @@ class $$EquipmentProfilesTableTableManager
                 Value<String?> filterWheelName = const Value.absent(),
                 Value<String?> guiderName = const Value.absent(),
                 Value<String?> rotatorName = const Value.absent(),
+                Value<String?> safetyMonitorName = const Value.absent(),
+                Value<String?> switchName = const Value.absent(),
                 Value<String?> telescopeName = const Value.absent(),
                 Value<double?> telescopeFocalLength = const Value.absent(),
                 Value<double?> telescopeAperture = const Value.absent(),
@@ -30299,6 +35512,8 @@ class $$EquipmentProfilesTableTableManager
                 filterWheelName: filterWheelName,
                 guiderName: guiderName,
                 rotatorName: rotatorName,
+                safetyMonitorName: safetyMonitorName,
+                switchName: switchName,
                 telescopeName: telescopeName,
                 telescopeFocalLength: telescopeFocalLength,
                 telescopeAperture: telescopeAperture,
@@ -30345,6 +35560,8 @@ class $$EquipmentProfilesTableTableManager
                 Value<String?> filterWheelName = const Value.absent(),
                 Value<String?> guiderName = const Value.absent(),
                 Value<String?> rotatorName = const Value.absent(),
+                Value<String?> safetyMonitorName = const Value.absent(),
+                Value<String?> switchName = const Value.absent(),
                 Value<String?> telescopeName = const Value.absent(),
                 Value<double?> telescopeFocalLength = const Value.absent(),
                 Value<double?> telescopeAperture = const Value.absent(),
@@ -30389,6 +35606,8 @@ class $$EquipmentProfilesTableTableManager
                 filterWheelName: filterWheelName,
                 guiderName: guiderName,
                 rotatorName: rotatorName,
+                safetyMonitorName: safetyMonitorName,
+                switchName: switchName,
                 telescopeName: telescopeName,
                 telescopeFocalLength: telescopeFocalLength,
                 telescopeAperture: telescopeAperture,
@@ -30705,6 +35924,30 @@ final class $$TargetsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$SkyAtlasRegionsTable, List<SkyAtlasRegionRow>>
+  _skyAtlasRegionsRefsTable(_$NightshadeDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.skyAtlasRegions,
+        aliasName: $_aliasNameGenerator(
+          db.targets.id,
+          db.skyAtlasRegions.targetId,
+        ),
+      );
+
+  $$SkyAtlasRegionsTableProcessedTableManager get skyAtlasRegionsRefs {
+    final manager = $$SkyAtlasRegionsTableTableManager(
+      $_db,
+      $_db.skyAtlasRegions,
+    ).filter((f) => f.targetId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _skyAtlasRegionsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$TargetsTableFilterComposer
@@ -30887,6 +36130,31 @@ class $$TargetsTableFilterComposer
           }) => $$CapturedImagesTableFilterComposer(
             $db: $db,
             $table: $db.capturedImages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> skyAtlasRegionsRefs(
+    Expression<bool> Function($$SkyAtlasRegionsTableFilterComposer f) f,
+  ) {
+    final $$SkyAtlasRegionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.skyAtlasRegions,
+      getReferencedColumn: (t) => t.targetId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SkyAtlasRegionsTableFilterComposer(
+            $db: $db,
+            $table: $db.skyAtlasRegions,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -31180,6 +36448,31 @@ class $$TargetsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> skyAtlasRegionsRefs<T extends Object>(
+    Expression<T> Function($$SkyAtlasRegionsTableAnnotationComposer a) f,
+  ) {
+    final $$SkyAtlasRegionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.skyAtlasRegions,
+      getReferencedColumn: (t) => t.targetId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SkyAtlasRegionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.skyAtlasRegions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$TargetsTableTableManager
@@ -31199,6 +36492,7 @@ class $$TargetsTableTableManager
             bool imagingSessionsRefs,
             bool sequenceNodesRefs,
             bool capturedImagesRefs,
+            bool skyAtlasRegionsRefs,
           })
         > {
   $$TargetsTableTableManager(_$NightshadeDatabase db, $TargetsTable table)
@@ -31317,6 +36611,7 @@ class $$TargetsTableTableManager
                 imagingSessionsRefs = false,
                 sequenceNodesRefs = false,
                 capturedImagesRefs = false,
+                skyAtlasRegionsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -31324,6 +36619,7 @@ class $$TargetsTableTableManager
                     if (imagingSessionsRefs) db.imagingSessions,
                     if (sequenceNodesRefs) db.sequenceNodes,
                     if (capturedImagesRefs) db.capturedImages,
+                    if (skyAtlasRegionsRefs) db.skyAtlasRegions,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -31391,6 +36687,27 @@ class $$TargetsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (skyAtlasRegionsRefs)
+                        await $_getPrefetchedData<
+                          Target,
+                          $TargetsTable,
+                          SkyAtlasRegionRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$TargetsTableReferences
+                              ._skyAtlasRegionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$TargetsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).skyAtlasRegionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.targetId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -31415,6 +36732,7 @@ typedef $$TargetsTableProcessedTableManager =
         bool imagingSessionsRefs,
         bool sequenceNodesRefs,
         bool capturedImagesRefs,
+        bool skyAtlasRegionsRefs,
       })
     >;
 typedef $$SequencesTableCreateCompanionBuilder =
@@ -32685,6 +38003,76 @@ final class $$ImagingSessionsTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<$SkyTilesTable, List<SkyTileRow>>
+  _skyTilesRefsTable(_$NightshadeDatabase db) => MultiTypedResultKey.fromTable(
+    db.skyTiles,
+    aliasName: $_aliasNameGenerator(
+      db.imagingSessions.id,
+      db.skyTiles.lastFoldSessionId,
+    ),
+  );
+
+  $$SkyTilesTableProcessedTableManager get skyTilesRefs {
+    final manager = $$SkyTilesTableTableManager(
+      $_db,
+      $_db.skyTiles,
+    ).filter((f) => f.lastFoldSessionId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_skyTilesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$SkyAtlasFoldsTable, List<SkyAtlasFoldRow>>
+  _skyAtlasFoldsRefsTable(_$NightshadeDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.skyAtlasFolds,
+        aliasName: $_aliasNameGenerator(
+          db.imagingSessions.id,
+          db.skyAtlasFolds.sessionId,
+        ),
+      );
+
+  $$SkyAtlasFoldsTableProcessedTableManager get skyAtlasFoldsRefs {
+    final manager = $$SkyAtlasFoldsTableTableManager(
+      $_db,
+      $_db.skyAtlasFolds,
+    ).filter((f) => f.sessionId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_skyAtlasFoldsRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<
+    $TransientDetectionsTable,
+    List<TransientDetectionRow>
+  >
+  _transientDetectionsRefsTable(_$NightshadeDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.transientDetections,
+        aliasName: $_aliasNameGenerator(
+          db.imagingSessions.id,
+          db.transientDetections.sessionId,
+        ),
+      );
+
+  $$TransientDetectionsTableProcessedTableManager get transientDetectionsRefs {
+    final manager = $$TransientDetectionsTableTableManager(
+      $_db,
+      $_db.transientDetections,
+    ).filter((f) => f.sessionId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _transientDetectionsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$ImagingSessionsTableFilterComposer
@@ -33176,6 +38564,81 @@ class $$ImagingSessionsTableFilterComposer
           }) => $$NarratorEventsTableFilterComposer(
             $db: $db,
             $table: $db.narratorEvents,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> skyTilesRefs(
+    Expression<bool> Function($$SkyTilesTableFilterComposer f) f,
+  ) {
+    final $$SkyTilesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.skyTiles,
+      getReferencedColumn: (t) => t.lastFoldSessionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SkyTilesTableFilterComposer(
+            $db: $db,
+            $table: $db.skyTiles,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> skyAtlasFoldsRefs(
+    Expression<bool> Function($$SkyAtlasFoldsTableFilterComposer f) f,
+  ) {
+    final $$SkyAtlasFoldsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.skyAtlasFolds,
+      getReferencedColumn: (t) => t.sessionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SkyAtlasFoldsTableFilterComposer(
+            $db: $db,
+            $table: $db.skyAtlasFolds,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> transientDetectionsRefs(
+    Expression<bool> Function($$TransientDetectionsTableFilterComposer f) f,
+  ) {
+    final $$TransientDetectionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.transientDetections,
+      getReferencedColumn: (t) => t.sessionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TransientDetectionsTableFilterComposer(
+            $db: $db,
+            $table: $db.transientDetections,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -33839,6 +39302,82 @@ class $$ImagingSessionsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> skyTilesRefs<T extends Object>(
+    Expression<T> Function($$SkyTilesTableAnnotationComposer a) f,
+  ) {
+    final $$SkyTilesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.skyTiles,
+      getReferencedColumn: (t) => t.lastFoldSessionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SkyTilesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.skyTiles,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> skyAtlasFoldsRefs<T extends Object>(
+    Expression<T> Function($$SkyAtlasFoldsTableAnnotationComposer a) f,
+  ) {
+    final $$SkyAtlasFoldsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.skyAtlasFolds,
+      getReferencedColumn: (t) => t.sessionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SkyAtlasFoldsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.skyAtlasFolds,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<T> transientDetectionsRefs<T extends Object>(
+    Expression<T> Function($$TransientDetectionsTableAnnotationComposer a) f,
+  ) {
+    final $$TransientDetectionsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.transientDetections,
+          getReferencedColumn: (t) => t.sessionId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$TransientDetectionsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.transientDetections,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$ImagingSessionsTableTableManager
@@ -33871,6 +39410,9 @@ class $$ImagingSessionsTableTableManager
             bool lineRatioProductsRefs,
             bool sessionDiagnosticsRefs,
             bool narratorEventsRefs,
+            bool skyTilesRefs,
+            bool skyAtlasFoldsRefs,
+            bool transientDetectionsRefs,
           })
         > {
   $$ImagingSessionsTableTableManager(
@@ -34000,6 +39542,9 @@ class $$ImagingSessionsTableTableManager
                 lineRatioProductsRefs = false,
                 sessionDiagnosticsRefs = false,
                 narratorEventsRefs = false,
+                skyTilesRefs = false,
+                skyAtlasFoldsRefs = false,
+                transientDetectionsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -34020,6 +39565,9 @@ class $$ImagingSessionsTableTableManager
                     if (lineRatioProductsRefs) db.lineRatioProducts,
                     if (sessionDiagnosticsRefs) db.sessionDiagnostics,
                     if (narratorEventsRefs) db.narratorEvents,
+                    if (skyTilesRefs) db.skyTiles,
+                    if (skyAtlasFoldsRefs) db.skyAtlasFolds,
+                    if (transientDetectionsRefs) db.transientDetections,
                   ],
                   addJoins:
                       <
@@ -34360,6 +39908,69 @@ class $$ImagingSessionsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (skyTilesRefs)
+                        await $_getPrefetchedData<
+                          ImagingSession,
+                          $ImagingSessionsTable,
+                          SkyTileRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ImagingSessionsTableReferences
+                              ._skyTilesRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ImagingSessionsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).skyTilesRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.lastFoldSessionId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (skyAtlasFoldsRefs)
+                        await $_getPrefetchedData<
+                          ImagingSession,
+                          $ImagingSessionsTable,
+                          SkyAtlasFoldRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ImagingSessionsTableReferences
+                              ._skyAtlasFoldsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ImagingSessionsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).skyAtlasFoldsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.sessionId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
+                      if (transientDetectionsRefs)
+                        await $_getPrefetchedData<
+                          ImagingSession,
+                          $ImagingSessionsTable,
+                          TransientDetectionRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ImagingSessionsTableReferences
+                              ._transientDetectionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ImagingSessionsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).transientDetectionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.sessionId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -34397,6 +40008,9 @@ typedef $$ImagingSessionsTableProcessedTableManager =
         bool lineRatioProductsRefs,
         bool sessionDiagnosticsRefs,
         bool narratorEventsRefs,
+        bool skyTilesRefs,
+        bool skyAtlasFoldsRefs,
+        bool transientDetectionsRefs,
       })
     >;
 typedef $$SequenceNodesTableCreateCompanionBuilder =
@@ -35378,6 +40992,7 @@ typedef $$CapturedImagesTableCreateCompanionBuilder =
       Value<double?> solvedPixelScale,
       required DateTime capturedAt,
       Value<DateTime> createdAt,
+      Value<DateTime?> atlasFoldedAt,
       Value<bool> isAccepted,
       Value<String?> rejectionReason,
     });
@@ -35422,6 +41037,7 @@ typedef $$CapturedImagesTableUpdateCompanionBuilder =
       Value<double?> solvedPixelScale,
       Value<DateTime> capturedAt,
       Value<DateTime> createdAt,
+      Value<DateTime?> atlasFoldedAt,
       Value<bool> isAccepted,
       Value<String?> rejectionReason,
     });
@@ -35739,6 +41355,33 @@ final class $$CapturedImagesTableReferences
       manager.$state.copyWith(prefetchedData: cache),
     );
   }
+
+  static MultiTypedResultKey<
+    $TransientDetectionsTable,
+    List<TransientDetectionRow>
+  >
+  _transientDetectionsRefsTable(_$NightshadeDatabase db) =>
+      MultiTypedResultKey.fromTable(
+        db.transientDetections,
+        aliasName: $_aliasNameGenerator(
+          db.capturedImages.id,
+          db.transientDetections.capturedImageId,
+        ),
+      );
+
+  $$TransientDetectionsTableProcessedTableManager get transientDetectionsRefs {
+    final manager = $$TransientDetectionsTableTableManager(
+      $_db,
+      $_db.transientDetections,
+    ).filter((f) => f.capturedImageId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(
+      _transientDetectionsRefsTable($_db),
+    );
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
 }
 
 class $$CapturedImagesTableFilterComposer
@@ -35932,6 +41575,11 @@ class $$CapturedImagesTableFilterComposer
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get atlasFoldedAt => $composableBuilder(
+    column: $table.atlasFoldedAt,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -36250,6 +41898,31 @@ class $$CapturedImagesTableFilterComposer
     );
     return f(composer);
   }
+
+  Expression<bool> transientDetectionsRefs(
+    Expression<bool> Function($$TransientDetectionsTableFilterComposer f) f,
+  ) {
+    final $$TransientDetectionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.transientDetections,
+      getReferencedColumn: (t) => t.capturedImageId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TransientDetectionsTableFilterComposer(
+            $db: $db,
+            $table: $db.transientDetections,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$CapturedImagesTableOrderingComposer
@@ -36443,6 +42116,11 @@ class $$CapturedImagesTableOrderingComposer
 
   ColumnOrderings<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get atlasFoldedAt => $composableBuilder(
+    column: $table.atlasFoldedAt,
     builder: (column) => ColumnOrderings(column),
   );
 
@@ -36658,6 +42336,11 @@ class $$CapturedImagesTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get atlasFoldedAt => $composableBuilder(
+    column: $table.atlasFoldedAt,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<bool> get isAccepted => $composableBuilder(
     column: $table.isAccepted,
@@ -36978,6 +42661,32 @@ class $$CapturedImagesTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> transientDetectionsRefs<T extends Object>(
+    Expression<T> Function($$TransientDetectionsTableAnnotationComposer a) f,
+  ) {
+    final $$TransientDetectionsTableAnnotationComposer composer =
+        $composerBuilder(
+          composer: this,
+          getCurrentColumn: (t) => t.id,
+          referencedTable: $db.transientDetections,
+          getReferencedColumn: (t) => t.capturedImageId,
+          builder:
+              (
+                joinBuilder, {
+                $addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer,
+              }) => $$TransientDetectionsTableAnnotationComposer(
+                $db: $db,
+                $table: $db.transientDetections,
+                $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                joinBuilder: joinBuilder,
+                $removeJoinBuilderFromRootComposer:
+                    $removeJoinBuilderFromRootComposer,
+              ),
+        );
+    return f(composer);
+  }
 }
 
 class $$CapturedImagesTableTableManager
@@ -37006,6 +42715,7 @@ class $$CapturedImagesTableTableManager
             bool astrometryResidualVectorsRefs,
             bool movingObjectCandidatesRefs,
             bool narratorEventsRefs,
+            bool transientDetectionsRefs,
           })
         > {
   $$CapturedImagesTableTableManager(
@@ -37062,6 +42772,7 @@ class $$CapturedImagesTableTableManager
                 Value<double?> solvedPixelScale = const Value.absent(),
                 Value<DateTime> capturedAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> atlasFoldedAt = const Value.absent(),
                 Value<bool> isAccepted = const Value.absent(),
                 Value<String?> rejectionReason = const Value.absent(),
               }) => CapturedImagesCompanion(
@@ -37104,6 +42815,7 @@ class $$CapturedImagesTableTableManager
                 solvedPixelScale: solvedPixelScale,
                 capturedAt: capturedAt,
                 createdAt: createdAt,
+                atlasFoldedAt: atlasFoldedAt,
                 isAccepted: isAccepted,
                 rejectionReason: rejectionReason,
               ),
@@ -37148,6 +42860,7 @@ class $$CapturedImagesTableTableManager
                 Value<double?> solvedPixelScale = const Value.absent(),
                 required DateTime capturedAt,
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<DateTime?> atlasFoldedAt = const Value.absent(),
                 Value<bool> isAccepted = const Value.absent(),
                 Value<String?> rejectionReason = const Value.absent(),
               }) => CapturedImagesCompanion.insert(
@@ -37190,6 +42903,7 @@ class $$CapturedImagesTableTableManager
                 solvedPixelScale: solvedPixelScale,
                 capturedAt: capturedAt,
                 createdAt: createdAt,
+                atlasFoldedAt: atlasFoldedAt,
                 isAccepted: isAccepted,
                 rejectionReason: rejectionReason,
               ),
@@ -37215,6 +42929,7 @@ class $$CapturedImagesTableTableManager
                 astrometryResidualVectorsRefs = false,
                 movingObjectCandidatesRefs = false,
                 narratorEventsRefs = false,
+                transientDetectionsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -37232,6 +42947,7 @@ class $$CapturedImagesTableTableManager
                       db.astrometryResidualVectors,
                     if (movingObjectCandidatesRefs) db.movingObjectCandidates,
                     if (narratorEventsRefs) db.narratorEvents,
+                    if (transientDetectionsRefs) db.transientDetections,
                   ],
                   addJoins:
                       <
@@ -37494,6 +43210,27 @@ class $$CapturedImagesTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (transientDetectionsRefs)
+                        await $_getPrefetchedData<
+                          CapturedImage,
+                          $CapturedImagesTable,
+                          TransientDetectionRow
+                        >(
+                          currentTable: table,
+                          referencedTable: $$CapturedImagesTableReferences
+                              ._transientDetectionsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$CapturedImagesTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).transientDetectionsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.capturedImageId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -37527,6 +43264,7 @@ typedef $$CapturedImagesTableProcessedTableManager =
         bool astrometryResidualVectorsRefs,
         bool movingObjectCandidatesRefs,
         bool narratorEventsRefs,
+        bool transientDetectionsRefs,
       })
     >;
 typedef $$ImageMetadataTableCreateCompanionBuilder =
@@ -50601,6 +56339,3021 @@ typedef $$NarratorEventsTableProcessedTableManager =
       NarratorEventRow,
       PrefetchHooks Function({bool sessionId, bool capturedImageId})
     >;
+typedef $$SkyAtlasRegionsTableCreateCompanionBuilder =
+    SkyAtlasRegionsCompanion Function({
+      Value<int> id,
+      required String name,
+      required String kind,
+      required double centerRaDeg,
+      required double centerDecDeg,
+      required double radiusDeg,
+      Value<int?> targetId,
+      Value<int> tileCount,
+      Value<double> integrationSeconds,
+      Value<DateTime> createdAt,
+    });
+typedef $$SkyAtlasRegionsTableUpdateCompanionBuilder =
+    SkyAtlasRegionsCompanion Function({
+      Value<int> id,
+      Value<String> name,
+      Value<String> kind,
+      Value<double> centerRaDeg,
+      Value<double> centerDecDeg,
+      Value<double> radiusDeg,
+      Value<int?> targetId,
+      Value<int> tileCount,
+      Value<double> integrationSeconds,
+      Value<DateTime> createdAt,
+    });
+
+final class $$SkyAtlasRegionsTableReferences
+    extends
+        BaseReferences<
+          _$NightshadeDatabase,
+          $SkyAtlasRegionsTable,
+          SkyAtlasRegionRow
+        > {
+  $$SkyAtlasRegionsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $TargetsTable _targetIdTable(_$NightshadeDatabase db) =>
+      db.targets.createAlias(
+        $_aliasNameGenerator(db.skyAtlasRegions.targetId, db.targets.id),
+      );
+
+  $$TargetsTableProcessedTableManager? get targetId {
+    final $_column = $_itemColumn<int>('target_id');
+    if ($_column == null) return null;
+    final manager = $$TargetsTableTableManager(
+      $_db,
+      $_db.targets,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_targetIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static MultiTypedResultKey<$SkyTilesTable, List<SkyTileRow>>
+  _skyTilesRefsTable(_$NightshadeDatabase db) => MultiTypedResultKey.fromTable(
+    db.skyTiles,
+    aliasName: $_aliasNameGenerator(
+      db.skyAtlasRegions.id,
+      db.skyTiles.regionId,
+    ),
+  );
+
+  $$SkyTilesTableProcessedTableManager get skyTilesRefs {
+    final manager = $$SkyTilesTableTableManager(
+      $_db,
+      $_db.skyTiles,
+    ).filter((f) => f.regionId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_skyTilesRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+}
+
+class $$SkyAtlasRegionsTableFilterComposer
+    extends Composer<_$NightshadeDatabase, $SkyAtlasRegionsTable> {
+  $$SkyAtlasRegionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get centerRaDeg => $composableBuilder(
+    column: $table.centerRaDeg,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get centerDecDeg => $composableBuilder(
+    column: $table.centerDecDeg,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get radiusDeg => $composableBuilder(
+    column: $table.radiusDeg,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get tileCount => $composableBuilder(
+    column: $table.tileCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get integrationSeconds => $composableBuilder(
+    column: $table.integrationSeconds,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$TargetsTableFilterComposer get targetId {
+    final $$TargetsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.targetId,
+      referencedTable: $db.targets,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TargetsTableFilterComposer(
+            $db: $db,
+            $table: $db.targets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<bool> skyTilesRefs(
+    Expression<bool> Function($$SkyTilesTableFilterComposer f) f,
+  ) {
+    final $$SkyTilesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.skyTiles,
+      getReferencedColumn: (t) => t.regionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SkyTilesTableFilterComposer(
+            $db: $db,
+            $table: $db.skyTiles,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$SkyAtlasRegionsTableOrderingComposer
+    extends Composer<_$NightshadeDatabase, $SkyAtlasRegionsTable> {
+  $$SkyAtlasRegionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get centerRaDeg => $composableBuilder(
+    column: $table.centerRaDeg,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get centerDecDeg => $composableBuilder(
+    column: $table.centerDecDeg,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get radiusDeg => $composableBuilder(
+    column: $table.radiusDeg,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get tileCount => $composableBuilder(
+    column: $table.tileCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get integrationSeconds => $composableBuilder(
+    column: $table.integrationSeconds,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$TargetsTableOrderingComposer get targetId {
+    final $$TargetsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.targetId,
+      referencedTable: $db.targets,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TargetsTableOrderingComposer(
+            $db: $db,
+            $table: $db.targets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SkyAtlasRegionsTableAnnotationComposer
+    extends Composer<_$NightshadeDatabase, $SkyAtlasRegionsTable> {
+  $$SkyAtlasRegionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<double> get centerRaDeg => $composableBuilder(
+    column: $table.centerRaDeg,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get centerDecDeg => $composableBuilder(
+    column: $table.centerDecDeg,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get radiusDeg =>
+      $composableBuilder(column: $table.radiusDeg, builder: (column) => column);
+
+  GeneratedColumn<int> get tileCount =>
+      $composableBuilder(column: $table.tileCount, builder: (column) => column);
+
+  GeneratedColumn<double> get integrationSeconds => $composableBuilder(
+    column: $table.integrationSeconds,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$TargetsTableAnnotationComposer get targetId {
+    final $$TargetsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.targetId,
+      referencedTable: $db.targets,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$TargetsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.targets,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  Expression<T> skyTilesRefs<T extends Object>(
+    Expression<T> Function($$SkyTilesTableAnnotationComposer a) f,
+  ) {
+    final $$SkyTilesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.skyTiles,
+      getReferencedColumn: (t) => t.regionId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SkyTilesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.skyTiles,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+}
+
+class $$SkyAtlasRegionsTableTableManager
+    extends
+        RootTableManager<
+          _$NightshadeDatabase,
+          $SkyAtlasRegionsTable,
+          SkyAtlasRegionRow,
+          $$SkyAtlasRegionsTableFilterComposer,
+          $$SkyAtlasRegionsTableOrderingComposer,
+          $$SkyAtlasRegionsTableAnnotationComposer,
+          $$SkyAtlasRegionsTableCreateCompanionBuilder,
+          $$SkyAtlasRegionsTableUpdateCompanionBuilder,
+          (SkyAtlasRegionRow, $$SkyAtlasRegionsTableReferences),
+          SkyAtlasRegionRow,
+          PrefetchHooks Function({bool targetId, bool skyTilesRefs})
+        > {
+  $$SkyAtlasRegionsTableTableManager(
+    _$NightshadeDatabase db,
+    $SkyAtlasRegionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SkyAtlasRegionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SkyAtlasRegionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SkyAtlasRegionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<double> centerRaDeg = const Value.absent(),
+                Value<double> centerDecDeg = const Value.absent(),
+                Value<double> radiusDeg = const Value.absent(),
+                Value<int?> targetId = const Value.absent(),
+                Value<int> tileCount = const Value.absent(),
+                Value<double> integrationSeconds = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => SkyAtlasRegionsCompanion(
+                id: id,
+                name: name,
+                kind: kind,
+                centerRaDeg: centerRaDeg,
+                centerDecDeg: centerDecDeg,
+                radiusDeg: radiusDeg,
+                targetId: targetId,
+                tileCount: tileCount,
+                integrationSeconds: integrationSeconds,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String name,
+                required String kind,
+                required double centerRaDeg,
+                required double centerDecDeg,
+                required double radiusDeg,
+                Value<int?> targetId = const Value.absent(),
+                Value<int> tileCount = const Value.absent(),
+                Value<double> integrationSeconds = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => SkyAtlasRegionsCompanion.insert(
+                id: id,
+                name: name,
+                kind: kind,
+                centerRaDeg: centerRaDeg,
+                centerDecDeg: centerDecDeg,
+                radiusDeg: radiusDeg,
+                targetId: targetId,
+                tileCount: tileCount,
+                integrationSeconds: integrationSeconds,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$SkyAtlasRegionsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({targetId = false, skyTilesRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [if (skyTilesRefs) db.skyTiles],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (targetId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.targetId,
+                                referencedTable:
+                                    $$SkyAtlasRegionsTableReferences
+                                        ._targetIdTable(db),
+                                referencedColumn:
+                                    $$SkyAtlasRegionsTableReferences
+                                        ._targetIdTable(db)
+                                        .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (skyTilesRefs)
+                    await $_getPrefetchedData<
+                      SkyAtlasRegionRow,
+                      $SkyAtlasRegionsTable,
+                      SkyTileRow
+                    >(
+                      currentTable: table,
+                      referencedTable: $$SkyAtlasRegionsTableReferences
+                          ._skyTilesRefsTable(db),
+                      managerFromTypedResult: (p0) =>
+                          $$SkyAtlasRegionsTableReferences(
+                            db,
+                            table,
+                            p0,
+                          ).skyTilesRefs,
+                      referencedItemsForCurrentItem: (item, referencedItems) =>
+                          referencedItems.where((e) => e.regionId == item.id),
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$SkyAtlasRegionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NightshadeDatabase,
+      $SkyAtlasRegionsTable,
+      SkyAtlasRegionRow,
+      $$SkyAtlasRegionsTableFilterComposer,
+      $$SkyAtlasRegionsTableOrderingComposer,
+      $$SkyAtlasRegionsTableAnnotationComposer,
+      $$SkyAtlasRegionsTableCreateCompanionBuilder,
+      $$SkyAtlasRegionsTableUpdateCompanionBuilder,
+      (SkyAtlasRegionRow, $$SkyAtlasRegionsTableReferences),
+      SkyAtlasRegionRow,
+      PrefetchHooks Function({bool targetId, bool skyTilesRefs})
+    >;
+typedef $$SkyTilesTableCreateCompanionBuilder =
+    SkyTilesCompanion Function({
+      Value<int> id,
+      required int tileId,
+      required int healpixOrder,
+      required int channels,
+      required double centerRaDeg,
+      required double centerDecDeg,
+      Value<double> coverageMean,
+      Value<int> totalFrames,
+      Value<double> integrationSeconds,
+      Value<int> swarmOverlayFrames,
+      Value<double> swarmOverlayIntegrationSeconds,
+      required String sidecarPath,
+      Value<int?> lastFoldSessionId,
+      Value<DateTime?> lastFoldAt,
+      Value<int?> regionId,
+      Value<DateTime> createdAt,
+    });
+typedef $$SkyTilesTableUpdateCompanionBuilder =
+    SkyTilesCompanion Function({
+      Value<int> id,
+      Value<int> tileId,
+      Value<int> healpixOrder,
+      Value<int> channels,
+      Value<double> centerRaDeg,
+      Value<double> centerDecDeg,
+      Value<double> coverageMean,
+      Value<int> totalFrames,
+      Value<double> integrationSeconds,
+      Value<int> swarmOverlayFrames,
+      Value<double> swarmOverlayIntegrationSeconds,
+      Value<String> sidecarPath,
+      Value<int?> lastFoldSessionId,
+      Value<DateTime?> lastFoldAt,
+      Value<int?> regionId,
+      Value<DateTime> createdAt,
+    });
+
+final class $$SkyTilesTableReferences
+    extends BaseReferences<_$NightshadeDatabase, $SkyTilesTable, SkyTileRow> {
+  $$SkyTilesTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $ImagingSessionsTable _lastFoldSessionIdTable(
+    _$NightshadeDatabase db,
+  ) => db.imagingSessions.createAlias(
+    $_aliasNameGenerator(db.skyTiles.lastFoldSessionId, db.imagingSessions.id),
+  );
+
+  $$ImagingSessionsTableProcessedTableManager? get lastFoldSessionId {
+    final $_column = $_itemColumn<int>('last_fold_session_id');
+    if ($_column == null) return null;
+    final manager = $$ImagingSessionsTableTableManager(
+      $_db,
+      $_db.imagingSessions,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_lastFoldSessionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $SkyAtlasRegionsTable _regionIdTable(_$NightshadeDatabase db) =>
+      db.skyAtlasRegions.createAlias(
+        $_aliasNameGenerator(db.skyTiles.regionId, db.skyAtlasRegions.id),
+      );
+
+  $$SkyAtlasRegionsTableProcessedTableManager? get regionId {
+    final $_column = $_itemColumn<int>('region_id');
+    if ($_column == null) return null;
+    final manager = $$SkyAtlasRegionsTableTableManager(
+      $_db,
+      $_db.skyAtlasRegions,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_regionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$SkyTilesTableFilterComposer
+    extends Composer<_$NightshadeDatabase, $SkyTilesTable> {
+  $$SkyTilesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get tileId => $composableBuilder(
+    column: $table.tileId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get healpixOrder => $composableBuilder(
+    column: $table.healpixOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get channels => $composableBuilder(
+    column: $table.channels,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get centerRaDeg => $composableBuilder(
+    column: $table.centerRaDeg,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get centerDecDeg => $composableBuilder(
+    column: $table.centerDecDeg,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get coverageMean => $composableBuilder(
+    column: $table.coverageMean,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get totalFrames => $composableBuilder(
+    column: $table.totalFrames,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get integrationSeconds => $composableBuilder(
+    column: $table.integrationSeconds,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get swarmOverlayFrames => $composableBuilder(
+    column: $table.swarmOverlayFrames,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get swarmOverlayIntegrationSeconds =>
+      $composableBuilder(
+        column: $table.swarmOverlayIntegrationSeconds,
+        builder: (column) => ColumnFilters(column),
+      );
+
+  ColumnFilters<String> get sidecarPath => $composableBuilder(
+    column: $table.sidecarPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastFoldAt => $composableBuilder(
+    column: $table.lastFoldAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ImagingSessionsTableFilterComposer get lastFoldSessionId {
+    final $$ImagingSessionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.lastFoldSessionId,
+      referencedTable: $db.imagingSessions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImagingSessionsTableFilterComposer(
+            $db: $db,
+            $table: $db.imagingSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SkyAtlasRegionsTableFilterComposer get regionId {
+    final $$SkyAtlasRegionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.regionId,
+      referencedTable: $db.skyAtlasRegions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SkyAtlasRegionsTableFilterComposer(
+            $db: $db,
+            $table: $db.skyAtlasRegions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SkyTilesTableOrderingComposer
+    extends Composer<_$NightshadeDatabase, $SkyTilesTable> {
+  $$SkyTilesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get tileId => $composableBuilder(
+    column: $table.tileId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get healpixOrder => $composableBuilder(
+    column: $table.healpixOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get channels => $composableBuilder(
+    column: $table.channels,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get centerRaDeg => $composableBuilder(
+    column: $table.centerRaDeg,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get centerDecDeg => $composableBuilder(
+    column: $table.centerDecDeg,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get coverageMean => $composableBuilder(
+    column: $table.coverageMean,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get totalFrames => $composableBuilder(
+    column: $table.totalFrames,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get integrationSeconds => $composableBuilder(
+    column: $table.integrationSeconds,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get swarmOverlayFrames => $composableBuilder(
+    column: $table.swarmOverlayFrames,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get swarmOverlayIntegrationSeconds =>
+      $composableBuilder(
+        column: $table.swarmOverlayIntegrationSeconds,
+        builder: (column) => ColumnOrderings(column),
+      );
+
+  ColumnOrderings<String> get sidecarPath => $composableBuilder(
+    column: $table.sidecarPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastFoldAt => $composableBuilder(
+    column: $table.lastFoldAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ImagingSessionsTableOrderingComposer get lastFoldSessionId {
+    final $$ImagingSessionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.lastFoldSessionId,
+      referencedTable: $db.imagingSessions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImagingSessionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.imagingSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SkyAtlasRegionsTableOrderingComposer get regionId {
+    final $$SkyAtlasRegionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.regionId,
+      referencedTable: $db.skyAtlasRegions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SkyAtlasRegionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.skyAtlasRegions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SkyTilesTableAnnotationComposer
+    extends Composer<_$NightshadeDatabase, $SkyTilesTable> {
+  $$SkyTilesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get tileId =>
+      $composableBuilder(column: $table.tileId, builder: (column) => column);
+
+  GeneratedColumn<int> get healpixOrder => $composableBuilder(
+    column: $table.healpixOrder,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get channels =>
+      $composableBuilder(column: $table.channels, builder: (column) => column);
+
+  GeneratedColumn<double> get centerRaDeg => $composableBuilder(
+    column: $table.centerRaDeg,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get centerDecDeg => $composableBuilder(
+    column: $table.centerDecDeg,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get coverageMean => $composableBuilder(
+    column: $table.coverageMean,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get totalFrames => $composableBuilder(
+    column: $table.totalFrames,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get integrationSeconds => $composableBuilder(
+    column: $table.integrationSeconds,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get swarmOverlayFrames => $composableBuilder(
+    column: $table.swarmOverlayFrames,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get swarmOverlayIntegrationSeconds =>
+      $composableBuilder(
+        column: $table.swarmOverlayIntegrationSeconds,
+        builder: (column) => column,
+      );
+
+  GeneratedColumn<String> get sidecarPath => $composableBuilder(
+    column: $table.sidecarPath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastFoldAt => $composableBuilder(
+    column: $table.lastFoldAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$ImagingSessionsTableAnnotationComposer get lastFoldSessionId {
+    final $$ImagingSessionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.lastFoldSessionId,
+      referencedTable: $db.imagingSessions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImagingSessionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.imagingSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$SkyAtlasRegionsTableAnnotationComposer get regionId {
+    final $$SkyAtlasRegionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.regionId,
+      referencedTable: $db.skyAtlasRegions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$SkyAtlasRegionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.skyAtlasRegions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SkyTilesTableTableManager
+    extends
+        RootTableManager<
+          _$NightshadeDatabase,
+          $SkyTilesTable,
+          SkyTileRow,
+          $$SkyTilesTableFilterComposer,
+          $$SkyTilesTableOrderingComposer,
+          $$SkyTilesTableAnnotationComposer,
+          $$SkyTilesTableCreateCompanionBuilder,
+          $$SkyTilesTableUpdateCompanionBuilder,
+          (SkyTileRow, $$SkyTilesTableReferences),
+          SkyTileRow,
+          PrefetchHooks Function({bool lastFoldSessionId, bool regionId})
+        > {
+  $$SkyTilesTableTableManager(_$NightshadeDatabase db, $SkyTilesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SkyTilesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SkyTilesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SkyTilesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> tileId = const Value.absent(),
+                Value<int> healpixOrder = const Value.absent(),
+                Value<int> channels = const Value.absent(),
+                Value<double> centerRaDeg = const Value.absent(),
+                Value<double> centerDecDeg = const Value.absent(),
+                Value<double> coverageMean = const Value.absent(),
+                Value<int> totalFrames = const Value.absent(),
+                Value<double> integrationSeconds = const Value.absent(),
+                Value<int> swarmOverlayFrames = const Value.absent(),
+                Value<double> swarmOverlayIntegrationSeconds =
+                    const Value.absent(),
+                Value<String> sidecarPath = const Value.absent(),
+                Value<int?> lastFoldSessionId = const Value.absent(),
+                Value<DateTime?> lastFoldAt = const Value.absent(),
+                Value<int?> regionId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => SkyTilesCompanion(
+                id: id,
+                tileId: tileId,
+                healpixOrder: healpixOrder,
+                channels: channels,
+                centerRaDeg: centerRaDeg,
+                centerDecDeg: centerDecDeg,
+                coverageMean: coverageMean,
+                totalFrames: totalFrames,
+                integrationSeconds: integrationSeconds,
+                swarmOverlayFrames: swarmOverlayFrames,
+                swarmOverlayIntegrationSeconds: swarmOverlayIntegrationSeconds,
+                sidecarPath: sidecarPath,
+                lastFoldSessionId: lastFoldSessionId,
+                lastFoldAt: lastFoldAt,
+                regionId: regionId,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int tileId,
+                required int healpixOrder,
+                required int channels,
+                required double centerRaDeg,
+                required double centerDecDeg,
+                Value<double> coverageMean = const Value.absent(),
+                Value<int> totalFrames = const Value.absent(),
+                Value<double> integrationSeconds = const Value.absent(),
+                Value<int> swarmOverlayFrames = const Value.absent(),
+                Value<double> swarmOverlayIntegrationSeconds =
+                    const Value.absent(),
+                required String sidecarPath,
+                Value<int?> lastFoldSessionId = const Value.absent(),
+                Value<DateTime?> lastFoldAt = const Value.absent(),
+                Value<int?> regionId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => SkyTilesCompanion.insert(
+                id: id,
+                tileId: tileId,
+                healpixOrder: healpixOrder,
+                channels: channels,
+                centerRaDeg: centerRaDeg,
+                centerDecDeg: centerDecDeg,
+                coverageMean: coverageMean,
+                totalFrames: totalFrames,
+                integrationSeconds: integrationSeconds,
+                swarmOverlayFrames: swarmOverlayFrames,
+                swarmOverlayIntegrationSeconds: swarmOverlayIntegrationSeconds,
+                sidecarPath: sidecarPath,
+                lastFoldSessionId: lastFoldSessionId,
+                lastFoldAt: lastFoldAt,
+                regionId: regionId,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$SkyTilesTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({lastFoldSessionId = false, regionId = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (lastFoldSessionId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.lastFoldSessionId,
+                                    referencedTable: $$SkyTilesTableReferences
+                                        ._lastFoldSessionIdTable(db),
+                                    referencedColumn: $$SkyTilesTableReferences
+                                        ._lastFoldSessionIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+                        if (regionId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.regionId,
+                                    referencedTable: $$SkyTilesTableReferences
+                                        ._regionIdTable(db),
+                                    referencedColumn: $$SkyTilesTableReferences
+                                        ._regionIdTable(db)
+                                        .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$SkyTilesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NightshadeDatabase,
+      $SkyTilesTable,
+      SkyTileRow,
+      $$SkyTilesTableFilterComposer,
+      $$SkyTilesTableOrderingComposer,
+      $$SkyTilesTableAnnotationComposer,
+      $$SkyTilesTableCreateCompanionBuilder,
+      $$SkyTilesTableUpdateCompanionBuilder,
+      (SkyTileRow, $$SkyTilesTableReferences),
+      SkyTileRow,
+      PrefetchHooks Function({bool lastFoldSessionId, bool regionId})
+    >;
+typedef $$SkyAtlasFoldsTableCreateCompanionBuilder =
+    SkyAtlasFoldsCompanion Function({
+      Value<int> id,
+      required int tileId,
+      required int healpixOrder,
+      Value<int?> sessionId,
+      Value<DateTime> foldedAt,
+      required int framesAdded,
+      required double weightAdded,
+      required double integrationSecondsAdded,
+      Value<int> rejected,
+      Value<String> contributor,
+      required String label,
+    });
+typedef $$SkyAtlasFoldsTableUpdateCompanionBuilder =
+    SkyAtlasFoldsCompanion Function({
+      Value<int> id,
+      Value<int> tileId,
+      Value<int> healpixOrder,
+      Value<int?> sessionId,
+      Value<DateTime> foldedAt,
+      Value<int> framesAdded,
+      Value<double> weightAdded,
+      Value<double> integrationSecondsAdded,
+      Value<int> rejected,
+      Value<String> contributor,
+      Value<String> label,
+    });
+
+final class $$SkyAtlasFoldsTableReferences
+    extends
+        BaseReferences<
+          _$NightshadeDatabase,
+          $SkyAtlasFoldsTable,
+          SkyAtlasFoldRow
+        > {
+  $$SkyAtlasFoldsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ImagingSessionsTable _sessionIdTable(_$NightshadeDatabase db) =>
+      db.imagingSessions.createAlias(
+        $_aliasNameGenerator(db.skyAtlasFolds.sessionId, db.imagingSessions.id),
+      );
+
+  $$ImagingSessionsTableProcessedTableManager? get sessionId {
+    final $_column = $_itemColumn<int>('session_id');
+    if ($_column == null) return null;
+    final manager = $$ImagingSessionsTableTableManager(
+      $_db,
+      $_db.imagingSessions,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_sessionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$SkyAtlasFoldsTableFilterComposer
+    extends Composer<_$NightshadeDatabase, $SkyAtlasFoldsTable> {
+  $$SkyAtlasFoldsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get tileId => $composableBuilder(
+    column: $table.tileId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get healpixOrder => $composableBuilder(
+    column: $table.healpixOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get foldedAt => $composableBuilder(
+    column: $table.foldedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get framesAdded => $composableBuilder(
+    column: $table.framesAdded,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get weightAdded => $composableBuilder(
+    column: $table.weightAdded,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get integrationSecondsAdded => $composableBuilder(
+    column: $table.integrationSecondsAdded,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get rejected => $composableBuilder(
+    column: $table.rejected,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contributor => $composableBuilder(
+    column: $table.contributor,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ImagingSessionsTableFilterComposer get sessionId {
+    final $$ImagingSessionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sessionId,
+      referencedTable: $db.imagingSessions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImagingSessionsTableFilterComposer(
+            $db: $db,
+            $table: $db.imagingSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SkyAtlasFoldsTableOrderingComposer
+    extends Composer<_$NightshadeDatabase, $SkyAtlasFoldsTable> {
+  $$SkyAtlasFoldsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get tileId => $composableBuilder(
+    column: $table.tileId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get healpixOrder => $composableBuilder(
+    column: $table.healpixOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get foldedAt => $composableBuilder(
+    column: $table.foldedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get framesAdded => $composableBuilder(
+    column: $table.framesAdded,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get weightAdded => $composableBuilder(
+    column: $table.weightAdded,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get integrationSecondsAdded => $composableBuilder(
+    column: $table.integrationSecondsAdded,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get rejected => $composableBuilder(
+    column: $table.rejected,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contributor => $composableBuilder(
+    column: $table.contributor,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get label => $composableBuilder(
+    column: $table.label,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ImagingSessionsTableOrderingComposer get sessionId {
+    final $$ImagingSessionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sessionId,
+      referencedTable: $db.imagingSessions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImagingSessionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.imagingSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SkyAtlasFoldsTableAnnotationComposer
+    extends Composer<_$NightshadeDatabase, $SkyAtlasFoldsTable> {
+  $$SkyAtlasFoldsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get tileId =>
+      $composableBuilder(column: $table.tileId, builder: (column) => column);
+
+  GeneratedColumn<int> get healpixOrder => $composableBuilder(
+    column: $table.healpixOrder,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get foldedAt =>
+      $composableBuilder(column: $table.foldedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get framesAdded => $composableBuilder(
+    column: $table.framesAdded,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get weightAdded => $composableBuilder(
+    column: $table.weightAdded,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get integrationSecondsAdded => $composableBuilder(
+    column: $table.integrationSecondsAdded,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get rejected =>
+      $composableBuilder(column: $table.rejected, builder: (column) => column);
+
+  GeneratedColumn<String> get contributor => $composableBuilder(
+    column: $table.contributor,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get label =>
+      $composableBuilder(column: $table.label, builder: (column) => column);
+
+  $$ImagingSessionsTableAnnotationComposer get sessionId {
+    final $$ImagingSessionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sessionId,
+      referencedTable: $db.imagingSessions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImagingSessionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.imagingSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$SkyAtlasFoldsTableTableManager
+    extends
+        RootTableManager<
+          _$NightshadeDatabase,
+          $SkyAtlasFoldsTable,
+          SkyAtlasFoldRow,
+          $$SkyAtlasFoldsTableFilterComposer,
+          $$SkyAtlasFoldsTableOrderingComposer,
+          $$SkyAtlasFoldsTableAnnotationComposer,
+          $$SkyAtlasFoldsTableCreateCompanionBuilder,
+          $$SkyAtlasFoldsTableUpdateCompanionBuilder,
+          (SkyAtlasFoldRow, $$SkyAtlasFoldsTableReferences),
+          SkyAtlasFoldRow,
+          PrefetchHooks Function({bool sessionId})
+        > {
+  $$SkyAtlasFoldsTableTableManager(
+    _$NightshadeDatabase db,
+    $SkyAtlasFoldsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SkyAtlasFoldsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SkyAtlasFoldsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SkyAtlasFoldsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> tileId = const Value.absent(),
+                Value<int> healpixOrder = const Value.absent(),
+                Value<int?> sessionId = const Value.absent(),
+                Value<DateTime> foldedAt = const Value.absent(),
+                Value<int> framesAdded = const Value.absent(),
+                Value<double> weightAdded = const Value.absent(),
+                Value<double> integrationSecondsAdded = const Value.absent(),
+                Value<int> rejected = const Value.absent(),
+                Value<String> contributor = const Value.absent(),
+                Value<String> label = const Value.absent(),
+              }) => SkyAtlasFoldsCompanion(
+                id: id,
+                tileId: tileId,
+                healpixOrder: healpixOrder,
+                sessionId: sessionId,
+                foldedAt: foldedAt,
+                framesAdded: framesAdded,
+                weightAdded: weightAdded,
+                integrationSecondsAdded: integrationSecondsAdded,
+                rejected: rejected,
+                contributor: contributor,
+                label: label,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int tileId,
+                required int healpixOrder,
+                Value<int?> sessionId = const Value.absent(),
+                Value<DateTime> foldedAt = const Value.absent(),
+                required int framesAdded,
+                required double weightAdded,
+                required double integrationSecondsAdded,
+                Value<int> rejected = const Value.absent(),
+                Value<String> contributor = const Value.absent(),
+                required String label,
+              }) => SkyAtlasFoldsCompanion.insert(
+                id: id,
+                tileId: tileId,
+                healpixOrder: healpixOrder,
+                sessionId: sessionId,
+                foldedAt: foldedAt,
+                framesAdded: framesAdded,
+                weightAdded: weightAdded,
+                integrationSecondsAdded: integrationSecondsAdded,
+                rejected: rejected,
+                contributor: contributor,
+                label: label,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$SkyAtlasFoldsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({sessionId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (sessionId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.sessionId,
+                                referencedTable: $$SkyAtlasFoldsTableReferences
+                                    ._sessionIdTable(db),
+                                referencedColumn: $$SkyAtlasFoldsTableReferences
+                                    ._sessionIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$SkyAtlasFoldsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NightshadeDatabase,
+      $SkyAtlasFoldsTable,
+      SkyAtlasFoldRow,
+      $$SkyAtlasFoldsTableFilterComposer,
+      $$SkyAtlasFoldsTableOrderingComposer,
+      $$SkyAtlasFoldsTableAnnotationComposer,
+      $$SkyAtlasFoldsTableCreateCompanionBuilder,
+      $$SkyAtlasFoldsTableUpdateCompanionBuilder,
+      (SkyAtlasFoldRow, $$SkyAtlasFoldsTableReferences),
+      SkyAtlasFoldRow,
+      PrefetchHooks Function({bool sessionId})
+    >;
+typedef $$ConstellationContributionsTableCreateCompanionBuilder =
+    ConstellationContributionsCompanion Function({
+      Value<int> id,
+      required String hubKey,
+      required int tileId,
+      required int healpixOrder,
+      Value<DateTime?> lastContributedAt,
+      Value<String?> lastContributedLabel,
+      Value<String?> contributionId,
+      Value<int> contributedFrames,
+      Value<double> contributedIntegrationSeconds,
+      Value<int?> lastPulledFrames,
+      Value<double?> lastPulledIntegrationSeconds,
+      Value<DateTime?> lastPulledAt,
+      Value<bool> joined,
+      Value<String?> targetName,
+      Value<double?> targetRaDeg,
+      Value<double?> targetDecDeg,
+      Value<DateTime> updatedAt,
+    });
+typedef $$ConstellationContributionsTableUpdateCompanionBuilder =
+    ConstellationContributionsCompanion Function({
+      Value<int> id,
+      Value<String> hubKey,
+      Value<int> tileId,
+      Value<int> healpixOrder,
+      Value<DateTime?> lastContributedAt,
+      Value<String?> lastContributedLabel,
+      Value<String?> contributionId,
+      Value<int> contributedFrames,
+      Value<double> contributedIntegrationSeconds,
+      Value<int?> lastPulledFrames,
+      Value<double?> lastPulledIntegrationSeconds,
+      Value<DateTime?> lastPulledAt,
+      Value<bool> joined,
+      Value<String?> targetName,
+      Value<double?> targetRaDeg,
+      Value<double?> targetDecDeg,
+      Value<DateTime> updatedAt,
+    });
+
+class $$ConstellationContributionsTableFilterComposer
+    extends Composer<_$NightshadeDatabase, $ConstellationContributionsTable> {
+  $$ConstellationContributionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get hubKey => $composableBuilder(
+    column: $table.hubKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get tileId => $composableBuilder(
+    column: $table.tileId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get healpixOrder => $composableBuilder(
+    column: $table.healpixOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastContributedAt => $composableBuilder(
+    column: $table.lastContributedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lastContributedLabel => $composableBuilder(
+    column: $table.lastContributedLabel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contributionId => $composableBuilder(
+    column: $table.contributionId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get contributedFrames => $composableBuilder(
+    column: $table.contributedFrames,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get contributedIntegrationSeconds => $composableBuilder(
+    column: $table.contributedIntegrationSeconds,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastPulledFrames => $composableBuilder(
+    column: $table.lastPulledFrames,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get lastPulledIntegrationSeconds => $composableBuilder(
+    column: $table.lastPulledIntegrationSeconds,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastPulledAt => $composableBuilder(
+    column: $table.lastPulledAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get joined => $composableBuilder(
+    column: $table.joined,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get targetName => $composableBuilder(
+    column: $table.targetName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get targetRaDeg => $composableBuilder(
+    column: $table.targetRaDeg,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get targetDecDeg => $composableBuilder(
+    column: $table.targetDecDeg,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ConstellationContributionsTableOrderingComposer
+    extends Composer<_$NightshadeDatabase, $ConstellationContributionsTable> {
+  $$ConstellationContributionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get hubKey => $composableBuilder(
+    column: $table.hubKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get tileId => $composableBuilder(
+    column: $table.tileId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get healpixOrder => $composableBuilder(
+    column: $table.healpixOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastContributedAt => $composableBuilder(
+    column: $table.lastContributedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lastContributedLabel => $composableBuilder(
+    column: $table.lastContributedLabel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contributionId => $composableBuilder(
+    column: $table.contributionId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get contributedFrames => $composableBuilder(
+    column: $table.contributedFrames,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get contributedIntegrationSeconds =>
+      $composableBuilder(
+        column: $table.contributedIntegrationSeconds,
+        builder: (column) => ColumnOrderings(column),
+      );
+
+  ColumnOrderings<int> get lastPulledFrames => $composableBuilder(
+    column: $table.lastPulledFrames,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get lastPulledIntegrationSeconds =>
+      $composableBuilder(
+        column: $table.lastPulledIntegrationSeconds,
+        builder: (column) => ColumnOrderings(column),
+      );
+
+  ColumnOrderings<DateTime> get lastPulledAt => $composableBuilder(
+    column: $table.lastPulledAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get joined => $composableBuilder(
+    column: $table.joined,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get targetName => $composableBuilder(
+    column: $table.targetName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get targetRaDeg => $composableBuilder(
+    column: $table.targetRaDeg,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get targetDecDeg => $composableBuilder(
+    column: $table.targetDecDeg,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ConstellationContributionsTableAnnotationComposer
+    extends Composer<_$NightshadeDatabase, $ConstellationContributionsTable> {
+  $$ConstellationContributionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get hubKey =>
+      $composableBuilder(column: $table.hubKey, builder: (column) => column);
+
+  GeneratedColumn<int> get tileId =>
+      $composableBuilder(column: $table.tileId, builder: (column) => column);
+
+  GeneratedColumn<int> get healpixOrder => $composableBuilder(
+    column: $table.healpixOrder,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastContributedAt => $composableBuilder(
+    column: $table.lastContributedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastContributedLabel => $composableBuilder(
+    column: $table.lastContributedLabel,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get contributionId => $composableBuilder(
+    column: $table.contributionId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get contributedFrames => $composableBuilder(
+    column: $table.contributedFrames,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get contributedIntegrationSeconds =>
+      $composableBuilder(
+        column: $table.contributedIntegrationSeconds,
+        builder: (column) => column,
+      );
+
+  GeneratedColumn<int> get lastPulledFrames => $composableBuilder(
+    column: $table.lastPulledFrames,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get lastPulledIntegrationSeconds =>
+      $composableBuilder(
+        column: $table.lastPulledIntegrationSeconds,
+        builder: (column) => column,
+      );
+
+  GeneratedColumn<DateTime> get lastPulledAt => $composableBuilder(
+    column: $table.lastPulledAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get joined =>
+      $composableBuilder(column: $table.joined, builder: (column) => column);
+
+  GeneratedColumn<String> get targetName => $composableBuilder(
+    column: $table.targetName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get targetRaDeg => $composableBuilder(
+    column: $table.targetRaDeg,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get targetDecDeg => $composableBuilder(
+    column: $table.targetDecDeg,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$ConstellationContributionsTableTableManager
+    extends
+        RootTableManager<
+          _$NightshadeDatabase,
+          $ConstellationContributionsTable,
+          ConstellationContributionRow,
+          $$ConstellationContributionsTableFilterComposer,
+          $$ConstellationContributionsTableOrderingComposer,
+          $$ConstellationContributionsTableAnnotationComposer,
+          $$ConstellationContributionsTableCreateCompanionBuilder,
+          $$ConstellationContributionsTableUpdateCompanionBuilder,
+          (
+            ConstellationContributionRow,
+            BaseReferences<
+              _$NightshadeDatabase,
+              $ConstellationContributionsTable,
+              ConstellationContributionRow
+            >,
+          ),
+          ConstellationContributionRow,
+          PrefetchHooks Function()
+        > {
+  $$ConstellationContributionsTableTableManager(
+    _$NightshadeDatabase db,
+    $ConstellationContributionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ConstellationContributionsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$ConstellationContributionsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$ConstellationContributionsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> hubKey = const Value.absent(),
+                Value<int> tileId = const Value.absent(),
+                Value<int> healpixOrder = const Value.absent(),
+                Value<DateTime?> lastContributedAt = const Value.absent(),
+                Value<String?> lastContributedLabel = const Value.absent(),
+                Value<String?> contributionId = const Value.absent(),
+                Value<int> contributedFrames = const Value.absent(),
+                Value<double> contributedIntegrationSeconds =
+                    const Value.absent(),
+                Value<int?> lastPulledFrames = const Value.absent(),
+                Value<double?> lastPulledIntegrationSeconds =
+                    const Value.absent(),
+                Value<DateTime?> lastPulledAt = const Value.absent(),
+                Value<bool> joined = const Value.absent(),
+                Value<String?> targetName = const Value.absent(),
+                Value<double?> targetRaDeg = const Value.absent(),
+                Value<double?> targetDecDeg = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => ConstellationContributionsCompanion(
+                id: id,
+                hubKey: hubKey,
+                tileId: tileId,
+                healpixOrder: healpixOrder,
+                lastContributedAt: lastContributedAt,
+                lastContributedLabel: lastContributedLabel,
+                contributionId: contributionId,
+                contributedFrames: contributedFrames,
+                contributedIntegrationSeconds: contributedIntegrationSeconds,
+                lastPulledFrames: lastPulledFrames,
+                lastPulledIntegrationSeconds: lastPulledIntegrationSeconds,
+                lastPulledAt: lastPulledAt,
+                joined: joined,
+                targetName: targetName,
+                targetRaDeg: targetRaDeg,
+                targetDecDeg: targetDecDeg,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String hubKey,
+                required int tileId,
+                required int healpixOrder,
+                Value<DateTime?> lastContributedAt = const Value.absent(),
+                Value<String?> lastContributedLabel = const Value.absent(),
+                Value<String?> contributionId = const Value.absent(),
+                Value<int> contributedFrames = const Value.absent(),
+                Value<double> contributedIntegrationSeconds =
+                    const Value.absent(),
+                Value<int?> lastPulledFrames = const Value.absent(),
+                Value<double?> lastPulledIntegrationSeconds =
+                    const Value.absent(),
+                Value<DateTime?> lastPulledAt = const Value.absent(),
+                Value<bool> joined = const Value.absent(),
+                Value<String?> targetName = const Value.absent(),
+                Value<double?> targetRaDeg = const Value.absent(),
+                Value<double?> targetDecDeg = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => ConstellationContributionsCompanion.insert(
+                id: id,
+                hubKey: hubKey,
+                tileId: tileId,
+                healpixOrder: healpixOrder,
+                lastContributedAt: lastContributedAt,
+                lastContributedLabel: lastContributedLabel,
+                contributionId: contributionId,
+                contributedFrames: contributedFrames,
+                contributedIntegrationSeconds: contributedIntegrationSeconds,
+                lastPulledFrames: lastPulledFrames,
+                lastPulledIntegrationSeconds: lastPulledIntegrationSeconds,
+                lastPulledAt: lastPulledAt,
+                joined: joined,
+                targetName: targetName,
+                targetRaDeg: targetRaDeg,
+                targetDecDeg: targetDecDeg,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ConstellationContributionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NightshadeDatabase,
+      $ConstellationContributionsTable,
+      ConstellationContributionRow,
+      $$ConstellationContributionsTableFilterComposer,
+      $$ConstellationContributionsTableOrderingComposer,
+      $$ConstellationContributionsTableAnnotationComposer,
+      $$ConstellationContributionsTableCreateCompanionBuilder,
+      $$ConstellationContributionsTableUpdateCompanionBuilder,
+      (
+        ConstellationContributionRow,
+        BaseReferences<
+          _$NightshadeDatabase,
+          $ConstellationContributionsTable,
+          ConstellationContributionRow
+        >,
+      ),
+      ConstellationContributionRow,
+      PrefetchHooks Function()
+    >;
+typedef $$TransientDetectionsTableCreateCompanionBuilder =
+    TransientDetectionsCompanion Function({
+      Value<int> id,
+      Value<int?> sessionId,
+      Value<int?> capturedImageId,
+      required int tileId,
+      Value<DateTime> detectedAt,
+      required double raDeg,
+      required double decDeg,
+      required double residualFlux,
+      Value<double?> deltaMag,
+      required double snr,
+      required double fwhm,
+      required double eccentricity,
+      Value<double> positionAngleDeg,
+      required String kind,
+      Value<String?> catalogMatch,
+      required double confidence,
+      Value<bool> reviewed,
+      Value<bool> dismissed,
+    });
+typedef $$TransientDetectionsTableUpdateCompanionBuilder =
+    TransientDetectionsCompanion Function({
+      Value<int> id,
+      Value<int?> sessionId,
+      Value<int?> capturedImageId,
+      Value<int> tileId,
+      Value<DateTime> detectedAt,
+      Value<double> raDeg,
+      Value<double> decDeg,
+      Value<double> residualFlux,
+      Value<double?> deltaMag,
+      Value<double> snr,
+      Value<double> fwhm,
+      Value<double> eccentricity,
+      Value<double> positionAngleDeg,
+      Value<String> kind,
+      Value<String?> catalogMatch,
+      Value<double> confidence,
+      Value<bool> reviewed,
+      Value<bool> dismissed,
+    });
+
+final class $$TransientDetectionsTableReferences
+    extends
+        BaseReferences<
+          _$NightshadeDatabase,
+          $TransientDetectionsTable,
+          TransientDetectionRow
+        > {
+  $$TransientDetectionsTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $ImagingSessionsTable _sessionIdTable(_$NightshadeDatabase db) =>
+      db.imagingSessions.createAlias(
+        $_aliasNameGenerator(
+          db.transientDetections.sessionId,
+          db.imagingSessions.id,
+        ),
+      );
+
+  $$ImagingSessionsTableProcessedTableManager? get sessionId {
+    final $_column = $_itemColumn<int>('session_id');
+    if ($_column == null) return null;
+    final manager = $$ImagingSessionsTableTableManager(
+      $_db,
+      $_db.imagingSessions,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_sessionIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $CapturedImagesTable _capturedImageIdTable(_$NightshadeDatabase db) =>
+      db.capturedImages.createAlias(
+        $_aliasNameGenerator(
+          db.transientDetections.capturedImageId,
+          db.capturedImages.id,
+        ),
+      );
+
+  $$CapturedImagesTableProcessedTableManager? get capturedImageId {
+    final $_column = $_itemColumn<int>('captured_image_id');
+    if ($_column == null) return null;
+    final manager = $$CapturedImagesTableTableManager(
+      $_db,
+      $_db.capturedImages,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_capturedImageIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$TransientDetectionsTableFilterComposer
+    extends Composer<_$NightshadeDatabase, $TransientDetectionsTable> {
+  $$TransientDetectionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get tileId => $composableBuilder(
+    column: $table.tileId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get detectedAt => $composableBuilder(
+    column: $table.detectedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get raDeg => $composableBuilder(
+    column: $table.raDeg,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get decDeg => $composableBuilder(
+    column: $table.decDeg,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get residualFlux => $composableBuilder(
+    column: $table.residualFlux,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get deltaMag => $composableBuilder(
+    column: $table.deltaMag,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get snr => $composableBuilder(
+    column: $table.snr,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get fwhm => $composableBuilder(
+    column: $table.fwhm,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get eccentricity => $composableBuilder(
+    column: $table.eccentricity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get positionAngleDeg => $composableBuilder(
+    column: $table.positionAngleDeg,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get catalogMatch => $composableBuilder(
+    column: $table.catalogMatch,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get confidence => $composableBuilder(
+    column: $table.confidence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get reviewed => $composableBuilder(
+    column: $table.reviewed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get dismissed => $composableBuilder(
+    column: $table.dismissed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$ImagingSessionsTableFilterComposer get sessionId {
+    final $$ImagingSessionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sessionId,
+      referencedTable: $db.imagingSessions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImagingSessionsTableFilterComposer(
+            $db: $db,
+            $table: $db.imagingSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$CapturedImagesTableFilterComposer get capturedImageId {
+    final $$CapturedImagesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.capturedImageId,
+      referencedTable: $db.capturedImages,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CapturedImagesTableFilterComposer(
+            $db: $db,
+            $table: $db.capturedImages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TransientDetectionsTableOrderingComposer
+    extends Composer<_$NightshadeDatabase, $TransientDetectionsTable> {
+  $$TransientDetectionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get tileId => $composableBuilder(
+    column: $table.tileId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get detectedAt => $composableBuilder(
+    column: $table.detectedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get raDeg => $composableBuilder(
+    column: $table.raDeg,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get decDeg => $composableBuilder(
+    column: $table.decDeg,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get residualFlux => $composableBuilder(
+    column: $table.residualFlux,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get deltaMag => $composableBuilder(
+    column: $table.deltaMag,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get snr => $composableBuilder(
+    column: $table.snr,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get fwhm => $composableBuilder(
+    column: $table.fwhm,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get eccentricity => $composableBuilder(
+    column: $table.eccentricity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get positionAngleDeg => $composableBuilder(
+    column: $table.positionAngleDeg,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get catalogMatch => $composableBuilder(
+    column: $table.catalogMatch,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get confidence => $composableBuilder(
+    column: $table.confidence,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get reviewed => $composableBuilder(
+    column: $table.reviewed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get dismissed => $composableBuilder(
+    column: $table.dismissed,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$ImagingSessionsTableOrderingComposer get sessionId {
+    final $$ImagingSessionsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sessionId,
+      referencedTable: $db.imagingSessions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImagingSessionsTableOrderingComposer(
+            $db: $db,
+            $table: $db.imagingSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$CapturedImagesTableOrderingComposer get capturedImageId {
+    final $$CapturedImagesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.capturedImageId,
+      referencedTable: $db.capturedImages,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CapturedImagesTableOrderingComposer(
+            $db: $db,
+            $table: $db.capturedImages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TransientDetectionsTableAnnotationComposer
+    extends Composer<_$NightshadeDatabase, $TransientDetectionsTable> {
+  $$TransientDetectionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get tileId =>
+      $composableBuilder(column: $table.tileId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get detectedAt => $composableBuilder(
+    column: $table.detectedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get raDeg =>
+      $composableBuilder(column: $table.raDeg, builder: (column) => column);
+
+  GeneratedColumn<double> get decDeg =>
+      $composableBuilder(column: $table.decDeg, builder: (column) => column);
+
+  GeneratedColumn<double> get residualFlux => $composableBuilder(
+    column: $table.residualFlux,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get deltaMag =>
+      $composableBuilder(column: $table.deltaMag, builder: (column) => column);
+
+  GeneratedColumn<double> get snr =>
+      $composableBuilder(column: $table.snr, builder: (column) => column);
+
+  GeneratedColumn<double> get fwhm =>
+      $composableBuilder(column: $table.fwhm, builder: (column) => column);
+
+  GeneratedColumn<double> get eccentricity => $composableBuilder(
+    column: $table.eccentricity,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get positionAngleDeg => $composableBuilder(
+    column: $table.positionAngleDeg,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<String> get catalogMatch => $composableBuilder(
+    column: $table.catalogMatch,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get confidence => $composableBuilder(
+    column: $table.confidence,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get reviewed =>
+      $composableBuilder(column: $table.reviewed, builder: (column) => column);
+
+  GeneratedColumn<bool> get dismissed =>
+      $composableBuilder(column: $table.dismissed, builder: (column) => column);
+
+  $$ImagingSessionsTableAnnotationComposer get sessionId {
+    final $$ImagingSessionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.sessionId,
+      referencedTable: $db.imagingSessions,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ImagingSessionsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.imagingSessions,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$CapturedImagesTableAnnotationComposer get capturedImageId {
+    final $$CapturedImagesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.capturedImageId,
+      referencedTable: $db.capturedImages,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$CapturedImagesTableAnnotationComposer(
+            $db: $db,
+            $table: $db.capturedImages,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$TransientDetectionsTableTableManager
+    extends
+        RootTableManager<
+          _$NightshadeDatabase,
+          $TransientDetectionsTable,
+          TransientDetectionRow,
+          $$TransientDetectionsTableFilterComposer,
+          $$TransientDetectionsTableOrderingComposer,
+          $$TransientDetectionsTableAnnotationComposer,
+          $$TransientDetectionsTableCreateCompanionBuilder,
+          $$TransientDetectionsTableUpdateCompanionBuilder,
+          (TransientDetectionRow, $$TransientDetectionsTableReferences),
+          TransientDetectionRow,
+          PrefetchHooks Function({bool sessionId, bool capturedImageId})
+        > {
+  $$TransientDetectionsTableTableManager(
+    _$NightshadeDatabase db,
+    $TransientDetectionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$TransientDetectionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$TransientDetectionsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$TransientDetectionsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int?> sessionId = const Value.absent(),
+                Value<int?> capturedImageId = const Value.absent(),
+                Value<int> tileId = const Value.absent(),
+                Value<DateTime> detectedAt = const Value.absent(),
+                Value<double> raDeg = const Value.absent(),
+                Value<double> decDeg = const Value.absent(),
+                Value<double> residualFlux = const Value.absent(),
+                Value<double?> deltaMag = const Value.absent(),
+                Value<double> snr = const Value.absent(),
+                Value<double> fwhm = const Value.absent(),
+                Value<double> eccentricity = const Value.absent(),
+                Value<double> positionAngleDeg = const Value.absent(),
+                Value<String> kind = const Value.absent(),
+                Value<String?> catalogMatch = const Value.absent(),
+                Value<double> confidence = const Value.absent(),
+                Value<bool> reviewed = const Value.absent(),
+                Value<bool> dismissed = const Value.absent(),
+              }) => TransientDetectionsCompanion(
+                id: id,
+                sessionId: sessionId,
+                capturedImageId: capturedImageId,
+                tileId: tileId,
+                detectedAt: detectedAt,
+                raDeg: raDeg,
+                decDeg: decDeg,
+                residualFlux: residualFlux,
+                deltaMag: deltaMag,
+                snr: snr,
+                fwhm: fwhm,
+                eccentricity: eccentricity,
+                positionAngleDeg: positionAngleDeg,
+                kind: kind,
+                catalogMatch: catalogMatch,
+                confidence: confidence,
+                reviewed: reviewed,
+                dismissed: dismissed,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int?> sessionId = const Value.absent(),
+                Value<int?> capturedImageId = const Value.absent(),
+                required int tileId,
+                Value<DateTime> detectedAt = const Value.absent(),
+                required double raDeg,
+                required double decDeg,
+                required double residualFlux,
+                Value<double?> deltaMag = const Value.absent(),
+                required double snr,
+                required double fwhm,
+                required double eccentricity,
+                Value<double> positionAngleDeg = const Value.absent(),
+                required String kind,
+                Value<String?> catalogMatch = const Value.absent(),
+                required double confidence,
+                Value<bool> reviewed = const Value.absent(),
+                Value<bool> dismissed = const Value.absent(),
+              }) => TransientDetectionsCompanion.insert(
+                id: id,
+                sessionId: sessionId,
+                capturedImageId: capturedImageId,
+                tileId: tileId,
+                detectedAt: detectedAt,
+                raDeg: raDeg,
+                decDeg: decDeg,
+                residualFlux: residualFlux,
+                deltaMag: deltaMag,
+                snr: snr,
+                fwhm: fwhm,
+                eccentricity: eccentricity,
+                positionAngleDeg: positionAngleDeg,
+                kind: kind,
+                catalogMatch: catalogMatch,
+                confidence: confidence,
+                reviewed: reviewed,
+                dismissed: dismissed,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$TransientDetectionsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback:
+              ({sessionId = false, capturedImageId = false}) {
+                return PrefetchHooks(
+                  db: db,
+                  explicitlyWatchedTables: [],
+                  addJoins:
+                      <
+                        T extends TableManagerState<
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic,
+                          dynamic
+                        >
+                      >(state) {
+                        if (sessionId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.sessionId,
+                                    referencedTable:
+                                        $$TransientDetectionsTableReferences
+                                            ._sessionIdTable(db),
+                                    referencedColumn:
+                                        $$TransientDetectionsTableReferences
+                                            ._sessionIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+                        if (capturedImageId) {
+                          state =
+                              state.withJoin(
+                                    currentTable: table,
+                                    currentColumn: table.capturedImageId,
+                                    referencedTable:
+                                        $$TransientDetectionsTableReferences
+                                            ._capturedImageIdTable(db),
+                                    referencedColumn:
+                                        $$TransientDetectionsTableReferences
+                                            ._capturedImageIdTable(db)
+                                            .id,
+                                  )
+                                  as T;
+                        }
+
+                        return state;
+                      },
+                  getPrefetchedDataCallback: (items) async {
+                    return [];
+                  },
+                );
+              },
+        ),
+      );
+}
+
+typedef $$TransientDetectionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NightshadeDatabase,
+      $TransientDetectionsTable,
+      TransientDetectionRow,
+      $$TransientDetectionsTableFilterComposer,
+      $$TransientDetectionsTableOrderingComposer,
+      $$TransientDetectionsTableAnnotationComposer,
+      $$TransientDetectionsTableCreateCompanionBuilder,
+      $$TransientDetectionsTableUpdateCompanionBuilder,
+      (TransientDetectionRow, $$TransientDetectionsTableReferences),
+      TransientDetectionRow,
+      PrefetchHooks Function({bool sessionId, bool capturedImageId})
+    >;
+typedef $$LivingSkyRetentionTableCreateCompanionBuilder =
+    LivingSkyRetentionCompanion Function({
+      Value<int> id,
+      required String scope,
+      Value<DateTime?> lastPrunedAt,
+      Value<int?> lastPrunedId,
+      Value<int> prunedCount,
+      Value<String?> note,
+      Value<DateTime> updatedAt,
+    });
+typedef $$LivingSkyRetentionTableUpdateCompanionBuilder =
+    LivingSkyRetentionCompanion Function({
+      Value<int> id,
+      Value<String> scope,
+      Value<DateTime?> lastPrunedAt,
+      Value<int?> lastPrunedId,
+      Value<int> prunedCount,
+      Value<String?> note,
+      Value<DateTime> updatedAt,
+    });
+
+class $$LivingSkyRetentionTableFilterComposer
+    extends Composer<_$NightshadeDatabase, $LivingSkyRetentionTable> {
+  $$LivingSkyRetentionTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastPrunedAt => $composableBuilder(
+    column: $table.lastPrunedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastPrunedId => $composableBuilder(
+    column: $table.lastPrunedId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get prunedCount => $composableBuilder(
+    column: $table.prunedCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$LivingSkyRetentionTableOrderingComposer
+    extends Composer<_$NightshadeDatabase, $LivingSkyRetentionTable> {
+  $$LivingSkyRetentionTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get scope => $composableBuilder(
+    column: $table.scope,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastPrunedAt => $composableBuilder(
+    column: $table.lastPrunedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastPrunedId => $composableBuilder(
+    column: $table.lastPrunedId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get prunedCount => $composableBuilder(
+    column: $table.prunedCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$LivingSkyRetentionTableAnnotationComposer
+    extends Composer<_$NightshadeDatabase, $LivingSkyRetentionTable> {
+  $$LivingSkyRetentionTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get scope =>
+      $composableBuilder(column: $table.scope, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get lastPrunedAt => $composableBuilder(
+    column: $table.lastPrunedAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastPrunedId => $composableBuilder(
+    column: $table.lastPrunedId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get prunedCount => $composableBuilder(
+    column: $table.prunedCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$LivingSkyRetentionTableTableManager
+    extends
+        RootTableManager<
+          _$NightshadeDatabase,
+          $LivingSkyRetentionTable,
+          LivingSkyRetentionRow,
+          $$LivingSkyRetentionTableFilterComposer,
+          $$LivingSkyRetentionTableOrderingComposer,
+          $$LivingSkyRetentionTableAnnotationComposer,
+          $$LivingSkyRetentionTableCreateCompanionBuilder,
+          $$LivingSkyRetentionTableUpdateCompanionBuilder,
+          (
+            LivingSkyRetentionRow,
+            BaseReferences<
+              _$NightshadeDatabase,
+              $LivingSkyRetentionTable,
+              LivingSkyRetentionRow
+            >,
+          ),
+          LivingSkyRetentionRow,
+          PrefetchHooks Function()
+        > {
+  $$LivingSkyRetentionTableTableManager(
+    _$NightshadeDatabase db,
+    $LivingSkyRetentionTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LivingSkyRetentionTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$LivingSkyRetentionTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$LivingSkyRetentionTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> scope = const Value.absent(),
+                Value<DateTime?> lastPrunedAt = const Value.absent(),
+                Value<int?> lastPrunedId = const Value.absent(),
+                Value<int> prunedCount = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => LivingSkyRetentionCompanion(
+                id: id,
+                scope: scope,
+                lastPrunedAt: lastPrunedAt,
+                lastPrunedId: lastPrunedId,
+                prunedCount: prunedCount,
+                note: note,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String scope,
+                Value<DateTime?> lastPrunedAt = const Value.absent(),
+                Value<int?> lastPrunedId = const Value.absent(),
+                Value<int> prunedCount = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => LivingSkyRetentionCompanion.insert(
+                id: id,
+                scope: scope,
+                lastPrunedAt: lastPrunedAt,
+                lastPrunedId: lastPrunedId,
+                prunedCount: prunedCount,
+                note: note,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$LivingSkyRetentionTableProcessedTableManager =
+    ProcessedTableManager<
+      _$NightshadeDatabase,
+      $LivingSkyRetentionTable,
+      LivingSkyRetentionRow,
+      $$LivingSkyRetentionTableFilterComposer,
+      $$LivingSkyRetentionTableOrderingComposer,
+      $$LivingSkyRetentionTableAnnotationComposer,
+      $$LivingSkyRetentionTableCreateCompanionBuilder,
+      $$LivingSkyRetentionTableUpdateCompanionBuilder,
+      (
+        LivingSkyRetentionRow,
+        BaseReferences<
+          _$NightshadeDatabase,
+          $LivingSkyRetentionTable,
+          LivingSkyRetentionRow
+        >,
+      ),
+      LivingSkyRetentionRow,
+      PrefetchHooks Function()
+    >;
 
 class $NightshadeDatabaseManager {
   final _$NightshadeDatabase _db;
@@ -50692,4 +59445,20 @@ class $NightshadeDatabaseManager {
       $$GuideRmsHistoryTableTableManager(_db, _db.guideRmsHistory);
   $$NarratorEventsTableTableManager get narratorEvents =>
       $$NarratorEventsTableTableManager(_db, _db.narratorEvents);
+  $$SkyAtlasRegionsTableTableManager get skyAtlasRegions =>
+      $$SkyAtlasRegionsTableTableManager(_db, _db.skyAtlasRegions);
+  $$SkyTilesTableTableManager get skyTiles =>
+      $$SkyTilesTableTableManager(_db, _db.skyTiles);
+  $$SkyAtlasFoldsTableTableManager get skyAtlasFolds =>
+      $$SkyAtlasFoldsTableTableManager(_db, _db.skyAtlasFolds);
+  $$ConstellationContributionsTableTableManager
+  get constellationContributions =>
+      $$ConstellationContributionsTableTableManager(
+        _db,
+        _db.constellationContributions,
+      );
+  $$TransientDetectionsTableTableManager get transientDetections =>
+      $$TransientDetectionsTableTableManager(_db, _db.transientDetections);
+  $$LivingSkyRetentionTableTableManager get livingSkyRetention =>
+      $$LivingSkyRetentionTableTableManager(_db, _db.livingSkyRetention);
 }

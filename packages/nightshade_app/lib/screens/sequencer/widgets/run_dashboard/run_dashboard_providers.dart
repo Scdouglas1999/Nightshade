@@ -221,8 +221,22 @@ Map<String, double> _computeGoalSecs(Sequence? sequence) {
 final runDashboardSessionIntegrationProvider =
     FutureProvider.family<RunDashboardSessionIntegration, int>(
         (ref, sessionId) async {
-  final dao = ref.watch(imagesDaoProvider);
-  final images = await dao.getImagesForSession(sessionId);
+  final backend = ref.watch(backendProvider);
+  // On a remote-client slave the local captured_images table is never
+  // populated, so the host's accruing per-filter totals are only reachable
+  // over the wire. Pull the same session rows the host serialized
+  // (`image.toJson()`) and run the identical accepted/total accumulation so
+  // the Filter Integration panel ticks up live instead of stuck at zero.
+  // Keep the FutureProvider re-evaluated on the dashboard's existing refresh
+  // ticks (callers re-read it) so the slave's totals stay fresh.
+  final List<DbCapturedImage> images;
+  if (backend is NetworkBackend) {
+    final rows = await backend.getSessionImageRows(sessionId);
+    images = rows.map(DbCapturedImage.fromJson).toList();
+  } else {
+    final dao = ref.watch(imagesDaoProvider);
+    images = await dao.getImagesForSession(sessionId);
+  }
   final accepted = <String, double>{};
   final total = <String, double>{};
   for (final img in images) {

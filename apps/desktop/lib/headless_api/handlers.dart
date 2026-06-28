@@ -23,6 +23,8 @@ export 'handlers/analytics_handlers.dart';
 export 'handlers/weather_handlers.dart';
 export 'handlers/suggestion_handlers.dart';
 export 'handlers/transient_handlers.dart';
+export 'handlers/first_light_handlers.dart';
+export 'handlers/atlas_handlers.dart';
 export 'handlers/backup_handlers.dart';
 export 'handlers/sync_handlers.dart';
 export 'handlers/framing_handlers.dart';
@@ -40,6 +42,9 @@ export 'handlers/planetarium_handlers.dart';
 
 // Intelligent scheduler and focus model
 export 'handlers/scheduler_handlers.dart';
+
+// Planner/scheduler DATA tables (goals/constraints/horizons/projects)
+export 'handlers/planning_data_handlers.dart';
 export 'handlers/focus_model_handlers.dart';
 
 // Live stacking (EAA real-time integration) control surface

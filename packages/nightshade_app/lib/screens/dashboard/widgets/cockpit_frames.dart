@@ -32,7 +32,7 @@ class CockpitFrames extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
     final currentImage = ref.watch(currentImageProvider);
-    final sessionImages = ref.watch(sessionImagesProvider);
+    final sessionImages = ref.watch(recentSessionFramesProvider);
 
     // The live frame's own settings can carry a null filter (the preview is
     // published before the persisted history row is written); fall back to the

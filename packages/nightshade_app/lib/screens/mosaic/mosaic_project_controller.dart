@@ -487,9 +487,12 @@ MosaicCaptureLauncher buildMosaicCaptureLauncher(Ref ref) {
       rootNodeId: rootNode.id,
     );
 
+    // Hand the editor slot to the mosaic owner instead of clobbering unsaved
+    // manual work: takeOwnership stashes the operator's sequence and flips the
+    // owner so a later stop restores it.
     ref
         .read(currentSequenceProvider.notifier)
-        .loadSequence(sequence, discardUnsaved: true);
+        .takeOwnership(sequence, ActivePlanOwner.mosaic);
     await ref.read(sequenceExecutorProvider).start();
   };
 }

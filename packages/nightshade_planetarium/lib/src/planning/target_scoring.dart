@@ -1,7 +1,10 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
 import '../astronomy/astronomy_calculations.dart';
 import '../celestial_object.dart';
+import 'weighted_score.dart';
 
 /// Minimum observable altitude (degrees) at a given compass azimuth, as
 /// imposed by the local skyline (trees, buildings, hills).
@@ -26,6 +29,48 @@ class ScoringWeights {
     this.darknessWeight = 0.15,
     this.airmassWeight = 0.15,
   });
+
+  /// Build the ordered five-axis [WeightedFactor] list for the shared
+  /// [WeightedScore] aggregator. Factor ORDER (altitude, moonDistance,
+  /// transitProximity, darkness, airmass) is the pinned cross-language
+  /// contract — it matches the Rust `scoring::ScoringWeights` field order and
+  /// the `TargetSchedulerNode` field order. Callers pass the five `0..100`
+  /// axis scores in the same order.
+  List<WeightedFactor> factors({
+    required double altitudeScore,
+    required double moonDistanceScore,
+    required double transitProximityScore,
+    required double darknessScore,
+    required double airmassScore,
+  }) {
+    return [
+      WeightedFactor(
+        name: 'altitude',
+        value: altitudeScore,
+        weight: altitudeWeight,
+      ),
+      WeightedFactor(
+        name: 'moonDistance',
+        value: moonDistanceScore,
+        weight: moonDistanceWeight,
+      ),
+      WeightedFactor(
+        name: 'transitProximity',
+        value: transitProximityScore,
+        weight: transitProximityWeight,
+      ),
+      WeightedFactor(
+        name: 'darkness',
+        value: darknessScore,
+        weight: darknessWeight,
+      ),
+      WeightedFactor(
+        name: 'airmass',
+        value: airmassScore,
+        weight: airmassWeight,
+      ),
+    ];
+  }
 }
 
 /// Result of scoring a target
@@ -231,18 +276,19 @@ class TargetScoringService {
       visibility: visibility,
     );
 
-    // Calculate weighted total score
-    final totalScore =
-        (altScore * weights.altitudeWeight +
-            moonScore * weights.moonDistanceWeight +
-            transitScore * weights.transitProximityWeight +
-            darknessScore * weights.darknessWeight +
-            airmassScore * weights.airmassWeight) /
-        (weights.altitudeWeight +
-            weights.moonDistanceWeight +
-            weights.transitProximityWeight +
-            weights.darknessWeight +
-            weights.airmassWeight);
+    // Calculate weighted total score via the shared aggregation contract.
+    // NORMALIZED mode == divide by the weight-sum, reproducing the previous
+    // open-coded `Σ(axis*weight) / Σ(weight)` exactly.
+    final totalScore = WeightedScore.total(
+      weights.factors(
+        altitudeScore: altScore,
+        moonDistanceScore: moonScore,
+        transitProximityScore: transitScore,
+        darknessScore: darknessScore,
+        airmassScore: airmassScore,
+      ),
+      mode: WeightedScoreMode.normalized,
+    );
 
     return TargetScore(
       target: target,
@@ -424,18 +470,18 @@ class TargetScoringService {
       nightEnd: nightEnd,
     );
 
-    // Calculate weighted total score
-    final totalScore =
-        (altScore * weights.altitudeWeight +
-            moonScore * weights.moonDistanceWeight +
-            transitScore * weights.transitProximityWeight +
-            darknessScore * weights.darknessWeight +
-            airmassScore * weights.airmassWeight) /
-        (weights.altitudeWeight +
-            weights.moonDistanceWeight +
-            weights.transitProximityWeight +
-            weights.darknessWeight +
-            weights.airmassWeight);
+    // Calculate weighted total score via the shared aggregation contract
+    // (NORMALIZED — identical to the previous open-coded weighted average).
+    final totalScore = WeightedScore.total(
+      weights.factors(
+        altitudeScore: altScore,
+        moonDistanceScore: moonScore,
+        transitProximityScore: transitScore,
+        darknessScore: darknessScore,
+        airmassScore: airmassScore,
+      ),
+      mode: WeightedScoreMode.normalized,
+    );
 
     return TargetScore(
       target: target,
@@ -467,6 +513,13 @@ class TargetScoringService {
       targets,
     ).where((s) => s.totalScore >= minScore).take(maxResults).toList();
   }
+
+  /// Test-only seam exposing the private altitude piecewise so the
+  /// Rust<->Dart parity test can drive the REAL production scorer (not a
+  /// re-implementation that can never disagree with itself). Behaviour is
+  /// unchanged in production — nothing else calls this.
+  @visibleForTesting
+  double debugScoreAltitude(double altitude) => _scoreAltitude(altitude);
 
   double _scoreAltitude(double altitude) {
     if (altitude < 0) return 0;
@@ -623,38 +676,7 @@ class TargetScoringService {
     }
 
     // Moon proximity
-    if (moonIllumination > 20) {
-      if (moonDist < 15) {
-        warnings.add(
-          TargetWarning(
-            type: WarningType.moonProximity,
-            severity: WarningSeverity.critical,
-            message:
-                'Very close to Moon (${moonDist.toStringAsFixed(0)}°) - ${moonIllumination.toStringAsFixed(0)}% illuminated',
-            suggestion: 'Consider narrowband filters or a different target',
-          ),
-        );
-      } else if (moonDist < 30 && moonIllumination > 50) {
-        warnings.add(
-          TargetWarning(
-            type: WarningType.moonProximity,
-            severity: WarningSeverity.warning,
-            message:
-                'Near bright Moon (${moonDist.toStringAsFixed(0)}°) - ${moonIllumination.toStringAsFixed(0)}% illuminated',
-            suggestion: 'Use narrowband filters to reduce sky glow',
-          ),
-        );
-      } else if (moonDist < 45 && moonIllumination > 70) {
-        warnings.add(
-          TargetWarning(
-            type: WarningType.moonProximity,
-            severity: WarningSeverity.caution,
-            message: 'Moon is ${moonDist.toStringAsFixed(0)}° away',
-            suggestion: 'Some sky glow may be present',
-          ),
-        );
-      }
-    }
+    warnings.addAll(_moonProximityWarnings(moonDist));
 
     // Setting soon
     if (visibility.setTime != null && alt > 0) {
@@ -745,6 +767,45 @@ class TargetScoringService {
     }
 
     return warnings;
+  }
+
+  /// Moon-proximity warnings for a target at angular separation [moonDist]
+  /// from the Moon, gated on the current [moonIllumination]. Shared verbatim
+  /// by the real-time and full-night warning generators.
+  List<TargetWarning> _moonProximityWarnings(double moonDist) {
+    if (moonIllumination <= 20) return const [];
+
+    if (moonDist < 15) {
+      return [
+        TargetWarning(
+          type: WarningType.moonProximity,
+          severity: WarningSeverity.critical,
+          message:
+              'Very close to Moon (${moonDist.toStringAsFixed(0)}°) - ${moonIllumination.toStringAsFixed(0)}% illuminated',
+          suggestion: 'Consider narrowband filters or a different target',
+        ),
+      ];
+    } else if (moonDist < 30 && moonIllumination > 50) {
+      return [
+        TargetWarning(
+          type: WarningType.moonProximity,
+          severity: WarningSeverity.warning,
+          message:
+              'Near bright Moon (${moonDist.toStringAsFixed(0)}°) - ${moonIllumination.toStringAsFixed(0)}% illuminated',
+          suggestion: 'Use narrowband filters to reduce sky glow',
+        ),
+      ];
+    } else if (moonDist < 45 && moonIllumination > 70) {
+      return [
+        TargetWarning(
+          type: WarningType.moonProximity,
+          severity: WarningSeverity.caution,
+          message: 'Moon is ${moonDist.toStringAsFixed(0)}° away',
+          suggestion: 'Some sky glow may be present',
+        ),
+      ];
+    }
+    return const [];
   }
 
   String _formatTime(DateTime time) {
@@ -882,38 +943,7 @@ class TargetScoringService {
     }
 
     // Moon proximity
-    if (moonIllumination > 20) {
-      if (moonDist < 15) {
-        warnings.add(
-          TargetWarning(
-            type: WarningType.moonProximity,
-            severity: WarningSeverity.critical,
-            message:
-                'Very close to Moon (${moonDist.toStringAsFixed(0)}°) - ${moonIllumination.toStringAsFixed(0)}% illuminated',
-            suggestion: 'Consider narrowband filters or a different target',
-          ),
-        );
-      } else if (moonDist < 30 && moonIllumination > 50) {
-        warnings.add(
-          TargetWarning(
-            type: WarningType.moonProximity,
-            severity: WarningSeverity.warning,
-            message:
-                'Near bright Moon (${moonDist.toStringAsFixed(0)}°) - ${moonIllumination.toStringAsFixed(0)}% illuminated',
-            suggestion: 'Use narrowband filters to reduce sky glow',
-          ),
-        );
-      } else if (moonDist < 45 && moonIllumination > 70) {
-        warnings.add(
-          TargetWarning(
-            type: WarningType.moonProximity,
-            severity: WarningSeverity.caution,
-            message: 'Moon is ${moonDist.toStringAsFixed(0)}° away',
-            suggestion: 'Some sky glow may be present',
-          ),
-        );
-      }
-    }
+    warnings.addAll(_moonProximityWarnings(moonDist));
 
     // Short imaging window
     final nightHours = nightEnd.difference(nightStart).inMinutes / 60.0;

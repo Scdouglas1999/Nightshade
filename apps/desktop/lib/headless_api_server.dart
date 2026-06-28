@@ -4,6 +4,7 @@
 // ignore_for_file: avoid_print
 
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -201,7 +202,14 @@ class HeadlessApiServer {
   // server restarts no longer evict already-paired clients.
   // entries are evicted synchronously by [_evictPairedSessionToken]
   // when the TokenManager surfaces a revoke / expiry event.
-  final Map<String, HeadlessTokenScope> _pairedSessionTokens = {};
+  //
+  // HTTP-002: bounded with LRU-on-write eviction so a pairing flood (or a very
+  // long-lived appliance) cannot grow it without bound — every authenticated
+  // request linearly scans this map in [_scopeForToken], and the pairing mint
+  // routes are now rate-limited (see `_rateLimitedPairingPaths`) but the cap is
+  // the hard backstop. The ceiling is far above any realistic paired-device
+  // count, so legitimate devices are never evicted in practice.
+  final BoundedTokenScopeMap _pairedSessionTokens = BoundedTokenScopeMap();
 
   /// periodic sweep that walks `PairedDevices` and drops expired
   /// rows + evicts revoked entries from [_pairedSessionTokens]. Interval is
@@ -297,6 +305,10 @@ class HeadlessApiServer {
   late final WeatherHandlers _weatherHandlers;
   late final SuggestionHandlers _suggestionHandlers;
   late final TransientHandlers _transientHandlers;
+  // Pillar B ("First Light"): difference-imaging transient discovery surface.
+  late final FirstLightHandlers _firstLightHandlers;
+  // Pillar A ("Your Sky"): personal sky-atlas browse surface.
+  late final AtlasHandlers _atlasHandlers;
   late final BackupHandlers _backupHandlers;
   // Cloud backup/sync — status + push-now (config lives in desktop settings).
   late final SyncHandlers _syncHandlers;
@@ -318,6 +330,10 @@ class HeadlessApiServer {
   // Intelligent scheduler and focus model
   late final SchedulerHandlers _schedulerHandlers;
   late final FocusModelHandlers _focusModelHandlers;
+
+  // Planner/scheduler DATA tables served to remote slaves
+  // (integration goals / target constraints / horizon profiles / projects).
+  late final PlanningDataHandlers _planningDataHandlers;
 
   // Live stacking (EAA real-time integration) control surface. Public so the
   // server lifecycle can route the `ImageSaved` event stream into its
@@ -610,10 +626,6 @@ class HeadlessApiServer {
   // flow (StateNotifier updates, temperature polling, cool-on-connect,
   // recommended-gain auto-apply, filter-name sync, heartbeat monitoring).
 
-  // Legacy /api/sequences/{status,start,stop} routes now register the
-  // sequencer-handler refs directly (see `_setupRoutes()`). Their
-  // previous one-line indirection methods were redundant.
-
   // Dashboard + Run-Watch static-file serving was moved to
   // [StaticFileHandlers] (handlers/static_file_handlers.dart). The handlers
   // there own the SPA-directory resolution, the MIME-type table, the CSP
@@ -827,4 +839,50 @@ class _RequestBodyLimitResult {
       receivedBytes: receivedBytes,
     );
   }
+}
+
+/// Insertion-ordered map of paired-session bearer tokens to their granted
+/// [HeadlessTokenScope] that evicts the least-recently-written entry once it
+/// exceeds [maxEntries].
+///
+/// HTTP-002: pairing / one-tap LAN claim mint long-lived session tokens into
+/// this map, and [HeadlessApiServer._scopeForToken] scans it in constant time
+/// on every authenticated request that isn't a configured static token. Without
+/// a ceiling a LAN flood (or a multi-year appliance) could grow it without
+/// bound. Re-writing an existing key refreshes its recency (remove-then-insert)
+/// so an actively re-paired token survives eviction longest; otherwise the
+/// oldest entry is dropped. [maxEntries] defaults far above any realistic
+/// paired-device count, so it is a backstop rather than a routine eviction
+/// path — the per-endpoint rate limit on the pairing routes is the first line
+/// of defence.
+class BoundedTokenScopeMap extends MapBase<String, HeadlessTokenScope> {
+  BoundedTokenScopeMap({this.maxEntries = 1024})
+    : assert(maxEntries > 0, 'maxEntries must be positive');
+
+  final int maxEntries;
+  final Map<String, HeadlessTokenScope> _entries =
+      <String, HeadlessTokenScope>{};
+
+  @override
+  HeadlessTokenScope? operator [](Object? key) => _entries[key];
+
+  @override
+  void operator []=(String key, HeadlessTokenScope value) {
+    // remove-then-insert so the most-recently-written key moves to the tail of
+    // the insertion order and is therefore evicted last.
+    _entries.remove(key);
+    _entries[key] = value;
+    while (_entries.length > maxEntries) {
+      _entries.remove(_entries.keys.first);
+    }
+  }
+
+  @override
+  HeadlessTokenScope? remove(Object? key) => _entries.remove(key);
+
+  @override
+  void clear() => _entries.clear();
+
+  @override
+  Iterable<String> get keys => _entries.keys;
 }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../components/nightshade_switch_style.dart';
 import 'nightshade_colors.dart';
 import 'nightshade_tokens.dart';
@@ -20,26 +19,6 @@ enum AppThemeMode {
   /// Follow system setting (maps to light/dark only)
   system,
 }
-
-/// Ephemeral Flutter [ThemeMode] for MaterialApp `themeMode` (light/dark only).
-///
-/// Used by the mobile connection screen before settings load. Does **not**
-/// persist and does not support red night — use [appSettingsProvider] for that.
-///
-/// **Authoritative theme source:** [appSettingsProvider] in `nightshade_core`
-/// (`settings.theme`: `dark` | `light` | `redNight`, plus optional accent).
-/// Desktop [NightshadeApp] watches it and calls [NightshadeTheme] directly.
-/// [themeSettingsProvider] is a focused DB-backed slice for theme-only writes.
-final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.dark);
-
-/// In-memory [AppThemeMode] including red night and system.
-///
-/// Transitional / test hook — production apps resolve theme from
-/// [appSettingsProvider], not this provider. Prefer [getThemeForMode] when
-/// bridging persisted settings to [ThemeData].
-final appThemeModeProvider = StateProvider<AppThemeMode>(
-  (ref) => AppThemeMode.dark,
-);
 
 /// Parse a hex accent color (`#RRGGBB` or `RRGGBB`). Returns null if invalid.
 Color? parseNightshadeAccentColor(String? hexColor) {

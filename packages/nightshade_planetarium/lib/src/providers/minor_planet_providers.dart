@@ -126,10 +126,3 @@ final minorPlanetPositionProvider =
 final currentMinorPlanetsProvider = Provider<List<MinorBodyData>>((ref) {
   return ref.watch(minorPlanetPositionProvider).bodies;
 });
-
-/// Provider for only visible (bright enough to see) minor bodies.
-/// Filters to visual magnitude < 12 (telescope limit for most amateurs).
-final visibleMinorPlanetsProvider = Provider<List<MinorBodyData>>((ref) {
-  final bodies = ref.watch(currentMinorPlanetsProvider);
-  return bodies.where((b) => b.visualMag < 12.0).toList();
-});

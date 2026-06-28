@@ -11,12 +11,10 @@ import '../../scheduler/widgets/integration_goals_editor.dart';
 import '../../scheduler/widgets/target_constraints_editor.dart';
 import '../../scheduler/widgets/target_score_row.dart';
 
-/// Body of the RoboTarget-class dynamic scheduler — hoisted out of
-/// `SchedulerScreen` when the Scheduler became a tab under Plan Tonight
-/// (§UX consolidation). The shell `SchedulerScreen` and the
-/// `/planner?tab=scheduler` tab both mount this widget so the standalone
-/// route keeps working for one release while every entry point shares the
-/// same code path.
+/// Body of the RoboTarget-class dynamic scheduler — hoisted out of the
+/// former standalone Scheduler screen when the Scheduler became a tab under
+/// Plan Tonight (§UX consolidation). The `/planner?tab=scheduler` tab mounts
+/// this widget; the legacy `/scheduler` route now redirects here.
 ///
 /// Layout (desktop):
 ///   left  : current decision panel (Start/Pause/Stop, target name,

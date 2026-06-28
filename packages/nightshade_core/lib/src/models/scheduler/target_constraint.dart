@@ -265,6 +265,28 @@ class TargetConstraint extends Equatable {
     }
   }
 
+  /// Wire serialization (host -> slave mirror): emits the same raw column
+  /// shape the `target_constraints` table stores, so the slave can rebuild
+  /// the constraint with [fromRow]. Used by `/api/target-constraints`.
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'targetId': targetId,
+    'kind': kind.name,
+    'payloadJson': encodePayload(),
+    'enabled': enabled,
+  };
+
+  /// Tolerant decoder for the wire payload above.
+  static TargetConstraint fromJson(Map<String, dynamic> json) {
+    return TargetConstraint.fromRow(
+      id: json['id'] as int? ?? 0,
+      targetId: json['targetId'] as int? ?? 0,
+      kindName: json['kind'] as String? ?? '',
+      payloadJson: json['payloadJson'] as String? ?? '{}',
+      enabled: json['enabled'] as bool? ?? true,
+    );
+  }
+
   @override
   List<Object?> get props => [
     id,

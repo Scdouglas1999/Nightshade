@@ -2,10 +2,13 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../backend/network_backend.dart';
 import '../database/database.dart';
+import '../models/backend/sequencer_status.dart';
 import '../database/daos/sequence_runs_dao.dart';
 import '../database/daos/sequence_versions_dao.dart';
 import '../database/daos/session_diagnostics_dao.dart';
+import 'backend_provider.dart';
 import 'database_provider.dart';
 
 // =============================================================================
@@ -49,6 +52,41 @@ class SequenceRunStats {
       targetBreakdown = {},
       errorMessages = [],
       warningMessages = [];
+
+  SequenceRunStats._({
+    required this.startTime,
+    required this.endTime,
+    required this.framesCaptured,
+    required this.framesRejected,
+    required this.integrationSecs,
+    required this.triggerFires,
+    required this.autofocusRuns,
+    required this.meridianFlips,
+    required this.ditherCount,
+    required this.warningMessages,
+  }) : targetBreakdown = {},
+       errorMessages = [];
+
+  /// Reconstruct a live-stats snapshot from the master's run-vitals wire model.
+  ///
+  /// Used by the remote sync handler so a slave can mirror the master's Session
+  /// Vitals tile. The per-target breakdown and error list are not carried on the
+  /// vitals wire (the Vitals tile reads only the aggregate counters and
+  /// warnings), so they are reconstructed empty.
+  factory SequenceRunStats.fromRemoteVitals(SequencerRunVitals vitals) {
+    return SequenceRunStats._(
+      startTime: vitals.startTime,
+      endTime: vitals.endTime,
+      framesCaptured: vitals.framesCaptured,
+      framesRejected: vitals.framesRejected,
+      integrationSecs: vitals.integrationSecs,
+      triggerFires: vitals.triggerFires,
+      autofocusRuns: vitals.autofocusRuns,
+      meridianFlips: vitals.meridianFlips,
+      ditherCount: vitals.ditherCount,
+      warningMessages: List<String>.from(vitals.warningMessages),
+    );
+  }
 
   double get wallClockSecs {
     final end = endTime ?? DateTime.now();
@@ -282,7 +320,16 @@ final liveSequenceStatsProvider = StateProvider<SequenceRunStats?>(
 final currentRunIdProvider = StateProvider<int?>((ref) => null);
 
 /// Watch all sequence runs from the database.
+///
+/// On a slave (NetworkBackend) the local `sequence_runs` table is never
+/// populated, so this polls the host's `/api/sequence-runs` instead — without
+/// the branch the dashboard recap, cockpit Morning Report, and History tab all
+/// render empty even after the master imaged all night.
 final sequenceRunsProvider = StreamProvider<List<SequenceRun>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return pollRemoteSequenceRuns(backend);
+  }
   final dao = ref.watch(sequenceRunsDaoProvider);
   return dao.watchAllRuns();
 });
@@ -290,6 +337,10 @@ final sequenceRunsProvider = StreamProvider<List<SequenceRun>>((ref) {
 /// Watch runs for a specific sequence.
 final sequenceRunsForSequenceProvider =
     StreamProvider.family<List<SequenceRun>, int>((ref, sequenceId) {
+      final backend = ref.watch(backendProvider);
+      if (backend is NetworkBackend) {
+        return pollRemoteSequenceRuns(backend, sequenceId: sequenceId);
+      }
       final dao = ref.watch(sequenceRunsDaoProvider);
       return dao.watchRunsForSequence(sequenceId);
     });

@@ -582,10 +582,14 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
             children: [
               Icon(LucideIcons.activity, size: 14, color: widget.colors.info),
               const SizedBox(width: 8),
-              Text(
-                '${stats.completedFrames}/${stats.totalFrames} done',
-                style: NightshadeTypography.labelStrongSm
-                    .copyWith(color: widget.colors.textSecondary),
+              Flexible(
+                child: Text(
+                  '${stats.completedFrames}/${stats.totalFrames} done',
+                  style: NightshadeTypography.labelStrongSm
+                      .copyWith(color: widget.colors.textSecondary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               const SizedBox(width: 6),
               Text('•',
@@ -593,13 +597,18 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
                       fontSize: NightshadeTypography.fontSize11,
                       color: widget.colors.textMuted)),
               const SizedBox(width: 6),
-              Text(
-                '${completedMins}m / ${totalMins}m',
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: widget.colors.textMuted),
+              Flexible(
+                child: Text(
+                  '${completedMins}m / ${totalMins}m',
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: widget.colors.textMuted),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               const Spacer(),
+              const SizedBox(width: 8),
               Text(
                 '${(stats.fraction * 100).round()}%',
                 style: NightshadeTypography.labelStrongSm

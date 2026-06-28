@@ -542,6 +542,21 @@ typedef struct wire_cst_EquipmentEvent_HeartbeatReconnected {
   uint32_t after_attempts;
 } wire_cst_EquipmentEvent_HeartbeatReconnected;
 
+typedef struct wire_cst_EquipmentEvent_DeviceDiscovered {
+  struct wire_cst_list_prim_u_8_strict *device_class;
+  struct wire_cst_list_prim_u_8_strict *driver;
+  struct wire_cst_list_prim_u_8_strict *id;
+  struct wire_cst_list_prim_u_8_strict *name;
+  struct wire_cst_list_prim_u_8_strict *display_name;
+  struct wire_cst_list_prim_u_8_strict *unique_id;
+} wire_cst_EquipmentEvent_DeviceDiscovered;
+
+typedef struct wire_cst_EquipmentEvent_DeviceLost {
+  struct wire_cst_list_prim_u_8_strict *device_class;
+  struct wire_cst_list_prim_u_8_strict *driver;
+  struct wire_cst_list_prim_u_8_strict *id;
+} wire_cst_EquipmentEvent_DeviceLost;
+
 typedef union EquipmentEventKind {
   struct wire_cst_EquipmentEvent_Connecting Connecting;
   struct wire_cst_EquipmentEvent_Connected Connected;
@@ -564,6 +579,8 @@ typedef union EquipmentEventKind {
   struct wire_cst_EquipmentEvent_HeartbeatStatusChanged HeartbeatStatusChanged;
   struct wire_cst_EquipmentEvent_HeartbeatReconnecting HeartbeatReconnecting;
   struct wire_cst_EquipmentEvent_HeartbeatReconnected HeartbeatReconnected;
+  struct wire_cst_EquipmentEvent_DeviceDiscovered DeviceDiscovered;
+  struct wire_cst_EquipmentEvent_DeviceLost DeviceLost;
 } EquipmentEventKind;
 
 typedef struct wire_cst_equipment_event {
@@ -2483,6 +2500,12 @@ void frbgen_nightshade_bridge_wire__crate__api__api_version__api_device_supports
                                                                                          struct wire_cst_list_prim_u_8_strict *device_id,
                                                                                          uint32_t required_version);
 
+void frbgen_nightshade_bridge_wire__crate__api__difference_image__api_difference_image(int64_t port_,
+                                                                                       struct wire_cst_list_prim_u_8_strict *args_json);
+
+void frbgen_nightshade_bridge_wire__crate__api__difference_image__api_difference_tile_center(int64_t port_,
+                                                                                             struct wire_cst_list_prim_u_8_strict *args_json);
+
 void frbgen_nightshade_bridge_wire__crate__api__connection__api_disconnect_device(int64_t port_,
                                                                                   int32_t device_type,
                                                                                   struct wire_cst_list_prim_u_8_strict *device_id);
@@ -3243,6 +3266,24 @@ WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__storage__api_set
 
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__diagnostics__api_set_qhy_discovery_enabled(bool enabled);
 
+void frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas(int64_t port_,
+                                                                         struct wire_cst_list_prim_u_8_strict *args_json);
+
+void frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_add_frame(int64_t port_,
+                                                                                   struct wire_cst_list_prim_u_8_strict *args_json);
+
+void frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_growth(int64_t port_,
+                                                                                struct wire_cst_list_prim_u_8_strict *args_json);
+
+void frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_merge_delta(int64_t port_,
+                                                                                     struct wire_cst_list_prim_u_8_strict *args_json);
+
+void frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_query_cutout(int64_t port_,
+                                                                                      struct wire_cst_list_prim_u_8_strict *args_json);
+
+void frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_region_info(int64_t port_,
+                                                                                     struct wire_cst_list_prim_u_8_strict *args_json);
+
 void frbgen_nightshade_bridge_wire__crate__api__imaging__api_stacking_add_frame(int64_t port_,
                                                                                 struct wire_cst_list_prim_u_8_strict *image_path);
 
@@ -3946,6 +3987,8 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__diagnostics__api_get_weather_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__diagnostics__api_is_qhy_discovery_enabled);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__diagnostics__api_set_qhy_discovery_enabled);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__difference_image__api_difference_image);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__difference_image__api_difference_tile_center);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__discovery__api_discover_alpaca_at_address);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__discovery__api_discover_alpaca_devices);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__discovery__api_discover_devices);
@@ -4175,6 +4218,12 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__session__api_end_session);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__session__api_get_session_state);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__session__api_start_session);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_add_frame);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_growth);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_merge_delta);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_query_cutout);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_region_info);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__storage__api_delete_profile);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__storage__api_get_active_profile);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__storage__api_get_location);

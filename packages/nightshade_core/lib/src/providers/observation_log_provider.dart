@@ -1,7 +1,12 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../backend/network_backend.dart';
 import '../database/daos/observation_logs_dao.dart';
 import '../database/database.dart';
+import 'backend_provider.dart';
 import 'database_provider.dart';
 
 /// DAO provider for ObservationLogsDao.
@@ -10,14 +15,34 @@ final observationLogsDaoProvider = Provider<ObservationLogsDao>((ref) {
 });
 
 /// Reactive stream of all observation log entries (newest first).
+///
+/// On a remote client (`NetworkBackend`) observation logs live only in the
+/// master's DB; the slave's local table is never populated. We poll the
+/// host's `GET /api/notes-journal` (which serves the `observation_logs`
+/// table) and map each [RemoteNotesJournalEntry] onto the local
+/// [ObservationLogEntry] shape the log panel + planetarium markers read.
 final observationLogsProvider = StreamProvider<List<ObservationLogEntry>>((
   ref,
 ) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return _pollRemoteObservationLogs(backend);
+  }
   return ref.watch(observationLogsDaoProvider).watchAllLogs();
 });
 
 /// Reactive stream of observed catalog IDs, used for planetarium markers.
 final observedCatalogIdsProvider = StreamProvider<Set<String>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return _pollRemoteObservationLogs(backend).map(
+      (logs) => logs
+          .map((l) => l.catalogId)
+          .whereType<String>()
+          .where((id) => id.isNotEmpty)
+          .toSet(),
+    );
+  }
   return ref.watch(observationLogsDaoProvider).watchObservedCatalogIds();
 });
 
@@ -25,10 +50,98 @@ final observedCatalogIdsProvider = StreamProvider<Set<String>>((ref) {
 final observationLogStatsProvider = FutureProvider<ObservationLogStats>((
   ref,
 ) async {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    final logs = await ref.watch(observationLogsProvider.future);
+    return _statsFromLogs(logs);
+  }
   // Depend on the logs stream so stats refresh on any change
   ref.watch(observationLogsProvider);
   return ref.read(observationLogsDaoProvider).getStats();
 });
+
+/// Polls the host's observation logs, emitting only on change (mirrors the
+/// `_pollRemote` change-guard in `database_provider.dart`).
+Stream<List<ObservationLogEntry>> _pollRemoteObservationLogs(
+  NetworkBackend backend, {
+  Duration interval = const Duration(seconds: 10),
+}) async* {
+  var last = await _fetchRemoteObservationLogs(backend);
+  yield last;
+  while (true) {
+    await Future<void>.delayed(interval);
+    final next = await _fetchRemoteObservationLogs(backend);
+    if (!listEquals(last, next)) {
+      last = next;
+      yield next;
+    }
+  }
+}
+
+Future<List<ObservationLogEntry>> _fetchRemoteObservationLogs(
+  NetworkBackend backend,
+) async {
+  final page = await backend.fetchNotesJournal();
+  final mapped = page.items.map(_observationLogFromRemote).toList()
+    // Host orders newest-first already; keep that invariant so `.first`/`.last`
+    // the stats reader relies on stay correct.
+    ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+  return mapped;
+}
+
+ObservationLogEntry _observationLogFromRemote(RemoteNotesJournalEntry row) {
+  return ObservationLogEntry(
+    id: row.id,
+    timestamp: row.timestamp,
+    objectName: row.objectName,
+    objectType: row.objectType,
+    catalogId: row.catalogId,
+    ra: row.ra,
+    dec: row.dec,
+    altitude: row.altitude,
+    azimuth: row.azimuth,
+    notes: row.notes,
+    rating: row.rating,
+    equipmentProfileId: row.equipmentProfileId,
+    seeingConditions: row.seeingConditions,
+    transparency: row.transparency,
+    locationName: row.locationName,
+    latitude: row.latitude,
+    longitude: row.longitude,
+  );
+}
+
+/// Reconstructs [ObservationLogStats] from a host-polled log list so the
+/// remote path produces the same summary the local DAO `getStats()` would.
+ObservationLogStats _statsFromLogs(List<ObservationLogEntry> logs) {
+  if (logs.isEmpty) {
+    return const ObservationLogStats(
+      totalObservations: 0,
+      uniqueObjects: 0,
+      averageRating: 0,
+      firstObservation: null,
+      lastObservation: null,
+    );
+  }
+  final uniqueObjects = <String>{};
+  double ratingSum = 0;
+  int ratedCount = 0;
+  for (final log in logs) {
+    uniqueObjects.add(log.catalogId ?? log.objectName);
+    if (log.rating != null) {
+      ratingSum += log.rating!;
+      ratedCount++;
+    }
+  }
+  // `logs` is newest-first (see _fetchRemoteObservationLogs).
+  return ObservationLogStats(
+    totalObservations: logs.length,
+    uniqueObjects: uniqueObjects.length,
+    averageRating: ratedCount > 0 ? ratingSum / ratedCount : 0,
+    firstObservation: logs.last.timestamp,
+    lastObservation: logs.first.timestamp,
+  );
+}
 
 /// StateNotifier for managing observation log UI interactions.
 final observationLogNotifierProvider =
@@ -199,6 +312,36 @@ class ObservationLogNotifier extends StateNotifier<ObservationLogUiState> {
 final filteredObservationLogsProvider =
     FutureProvider<List<ObservationLogEntry>>((ref) async {
       final uiState = ref.watch(observationLogNotifierProvider);
+      final backend = ref.watch(backendProvider);
+
+      // On a remote client the DAO reads the empty slave DB; filter the
+      // host-polled list (observationLogsProvider) client-side instead so the
+      // panel shows the master's logs.
+      if (backend is NetworkBackend) {
+        final logs = await ref.watch(observationLogsProvider.future);
+        Iterable<ObservationLogEntry> result = logs;
+        if (uiState.filterStartDate != null && uiState.filterEndDate != null) {
+          result = result.where(
+            (l) =>
+                !l.timestamp.isBefore(uiState.filterStartDate!) &&
+                !l.timestamp.isAfter(uiState.filterEndDate!),
+          );
+        } else if (uiState.filterQuery != null &&
+            uiState.filterQuery!.isNotEmpty) {
+          final q = uiState.filterQuery!.toLowerCase();
+          result = result.where(
+            (l) =>
+                l.objectName.toLowerCase().contains(q) ||
+                (l.catalogId?.toLowerCase().contains(q) ?? false),
+          );
+        } else if (uiState.filterMinRating != null) {
+          result = result.where(
+            (l) => (l.rating ?? 0) >= uiState.filterMinRating!,
+          );
+        }
+        return result.toList();
+      }
+
       final dao = ref.read(observationLogsDaoProvider);
 
       // If we have a date range filter, use it

@@ -6,6 +6,7 @@ import 'package:nightshade_core/nightshade_core.dart' hide CapturedImage;
 import 'package:nightshade_core/src/database/database.dart' show CapturedImage;
 import 'package:nightshade_core/src/services/science/narrator/narrator_context.dart';
 import 'package:nightshade_core/src/services/science/narrator/narrator_service.dart';
+import 'package:nightshade_core/src/services/transients/transient_candidate.dart';
 
 /// Service-level wiring test: builds a [NarratorService] over a
 /// [ProviderContainer] whose pull-sources are overridden with synthetic data,
@@ -199,6 +200,45 @@ void main() {
     expect(ctx.weather, isNotNull);
     expect(ctx.weather!.cloudCoverPercent, 80.0);
     expect(ctx.weather!.cloudy, isTrue);
+  });
+
+  test('ingested First Light candidates surface into the context (Pillar B '
+      'wiring)', () async {
+    final container = makeContainer();
+    addTearDown(container.dispose);
+    final service = startService(container);
+    await service.start();
+    await Future<void>.delayed(Duration.zero);
+
+    // Before ingest the field is empty (the bug: nothing ever set it).
+    expect(service.buildContextForTest().transientCandidates, isEmpty);
+
+    service.ingestTransientCandidates(const [
+      TransientCandidate(
+        ra: 120.0,
+        dec: 25.0,
+        tileId: 42,
+        tileX: 512,
+        tileY: 600,
+        residualFlux: 5000,
+        deltaMag: null,
+        snr: 18.0,
+        fwhm: 2.1,
+        eccentricity: 0.1,
+        positionAngleDeg: 0.0,
+        kind: TransientKind.newSource,
+        confidence: 0.9,
+      ),
+    ], capturedImageId: 7);
+
+    final ctx = service.buildContextForTest();
+    expect(ctx.transientCandidates, hasLength(1));
+    expect(ctx.transientCandidates.single.kind, TransientKind.newSource);
+
+    // Let the engine tick the ingest triggers settle before teardown disposes
+    // the container (the ingest fires an async evaluate -> persist).
+    await Future<void>.delayed(Duration.zero);
+    service.dispose();
   });
 
   test('guide RMS history is pulled from guideStatsProvider', () async {

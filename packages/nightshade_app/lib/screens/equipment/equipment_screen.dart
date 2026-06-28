@@ -97,9 +97,18 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
     final colors = NightshadeColors.of(context);
     final profiles = ref.watch(sortedProfilesProvider);
     final selectedProfileId = ref.watch(selectedEquipmentProfileIdProvider);
+    final isRemoteMode = ref.watch(isRemoteModeProvider);
 
-    // Check for first-time user (no profiles)
-    if (profiles.isEmpty) {
+    // Check for first-time user (no profiles).
+    //
+    // REMOTE (slave) mode: never show the local first-run onboarding. A slave
+    // controls the master's hardware and its profiles hydrate from the host's
+    // SQLite over /api/profiles; before they arrive (or if the host genuinely
+    // has none yet) the slave still renders the dashboard + discovery so the
+    // operator can see connected devices and act — not a "create your first
+    // profile" wizard that would write the slave's own empty DB. Local/host and
+    // mobile first-run onboarding is unchanged (isRemoteMode false there).
+    if (profiles.isEmpty && !isRemoteMode) {
       return _FirstTimeOnboarding(
         colors: colors,
         onStartSetup: () => _showCreateProfileWizard(context),
@@ -275,6 +284,14 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
       await ref
           .read(equipmentProfilesProvider.notifier)
           .setDefaultProfile(profile.id, makeActive: true);
+      // HOST ACTIVATION RUST WRITE-THROUGH: the notifier's local branch wrote
+      // SQLite; the GUI path bypasses the REST handleLoadProfile write-through,
+      // so push the now-active profile into the native (Rust) executor store so
+      // headless sequencing keeps a correct active-profile context. No-op /
+      // skipped in remote mode (the host owns activation via REST loadProfile).
+      if (profile.id != null && !ref.read(isRemoteModeProvider)) {
+        await writeActiveProfileThroughToRustFromWidget(ref, profile.id!);
+      }
       if (mounted) {
         context.showSuccessSnackBar(
           context.l10n.text('equipmentDefaultProfileSet'),
@@ -322,8 +339,14 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
   Future<void> _deleteProfile(int profileId) async {
     try {
       final profileService = ref.read(profileServiceProvider);
-      final dao = ref.read(equipmentProfilesDaoProvider);
-      final deletedProfile = await dao.getProfileById(profileId);
+      // Resolve the row-to-delete from the remote-aware in-memory list, not the
+      // local-only DAO: on a slave (NetworkBackend) the local SQLite is empty,
+      // so a direct DAO read would return null and abort the delete. The model
+      // from this list already carries name/isActive for the undo snackbar.
+      final deletedProfile = ref
+          .read(sortedProfilesProvider)
+          .where((p) => p.id == profileId)
+          .firstOrNull;
       if (deletedProfile == null) {
         throw StateError('Profile $profileId no longer exists');
       }
@@ -379,7 +402,6 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
 
   Future<void> _reorderProfiles(int oldIndex, int newIndex) async {
     try {
-      final dao = ref.read(equipmentProfilesDaoProvider);
       final profiles = ref.read(sortedProfilesProvider);
 
       // Build reordered list
@@ -387,15 +409,16 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
       final item = reordered.removeAt(oldIndex);
       reordered.insert(newIndex > oldIndex ? newIndex - 1 : newIndex, item);
 
-      // Update sort_order for all affected profiles
-      for (int i = 0; i < reordered.length; i++) {
-        if (reordered[i].sortOrder != i) {
-          final profile = await dao.getProfileById(reordered[i].id!);
-          if (profile != null) {
-            await dao.updateProfile(profile.copyWith(sortOrder: i));
-          }
-        }
-      }
+      // Single notifier passthrough for both modes. On a slave this POSTs the
+      // ordered id list to the host's dedicated reorder endpoint (writing the
+      // slave's own empty DB would create phantom rows the host-poll erases);
+      // locally it writes the DAO in one transaction. Only persisted profiles
+      // carry an id, so a null filter keeps this safe.
+      final orderedIds =
+          reordered.map((m) => m.id).whereType<int>().toList(growable: false);
+      await ref
+          .read(equipmentProfilesProvider.notifier)
+          .reorderProfiles(orderedIds);
     } catch (e) {
       if (mounted) {
         context.showErrorSnackBar('Failed to reorder: $e');
@@ -419,12 +442,16 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
 
     try {
       final profileService = ref.read(profileServiceProvider);
-      final dao = ref.read(equipmentProfilesDaoProvider);
       final restoredId =
           await profileService.importProfileFromJson(exportedProfileJson);
       _bumpProfileMutationEpoch();
       if (wasActive) {
-        await dao.setActiveProfile(restoredId);
+        // Route reactivation through the remote-aware notifier so a slave hits
+        // remote.loadProfile() on the host; a direct DAO write would only touch
+        // the slave's empty SQLite (restoredId is the host-assigned id).
+        await ref
+            .read(equipmentProfilesProvider.notifier)
+            .setActiveProfile(restoredId);
       }
       ref.read(selectedEquipmentProfileIdProvider.notifier).state = restoredId;
       if (mounted) {

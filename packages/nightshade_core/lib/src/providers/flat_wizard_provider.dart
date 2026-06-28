@@ -1,7 +1,12 @@
+import 'dart:developer' as developer;
+
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../backend/network_backend.dart';
 import '../models/flat_wizard/flat_wizard_state.dart';
 import '../models/flat_wizard/flat_wizard_settings.dart';
 import '../services/sky_brightness_tracker.dart';
+import 'backend_provider.dart';
 import 'database_provider.dart';
 import 'equipment_provider.dart';
 import 'profiles_provider.dart';
@@ -20,6 +25,14 @@ final skyBrightnessTrackerProvider = Provider<SkyBrightnessTracker>((ref) {
 class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
   final Ref ref;
   bool _cancelRequested = false;
+
+  /// Test-only diagnostic sink. When set, the remote flat-history fault path
+  /// invokes this with the caught error IN ADDITION to `developer.log`, so a
+  /// test can prove a transport fault was distinguished from an empty host
+  /// history (it fires on the fault path and stays silent on empty history).
+  /// Null in production — behaviour is unchanged.
+  @visibleForTesting
+  void Function(Object error)? debugRemoteFaultSink;
 
   FlatWizardNotifier(this.ref) : super(const FlatWizardState());
 
@@ -76,6 +89,7 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
     final fwState = ref.read(filterWheelStateProvider);
     if (fwState.filterNames.isEmpty) return;
 
+    final backend = ref.read(backendProvider);
     final db = ref.read(databaseProvider);
     final profileId = ref.read(activeEquipmentProfileProvider)?.id;
 
@@ -83,11 +97,24 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
     for (int i = 0; i < fwState.filterNames.length; i++) {
       final filterName = fwState.filterNames[i];
 
-      // Get suggested exposure from history
-      final suggested = await db.flatHistoryDao.getSuggestedExposure(
-        filterName: filterName,
-        equipmentProfileId: profileId,
-      );
+      // Get suggested exposure from history. On a remote client the local
+      // `flat_history` table is empty (the master owns it), so derive the
+      // suggestion from the host's flat history via `listFlats` — mirroring
+      // `getSuggestedExposure`'s last-N-average logic — instead of the
+      // always-null local DAO read.
+      final double? suggested;
+      if (backend is NetworkBackend) {
+        suggested = await _remoteSuggestedExposure(
+          backend,
+          filterName: filterName,
+          profileId: profileId,
+        );
+      } else {
+        suggested = await db.flatHistoryDao.getSuggestedExposure(
+          filterName: filterName,
+          equipmentProfileId: profileId,
+        );
+      }
 
       filterSettings.add(
         FlatFilterSettings(
@@ -99,6 +126,41 @@ class FlatWizardNotifier extends StateNotifier<FlatWizardState> {
     }
 
     state = state.copyWith(filterSettings: filterSettings);
+  }
+
+  /// Average of the last few host flat-history exposures for [filterName],
+  /// mirroring `FlatHistoryDao.getSuggestedExposure` (last-N average) but
+  /// sourced from the master via `GET /api/calibration/flats`. Returns null
+  /// when the host has no history for this filter.
+  Future<double?> _remoteSuggestedExposure(
+    NetworkBackend backend, {
+    required String filterName,
+    int? profileId,
+  }) async {
+    try {
+      final entries = await backend.listFlats(
+        filter: filterName,
+        equipmentProfileId: profileId,
+        limit: 5,
+      );
+      if (entries.isEmpty) return null;
+      final sum = entries.fold<double>(0, (s, e) => s + e.exposureDuration);
+      return sum / entries.length;
+    } catch (e) {
+      // A transport/host fault must not block the wizard from loading; the
+      // user can still enter exposures manually (same outcome as a null DAO
+      // read on the local path). But unlike an empty history, a fault is a
+      // diagnosable condition — record it instead of silently conflating the
+      // two so a misconfigured/offline host is visible in the logs.
+      developer.log(
+        'FlatWizard: remote flat-history fetch failed for $filterName: $e',
+        name: 'FlatWizardNotifier',
+        level: 900,
+        error: e,
+      );
+      debugRemoteFaultSink?.call(e);
+      return null;
+    }
   }
 
   /// Toggle filter enabled state

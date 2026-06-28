@@ -66,7 +66,6 @@ abstract class AppSettings with _$AppSettings {
     @Default(11111) int alpacaServerPort,
     @Default(false) bool alpacaAutoDiscover,
     // Sequencer execution settings
-    @Default(true) bool useNativeExecution,
     @Default(false) bool useSimulationMode,
     // Image capture settings
     @Default('') String imageOutputPath,
@@ -455,6 +454,53 @@ abstract class AppSettings with _$AppSettings {
 
     /// Use system time vs a fixed observing time. DB `use_system_time`.
     @Default(true) bool useSystemTime,
+    // -------------------------------------------------------------------
+    // Settings round-trip gap closure (G5 / G7) — the remaining
+    // setter-reachable knobs that `_applySettingsMap` maps into
+    // AppSettingsState but which had NO wire field, so a phone/remote save
+    // of them was rejected by the `_assertKeysRemotable` fail-loud guard.
+    // Defaults mirror AppSettingsState's constructor defaults so the wire
+    // model never injects a different value than local state.
+    // -------------------------------------------------------------------
+    // Sequencer output path default.
+    /// User-facing default output directory for saved sequence files. DB
+    /// key `sequences_path`.
+    @Default('') String sequencesPath,
+    // Smart Night target auto-select (the rest of the smart_night.* group
+    // is already remoted).
+    /// Auto-select the top-N targets when building a Smart Night plan. DB
+    /// key `smart_night.auto_select`.
+    @Default(true) bool smartNightAutoSelect,
+
+    /// How many targets to auto-select when [smartNightAutoSelect] is true.
+    /// DB key `smart_night.auto_select_count`.
+    @Default(2) int smartNightAutoSelectCount,
+    // Adaptive sky-conditions target-swap scheduler-SEED defaults. These
+    // pre-fill a new TargetSchedulerNode; the score weights feed the live
+    // ConditionsScore composer (weather_safety_provider). DB keys under
+    // `adaptive_swap.*`.
+    /// New schedulers ship with adaptive swap enabled by default. DB key
+    /// `adaptive_swap.enabled_by_default`.
+    @Default(false) bool adaptiveSwapEnabledByDefault,
+
+    /// Default conditions-score floor (0..=100) seeded into a new scheduler.
+    /// DB key `adaptive_swap.default_threshold`.
+    @Default(50.0) double adaptiveSwapDefaultThreshold,
+
+    /// Default seconds between consecutive swaps seeded into a new scheduler.
+    /// DB key `adaptive_swap.default_hysteresis_secs`.
+    @Default(180.0) double adaptiveSwapDefaultHysteresisSecs,
+
+    /// Per-axis composer weights for the live ConditionsScore. Keys:
+    /// `transparency` / `seeing` / `cloud` / `wind`. DB key
+    /// `adaptive_swap.score_weights` (a JSON object).
+    @Default(<String, double>{
+      'transparency': 0.40,
+      'seeing': 0.25,
+      'cloud': 0.25,
+      'wind': 0.10,
+    })
+    Map<String, double> conditionsScoreWeights,
   }) = _AppSettings;
 
   factory AppSettings.fromJson(Map<String, dynamic> json) =>

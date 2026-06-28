@@ -16,9 +16,12 @@ class SmartNightPlanLauncher {
     required SmartNightPlan plan,
     String? draftId,
   }) async {
-    read(currentSequenceProvider.notifier).loadSequence(
+    // Hand the editor slot to the Smart Night owner rather than discarding the
+    // operator's unsaved work: takeOwnership stashes the manual sequence and
+    // flips the owner, so stopping the run restores it.
+    read(currentSequenceProvider.notifier).takeOwnership(
       plan.sequence,
-      discardUnsaved: true,
+      ActivePlanOwner.smartNight,
     );
 
     await read(sequenceExecutorProvider).start();

@@ -1,85 +1,55 @@
+import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
+
 /// Compatibility policy for Nightshade remote/headless API clients.
+///
+/// This is a thin adapter over [NightshadeServerCompatibility] in
+/// nightshade_remote_protocol, which is the single source of truth for the
+/// version-negotiation policy. Both halves of the mobile connect flow (the
+/// pre-flight check in the discovery layer and the WebSocket-handshake gate in
+/// [NetworkBackend]) therefore evaluate the *same* logic and constants — they
+/// can no longer silently drift. The core-side [SemanticVersion] /
+/// [RemoteApiCompatibilityResult] surface is preserved unchanged for existing
+/// callers; only the decision-making is delegated.
 class RemoteApiCompatibility {
-  static const apiVersionHeader = 'x-nightshade-api-version';
+  static const apiVersionHeader =
+      NightshadeServerCompatibility.apiVersionHeader;
   // 2.4.0 is the floor for the hardened remote API. Earlier 2.x builds did
   // not expose the auth, pairing, and version-negotiation contracts required
-  // by current desktop, mobile, and WebRTC clients.
-  static const minimumSupportedVersion = SemanticVersion(2, 4, 0);
-  static const serverApiVersion = SemanticVersion(2, 6, 0);
-  static const clientApiVersion = serverApiVersion;
+  // by current desktop, mobile, and WebRTC clients. Sourced from
+  // NightshadeServerCompatibility so the two policies cannot diverge.
+  static final SemanticVersion minimumSupportedVersion = _toCore(
+    NightshadeServerCompatibility.minimumSupportedVersion,
+  );
+  static final SemanticVersion serverApiVersion = _toCore(
+    NightshadeServerCompatibility.serverApiVersion,
+  );
+  static final SemanticVersion clientApiVersion = _toCore(
+    NightshadeServerCompatibility.clientApiVersion,
+  );
 
   const RemoteApiCompatibility._();
 
-  static RemoteApiCompatibilityResult check(String? serverVersion) {
-    final parsed = SemanticVersion.tryParse(serverVersion);
-    if (parsed == null) {
-      return RemoteApiCompatibilityResult.incompatible(
-        code: 'server_version_unknown',
-        message:
-            'The Nightshade server did not report a valid API version. Update the server before connecting.',
-        serverVersion: serverVersion,
-      );
-    }
+  static RemoteApiCompatibilityResult check(String? serverVersion) =>
+      _adapt(NightshadeServerCompatibility.check(serverVersion));
 
-    if (parsed < minimumSupportedVersion) {
-      return RemoteApiCompatibilityResult.incompatible(
-        code: 'server_too_old',
-        message:
-            'This Nightshade server is too old for this client. Server: ${parsed.format()}, required: ${minimumSupportedVersion.format()} or newer.',
-        serverVersion: parsed.format(),
-      );
-    }
+  static RemoteApiCompatibilityResult checkClient(String? clientVersion) =>
+      _adapt(NightshadeServerCompatibility.checkClient(clientVersion));
 
-    if (parsed.major > clientApiVersion.major) {
-      return RemoteApiCompatibilityResult.incompatible(
-        code: 'server_too_new',
-        message:
-            'This Nightshade server is newer than this client supports. Server: ${parsed.format()}, client API: ${clientApiVersion.format()}. Update this client before connecting.',
-        serverVersion: parsed.format(),
-      );
-    }
+  static SemanticVersion _toCore(ServerSemanticVersion v) =>
+      SemanticVersion(v.major, v.minor, v.patch);
 
-    return RemoteApiCompatibilityResult.compatible(
-      serverVersion: parsed.format(),
-    );
-  }
-
-  static RemoteApiCompatibilityResult checkClient(String? clientVersion) {
-    final parsed = SemanticVersion.tryParse(clientVersion);
-    if (parsed == null) {
-      return RemoteApiCompatibilityResult.incompatible(
-        code: 'client_version_unknown',
-        message:
-            'The Nightshade client did not send a valid API version. Update the client before connecting.',
-        serverVersion: serverApiVersion.format(),
-        clientVersion: clientVersion,
-      );
-    }
-
-    if (parsed < minimumSupportedVersion) {
-      return RemoteApiCompatibilityResult.incompatible(
-        code: 'client_too_old',
-        message:
-            'This Nightshade client is too old for this server. Client: ${parsed.format()}, required: ${minimumSupportedVersion.format()} or newer.',
-        serverVersion: serverApiVersion.format(),
-        clientVersion: parsed.format(),
-      );
-    }
-
-    if (parsed.major > serverApiVersion.major) {
-      return RemoteApiCompatibilityResult.incompatible(
-        code: 'server_too_old',
-        message:
-            'This Nightshade server is too old for this client. Server API: ${serverApiVersion.format()}, client API: ${parsed.format()}. Update the server before connecting.',
-        serverVersion: serverApiVersion.format(),
-        clientVersion: parsed.format(),
-      );
-    }
-
-    return RemoteApiCompatibilityResult.compatible(
-      serverVersion: serverApiVersion.format(),
-      clientVersion: parsed.format(),
-    );
+  static RemoteApiCompatibilityResult _adapt(ServerCompatibilityResult r) {
+    return r.isCompatible
+        ? RemoteApiCompatibilityResult.compatible(
+            serverVersion: r.serverVersion ?? serverApiVersion.format(),
+            clientVersion: r.clientVersion,
+          )
+        : RemoteApiCompatibilityResult.incompatible(
+            code: r.code,
+            message: r.message,
+            serverVersion: r.serverVersion,
+            clientVersion: r.clientVersion,
+          );
   }
 }
 

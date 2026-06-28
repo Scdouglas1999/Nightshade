@@ -75,11 +75,17 @@ const _requiredManualProbeText = [
   'Manual older-profile migration evidence probe. Synthetic migration tests remain separate.',
 ];
 
+const _defaultTestCommand = 'flutter test --reporter json';
+const _defaultTestWorkdir = 'packages/nightshade_core';
+
 Future<void> main(List<String> args) async {
   final root = Directory(_argValue(args, '--root') ?? Directory.current.path);
   final jsonOut = _argValue(args, '--json-out') ?? _defaultJsonOutputPath;
   final markdownOut = _argValue(args, '--md-out') ?? _defaultMarkdownOutputPath;
   final failOnIssue = !args.contains('--no-fail-on-issue');
+  final testCommand = _argValue(args, '--test-command') ?? _defaultTestCommand;
+  final testWorkdir = _argValue(args, '--test-workdir') ?? _defaultTestWorkdir;
+  final skipTestRun = args.contains('--skip-test-run');
 
   final fixture = _auditFile(
     root: root,
@@ -96,7 +102,22 @@ Future<void> main(List<String> args) async {
     path: _manualProbePath,
     requiredText: _requiredManualProbeText,
   );
-  final issues = [...fixture.issues, ...tests.issues, ...manualProbe.issues];
+
+  final behavioral = skipTestRun
+      ? _BehavioralRun.skipped()
+      : await _runMigrationTests(
+          root: root,
+          command: testCommand,
+          workdir: testWorkdir,
+          testPath: _testPath,
+        );
+
+  final issues = [
+    ...fixture.issues,
+    ...tests.issues,
+    ...manualProbe.issues,
+    ...behavioral.issues,
+  ];
   final passed = issues.isEmpty;
   final report = {
     'generatedAt': DateTime.now().toUtc().toIso8601String(),
@@ -106,6 +127,7 @@ Future<void> main(List<String> args) async {
     'fixture': fixture.toJson(),
     'tests': tests.toJson(),
     'manualProbe': manualProbe.toJson(),
+    'behavioral': behavioral.toJson(),
     'manualRealArtifactGatePreserved': manualProbe.passed,
     'focusedTestCommand':
         'cd packages/nightshade_core && flutter test test/services/database_migration_test.dart',
@@ -125,18 +147,214 @@ Future<void> main(List<String> args) async {
       fixture: fixture,
       tests: tests,
       manualProbe: manualProbe,
+      behavioral: behavioral,
     ),
   );
 
   stdout.writeln('Migration regression audit complete.');
   stdout.writeln('Passed: $passed');
   stdout.writeln('Issues: ${issues.length}');
+  stdout.writeln('Behavioral migration tests: ${behavioral.summaryLine}');
   stdout.writeln('JSON: $jsonOut');
   stdout.writeln('Markdown: $markdownOut');
 
   if (failOnIssue && !passed) {
     exit(1);
   }
+}
+
+/// Runs the behavioral migration test suite and reports its outcome.
+///
+/// A green substring audit is meaningless if the migration tests themselves
+/// fail, so the suite's process exit code is authoritative: any non-zero exit
+/// (or a failed test in the JSON reporter stream) becomes an audit issue and
+/// turns the whole audit red.
+Future<_BehavioralRun> _runMigrationTests({
+  required Directory root,
+  required String command,
+  required String workdir,
+  required String testPath,
+}) async {
+  final parts = command.split(RegExp(r'\s+')).where((p) => p.isNotEmpty);
+  if (parts.isEmpty) {
+    return _BehavioralRun.unrun('Empty --test-command.');
+  }
+  final executable = parts.first;
+  final commandArgs = parts.skip(1).toList();
+  final testFile = File('${root.path}/$testPath');
+  if (!testFile.existsSync()) {
+    return _BehavioralRun.unrun(
+      'Migration test file is missing, cannot run behavioral suite: $testPath',
+    );
+  }
+  final workingDir = Directory('${root.path}/$workdir');
+
+  ProcessResult result;
+  try {
+    result = await Process.run(
+      executable,
+      [...commandArgs, testFile.absolute.path],
+      workingDirectory: workingDir.existsSync() ? workingDir.path : root.path,
+      runInShell: Platform.isWindows,
+    );
+  } on ProcessException catch (e) {
+    return _BehavioralRun.unrun(
+      'Failed to launch migration test command `$command`: ${e.message}',
+    );
+  }
+
+  final counts = _parseTestReporter(result.stdout.toString());
+  return _BehavioralRun(
+    command: '$command $testPath',
+    exitCode: result.exitCode,
+    passedCount: counts.passed,
+    failedCount: counts.failed,
+    stderrTail: _tail(result.stderr.toString()),
+  );
+}
+
+class _TestCounts {
+  final int passed;
+  final int failed;
+  const _TestCounts(this.passed, this.failed);
+}
+
+/// Parses the `--reporter json` stream of `dart`/`flutter test`.
+///
+/// Each non-hidden `testDone` event carries a `result` of success/failure/
+/// error. Hidden events (loading suites, etc.) are ignored.
+_TestCounts _parseTestReporter(String stdout) {
+  var passed = 0;
+  var failed = 0;
+  for (final line in const LineSplitter().convert(stdout)) {
+    if (line.isEmpty || !line.startsWith('{')) {
+      continue;
+    }
+    Object? decoded;
+    try {
+      decoded = jsonDecode(line);
+    } on FormatException {
+      continue;
+    }
+    if (decoded is! Map) {
+      continue;
+    }
+    if (decoded['type'] != 'testDone' || decoded['hidden'] == true) {
+      continue;
+    }
+    if (decoded['result'] == 'success') {
+      passed++;
+    } else {
+      failed++;
+    }
+  }
+  return _TestCounts(passed, failed);
+}
+
+String _tail(String value, {int maxLines = 20}) {
+  final lines = const LineSplitter()
+      .convert(value)
+      .where((l) => l.trim().isNotEmpty)
+      .toList();
+  if (lines.length <= maxLines) {
+    return lines.join('\n');
+  }
+  return lines.sublist(lines.length - maxLines).join('\n');
+}
+
+class _BehavioralRun {
+  /// Whether the suite was actually executed (false when skipped or unrunnable).
+  final bool ran;
+  final String? command;
+  final int? exitCode;
+  final int passedCount;
+  final int failedCount;
+  final String? stderrTail;
+
+  /// Issues surfaced when the suite could not run or did not pass cleanly.
+  final List<String> issues;
+
+  const _BehavioralRun._({
+    required this.ran,
+    required this.command,
+    required this.exitCode,
+    required this.passedCount,
+    required this.failedCount,
+    required this.stderrTail,
+    required this.issues,
+  });
+
+  factory _BehavioralRun({
+    required String command,
+    required int exitCode,
+    required int passedCount,
+    required int failedCount,
+    String? stderrTail,
+  }) {
+    final issues = <String>[];
+    if (exitCode != 0) {
+      issues.add(
+        'Behavioral migration tests failed (exit $exitCode, '
+        'passed=$passedCount failed=$failedCount): `$command`'
+        '${stderrTail != null && stderrTail.isNotEmpty ? '\n$stderrTail' : ''}',
+      );
+    } else if (passedCount == 0) {
+      issues.add(
+        'Behavioral migration tests reported no passing tests (exit 0): '
+        '`$command`',
+      );
+    }
+    return _BehavioralRun._(
+      ran: true,
+      command: command,
+      exitCode: exitCode,
+      passedCount: passedCount,
+      failedCount: failedCount,
+      stderrTail: stderrTail,
+      issues: issues,
+    );
+  }
+
+  /// The behavioral run was explicitly skipped (e.g. presence-only self-test).
+  factory _BehavioralRun.skipped() => const _BehavioralRun._(
+    ran: false,
+    command: null,
+    exitCode: null,
+    passedCount: 0,
+    failedCount: 0,
+    stderrTail: null,
+    issues: [],
+  );
+
+  /// The suite could not be launched; treated as an audit issue, never green.
+  factory _BehavioralRun.unrun(String reason) => _BehavioralRun._(
+    ran: false,
+    command: null,
+    exitCode: null,
+    passedCount: 0,
+    failedCount: 0,
+    stderrTail: null,
+    issues: [reason],
+  );
+
+  bool get passed => ran && issues.isEmpty;
+
+  String get summaryLine {
+    if (!ran) {
+      return issues.isEmpty ? 'skipped' : 'not run (${issues.length} issue(s))';
+    }
+    return 'exit=$exitCode passed=$passedCount failed=$failedCount';
+  }
+
+  Map<String, Object?> toJson() => {
+    'ran': ran,
+    'command': command,
+    'exitCode': exitCode,
+    'passedCount': passedCount,
+    'failedCount': failedCount,
+    'passed': passed,
+    'issues': issues,
+  };
 }
 
 _FileAudit _auditFile({
@@ -171,15 +389,17 @@ String _renderMarkdown({
   required _FileAudit fixture,
   required _FileAudit tests,
   required _FileAudit manualProbe,
+  required _BehavioralRun behavioral,
 }) {
   final buffer = StringBuffer()
     ..writeln('# Migration Regression Audit')
     ..writeln()
     ..writeln('- Passed: `$passed`')
     ..writeln('- Issues: `${issues.length}`')
+    ..writeln('- Behavioral migration tests: `${behavioral.summaryLine}`')
     ..writeln()
     ..writeln(
-      'This audit verifies synthetic old-schema/profile migration coverage and confirms the separate real older-profile migration gate remains documented. It does not replace the required real artifact probe.',
+      'This audit runs the synthetic old-schema/profile migration test suite and fails on a non-zero test exit, in addition to verifying that the fixtures and named cases are present. It confirms the separate real older-profile migration gate remains documented; it does not replace the required real artifact probe.',
     )
     ..writeln()
     ..writeln('## Required Files')

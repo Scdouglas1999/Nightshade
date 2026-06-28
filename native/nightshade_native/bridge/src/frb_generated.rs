@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 459524578;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -441620728;
 
 // Section: executor
 
@@ -2070,6 +2070,50 @@ fn wire__crate__api__api_version__api_device_supports_version_impl(
                     })()
                     .await,
                 )
+            }
+        },
+    )
+}
+fn wire__crate__api__difference_image__api_difference_image_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_difference_image",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok =
+                        crate::api::difference_image::api_difference_image(api_args_json)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__difference_image__api_difference_tile_center_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_difference_tile_center",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok =
+                        crate::api::difference_image::api_difference_tile_center(api_args_json)?;
+                    Ok(output_ok)
+                })())
             }
         },
     )
@@ -7880,6 +7924,135 @@ fn wire__crate__api__diagnostics__api_set_qhy_discovery_enabled_impl(
         },
     )
 }
+fn wire__crate__api__sky_atlas__api_sky_atlas_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_sky_atlas",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok = crate::api::sky_atlas::api_sky_atlas(api_args_json)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__sky_atlas__api_sky_atlas_add_frame_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_sky_atlas_add_frame",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok = crate::api::sky_atlas::api_sky_atlas_add_frame(api_args_json)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__sky_atlas__api_sky_atlas_growth_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_sky_atlas_growth",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok = crate::api::sky_atlas::api_sky_atlas_growth(api_args_json)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__sky_atlas__api_sky_atlas_merge_delta_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_sky_atlas_merge_delta",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok =
+                        crate::api::sky_atlas::api_sky_atlas_merge_delta(api_args_json)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__sky_atlas__api_sky_atlas_query_cutout_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_sky_atlas_query_cutout",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok =
+                        crate::api::sky_atlas::api_sky_atlas_query_cutout(api_args_json)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__sky_atlas__api_sky_atlas_region_info_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_sky_atlas_region_info",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok =
+                        crate::api::sky_atlas::api_sky_atlas_region_info(api_args_json)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__imaging__api_stacking_add_frame_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     image_path: impl CstDecode<String>,
@@ -11552,6 +11725,32 @@ impl SseDecode for crate::event::EquipmentEvent {
                     device_type: var_deviceType,
                     device_id: var_deviceId,
                     after_attempts: var_afterAttempts,
+                };
+            }
+            28 => {
+                let mut var_deviceClass = <String>::sse_decode(deserializer);
+                let mut var_driver = <String>::sse_decode(deserializer);
+                let mut var_id = <String>::sse_decode(deserializer);
+                let mut var_name = <String>::sse_decode(deserializer);
+                let mut var_displayName = <String>::sse_decode(deserializer);
+                let mut var_uniqueId = <Option<String>>::sse_decode(deserializer);
+                return crate::event::EquipmentEvent::DeviceDiscovered {
+                    device_class: var_deviceClass,
+                    driver: var_driver,
+                    id: var_id,
+                    name: var_name,
+                    display_name: var_displayName,
+                    unique_id: var_uniqueId,
+                };
+            }
+            29 => {
+                let mut var_deviceClass = <String>::sse_decode(deserializer);
+                let mut var_driver = <String>::sse_decode(deserializer);
+                let mut var_id = <String>::sse_decode(deserializer);
+                return crate::event::EquipmentEvent::DeviceLost {
+                    device_class: var_deviceClass,
+                    driver: var_driver,
+                    id: var_id,
                 };
             }
             _ => {
@@ -16171,6 +16370,34 @@ impl flutter_rust_bridge::IntoDart for crate::event::EquipmentEvent {
                 after_attempts.into_into_dart().into_dart(),
             ]
             .into_dart(),
+            crate::event::EquipmentEvent::DeviceDiscovered {
+                device_class,
+                driver,
+                id,
+                name,
+                display_name,
+                unique_id,
+            } => [
+                28.into_dart(),
+                device_class.into_into_dart().into_dart(),
+                driver.into_into_dart().into_dart(),
+                id.into_into_dart().into_dart(),
+                name.into_into_dart().into_dart(),
+                display_name.into_into_dart().into_dart(),
+                unique_id.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
+            crate::event::EquipmentEvent::DeviceLost {
+                device_class,
+                driver,
+                id,
+            } => [
+                29.into_dart(),
+                device_class.into_into_dart().into_dart(),
+                driver.into_into_dart().into_dart(),
+                id.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
             _ => {
                 unimplemented!("");
             }
@@ -19862,6 +20089,32 @@ impl SseEncode for crate::event::EquipmentEvent {
                 <String>::sse_encode(device_type, serializer);
                 <String>::sse_encode(device_id, serializer);
                 <u32>::sse_encode(after_attempts, serializer);
+            }
+            crate::event::EquipmentEvent::DeviceDiscovered {
+                device_class,
+                driver,
+                id,
+                name,
+                display_name,
+                unique_id,
+            } => {
+                <i32>::sse_encode(28, serializer);
+                <String>::sse_encode(device_class, serializer);
+                <String>::sse_encode(driver, serializer);
+                <String>::sse_encode(id, serializer);
+                <String>::sse_encode(name, serializer);
+                <String>::sse_encode(display_name, serializer);
+                <Option<String>>::sse_encode(unique_id, serializer);
+            }
+            crate::event::EquipmentEvent::DeviceLost {
+                device_class,
+                driver,
+                id,
+            } => {
+                <i32>::sse_encode(29, serializer);
+                <String>::sse_encode(device_class, serializer);
+                <String>::sse_encode(driver, serializer);
+                <String>::sse_encode(id, serializer);
             }
             _ => {
                 unimplemented!("");
@@ -23738,6 +23991,25 @@ mod io {
                         device_type: ans.device_type.cst_decode(),
                         device_id: ans.device_id.cst_decode(),
                         after_attempts: ans.after_attempts.cst_decode(),
+                    }
+                }
+                28 => {
+                    let ans = unsafe { self.kind.DeviceDiscovered };
+                    crate::event::EquipmentEvent::DeviceDiscovered {
+                        device_class: ans.device_class.cst_decode(),
+                        driver: ans.driver.cst_decode(),
+                        id: ans.id.cst_decode(),
+                        name: ans.name.cst_decode(),
+                        display_name: ans.display_name.cst_decode(),
+                        unique_id: ans.unique_id.cst_decode(),
+                    }
+                }
+                29 => {
+                    let ans = unsafe { self.kind.DeviceLost };
+                    crate::event::EquipmentEvent::DeviceLost {
+                        device_class: ans.device_class.cst_decode(),
+                        driver: ans.driver.cst_decode(),
+                        id: ans.id.cst_decode(),
                     }
                 }
                 _ => unreachable!(),
@@ -28731,6 +29003,22 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__difference_image__api_difference_image(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__difference_image__api_difference_image_impl(port_, args_json)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__difference_image__api_difference_tile_center(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__difference_image__api_difference_tile_center_impl(port_, args_json)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__connection__api_disconnect_device(
         port_: i64,
         device_type: i32,
@@ -30784,6 +31072,54 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__sky_atlas__api_sky_atlas_impl(port_, args_json)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_add_frame(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__sky_atlas__api_sky_atlas_add_frame_impl(port_, args_json)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_growth(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__sky_atlas__api_sky_atlas_growth_impl(port_, args_json)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_merge_delta(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__sky_atlas__api_sky_atlas_merge_delta_impl(port_, args_json)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_query_cutout(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__sky_atlas__api_sky_atlas_query_cutout_impl(port_, args_json)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sky_atlas__api_sky_atlas_region_info(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__sky_atlas__api_sky_atlas_region_info_impl(port_, args_json)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__imaging__api_stacking_add_frame(
         port_: i64,
         image_path: *mut wire_cst_list_prim_u_8_strict,
@@ -32822,6 +33158,8 @@ mod io {
         HeartbeatStatusChanged: wire_cst_EquipmentEvent_HeartbeatStatusChanged,
         HeartbeatReconnecting: wire_cst_EquipmentEvent_HeartbeatReconnecting,
         HeartbeatReconnected: wire_cst_EquipmentEvent_HeartbeatReconnected,
+        DeviceDiscovered: wire_cst_EquipmentEvent_DeviceDiscovered,
+        DeviceLost: wire_cst_EquipmentEvent_DeviceLost,
         nil__: (),
     }
     #[repr(C)]
@@ -32953,6 +33291,23 @@ mod io {
         device_type: *mut wire_cst_list_prim_u_8_strict,
         device_id: *mut wire_cst_list_prim_u_8_strict,
         after_attempts: u32,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_EquipmentEvent_DeviceDiscovered {
+        device_class: *mut wire_cst_list_prim_u_8_strict,
+        driver: *mut wire_cst_list_prim_u_8_strict,
+        id: *mut wire_cst_list_prim_u_8_strict,
+        name: *mut wire_cst_list_prim_u_8_strict,
+        display_name: *mut wire_cst_list_prim_u_8_strict,
+        unique_id: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_EquipmentEvent_DeviceLost {
+        device_class: *mut wire_cst_list_prim_u_8_strict,
+        driver: *mut wire_cst_list_prim_u_8_strict,
+        id: *mut wire_cst_list_prim_u_8_strict,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]

@@ -39,12 +39,14 @@ export 'src/catalogs/spatial_index.dart';
 
 // Services
 export 'src/services/survey_image_service.dart';
+export 'src/services/mosaic_geometry.dart';
 export 'src/services/mosaic_planner.dart';
 export 'src/services/geolocation_service.dart';
 export 'src/services/element_refresh_service.dart';
 
 // Planning
 export 'src/planning/target_scoring.dart';
+export 'src/planning/weighted_score.dart';
 
 // Providers
 export 'src/providers/planetarium_providers.dart';

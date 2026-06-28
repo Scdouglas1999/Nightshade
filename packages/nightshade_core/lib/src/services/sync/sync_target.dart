@@ -6,8 +6,9 @@
 // protocols can sit behind it:
 //
 //   * [WebDavSyncTarget] (webdav_sync_target.dart) — Nextcloud / ownCloud /
-//     generic WebDAV. The only implemented target today.
-//   * [S3SyncTarget] (below) — placeholder for S3-compatible object stores.
+//     generic WebDAV.
+//   * [S3SyncTarget] (s3_sync_target.dart) — AWS S3 / MinIO / Backblaze B2
+//     and any S3-REST-compatible object store, signed with AWS SigV4.
 //
 // CONFLICT STANCE: sync is bundle-based. Whole backup bundles are uploaded
 // and downloaded as opaque files; there is NO merging of remote and local
@@ -104,40 +105,4 @@ abstract class SyncTarget {
   /// Cheap reachability + credential probe against the base URL. Throws
   /// [SyncTargetException] on failure, returns normally on success.
   Future<void> testConnection();
-}
-
-/// TODO(sync): S3-compatible target (AWS S3, MinIO, Backblaze B2, ...).
-///
-/// Deliberately left unimplemented: S3 requires SigV4 request signing,
-/// which is a meaningful chunk of code we don't want to hand-roll until
-/// someone actually asks for it (and adding an SDK dependency is currently
-/// off the table). The class exists so the settings UI / config plumbing
-/// can grow a "provider" selector later without reshaping [SyncTarget].
-class S3SyncTarget implements SyncTarget {
-  S3SyncTarget();
-
-  Never _unimplemented() => throw UnimplementedError(
-    'S3-compatible sync targets are not implemented yet. '
-    'Use a WebDAV target (Nextcloud, ownCloud, generic WebDAV).',
-  );
-
-  @override
-  Future<void> ensureDirectory(String path) async => _unimplemented();
-
-  @override
-  Future<void> uploadFile(String path, List<int> bytes) async =>
-      _unimplemented();
-
-  @override
-  Future<List<int>> downloadFile(String path) async => _unimplemented();
-
-  @override
-  Future<List<SyncRemoteEntry>> listDirectory(String path) async =>
-      _unimplemented();
-
-  @override
-  Future<void> deleteFile(String path) async => _unimplemented();
-
-  @override
-  Future<void> testConnection() async => _unimplemented();
 }

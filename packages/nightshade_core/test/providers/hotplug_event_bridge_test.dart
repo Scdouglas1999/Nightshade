@@ -1,8 +1,8 @@
 // Hot-plug device-detection event bridge test.
 //
 // Verifies that when the backend event stream emits a Rust
-// `EquipmentEvent::PropertyChanged { property: 'device_discovered' }`
-// the equipment discovery providers are invalidated so a subsequent
+// `EquipmentEvent::DeviceDiscovered` (mapped to the 'DeviceDiscovered' event
+// type) the equipment discovery providers are invalidated so a subsequent
 // read re-runs the scan. This is the load-bearing assertion of
 // without invalidation the equipment screen would serve a stale list
 // from the FutureProvider cache and a freshly-plugged camera would
@@ -23,8 +23,8 @@ import 'package:nightshade_core/src/backend/ffi_backend.dart';
 // `nightshade_backend.dart` re-exports `backend_types.dart` which in turn
 // re-exports `device_info.dart` and `event_types.dart`, so a single
 // import covers `DeviceInfo`, `NightshadeEvent`, `EventCategory`,
-// `EventSeverity`, `deviceDiscoveredProperty`, and
-// `deviceLostProperty`.
+// `EventSeverity`, `deviceDiscoveredEventType`, and
+// `deviceLostEventType`.
 import 'package:nightshade_core/src/backend/nightshade_backend.dart';
 import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/hotplug_event_bridge_provider.dart';
@@ -39,21 +39,23 @@ class _FixedBackendNotifier extends BackendNotifier {
 }
 
 NightshadeEvent _hotplugEvent({
-  required String property,
-  String deviceType = 'camera',
+  required String eventType,
+  String deviceClass = 'camera',
   String deviceId = 'native:zwo:0',
 }) {
   return NightshadeEvent(
     timestamp: DateTime.now().millisecondsSinceEpoch,
     severity: EventSeverity.info,
     category: EventCategory.equipment,
-    eventType: 'PropertyChanged',
+    eventType: eventType,
     data: {
-      'device_type': deviceType,
-      'device_id': deviceId,
-      'property': property,
-      'value':
-          '{"driver":"native","deviceClass":"$deviceType","id":"$deviceId","name":"ZWO ASI 533","displayName":"ZWO ASI 533"}',
+      'device_class': deviceClass,
+      'driver': 'native',
+      'id': deviceId,
+      if (eventType == deviceDiscoveredEventType) ...{
+        'name': 'ZWO ASI 533',
+        'display_name': 'ZWO ASI 533',
+      },
     },
   );
 }
@@ -96,7 +98,7 @@ void main() {
 
     // Emit a hot-plug arrival. The bridge debounces invalidation, so we wait
     // past the coalesce window before the next read re-runs the FutureProvider.
-    controller.add(_hotplugEvent(property: deviceDiscoveredProperty));
+    controller.add(_hotplugEvent(eventType: deviceDiscoveredEventType));
     await Future<void>.delayed(const Duration(milliseconds: 200));
 
     await container.read(availableCamerasProvider.future);
@@ -136,7 +138,7 @@ void main() {
     for (var i = 0; i < 25; i++) {
       controller.add(
         _hotplugEvent(
-          property: deviceDiscoveredProperty,
+          eventType: deviceDiscoveredEventType,
           deviceId: 'native:zwo:$i',
         ),
       );
@@ -178,8 +180,8 @@ void main() {
 
     controller.add(
       _hotplugEvent(
-        property: deviceLostProperty,
-        deviceType: 'focuser',
+        eventType: deviceLostEventType,
+        deviceClass: 'focuser',
         deviceId: 'native:zwo:0',
       ),
     );

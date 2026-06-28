@@ -49,6 +49,8 @@ class EquipmentProfileModel {
   final String? filterWheelName;
   final String? guiderName;
   final String? rotatorName;
+  final String? safetyMonitorName;
+  final String? switchName;
 
   // Telescope/OTA information
   final String? telescopeName;
@@ -74,6 +76,9 @@ class EquipmentProfileModel {
   // Filter configuration
   final List<String> filterNames;
   final Map<String, int> filterFocusOffsets;
+
+  // Meridian flip settings overrides (raw JSON; null = use global defaults)
+  final String? meridianFlipOverrides;
 
   // Profile customization
   final String? profileIcon;
@@ -107,6 +112,8 @@ class EquipmentProfileModel {
     this.filterWheelName,
     this.guiderName,
     this.rotatorName,
+    this.safetyMonitorName,
+    this.switchName,
     this.telescopeName,
     this.telescopeFocalLength,
     this.telescopeAperture,
@@ -122,6 +129,7 @@ class EquipmentProfileModel {
     this.defaultCenteringExposure,
     this.filterNames = const [],
     this.filterFocusOffsets = const {},
+    this.meridianFlipOverrides,
     this.profileIcon,
     this.profileColor,
     this.sortOrder = 0,
@@ -226,6 +234,8 @@ class EquipmentProfileModel {
       filterWheelName: db.filterWheelName,
       guiderName: db.guiderName,
       rotatorName: db.rotatorName,
+      safetyMonitorName: db.safetyMonitorName,
+      switchName: db.switchName,
       telescopeName: db.telescopeName,
       telescopeFocalLength: telescopeFocalLength,
       telescopeAperture: telescopeAperture,
@@ -241,6 +251,7 @@ class EquipmentProfileModel {
       defaultCenteringExposure: db.defaultCenteringExposure,
       filterNames: filters,
       filterFocusOffsets: offsets,
+      meridianFlipOverrides: db.meridianFlipOverrides,
       profileIcon: db.profileIcon,
       profileColor: db.profileColor,
       sortOrder: db.sortOrder,
@@ -309,6 +320,8 @@ class EquipmentProfileModel {
       filterWheelName: profile.filterWheelName,
       guiderName: profile.guiderName,
       rotatorName: profile.rotatorName,
+      safetyMonitorName: profile.safetyMonitorName,
+      switchName: profile.switchName,
       telescopeName: profile.telescopeName,
       telescopeFocalLength: profile.telescopeFocalLength > 0
           ? profile.telescopeFocalLength
@@ -328,6 +341,7 @@ class EquipmentProfileModel {
       defaultCenteringExposure: profile.defaultCenteringExposure,
       filterNames: filters,
       filterFocusOffsets: offsets,
+      meridianFlipOverrides: profile.meridianFlipOverrides,
       profileIcon: profile.profileIcon,
       profileColor: profile.profileColor,
       sortOrder: profile.sortOrder,
@@ -361,6 +375,8 @@ class EquipmentProfileModel {
       filterWheelName: Value(filterWheelName),
       guiderName: Value(guiderName),
       rotatorName: Value(rotatorName),
+      safetyMonitorName: Value(safetyMonitorName),
+      switchName: Value(switchName),
       telescopeName: Value(telescopeName),
       telescopeFocalLength: Value(telescopeFocalLength),
       telescopeAperture: Value(telescopeAperture),
@@ -380,6 +396,7 @@ class EquipmentProfileModel {
       filterFocusOffsets: Value(
         filterFocusOffsets.isNotEmpty ? jsonEncode(filterFocusOffsets) : null,
       ),
+      meridianFlipOverrides: Value(meridianFlipOverrides),
       profileIcon: Value(profileIcon),
       profileColor: Value(profileColor),
       sortOrder: Value(sortOrder),
@@ -410,6 +427,8 @@ class EquipmentProfileModel {
     String? filterWheelName,
     String? guiderName,
     String? rotatorName,
+    String? safetyMonitorName,
+    String? switchName,
     String? telescopeName,
     double? telescopeFocalLength,
     double? telescopeAperture,
@@ -425,6 +444,7 @@ class EquipmentProfileModel {
     double? defaultCenteringExposure,
     List<String>? filterNames,
     Map<String, int>? filterFocusOffsets,
+    String? meridianFlipOverrides,
     String? profileIcon,
     int? profileColor,
     int? sortOrder,
@@ -454,6 +474,8 @@ class EquipmentProfileModel {
       filterWheelName: filterWheelName ?? this.filterWheelName,
       guiderName: guiderName ?? this.guiderName,
       rotatorName: rotatorName ?? this.rotatorName,
+      safetyMonitorName: safetyMonitorName ?? this.safetyMonitorName,
+      switchName: switchName ?? this.switchName,
       telescopeName: telescopeName ?? this.telescopeName,
       telescopeFocalLength: telescopeFocalLength ?? this.telescopeFocalLength,
       telescopeAperture: telescopeAperture ?? this.telescopeAperture,
@@ -470,6 +492,8 @@ class EquipmentProfileModel {
           defaultCenteringExposure ?? this.defaultCenteringExposure,
       filterNames: filterNames ?? this.filterNames,
       filterFocusOffsets: filterFocusOffsets ?? this.filterFocusOffsets,
+      meridianFlipOverrides:
+          meridianFlipOverrides ?? this.meridianFlipOverrides,
       profileIcon: profileIcon ?? this.profileIcon,
       profileColor: profileColor ?? this.profileColor,
       sortOrder: sortOrder ?? this.sortOrder,
@@ -534,12 +558,15 @@ class EquipmentProfileModel {
       filterFocusOffsets: filterFocusOffsets.isNotEmpty
           ? jsonEncode(filterFocusOffsets)
           : null,
+      meridianFlipOverrides: meridianFlipOverrides,
       cameraName: cameraName,
       mountName: mountName,
       focuserName: focuserName,
       filterWheelName: filterWheelName,
       guiderName: guiderName,
       rotatorName: rotatorName,
+      safetyMonitorName: safetyMonitorName,
+      switchName: switchName,
       telescopeName: telescopeName,
       telescopeFocalLength: telescopeFocalLength ?? 0.0,
       telescopeAperture: telescopeAperture ?? 0.0,
@@ -698,17 +725,22 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
     return id;
   }
 
-  /// Update an existing profile
+  /// Update an existing profile.
+  ///
+  /// In remote (slave) mode this routes the FULL profile to the host's
+  /// `POST /api/profiles` (SQLite-backed since the profiles layer); the host
+  /// decides create-vs-update by the parsed id, so a null-id model is accepted
+  /// as a remote CREATE. The local (host/desktop) DAO path still requires an id.
   Future<void> updateProfile(EquipmentProfileModel profile) async {
-    if (profile.id == null) {
-      throw Exception('Cannot update profile without ID');
-    }
-
     final remote = _remoteBackend;
     if (remote != null) {
       await remote.saveProfile(profile.toRemoteProfile());
       ref.invalidateSelf();
       return;
+    }
+
+    if (profile.id == null) {
+      throw Exception('Cannot update profile without ID');
     }
 
     final dao = ref.read(equipmentProfilesDaoProvider);
@@ -793,17 +825,17 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
   }) async {
     final remote = _remoteBackend;
     if (remote != null) {
-      final remoteProfiles = await remote.getProfiles();
-      for (final existing in remoteProfiles) {
-        final shouldBeDefault =
-            profileId != null && existing.id == profileId.toString();
-        if (existing.isDefault == shouldBeDefault) {
-          continue;
-        }
-        await remote.saveProfile(existing.copyWith(isDefault: shouldBeDefault));
-      }
-      if (profileId != null && makeActive) {
-        await remote.loadProfile(profileId.toString());
+      if (profileId != null) {
+        // Dedicated host endpoint: setDefaultProfile atomically unsets the
+        // previous default and makes this row active (makeActive is owned
+        // host-side). The generic saveProfile path could never flip the
+        // host's isDefault because the converter preserves existing.isDefault.
+        await remote.setDefaultProfileRemote(profileId.toString());
+      } else {
+        // Clear-default: dedicated host endpoint (the saveProfile path can't
+        // clear isDefault because the converter preserves the existing row's
+        // flag).
+        await remote.clearDefaultProfileRemote();
       }
       ref.invalidateSelf();
       return;
@@ -815,6 +847,28 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
     } else {
       await dao.setDefaultProfile(profileId, makeActive: makeActive);
     }
+    ref.invalidateSelf();
+  }
+
+  /// Persist a new display order for the profiles.
+  ///
+  /// [orderedIds] is the full list of profile ids in their new order; each id
+  /// is assigned `sortOrder == its index`. On a slave this routes to the
+  /// dedicated host endpoint (the generic saveProfile path can't change
+  /// sortOrder because the converter preserves the existing row's value);
+  /// locally it writes the DAO directly.
+  Future<void> reorderProfiles(List<int> orderedIds) async {
+    final remote = _remoteBackend;
+    if (remote != null) {
+      await remote.reorderProfilesRemote(
+        orderedIds.map((id) => id.toString()).toList(),
+      );
+      ref.invalidateSelf();
+      return;
+    }
+
+    final dao = ref.read(equipmentProfilesDaoProvider);
+    await dao.reorderProfiles(orderedIds);
     ref.invalidateSelf();
   }
 

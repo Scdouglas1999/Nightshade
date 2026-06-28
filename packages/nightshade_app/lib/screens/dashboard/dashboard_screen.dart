@@ -80,11 +80,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     final focuserConnected =
         ref.watch(focuserStateProvider.select((s) => s.connectionState)) ==
             DeviceConnectionState.connected;
-    final shouldPulse = sessionCapturing ||
-        cameraConnected ||
-        mountConnected ||
-        guiderConnected ||
-        focuserConnected;
+    // Pulse only on genuine ACTIVITY (an exposure in progress), not on mere
+    // connection. Gating on "any device connected" kept the controller — and
+    // the 60Hz repaint it drives in the capture-status indicator — running
+    // forever whenever gear was connected; on a remote slave the mirrored
+    // devices report "connected" permanently, so the dashboard pulsed (and
+    // burned CPU) nonstop at idle. Connection still "wakes" the cockpit tiles
+    // via [anyDeviceConnected] below; that is independent of this pulse.
+    final shouldPulse = sessionCapturing;
 
     // The cockpit "wakes up" — shows its live tiles — as soon as the operator
     // is set up: any core device connected OR a real sequence loaded (has a

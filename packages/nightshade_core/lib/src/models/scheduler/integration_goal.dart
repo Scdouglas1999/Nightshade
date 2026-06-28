@@ -55,6 +55,35 @@ class IntegrationGoal extends Equatable {
     );
   }
 
+  /// Wire serialization for the host -> slave mirror. The slave's
+  /// `IntegrationGoalService` fetches goals over `/api/integration-goals`
+  /// when running as a remote client, since the goals live in the host DB.
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'targetId': targetId,
+    'filter': filter,
+    'exposureSeconds': exposureSeconds,
+    'frameCount': frameCount,
+    'priority': priority,
+    'createdAtUnix': createdAt.toUtc().millisecondsSinceEpoch ~/ 1000,
+  };
+
+  /// Tolerant decoder for the wire payload above (missing fields default).
+  static IntegrationGoal fromJson(Map<String, dynamic> json) {
+    final createdUnix = json['createdAtUnix'];
+    return IntegrationGoal(
+      id: json['id'] as int?,
+      targetId: json['targetId'] as int? ?? 0,
+      filter: json['filter'] as String? ?? '',
+      exposureSeconds: (json['exposureSeconds'] as num?)?.toDouble() ?? 0.0,
+      frameCount: json['frameCount'] as int? ?? 0,
+      priority: json['priority'] as int? ?? 5,
+      createdAt: createdUnix is int
+          ? DateTime.fromMillisecondsSinceEpoch(createdUnix * 1000, isUtc: true)
+          : DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+    );
+  }
+
   @override
   List<Object?> get props => [
     id,

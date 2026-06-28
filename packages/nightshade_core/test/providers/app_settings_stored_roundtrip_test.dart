@@ -123,7 +123,6 @@ void main() {
       alpacaServerPort: 11112,
       alpacaAutoDiscover: true,
       // Sequencer Execution
-      useNativeExecution: false,
       useSimulationMode: true,
       // Web Server
       webServerEnabled: true,

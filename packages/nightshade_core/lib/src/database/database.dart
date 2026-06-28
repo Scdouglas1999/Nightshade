@@ -29,6 +29,10 @@ import 'tables/defect_map_table.dart';
 import 'tables/focus_models.dart';
 import 'tables/guide_rms_history.dart';
 import 'tables/narrator_events.dart';
+import 'tables/sky_atlas_tables.dart';
+import 'tables/constellation_contributions.dart';
+import 'tables/transient_detections.dart';
+import 'tables/living_sky_retention.dart';
 import 'daos/images_dao.dart';
 import 'daos/equipment_profiles_dao.dart';
 import 'daos/sessions_dao.dart';
@@ -49,6 +53,10 @@ import 'daos/sequence_versions_dao.dart';
 import 'daos/session_diagnostics_dao.dart';
 import 'daos/guide_rms_history_dao.dart';
 import 'daos/narrator_events_dao.dart';
+import 'daos/sky_atlas_dao.dart';
+import 'daos/constellation_contributions_dao.dart';
+import 'daos/transient_detections_dao.dart';
+import 'daos/living_sky_retention_dao.dart';
 
 part 'database.g.dart';
 part 'database/migration_strategy.dart';
@@ -67,6 +75,10 @@ part 'database/migration_v48.dart';
 part 'database/migration_v49.dart';
 part 'database/migration_v50.dart';
 part 'database/migration_v51.dart';
+part 'database/migration_v52.dart';
+part 'database/migration_v53.dart';
+part 'database/migration_v54.dart';
+part 'database/migration_v55.dart';
 part 'database/schema_helpers.dart';
 part 'database/default_settings.dart';
 part 'database/connection.dart';
@@ -109,6 +121,12 @@ part 'database/connection.dart';
     FocusModels,
     GuideRmsHistory,
     NarratorEvents,
+    SkyTiles,
+    SkyAtlasRegions,
+    SkyAtlasFolds,
+    ConstellationContributions,
+    TransientDetections,
+    LivingSkyRetention,
   ],
   daos: [
     ImagesDao,
@@ -131,6 +149,10 @@ part 'database/connection.dart';
     SessionDiagnosticsDao,
     GuideRmsHistoryDao,
     NarratorEventsDao,
+    SkyAtlasDao,
+    ConstellationContributionsDao,
+    TransientDetectionsDao,
+    LivingSkyRetentionDao,
   ],
 )
 class NightshadeDatabase extends _$NightshadeDatabase {
@@ -140,7 +162,7 @@ class NightshadeDatabase extends _$NightshadeDatabase {
   NightshadeDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 51;
+  int get schemaVersion => 55;
 
   @override
   MigrationStrategy get migration => _buildMigrationStrategy();

@@ -91,6 +91,21 @@ class Project extends Equatable {
     'updatedAt': updatedAt.toUtc().toIso8601String(),
   };
 
+  /// Tolerant decoder for [toJson] (host -> slave mirror over `/api/projects`).
+  static Project fromJson(Map<String, dynamic> json) {
+    DateTime parseTs(Object? v) => v is String
+        ? (DateTime.tryParse(v) ?? DateTime.fromMillisecondsSinceEpoch(0))
+        : DateTime.fromMillisecondsSinceEpoch(0);
+    return Project(
+      id: json['id'] as int?,
+      name: json['name'] as String? ?? 'Untitled project',
+      description: json['description'] as String?,
+      colorArgb: json['colorArgb'] as int?,
+      createdAt: parseTs(json['createdAt']),
+      updatedAt: parseTs(json['updatedAt']),
+    );
+  }
+
   @override
   List<Object?> get props => [
     id,
@@ -176,6 +191,20 @@ class ProjectTarget extends Equatable {
     'priorityOverride': priorityOverride,
     'addedAt': addedAt.toUtc().toIso8601String(),
   };
+
+  /// Tolerant decoder for [toJson] (host -> slave membership mirror).
+  static ProjectTarget fromJson(Map<String, dynamic> json) {
+    final added = json['addedAt'];
+    return ProjectTarget(
+      id: json['id'] as int?,
+      projectId: json['projectId'] as int? ?? 0,
+      targetId: json['targetId'] as int? ?? 0,
+      priorityOverride: json['priorityOverride'] as int?,
+      addedAt: added is String
+          ? (DateTime.tryParse(added) ?? DateTime.fromMillisecondsSinceEpoch(0))
+          : DateTime.fromMillisecondsSinceEpoch(0),
+    );
+  }
 
   @override
   List<Object?> get props => [

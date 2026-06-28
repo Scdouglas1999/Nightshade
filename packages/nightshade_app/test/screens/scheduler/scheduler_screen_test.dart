@@ -1,8 +1,11 @@
-// Widget tests for the Scheduler screen.
+// Widget tests for the Scheduler tab content (SchedulerTabContent), the
+// body that the Plan Tonight `/planner?tab=scheduler` tab mounts. The
+// standalone `/scheduler` route now redirects to that tab, so these tests
+// drive the tab body directly.
 //
 // We don't spin up the full Riverpod graph (which would require a real
 // drift database, an Ffi backend, and the full event bus). Instead we
-// override the providers the screen actually reads
+// override the providers the widget actually reads
 // (schedulerEngineProvider, schedulerStatusProvider,
 // currentSchedulerDecisionProvider, plus the integration goals,
 // constraint, and target streams) with deterministic test doubles.
@@ -12,7 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'package:nightshade_app/screens/scheduler/scheduler_screen.dart';
+import 'package:nightshade_app/screens/planner/widgets/scheduler_tab_content.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/database/database.dart' as ndb;
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -28,6 +31,8 @@ class _FakeSink implements SchedulerSequenceSink {
   Future<void> stopSequence() async {}
   @override
   Future<void> parkForEndOfNight() async {}
+  @override
+  Future<void> releaseSequenceOwnership() async {}
 }
 
 /// In-memory fake of [IntegrationGoalService] for widget tests. Only
@@ -209,19 +214,19 @@ void main() {
         ],
         child: MaterialApp(
           theme: NightshadeTheme.dark,
-          home: const Scaffold(body: SchedulerScreen()),
+          home: const Scaffold(body: SchedulerTabContent()),
         ),
       ),
     );
     await tester.pump(const Duration(milliseconds: 200));
 
     // Header and state badge.
-    expect(find.text('Scheduler'), findsOneWidget);
+    expect(find.text('Unattended Autopilot'), findsOneWidget);
     expect(find.text('Idle'), findsOneWidget);
 
     // Three control buttons should be present in idle state: Start +
     // Re-evaluate (Pause/Resume/Stop hidden while idle).
-    expect(find.widgetWithText(NightshadeButton, 'Start scheduler'),
+    expect(find.widgetWithText(NightshadeButton, 'Run unattended all night'),
         findsOneWidget);
     expect(
         find.widgetWithText(NightshadeButton, 'Re-evaluate'), findsOneWidget);
@@ -259,7 +264,7 @@ void main() {
       routes: [
         GoRoute(
           path: '/scheduler',
-          builder: (_, __) => const Scaffold(body: SchedulerScreen()),
+          builder: (_, __) => const Scaffold(body: SchedulerTabContent()),
         ),
         GoRoute(
           path: '/planner',
@@ -348,7 +353,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: NightshadeTheme.dark,
-          home: const Scaffold(body: SchedulerScreen()),
+          home: const Scaffold(body: SchedulerTabContent()),
         ),
       ),
     );
@@ -356,11 +361,12 @@ void main() {
 
     expect(
       find.textContaining(
-          'Scheduler is stopped. Press Start to begin evaluating'),
+          'Autopilot is stopped. Run unattended all night to begin '
+          'evaluating'),
       findsAtLeastNWidgets(1),
     );
     expect(
-      find.widgetWithText(NightshadeButton, 'Start scheduler'),
+      find.widgetWithText(NightshadeButton, 'Run unattended all night'),
       findsOneWidget,
     );
   });
@@ -400,7 +406,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: NightshadeTheme.dark,
-          home: const Scaffold(body: SchedulerScreen()),
+          home: const Scaffold(body: SchedulerTabContent()),
         ),
       ),
     );
@@ -409,8 +415,8 @@ void main() {
     expect(find.text('Running'), findsOneWidget);
     expect(find.widgetWithText(NightshadeButton, 'Pause'), findsOneWidget);
     expect(find.widgetWithText(NightshadeButton, 'Stop'), findsOneWidget);
-    expect(
-        find.widgetWithText(NightshadeButton, 'Start scheduler'), findsNothing);
+    expect(find.widgetWithText(NightshadeButton, 'Run unattended all night'),
+        findsNothing);
   });
 
   testWidgets(
@@ -457,7 +463,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: NightshadeTheme.dark,
-          home: const Scaffold(body: SchedulerScreen()),
+          home: const Scaffold(body: SchedulerTabContent()),
         ),
       ),
     );
@@ -533,7 +539,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: NightshadeTheme.dark,
-          home: const Scaffold(body: SchedulerScreen()),
+          home: const Scaffold(body: SchedulerTabContent()),
         ),
       ),
     );
@@ -576,7 +582,7 @@ void main() {
       routes: [
         GoRoute(
           path: '/scheduler',
-          builder: (_, __) => const Scaffold(body: SchedulerScreen()),
+          builder: (_, __) => const Scaffold(body: SchedulerTabContent()),
         ),
         GoRoute(
           path: '/planner',

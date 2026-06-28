@@ -141,6 +141,11 @@ class SystemPushTransport extends NotificationTransport {
         );
       case NotificationCategory.recoveryGaveUp:
       case NotificationCategory.diskSpaceLow:
+      // A possible new transient is time-critical for a discovery imager — the
+      // chase window closes by morning — so it always escalates to the phone
+      // when push is enabled, like the other no-dedicated-toggle critical
+      // categories.
+      case NotificationCategory.transientDiscovered:
         // No dedicated PushNotificationConfig toggle historically; these are
         // critical-by-default and always escalate when push is enabled.
         return const _PushSpec(
@@ -220,6 +225,7 @@ class SystemPushTransport extends NotificationTransport {
       case NotificationCategory.triggerFired:
         return core.EventCategory.sequencer;
       case NotificationCategory.exposureFailed:
+      case NotificationCategory.transientDiscovered:
         return core.EventCategory.imaging;
       case NotificationCategory.guidingLost:
       case NotificationCategory.guidingRecovered:

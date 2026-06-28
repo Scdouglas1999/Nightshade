@@ -20,6 +20,13 @@ final smartNightPromptGraceProvider =
 
 final smartNightPromptNowProvider = Provider<DateTime>((ref) => DateTime.now());
 
+/// Whether the floating Smart Night auto-prompt is actually on screen right now.
+/// [SmartNightPromptCard] publishes its real rendered visibility here (including
+/// the equipment-ready grace and the pending-draft check) so other surfaces —
+/// e.g. the cockpit standby header — can suppress a duplicate "Plan Tonight"
+/// affordance while the prompt occupies the screen. Defaults to false.
+final smartNightAutoPromptShowingProvider = StateProvider<bool>((ref) => false);
+
 final smartNightEquipmentReadyProvider = Provider<bool>((ref) {
   final profile = ref.watch(activeEquipmentProfileProvider);
   if (profile == null) return false;
@@ -76,6 +83,17 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
     super.dispose();
   }
 
+  /// Publish the prompt's real rendered visibility after the frame settles, so
+  /// reading widgets (the standby header) rebuild without mutating provider
+  /// state mid-build.
+  void _publishShowing(bool showing) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final notifier = ref.read(smartNightAutoPromptShowingProvider.notifier);
+      if (notifier.state != showing) notifier.state = showing;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final profile = ref.watch(activeEquipmentProfileProvider);
@@ -104,6 +122,7 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
 
     if (!baseShouldShow) {
       _animController.value = 0.0;
+      _publishShowing(false);
       return const SizedBox.shrink();
     }
 
@@ -114,9 +133,11 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
     final draftAsync = ref.watch(pendingSmartNightDraftProvider(lookup));
     if (draftAsync.isLoading || draftAsync.valueOrNull != null) {
       _animController.value = 0.0;
+      _publishShowing(false);
       return const SizedBox.shrink();
     }
 
+    _publishShowing(true);
     if (!_animController.isAnimating && _animController.value < 1.0) {
       _animController.forward();
     }
@@ -222,8 +243,8 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
               ),
               const SizedBox(width: 8),
               NightshadeButton(
-                label: 'Build Plan',
-                icon: LucideIcons.zap,
+                label: 'Plan Tonight',
+                icon: LucideIcons.sparkles,
                 variant: ButtonVariant.primary,
                 size: ButtonSize.small,
                 isLoading: _busy,
@@ -239,10 +260,7 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
   Future<void> _openPlanner(SmartNightDraftLookup lookup) async {
     setState(() => _busy = true);
     try {
-      await showDialog<void>(
-        context: context,
-        builder: (_) => const SmartNightDialog(),
-      );
+      await showSmartNightDialog(context);
       ref.invalidate(pendingSmartNightDraftProvider(lookup));
     } finally {
       if (mounted) setState(() => _busy = false);

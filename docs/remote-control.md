@@ -186,7 +186,36 @@ sudo ln -sf /etc/nginx/sites-available/nightshade.conf /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-### 3. Client configuration
+### 3. Trust the proxy for per-client rate limiting (`NIGHTSHADE_TRUST_PROXY`)
+
+By default the API derives its rate-limit and pairing brute-force-lockout key
+from the **real TCP socket peer**, because in the direct-bind deployment the
+`X-Forwarded-For` / `X-Real-IP` headers are attacker-controlled and a client
+could rotate them to evade both limiters.
+
+Behind the loopback nginx proxy above, every request arrives from `127.0.0.1`,
+so that default would collapse **all** clients into a single rate-limit/lockout
+bucket — one misbehaving phone could lock everyone out, and a brute-forcer
+behind the same proxy would never be isolated. When (and only when) the API
+sits behind this documented loopback proxy, set:
+
+```bash
+# systemd unit / environment file for the headless service
+NIGHTSHADE_TRUST_PROXY=true
+```
+
+With the flag set, the limiter keys off the client IP nginx forwards in
+`X-Forwarded-For` — and only when the socket peer is loopback, so a direct
+LAN/WAN client can never forge the key. Leave it **unset** for any direct-bind
+(`0.0.0.0:8080`, no proxy) deployment. The companion nginx config above already
+injects `X-Real-IP` and `X-Forwarded-For`; this flag is what tells the API to
+believe them.
+
+> Related testing-only escape hatch: `NIGHTSHADE_ALLOW_INSECURE_UPDATE_SOURCE=true`
+> lets the OTA updater fetch from a non-HTTPS / unpinned source. Never set it on
+> a production appliance.
+
+### 4. Client configuration
 
 - Mobile manual host: `nightshade.observatory.local:443` is **not** valid in the strict
   LAN QR schema; for WAN, use manual host entry with `https` via a client build that
@@ -195,7 +224,7 @@ sudo nginx -t && sudo systemctl reload nginx
 - Pairing QR still uses the **LAN IP and API port** (`8080`) unless you maintain a
   separate enrollment path for proxied hostnames.
 
-### 4. Operational checks
+### 5. Operational checks
 
 ```bash
 curl -fsS https://nightshade.observatory.local/api/info | jq .version,.fingerprint,.pairingSupported

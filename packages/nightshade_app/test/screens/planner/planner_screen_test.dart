@@ -88,15 +88,16 @@ void main() {
 
     test('maps canonical tab names', () {
       expect(plannerTabFromQuery('recommendation'), PlannerTab.recommendation);
-      expect(plannerTabFromQuery('scheduler'), PlannerTab.scheduler);
-      expect(plannerTabFromQuery('progress'), PlannerTab.progress);
+      // Scheduler folded into Schedule; Progress folded into Projects.
+      expect(plannerTabFromQuery('scheduler'), PlannerTab.schedule);
+      expect(plannerTabFromQuery('progress'), PlannerTab.projects);
     });
 
     test('accepts case-insensitive aliases', () {
-      expect(plannerTabFromQuery('Scheduler'), PlannerTab.scheduler);
-      expect(plannerTabFromQuery('queue'), PlannerTab.scheduler);
-      expect(plannerTabFromQuery('target-queue'), PlannerTab.scheduler);
-      expect(plannerTabFromQuery('history'), PlannerTab.progress);
+      expect(plannerTabFromQuery('Scheduler'), PlannerTab.schedule);
+      expect(plannerTabFromQuery('queue'), PlannerTab.schedule);
+      expect(plannerTabFromQuery('target-queue'), PlannerTab.schedule);
+      expect(plannerTabFromQuery('history'), PlannerTab.projects);
       expect(plannerTabFromQuery('recommend'), PlannerTab.recommendation);
     });
 
@@ -112,8 +113,8 @@ void main() {
   });
 
   testWidgets(
-      'renders all sub-tabs (Recommendation, Projects, Target Queue, '
-      'This Week, Progress, Sky)', (tester) async {
+      'renders all sub-tabs (Recommendation, Projects, Schedule, '
+      'Framing, Planetarium, Discover)', (tester) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(1400, 900);
     addTearDown(() {
@@ -141,10 +142,10 @@ void main() {
       const [
         'Recommendation',
         'Projects',
-        'Target Queue',
-        'This Week',
-        'Progress',
-        'Sky',
+        'Schedule',
+        'Framing',
+        'Planetarium',
+        'Discover',
       ],
     );
   });
@@ -172,8 +173,9 @@ void main() {
     expect(_selectedTabIndex(tester), PlannerTab.recommendation.index);
   });
 
-  testWidgets('?tab=scheduler selects the Target Queue tab on initial render',
-      (tester) async {
+  testWidgets(
+      '?tab=scheduler (folded) selects the Schedule tab on initial '
+      'render', (tester) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(1400, 900);
     addTearDown(() {
@@ -194,11 +196,12 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 200));
 
-    expect(_selectedTabIndex(tester), PlannerTab.scheduler.index);
+    expect(_selectedTabIndex(tester), PlannerTab.schedule.index);
   });
 
-  testWidgets('?tab=progress selects the Progress tab on initial render',
-      (tester) async {
+  testWidgets(
+      '?tab=progress (folded) selects the Projects tab on initial '
+      'render', (tester) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(1400, 900);
     addTearDown(() {
@@ -219,7 +222,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 200));
 
-    expect(_selectedTabIndex(tester), PlannerTab.progress.index);
+    expect(_selectedTabIndex(tester), PlannerTab.projects.index);
   });
 
   // ===========================================================================
@@ -259,25 +262,23 @@ void main() {
     expect(_selectedTabIndex(tester), PlannerTab.recommendation.index,
         reason: 'Sanity: Recommendation must be selected by default.');
 
-    // Tap Target Queue. find.text matches the tab's label text.
-    await tester.tap(find.text('Target Queue'));
+    // Tap Schedule. find.text matches the tab's label text.
+    await tester.tap(find.text('Schedule'));
     await tester.pump(const Duration(milliseconds: 200));
 
-    // Post-condition: Target Queue is selected (single-selection model).
-    expect(_selectedTabIndex(tester), PlannerTab.scheduler.index,
-        reason: 'Tapping the Target Queue tab must mark it as selected; if the '
+    // Post-condition: Schedule is selected (single-selection model).
+    expect(_selectedTabIndex(tester), PlannerTab.schedule.index,
+        reason: 'Tapping the Schedule tab must mark it as selected; if the '
             'onSelected callback or setState pathway is broken the strip would '
             'continue to show Recommendation as selected.');
   });
 
-  testWidgets(
-      'tapping_Progress_tab_switches_selection: completes the round-trip '
-      'across all three planner tabs', (tester) async {
-    // Companion to the Target Queue tap test — covers the third tab and
-    // proves the tap callback works for every entry, not just the middle
-    // one. A regression that only wired up two of three tabs (e.g. a
-    // missing index in the asMap().entries.map() loop) would pass the
-    // Target Queue test but fail here.
+  testWidgets('tapping the right-most Discover tab switches the selection',
+      (tester) async {
+    // Companion to the Schedule tap test — covers the right-most tab and
+    // proves the tap callback works for every entry, not just a middle one. A
+    // regression that dropped the last entry's onSelected (e.g. a missing index
+    // in the asMap().entries loop) would pass the Schedule test but fail here.
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(1400, 900);
     addTearDown(() {
@@ -296,12 +297,12 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 200));
 
-    // Tap Progress (the right-most tab).
-    await tester.tap(find.text('Progress'));
+    // Tap Discover (the right-most tab).
+    await tester.tap(find.text('Discover'));
     await tester.pump(const Duration(milliseconds: 200));
 
-    expect(_selectedTabIndex(tester), PlannerTab.progress.index,
-        reason: 'Tapping Progress must mark it as selected; if the right-most '
+    expect(_selectedTabIndex(tester), PlannerTab.discover.index,
+        reason: 'Tapping Discover must mark it as selected; if the right-most '
             'entry in the tabs loop lost its onSelected, the user gets stuck '
             'on Recommendation.');
   });
@@ -345,6 +346,13 @@ void main() {
         ),
       ),
     );
+    // The recommendation body only renders once the async settings stub has
+    // resolved: appSettingsProvider (Future) -> appObserverLocationProvider ->
+    // _plannerOptimizationProvider. On the very first frame the location is
+    // still null, so the optimization provider throws StateError and the tab
+    // shows the "Location not configured" error state. A second pump lets the
+    // settings future complete so the candidate/recommendation rows build.
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(
@@ -417,6 +425,9 @@ void main() {
         ),
       ),
     );
+    // Second pump drains the async settings -> location -> optimization chain
+    // so the candidate rows build instead of the location-error fallback.
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
 
     // The primary card's full-width button plus each candidate row's button
@@ -472,6 +483,9 @@ void main() {
         ),
       ),
     );
+    // Second pump drains the async settings -> location -> optimization chain
+    // so the candidate rows build instead of the location-error fallback.
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('Show altitude curve'), findsNothing);

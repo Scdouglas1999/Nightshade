@@ -162,6 +162,7 @@ class TransientAlertsPanel extends ConsumerWidget {
                   IconButton(
                     icon: Icon(LucideIcons.refreshCw,
                         size: 14, color: colors.error),
+                    tooltip: 'Retry',
                     onPressed: () => refreshTransientAlerts(ref),
                     visualDensity: VisualDensity.compact,
                   ),

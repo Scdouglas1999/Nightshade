@@ -258,6 +258,8 @@ function NewFunc($target, $check, [string]$verdict, [string]$reason, $evidence) 
 }
 
 function NewModel($model, [string]$targetVerdict, $functionByCapability, $functionByCheckId) {
+    if ($null -eq $functionByCapability) { $functionByCapability = @{} }
+    if ($null -eq $functionByCheckId) { $functionByCheckId = @{} }
     $aliases = @{
         read_filter = @("read_filter", "set_filter")
         read_position = @("read_position", "slew", "move_focuser")
@@ -439,7 +441,7 @@ foreach ($target in (Items $matrixData.targets)) {
     if (-not (Applies $target.platforms $platform)) {
         $res = [pscustomobject]@{ target_id=$target.id; manufacturer=$target.manufacturer; device_type=$target.device_type; driver_type=$target.driver_type; confidence_tier=$target.confidence_tier; verdict="skipped"; reason="target is not applicable to $platform"; evidence=$evidence }
         $results += $res
-        $targetFunctionMap[$target.id] = [pscustomobject]@{ verdict="skipped"; functions=@{} }
+        $targetFunctionMap[$target.id] = [pscustomobject]@{ verdict="skipped"; functions=@{}; checks=@{} }
         continue
     }
     if ($target.blocked) { $blockers += $target.blocked }

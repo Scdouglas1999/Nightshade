@@ -48,7 +48,6 @@ const Map<String, String> _defaultSettings = {
   'alpaca_server_host': 'localhost',
   'alpaca_server_port': '11111',
   'alpaca_auto_discover': 'false',
-  'use_native_execution': 'true',
   'use_simulation_mode': 'false',
   'web_server_enabled': 'false',
   'web_server_port': '8080',

@@ -14,6 +14,7 @@ import '../models/equipment/equipment_models.dart';
 import '../models/framing_plate_scale.dart';
 import '../models/planning/target_suggestion.dart';
 import '../models/target/target_models.dart';
+import '../services/mosaic_project_service.dart';
 import '../services/target_library_service.dart';
 import 'backend_provider.dart';
 import 'database_provider.dart';
@@ -648,6 +649,43 @@ class FramingNotifier extends StateNotifier<FramingState> {
     return (
       config.effectiveWidthMultiplier * baseWidthDeg,
       config.effectiveHeightMultiplier * baseHeightDeg,
+    );
+  }
+
+  /// Persist the currently-framed mosaic as a DURABLE mosaic project (the same
+  /// `mosaic_projects` + per-panel `mosaic_panels`/`targets` structure the
+  /// mosaic wizard's "Create Project" writes), and return the new
+  /// `mosaic_projects.id`.
+  ///
+  /// This is the durable counterpart to the old export-to-targets path, which
+  /// only wrote orphaned `targets` rows that no project or sequence could
+  /// consume. The grid geometry (rows/cols/overlap), center, and per-panel FOV
+  /// are taken straight from the live framing state, so the persisted project
+  /// matches the panels the user sees on the canvas. The scheduler/sequencer
+  /// can then drive the project via the `/mosaic/:id` screen.
+  ///
+  /// Returns the new project id, or null when there is no framed target or the
+  /// rig FOV cannot be resolved (in which case no rows are written).
+  Future<int?> createDurableMosaicProject({String? name}) async {
+    final target = state.target;
+    if (target == null) return null;
+
+    final fov = await _getCurrentFOV();
+    if (fov == null) return null;
+    final (fovWidthDeg, fovHeightDeg) = fov;
+
+    final config = state.mosaicConfig;
+    final service = _ref.read(mosaicProjectServiceProvider);
+    return service.createProject(
+      name: name?.trim().isNotEmpty == true ? name!.trim() : target.name,
+      rows: config.rows,
+      cols: config.columns,
+      centerRa: target.raHours,
+      centerDec: target.decDegrees,
+      overlapPct: config.overlapPercent,
+      positionAngleDeg: state.rotation,
+      fovWidthDeg: fovWidthDeg,
+      fovHeightDeg: fovHeightDeg,
     );
   }
 

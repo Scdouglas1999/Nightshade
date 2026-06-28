@@ -196,8 +196,9 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   ),
   DashboardWidgetDefinition(
     id: DashboardWidgetId.cockpitScheduler,
-    title: 'Scheduler',
-    subtitle: 'Upcoming scheduled targets and transitions',
+    title: 'Unattended Autopilot',
+    subtitle: 'Runs unattended and re-picks targets all night — distinct from '
+        'Plan Tonight',
     icon: LucideIcons.calendarClock,
     defaultZone: DashboardZone.secondary,
     selfChromed: true,

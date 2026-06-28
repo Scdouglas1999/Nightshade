@@ -716,22 +716,6 @@ pub async fn execute_slew(
     }
 }
 
-/// Wait for mount to stop slewing with timeout.
-///
-/// previously the only caller was the inline execute_meridian_flip
-/// body that has been replaced by a thin `MeridianFlipExecutor` wrapper.
-/// Kept as a public-style helper with `#[allow(dead_code)]` so future
-/// instruction-level slew helpers do not have to re-implement the polling
-/// loop.
-#[allow(dead_code)]
-async fn wait_for_mount_idle(
-    mount_id: &str,
-    ctx: &InstructionContext,
-    timeout: Duration,
-) -> Result<(), String> {
-    wait_for_mount_idle_with_progress(mount_id, ctx, timeout, None).await
-}
-
 /// Wait for mount to stop slewing with timeout and progress updates
 async fn wait_for_mount_idle_with_progress(
     mount_id: &str,
@@ -5172,8 +5156,43 @@ pub async fn execute_script(
         }
     };
 
-    // Run the script with timeout
-    let result = tokio::time::timeout(Duration::from_secs(timeout), cmd.output()).await;
+    // Reap the child when the spawned future is dropped (timeout / cancel).
+    // Without this, racing `cmd.output()` against a timeout abandons the OS
+    // process still running and unreaped → orphaned/zombie. `kill_on_drop`
+    // makes the dropped future SIGKILL and `wait()` the child for us. The
+    // piped stdio mirrors what `cmd.output()` set implicitly so the success
+    // path still captures stdout/stderr.
+    cmd.kill_on_drop(true);
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::piped());
+
+    // SEQ-001: isolate the child in its OWN process group (pgid == child pid).
+    // `kill_on_drop` SIGKILLs only the *direct* child, so a script that
+    // backgrounds work (`some_cmd &`) leaves those grandchildren running after a
+    // timeout/cancel. With the child in its own group we can SIGKILL `-pgid` on
+    // abort to tear the whole group down without ever touching the sequencer's
+    // own process group. The happy path is unaffected — group isolation changes
+    // neither stdio capture nor the child's exit status.
+    #[cfg(unix)]
+    cmd.process_group(0);
+
+    let child = match cmd.spawn() {
+        Ok(child) => child,
+        Err(e) => return InstructionResult::failure(format!("Failed to run script: {}", e)),
+    };
+    // Capture the pid (== pgid under `process_group(0)`) before `wait_with_output`
+    // consumes `child`, so the abort path can signal the whole group.
+    #[cfg(unix)]
+    let child_pid = child.id();
+
+    // Race the script against its timeout and the cancellation token. When a
+    // non-output arm wins, the `wait_with_output` future (which owns `child`)
+    // is dropped, and `kill_on_drop` kills+reaps the process.
+    let result = tokio::select! {
+        output = child.wait_with_output() => Ok(output),
+        _ = tokio::time::sleep(Duration::from_secs(timeout)) => Err(Abort::Timeout),
+        _ = wait_for_cancellation(ctx.cancellation_token.clone()) => Err(Abort::Cancelled),
+    };
 
     match result {
         Ok(Ok(output)) => {
@@ -5196,8 +5215,59 @@ pub async fn execute_script(
             }
         }
         Ok(Err(e)) => InstructionResult::failure(format!("Failed to run script: {}", e)),
-        Err(_) => InstructionResult::failure(format!("Script timed out after {} seconds", timeout)),
+        Err(abort) => {
+            // The losing `wait_with_output` future has been dropped, so
+            // `kill_on_drop` already SIGKILLed the direct child; now reap the rest
+            // of its process group (any backgrounded grandchildren) so nothing the
+            // script spawned survives the abort (SEQ-001). Unix-only; elsewhere we
+            // retain the existing direct-child `kill_on_drop` behaviour.
+            #[cfg(unix)]
+            kill_script_process_group(child_pid);
+            match abort {
+                Abort::Timeout => InstructionResult::failure(format!(
+                    "Script timed out after {} seconds",
+                    timeout
+                )),
+                Abort::Cancelled => InstructionResult::cancelled("Script cancelled"),
+            }
+        }
     }
+}
+
+/// SIGKILL a timed-out/cancelled script's entire process group (Unix only).
+///
+/// `execute_script` spawns the child with `process_group(0)`, so `pgid == pid`.
+/// `kill(2)` with a NEGATIVE pid delivers the signal to that whole process
+/// group, reaching backgrounded grandchildren (`some_cmd &`) that a
+/// `kill_on_drop` of the direct child alone would orphan. Reparented descendants
+/// are reaped by the subreaper/init once signalled. A no-op when the pid is
+/// unknown.
+///
+/// We call `kill(2)` directly rather than shelling out to `kill -KILL -<pgid>`:
+/// the negative-pgid group syntax is parsed inconsistently across `kill(1)`
+/// implementations (the bash builtin accepts it; some standalone util-linux
+/// `kill` binaries — e.g. on CI runners — reject `-<pgid>` as a bad option), and
+/// a misparse there silently leaks the group because the non-zero exit was
+/// ignored. The syscall has no such ambiguity (SEQ-001 regression on CI).
+#[cfg(unix)]
+fn kill_script_process_group(pid: Option<u32>) {
+    let Some(pid) = pid else {
+        return;
+    };
+    let pgid = pid as libc::pid_t;
+    // SAFETY: `kill(2)` is async-signal-safe and takes no pointers. A negative
+    // target signals the process group `pgid`. The only expected failure is
+    // ESRCH (the group already fully exited — a benign abort/exit race), which
+    // needs no handling, so the return value is intentionally ignored.
+    unsafe {
+        libc::kill(-pgid, libc::SIGKILL);
+    }
+}
+
+/// Reason a running script was aborted before it could exit on its own.
+enum Abort {
+    Timeout,
+    Cancelled,
 }
 
 // =============================================================================
@@ -7166,5 +7236,178 @@ mod tests {
             "on-sky LIGHT exposure must clear the daylight gate at night; got {:?}",
             result.message
         );
+    }
+
+    // -------------------------------------------------------------------
+    // CONC-001: a script that outruns its timeout must (a) return the
+    // exact "Script timed out ..." failure and (b) leave no live child
+    // process behind (kill_on_drop reaps it).
+    // -------------------------------------------------------------------
+
+    async fn script_ctx() -> InstructionContext {
+        crate::node::context::ExecutionContext::new("test-node".to_string())
+            .to_instruction_context()
+            .await
+    }
+
+    fn empty_frame() -> crate::expressions::EvaluationFrame {
+        crate::expressions::EvaluationFrame::empty()
+    }
+
+    /// True while `pid` is a live, schedulable process. A child that has
+    /// been killed and reaped is gone (no `/proc/<pid>`); one that was
+    /// killed but not yet reaped shows up as a zombie (`State: Z`), which
+    /// for our purposes is "not running". Linux-only because it reads
+    /// `/proc`; that matches where this crate's process tests run.
+    #[cfg(target_os = "linux")]
+    fn pid_is_running(pid: u32) -> bool {
+        match std::fs::read_to_string(format!("/proc/{pid}/stat")) {
+            // /proc/<pid>/stat is "pid (comm) state ...". The state char
+            // after the closing paren is 'Z' for a reaped-pending zombie.
+            Ok(stat) => match stat.rsplit_once(") ") {
+                Some((_, rest)) => !rest.starts_with('Z'),
+                None => true,
+            },
+            Err(_) => false,
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn script_timeout_returns_failure_and_kills_child() {
+        let dir = std::env::temp_dir();
+        let pidfile = dir.join(format!("nightshade_script_test_{}.pid", std::process::id()));
+        let _ = std::fs::remove_file(&pidfile);
+
+        // sh records its own PID, then sleeps far past the 1s timeout.
+        let cfg = ScriptConfig {
+            script_path: "/bin/sh".to_string(),
+            arguments: vec![
+                "-c".to_string(),
+                format!("echo $$ > {}; sleep 60", pidfile.display()),
+            ],
+            timeout_secs: Some(1),
+        };
+
+        let ctx = script_ctx().await;
+        let ec = crate::node::context::ExecutionContext::new("test-node".to_string());
+        let frame = empty_frame();
+
+        let result = execute_script(&cfg, &ctx, &ec, &frame).await;
+
+        // Invariant: identical timeout failure message.
+        assert_eq!(result.status, NodeStatus::Failure);
+        assert_eq!(
+            result.message.as_deref(),
+            Some("Script timed out after 1 seconds"),
+            "timeout must surface the exact existing failure text"
+        );
+
+        // The child must no longer be running once the call returns.
+        let pid: u32 = std::fs::read_to_string(&pidfile)
+            .expect("script should have written its PID before sleeping")
+            .trim()
+            .parse()
+            .expect("PID file should contain a number");
+
+        // kill_on_drop reaps via the runtime's background reaper; give it a
+        // brief, bounded window to observe the process leave the run queue.
+        let mut alive = true;
+        for _ in 0..50 {
+            if !pid_is_running(pid) {
+                alive = false;
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        let _ = std::fs::remove_file(&pidfile);
+        assert!(
+            !alive,
+            "child PID {pid} is still running after the script timed out — process was orphaned"
+        );
+    }
+
+    /// SEQ-001: a script that backgrounds work (`some_cmd &`) and then times out
+    /// must leave NO descendant running. `kill_on_drop` reaps only the direct
+    /// child; the process-group teardown must take the backgrounded grandchild
+    /// with it. This fails on the pre-fix code (grandchild survives) and passes
+    /// once the child is spawned in its own group and the group is SIGKILLed.
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn script_timeout_kills_backgrounded_grandchild() {
+        let dir = std::env::temp_dir();
+        let gcfile = dir.join(format!("nightshade_script_gc_{}.pid", std::process::id()));
+        let _ = std::fs::remove_file(&gcfile);
+
+        // sh backgrounds a 60s sleep (the grandchild), records its PID, then
+        // `wait`s past the 1s timeout. The grandchild shares sh's process group.
+        let cfg = ScriptConfig {
+            script_path: "/bin/sh".to_string(),
+            arguments: vec![
+                "-c".to_string(),
+                format!("sleep 60 & echo $! > {}; wait", gcfile.display()),
+            ],
+            timeout_secs: Some(1),
+        };
+
+        let ctx = script_ctx().await;
+        let ec = crate::node::context::ExecutionContext::new("test-node".to_string());
+        let frame = empty_frame();
+
+        let result = execute_script(&cfg, &ctx, &ec, &frame).await;
+
+        // Invariant: identical timeout failure message.
+        assert_eq!(result.status, NodeStatus::Failure);
+        assert_eq!(
+            result.message.as_deref(),
+            Some("Script timed out after 1 seconds"),
+            "timeout must surface the exact existing failure text"
+        );
+
+        let gc_pid: u32 = std::fs::read_to_string(&gcfile)
+            .expect("script should have written its backgrounded grandchild PID")
+            .trim()
+            .parse()
+            .expect("grandchild PID file should contain a number");
+
+        // The group kill races a reparent+reap; give it a brief bounded window.
+        let mut alive = true;
+        for _ in 0..50 {
+            if !pid_is_running(gc_pid) {
+                alive = false;
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        let _ = std::fs::remove_file(&gcfile);
+        assert!(
+            !alive,
+            "backgrounded grandchild PID {gc_pid} survived the timeout — the script's \
+             process group was not torn down"
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn script_success_surfaces_stdout_stderr_exit_code() {
+        // Regression on the success path: stdout/stderr/exit_code unchanged.
+        let cfg = ScriptConfig {
+            script_path: "/bin/sh".to_string(),
+            arguments: vec![
+                "-c".to_string(),
+                "echo out; echo err 1>&2; exit 0".to_string(),
+            ],
+            timeout_secs: Some(10),
+        };
+        let ctx = script_ctx().await;
+        let ec = crate::node::context::ExecutionContext::new("test-node".to_string());
+        let frame = empty_frame();
+
+        let result = execute_script(&cfg, &ctx, &ec, &frame).await;
+        assert_eq!(result.status, NodeStatus::Success);
+        let data = result.data.expect("success must carry script output data");
+        assert_eq!(data["stdout"].as_str().unwrap().trim(), "out");
+        assert_eq!(data["stderr"].as_str().unwrap().trim(), "err");
+        assert_eq!(data["exit_code"].as_i64(), Some(0));
     }
 }

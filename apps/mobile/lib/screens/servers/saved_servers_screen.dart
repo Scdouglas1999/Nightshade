@@ -484,44 +484,24 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
 
   Future<void> _editTailscaleHost(SavedServer server) async {
     final l10n = context.l10n;
-    final controller = TextEditingController(text: server.tailscaleHost ?? '');
-    final result = await showDialog<String>(
+    // The dialog owns its TextEditingController for the lifetime of the route
+    // (see [_EditTextDialog]); disposing here right after showDialog resolves
+    // would race the dismiss animation, which still rebuilds the field.
+    final raw = await showDialog<String>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: Text(l10n.text('savedServersTailscaleDialogTitle')),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(l10n.text('savedServersTailscaleDialogBody')),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                autofocus: true,
-                autocorrect: false,
-                decoration: InputDecoration(
-                  labelText: l10n.text('savedServersTailscaleHostLabel'),
-                  hintText: 'my-rig.tailnet.ts.net',
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text(l10n.text('savedServersCancel')),
-            ),
-            TextButton(
-              onPressed: () =>
-                  Navigator.of(dialogContext).pop(controller.text.trim()),
-              child: Text(l10n.text('savedServersSave')),
-            ),
-          ],
-        );
-      },
+      builder: (_) => _EditTextDialog(
+        title: l10n.text('savedServersTailscaleDialogTitle'),
+        bodyText: l10n.text('savedServersTailscaleDialogBody'),
+        fieldLabel: l10n.text('savedServersTailscaleHostLabel'),
+        hintText: 'my-rig.tailnet.ts.net',
+        autocorrect: false,
+        initialValue: server.tailscaleHost ?? '',
+        saveLabel: l10n.text('savedServersSave'),
+        cancelLabel: l10n.text('savedServersCancel'),
+      ),
     );
-    if (result == null) return;
+    if (raw == null) return;
+    final result = raw.trim();
     try {
       await ref
           .read(savedServersServiceProvider)
@@ -535,34 +515,19 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
 
   Future<void> _renameServer(SavedServer server) async {
     final l10n = context.l10n;
-    final controller = TextEditingController(text: server.displayName);
-    final newName = await showDialog<String>(
+    final raw = await showDialog<String>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: Text(l10n.text('savedServersRenameTitle')),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: InputDecoration(
-              labelText: l10n.text('savedServersDisplayNameLabel'),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text(l10n.text('savedServersCancel')),
-            ),
-            TextButton(
-              onPressed: () =>
-                  Navigator.of(dialogContext).pop(controller.text.trim()),
-              child: Text(l10n.text('savedServersSave')),
-            ),
-          ],
-        );
-      },
+      builder: (_) => _EditTextDialog(
+        title: l10n.text('savedServersRenameTitle'),
+        fieldLabel: l10n.text('savedServersDisplayNameLabel'),
+        initialValue: server.displayName,
+        saveLabel: l10n.text('savedServersSave'),
+        cancelLabel: l10n.text('savedServersCancel'),
+      ),
     );
-    if (newName == null || newName.isEmpty || newName == server.displayName) {
+    if (raw == null) return;
+    final newName = raw.trim();
+    if (newName.isEmpty || newName == server.displayName) {
       return;
     }
     await ref.read(savedServersServiceProvider).rename(server.id, newName);
@@ -571,34 +536,18 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
 
   Future<void> _editNotes(SavedServer server) async {
     final l10n = context.l10n;
-    final controller = TextEditingController(text: server.notes);
     final updated = await showDialog<String>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: Text(l10n.text('savedServersNotesTitle')),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            maxLines: 4,
-            maxLength: 280,
-            decoration: InputDecoration(
-              labelText: l10n.text('savedServersNotesLabel'),
-              helperText: l10n.text('savedServersNotesHelper'),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text(l10n.text('savedServersCancel')),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(controller.text),
-              child: Text(l10n.text('savedServersSave')),
-            ),
-          ],
-        );
-      },
+      builder: (_) => _EditTextDialog(
+        title: l10n.text('savedServersNotesTitle'),
+        fieldLabel: l10n.text('savedServersNotesLabel'),
+        helperText: l10n.text('savedServersNotesHelper'),
+        maxLines: 4,
+        maxLength: 280,
+        initialValue: server.notes,
+        saveLabel: l10n.text('savedServersSave'),
+        cancelLabel: l10n.text('savedServersCancel'),
+      ),
     );
     if (updated == null) return;
     await ref
@@ -651,6 +600,96 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
 }
 
 enum _RowMenuAction { connectTailscale, rename, notes, tailscaleHost, remove }
+
+/// Single-field text-edit dialog used by the rename / notes / Tailscale-host
+/// actions. It owns its [TextEditingController] so the controller is disposed
+/// exactly once, when the route is torn down — i.e. AFTER the dismiss animation
+/// finishes. Disposing the controller the instant `showDialog` resolves would
+/// race that animation (which keeps rebuilding the field) and throw a
+/// use-after-dispose. Pops the raw field text on Save and `null` on Cancel;
+/// callers apply their own trimming / validation.
+class _EditTextDialog extends StatefulWidget {
+  final String title;
+  final String? bodyText;
+  final String fieldLabel;
+  final String? helperText;
+  final String? hintText;
+  final String initialValue;
+  final int maxLines;
+  final int? maxLength;
+  final bool autocorrect;
+  final String saveLabel;
+  final String cancelLabel;
+
+  const _EditTextDialog({
+    required this.title,
+    required this.fieldLabel,
+    required this.initialValue,
+    required this.saveLabel,
+    required this.cancelLabel,
+    this.bodyText,
+    this.helperText,
+    this.hintText,
+    this.maxLines = 1,
+    this.maxLength,
+    this.autocorrect = true,
+  });
+
+  @override
+  State<_EditTextDialog> createState() => _EditTextDialogState();
+}
+
+class _EditTextDialogState extends State<_EditTextDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialValue,
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final field = TextField(
+      controller: _controller,
+      autofocus: true,
+      autocorrect: widget.autocorrect,
+      maxLines: widget.maxLines,
+      maxLength: widget.maxLength,
+      decoration: InputDecoration(
+        labelText: widget.fieldLabel,
+        helperText: widget.helperText,
+        hintText: widget.hintText,
+      ),
+    );
+    return AlertDialog(
+      title: Text(widget.title),
+      content: widget.bodyText == null
+          ? field
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(widget.bodyText!),
+                const SizedBox(height: 12),
+                field,
+              ],
+            ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(widget.cancelLabel),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(_controller.text),
+          child: Text(widget.saveLabel),
+        ),
+      ],
+    );
+  }
+}
 
 class _EmptyState extends StatelessWidget {
   final NightshadeColors colors;

@@ -958,7 +958,7 @@ pub async fn discover_devices() -> Result<Vec<FujifilmDeviceInfo>, NativeError> 
 /// Wrapper for camera handle to implement Send/Sync
 /// SAFETY: The SDK mutex ensures exclusive access, making it safe to send between threads
 struct HandleWrapper(XsdkHandle);
-// SAFETY: The XsdkHandle raw pointer is never dereferenced or modified outside `fujifilm_mutex().lock().await` sections (see all call sites in this module — every `unsafe { (sdk.XXX)(self.camera_handle.0, ...) }` block is inside an acquired-mutex scope). Marking Send is therefore equivalent to a hand-serialized capability.
+// SAFETY: The XsdkHandle raw pointer is never dereferenced or modified outside `fujifilm_mutex().lock().await` sections (see all call sites in this module — every `unsafe { (sdk.<fn>)(self.camera_handle.0, ...) }` block is inside an acquired-mutex scope). Marking Send is therefore equivalent to a hand-serialized capability.
 unsafe impl Send for HandleWrapper {}
 // SAFETY: Same justification as Send — every shared-reference use of HandleWrapper goes through the fujifilm_mutex, which serializes all SDK access. No interior mutability is reachable without the mutex.
 unsafe impl Sync for HandleWrapper {}

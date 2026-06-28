@@ -1092,6 +1092,33 @@ fn sample(
     }
 }
 
+/// Sample channel `c` of a channel-interleaved `f64` plane at fractional source
+/// position `(sx, sy)` with `interp`, returning `0.0` when the kernel support
+/// leaves the image (no edge replication — identical semantics to the private
+/// warp sampler).
+///
+/// This is the public entry point the WCS-driven reprojectors
+/// ([`crate::mosaic_stitch`], [`crate::sky_atlas`]) share so they resample with
+/// exactly the same Lanczos-3 / Catmull-Rom / bilinear kernels the registration
+/// warp uses, rather than re-deriving them. `data` is interleaved
+/// (`data[y·stride + x·channels + c]`) with `stride == width·channels`.
+#[allow(clippy::too_many_arguments)]
+pub fn sample_interleaved(
+    data: &[f64],
+    width: usize,
+    height: usize,
+    channels: usize,
+    channel: usize,
+    sx: f64,
+    sy: f64,
+    interp: Interpolator,
+) -> f64 {
+    let stride = width * channels;
+    sample(
+        data, width, height, channels, stride, channel, sx, sy, interp,
+    )
+}
+
 /// Separable interpolation with a 1-D kernel of half-width `radius` (taps span
 /// `[-radius+1, radius]` around the floor). Used for both Catmull-Rom (radius 2)
 /// and Lanczos-3 (radius 3).

@@ -6,18 +6,23 @@ mixin _NetworkBackendGuidingOperations on _NetworkBackendTransport {
   // =========================================================================
 
   @override
-  Future<bool> isPhd2Running({String host = 'localhost', int port = 4400}) {
-    // Host-local: this probes a PHD2 event-server socket on the host's
-    // loopback (default localhost:4400). A remote client cannot reach the
-    // host's PHD2 socket, and the headless API exposes no "is PHD2 running"
-    // endpoint — only phd2/connect + phd2/status (which require PHD2 to
-    // already be up). The onboarding test-connection step that calls this is
-    // a local-setup-only flow.
-    throw UnsupportedError(
-      'isPhd2Running is host-local: a remote client cannot probe the host '
-      "PHD2 socket. Use phd2/status against an already-connected PHD2 "
-      'instead.',
-    );
+  Future<bool> isPhd2Running({
+    String host = 'localhost',
+    int port = 4400,
+  }) async {
+    // The PHD2 event-server socket lives on the host's loopback, which a
+    // remote client cannot reach directly. Instead, ask the master to run
+    // the probe on our behalf via GET /api/phd2/running. Older masters that
+    // predate this endpoint return 404 — degrade to "not detected" so the
+    // onboarding test-connection button shows a clean result instead of a
+    // red exception.
+    try {
+      final response = await _get('phd2/running', {'host': host, 'port': port});
+      return response['running'] as bool? ?? false;
+    } on ServerError catch (e) {
+      if (e.httpStatus == 404) return false;
+      rethrow;
+    }
   }
 
   @override
@@ -83,27 +88,34 @@ mixin _NetworkBackendGuidingOperations on _NetworkBackendTransport {
     );
   }
 
-  @override
-  Future<Phd2StarImage> phd2GetStarImage({int size = 50}) async {
-    final response = await _get('phd2/star-image', {'size': size});
-    // Decode pixels from base64
-    final pixelsBase64 = response['pixels'] as String;
-    final pixels = base64Decode(pixelsBase64);
+  /// Decode a star-image JSON envelope (shared by the PHD2 and built-in
+  /// guider star-image routes, which return the same shape). `base64Decode`
+  /// already yields a `Uint8List`, so no extra copy is needed.
+  Phd2StarImage _starImageFromJson(Map<String, dynamic> response) {
     return Phd2StarImage(
       frame: response['frame'] as int,
       width: response['width'] as int,
       height: response['height'] as int,
       starX: (response['starX'] as num).toDouble(),
       starY: (response['starY'] as num).toDouble(),
-      pixels: Uint8List.fromList(pixels),
+      pixels: base64Decode(response['pixels'] as String),
     );
+  }
+
+  @override
+  Future<Phd2StarImage> phd2GetStarImage({int size = 50}) async {
+    final response = await _get('phd2/star-image', {'size': size});
+    return _starImageFromJson(response);
   }
 
   @override
   Future<List<String>> phd2GetAlgoParamNames({required String axis}) async {
     final response = await _get('phd2/algo-params', {'axis': axis});
-    final params = response['params'] as List<dynamic>;
-    return params.map((e) => e as String).toList();
+    // The server (handlePhd2GetAlgoParamNames) emits the list under the key
+    // 'names' (alongside 'axis'); decoding 'params' here always yielded null and
+    // threw on cast. Match the actual response envelope so the names decode.
+    final names = response['names'] as List<dynamic>;
+    return names.map((e) => e as String).toList();
   }
 
   @override
@@ -294,14 +306,7 @@ mixin _NetworkBackendGuidingOperations on _NetworkBackendTransport {
     final response = await _get(
       'guider/star-image?deviceId=${Uri.encodeQueryComponent(deviceId)}&size=$size',
     );
-    return Phd2StarImage(
-      frame: response['frame'] as int,
-      width: response['width'] as int,
-      height: response['height'] as int,
-      starX: (response['starX'] as num).toDouble(),
-      starY: (response['starY'] as num).toDouble(),
-      pixels: base64Decode(response['pixels'] as String),
-    );
+    return _starImageFromJson(response);
   }
 
   @override

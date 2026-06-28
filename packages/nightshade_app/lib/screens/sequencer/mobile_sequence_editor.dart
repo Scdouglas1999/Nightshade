@@ -451,7 +451,7 @@ class _MobileNodeRow extends StatelessWidget {
         margin: EdgeInsets.fromLTRB(16 + row.depth * 16.0, 4, 16, 4),
         decoration: BoxDecoration(
           color: colors.error.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         ),
         child: Icon(
           LucideIcons.trash2,
@@ -462,19 +462,21 @@ class _MobileNodeRow extends StatelessWidget {
       onDismissed: (_) => onDismissed(),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         child: Container(
           margin: EdgeInsets.fromLTRB(16 + row.depth * 16.0, 4, 16, 4),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: isCurrent
               ? NightshadeDecorations.emphasisSurface(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                 )
               : BoxDecoration(
                   color: colors.surface,
                   border: Border.all(color: colors.border),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
           child: Row(
             children: [
@@ -561,7 +563,7 @@ class _StatusBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: NightshadeDecorations.tintedBadge(
         color,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
       ),
       child: Text(
         label,
@@ -728,7 +730,7 @@ class _RecoveryChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: NightshadeDecorations.tintedBadge(
         color,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
       ),
       child: Text(
         label,

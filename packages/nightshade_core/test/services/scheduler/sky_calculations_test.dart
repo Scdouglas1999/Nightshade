@@ -35,6 +35,81 @@ void main() {
     );
   });
 
+  group('SkyCalculations.localSiderealTimeHours', () {
+    // Pinned against Meeus, "Astronomical Algorithms" (2nd ed), Example 12.a/b.
+    // The helper returns LST in hours; GMST (deg) = LST_at_lon0 * 15.
+
+    test('Meeus 12.a: 1987-04-10 00:00 UTC, Greenwich -> GMST 197.693195°', () {
+      final lst = SkyCalculations.localSiderealTimeHours(
+        DateTime.utc(1987, 4, 10, 0, 0, 0),
+        0.0,
+      );
+      // Meeus publishes mean sidereal time 13h 10m 46.3668s = 197.693195°.
+      expect(lst * 15.0, closeTo(197.693195, 1e-4));
+      expect(lst, closeTo(13.1795463, 1e-6));
+    });
+
+    test(
+      'Meeus 12.b: 1987-04-10 19:21:00 UTC, Greenwich -> GMST 128.73787°',
+      () {
+        final lst = SkyCalculations.localSiderealTimeHours(
+          DateTime.utc(1987, 4, 10, 19, 21, 0),
+          0.0,
+        );
+        // Meeus publishes 128.7378734° mean sidereal time.
+        expect(lst * 15.0, closeTo(128.7378732, 1e-4));
+      },
+    );
+
+    test('J2000 epoch 2000-01-01 12:00 UTC, Greenwich -> 18.697375 h', () {
+      final lst = SkyCalculations.localSiderealTimeHours(
+        DateTime.utc(2000, 1, 1, 12, 0, 0),
+        0.0,
+      );
+      expect(lst, closeTo(18.697375, 1e-5));
+    });
+
+    test('longitude sign convention: east-positive shifts LST forward', () {
+      final t = DateTime.utc(2020, 6, 21, 4, 0, 0);
+      final atGreenwich = SkyCalculations.localSiderealTimeHours(t, 0.0);
+      // -105.2705° (west) should be earlier in sidereal hours by lon/15,
+      // modulo the 24h wrap.
+      final atBoulder = SkyCalculations.localSiderealTimeHours(t, -105.2705);
+      final expectedBoulder = (atGreenwich - 105.2705 / 15.0 + 24.0) % 24.0;
+      expect(atBoulder, closeTo(expectedBoulder, 1e-9));
+      // Concrete pinned value for the Boulder case.
+      expect(atBoulder, closeTo(14.9697962, 1e-5));
+    });
+
+    test('matches the scheduler engine longitude convention (lon/15 added)', () {
+      // The scheduler engine (authoritative live path) historically computed
+      // `lst = gmst/15 + longitude/15`. Verify the shared helper does the same
+      // so HourAngleBetween triggers and meridian timing are unchanged.
+      final t = DateTime.utc(2023, 9, 15, 22, 30, 0);
+      const lon = 12.5; // east
+      final viaHelper = SkyCalculations.localSiderealTimeHours(t, lon);
+      final atZero = SkyCalculations.localSiderealTimeHours(t, 0.0);
+      expect(viaHelper, closeTo((atZero + lon / 15.0) % 24.0, 1e-9));
+    });
+  });
+
+  group('SkyCalculations.hourAngleHours', () {
+    test('HA = LST - RA, positive means west of meridian', () {
+      expect(SkyCalculations.hourAngleHours(10.0, 12.0), closeTo(2.0, 1e-12));
+    });
+
+    test('normalizes to (-12, +12]', () {
+      // RA just east, LST near 0 -> wraps to a small positive HA.
+      expect(SkyCalculations.hourAngleHours(23.0, 1.0), closeTo(2.0, 1e-12));
+      // RA far west of LST -> wraps to a negative HA.
+      expect(SkyCalculations.hourAngleHours(1.0, 14.0), closeTo(-11.0, 1e-12));
+      // Exactly +12 stays +12 (lower-exclusive at -12).
+      expect(SkyCalculations.hourAngleHours(0.0, 12.0), closeTo(12.0, 1e-12));
+      // Exactly -12 wraps up to +12.
+      expect(SkyCalculations.hourAngleHours(12.0, 0.0), closeTo(12.0, 1e-12));
+    });
+  });
+
   group('SkyCalculations.sunAltAz', () {
     // NOAA Solar Calculator reference values for Boulder, CO
     // (lat 40.0150, lon -105.2705) on 2020-06-21 (summer solstice).

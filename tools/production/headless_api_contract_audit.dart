@@ -32,6 +32,8 @@ const _networkBackendContractTestPath =
     'apps/desktop/test/headless_api/network_backend_contract_test.dart';
 const _remoteApiCompatibilityPath =
     'packages/nightshade_core/lib/src/models/backend/remote_api_compatibility.dart';
+const _serverCompatibilityPath =
+    'packages/nightshade_remote_protocol/lib/src/server_compatibility.dart';
 const _remoteApiCompatibilityTestPath =
     'packages/nightshade_core/test/models/remote_api_compatibility_test.dart';
 const _headlessAuthMiddlewareTestPath =
@@ -86,6 +88,7 @@ void main(List<String> args) {
       .readAsStringSync();
   final versionNegotiationCoverage = _versionNegotiationCoverage(
     remoteApiCompatibilitySource: _readSource(_remoteApiCompatibilityPath),
+    serverCompatibilitySource: _readSource(_serverCompatibilityPath),
     remoteApiCompatibilityTestSource: _readSource(
       _remoteApiCompatibilityTestPath,
     ),
@@ -356,6 +359,7 @@ Map<String, bool> _networkBackendContractCoverage(String source) {
 
 Map<String, bool> _versionNegotiationCoverage({
   required String remoteApiCompatibilitySource,
+  required String serverCompatibilitySource,
   required String remoteApiCompatibilityTestSource,
   required String headlessAuthMiddlewareTestSource,
   required String networkBackendSource,
@@ -364,16 +368,23 @@ Map<String, bool> _versionNegotiationCoverage({
 }) {
   final normalizedApiDocsSource = apiDocsSource.replaceAll(RegExp(r'\s+'), ' ');
   return {
+    // MOBILE-002: the core compatibility model now delegates to the single
+    // NightshadeServerCompatibility policy so the two cannot diverge. Verify
+    // the delegation here and pin the 2.4.0 floor + the three rejection codes
+    // in that single source of truth (value unchanged from the prior literal).
     'shared_compatibility_policy':
         remoteApiCompatibilitySource.contains(
-          'minimumSupportedVersion = SemanticVersion(2, 4, 0)',
+          'NightshadeServerCompatibility.minimumSupportedVersion',
         ) &&
         remoteApiCompatibilitySource.contains(
-          'serverApiVersion = SemanticVersion(',
+          'NightshadeServerCompatibility.check',
         ) &&
-        remoteApiCompatibilitySource.contains('server_too_old') &&
-        remoteApiCompatibilitySource.contains('server_too_new') &&
-        remoteApiCompatibilitySource.contains('client_too_old'),
+        serverCompatibilitySource.contains(
+          'minimumSupportedVersion = ServerSemanticVersion(2, 4, 0)',
+        ) &&
+        serverCompatibilitySource.contains('server_too_old') &&
+        serverCompatibilitySource.contains('server_too_new') &&
+        serverCompatibilitySource.contains('client_too_old'),
     'shared_compatibility_tests':
         remoteApiCompatibilityTestSource.contains(
           'rejects old servers with a clear code and message',

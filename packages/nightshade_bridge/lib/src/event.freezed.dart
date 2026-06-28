@@ -55,7 +55,7 @@ extension EquipmentEventPatterns on EquipmentEvent {
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( EquipmentEvent_Connecting value)?  connecting,TResult Function( EquipmentEvent_Connected value)?  connected,TResult Function( EquipmentEvent_Disconnected value)?  disconnected,TResult Function( EquipmentEvent_PropertyChanged value)?  propertyChanged,TResult Function( EquipmentEvent_Error value)?  error,TResult Function( EquipmentEvent_MountSlewStarted value)?  mountSlewStarted,TResult Function( EquipmentEvent_MountSlewCompleted value)?  mountSlewCompleted,TResult Function( EquipmentEvent_MountTrackingStarted value)?  mountTrackingStarted,TResult Function( EquipmentEvent_MountTrackingStopped value)?  mountTrackingStopped,TResult Function( EquipmentEvent_MountParkStarted value)?  mountParkStarted,TResult Function( EquipmentEvent_MountParkCompleted value)?  mountParkCompleted,TResult Function( EquipmentEvent_MountUnparked value)?  mountUnparked,TResult Function( EquipmentEvent_FocuserMoveStarted value)?  focuserMoveStarted,TResult Function( EquipmentEvent_FocuserMoveCompleted value)?  focuserMoveCompleted,TResult Function( EquipmentEvent_FocuserTemperatureChanged value)?  focuserTemperatureChanged,TResult Function( EquipmentEvent_FilterChanging value)?  filterChanging,TResult Function( EquipmentEvent_FilterChanged value)?  filterChanged,TResult Function( EquipmentEvent_RotatorMoveStarted value)?  rotatorMoveStarted,TResult Function( EquipmentEvent_RotatorMoveCompleted value)?  rotatorMoveCompleted,TResult Function( EquipmentEvent_CameraCoolingStarted value)?  cameraCoolingStarted,TResult Function( EquipmentEvent_CameraCoolingReached value)?  cameraCoolingReached,TResult Function( EquipmentEvent_CameraWarmingStarted value)?  cameraWarmingStarted,TResult Function( EquipmentEvent_CameraWarmingCompleted value)?  cameraWarmingCompleted,TResult Function( EquipmentEvent_HeartbeatStarted value)?  heartbeatStarted,TResult Function( EquipmentEvent_HeartbeatStopped value)?  heartbeatStopped,TResult Function( EquipmentEvent_HeartbeatStatusChanged value)?  heartbeatStatusChanged,TResult Function( EquipmentEvent_HeartbeatReconnecting value)?  heartbeatReconnecting,TResult Function( EquipmentEvent_HeartbeatReconnected value)?  heartbeatReconnected,required TResult orElse(),}){
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>({TResult Function( EquipmentEvent_Connecting value)?  connecting,TResult Function( EquipmentEvent_Connected value)?  connected,TResult Function( EquipmentEvent_Disconnected value)?  disconnected,TResult Function( EquipmentEvent_PropertyChanged value)?  propertyChanged,TResult Function( EquipmentEvent_Error value)?  error,TResult Function( EquipmentEvent_MountSlewStarted value)?  mountSlewStarted,TResult Function( EquipmentEvent_MountSlewCompleted value)?  mountSlewCompleted,TResult Function( EquipmentEvent_MountTrackingStarted value)?  mountTrackingStarted,TResult Function( EquipmentEvent_MountTrackingStopped value)?  mountTrackingStopped,TResult Function( EquipmentEvent_MountParkStarted value)?  mountParkStarted,TResult Function( EquipmentEvent_MountParkCompleted value)?  mountParkCompleted,TResult Function( EquipmentEvent_MountUnparked value)?  mountUnparked,TResult Function( EquipmentEvent_FocuserMoveStarted value)?  focuserMoveStarted,TResult Function( EquipmentEvent_FocuserMoveCompleted value)?  focuserMoveCompleted,TResult Function( EquipmentEvent_FocuserTemperatureChanged value)?  focuserTemperatureChanged,TResult Function( EquipmentEvent_FilterChanging value)?  filterChanging,TResult Function( EquipmentEvent_FilterChanged value)?  filterChanged,TResult Function( EquipmentEvent_RotatorMoveStarted value)?  rotatorMoveStarted,TResult Function( EquipmentEvent_RotatorMoveCompleted value)?  rotatorMoveCompleted,TResult Function( EquipmentEvent_CameraCoolingStarted value)?  cameraCoolingStarted,TResult Function( EquipmentEvent_CameraCoolingReached value)?  cameraCoolingReached,TResult Function( EquipmentEvent_CameraWarmingStarted value)?  cameraWarmingStarted,TResult Function( EquipmentEvent_CameraWarmingCompleted value)?  cameraWarmingCompleted,TResult Function( EquipmentEvent_HeartbeatStarted value)?  heartbeatStarted,TResult Function( EquipmentEvent_HeartbeatStopped value)?  heartbeatStopped,TResult Function( EquipmentEvent_HeartbeatStatusChanged value)?  heartbeatStatusChanged,TResult Function( EquipmentEvent_HeartbeatReconnecting value)?  heartbeatReconnecting,TResult Function( EquipmentEvent_HeartbeatReconnected value)?  heartbeatReconnected,TResult Function( EquipmentEvent_DeviceDiscovered value)?  deviceDiscovered,TResult Function( EquipmentEvent_DeviceLost value)?  deviceLost,required TResult orElse(),}){
 final _that = this;
 switch (_that) {
 case EquipmentEvent_Connecting() when connecting != null:
@@ -86,7 +86,9 @@ return heartbeatStarted(_that);case EquipmentEvent_HeartbeatStopped() when heart
 return heartbeatStopped(_that);case EquipmentEvent_HeartbeatStatusChanged() when heartbeatStatusChanged != null:
 return heartbeatStatusChanged(_that);case EquipmentEvent_HeartbeatReconnecting() when heartbeatReconnecting != null:
 return heartbeatReconnecting(_that);case EquipmentEvent_HeartbeatReconnected() when heartbeatReconnected != null:
-return heartbeatReconnected(_that);case _:
+return heartbeatReconnected(_that);case EquipmentEvent_DeviceDiscovered() when deviceDiscovered != null:
+return deviceDiscovered(_that);case EquipmentEvent_DeviceLost() when deviceLost != null:
+return deviceLost(_that);case _:
   return orElse();
 
 }
@@ -104,7 +106,7 @@ return heartbeatReconnected(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( EquipmentEvent_Connecting value)  connecting,required TResult Function( EquipmentEvent_Connected value)  connected,required TResult Function( EquipmentEvent_Disconnected value)  disconnected,required TResult Function( EquipmentEvent_PropertyChanged value)  propertyChanged,required TResult Function( EquipmentEvent_Error value)  error,required TResult Function( EquipmentEvent_MountSlewStarted value)  mountSlewStarted,required TResult Function( EquipmentEvent_MountSlewCompleted value)  mountSlewCompleted,required TResult Function( EquipmentEvent_MountTrackingStarted value)  mountTrackingStarted,required TResult Function( EquipmentEvent_MountTrackingStopped value)  mountTrackingStopped,required TResult Function( EquipmentEvent_MountParkStarted value)  mountParkStarted,required TResult Function( EquipmentEvent_MountParkCompleted value)  mountParkCompleted,required TResult Function( EquipmentEvent_MountUnparked value)  mountUnparked,required TResult Function( EquipmentEvent_FocuserMoveStarted value)  focuserMoveStarted,required TResult Function( EquipmentEvent_FocuserMoveCompleted value)  focuserMoveCompleted,required TResult Function( EquipmentEvent_FocuserTemperatureChanged value)  focuserTemperatureChanged,required TResult Function( EquipmentEvent_FilterChanging value)  filterChanging,required TResult Function( EquipmentEvent_FilterChanged value)  filterChanged,required TResult Function( EquipmentEvent_RotatorMoveStarted value)  rotatorMoveStarted,required TResult Function( EquipmentEvent_RotatorMoveCompleted value)  rotatorMoveCompleted,required TResult Function( EquipmentEvent_CameraCoolingStarted value)  cameraCoolingStarted,required TResult Function( EquipmentEvent_CameraCoolingReached value)  cameraCoolingReached,required TResult Function( EquipmentEvent_CameraWarmingStarted value)  cameraWarmingStarted,required TResult Function( EquipmentEvent_CameraWarmingCompleted value)  cameraWarmingCompleted,required TResult Function( EquipmentEvent_HeartbeatStarted value)  heartbeatStarted,required TResult Function( EquipmentEvent_HeartbeatStopped value)  heartbeatStopped,required TResult Function( EquipmentEvent_HeartbeatStatusChanged value)  heartbeatStatusChanged,required TResult Function( EquipmentEvent_HeartbeatReconnecting value)  heartbeatReconnecting,required TResult Function( EquipmentEvent_HeartbeatReconnected value)  heartbeatReconnected,}){
+@optionalTypeArgs TResult map<TResult extends Object?>({required TResult Function( EquipmentEvent_Connecting value)  connecting,required TResult Function( EquipmentEvent_Connected value)  connected,required TResult Function( EquipmentEvent_Disconnected value)  disconnected,required TResult Function( EquipmentEvent_PropertyChanged value)  propertyChanged,required TResult Function( EquipmentEvent_Error value)  error,required TResult Function( EquipmentEvent_MountSlewStarted value)  mountSlewStarted,required TResult Function( EquipmentEvent_MountSlewCompleted value)  mountSlewCompleted,required TResult Function( EquipmentEvent_MountTrackingStarted value)  mountTrackingStarted,required TResult Function( EquipmentEvent_MountTrackingStopped value)  mountTrackingStopped,required TResult Function( EquipmentEvent_MountParkStarted value)  mountParkStarted,required TResult Function( EquipmentEvent_MountParkCompleted value)  mountParkCompleted,required TResult Function( EquipmentEvent_MountUnparked value)  mountUnparked,required TResult Function( EquipmentEvent_FocuserMoveStarted value)  focuserMoveStarted,required TResult Function( EquipmentEvent_FocuserMoveCompleted value)  focuserMoveCompleted,required TResult Function( EquipmentEvent_FocuserTemperatureChanged value)  focuserTemperatureChanged,required TResult Function( EquipmentEvent_FilterChanging value)  filterChanging,required TResult Function( EquipmentEvent_FilterChanged value)  filterChanged,required TResult Function( EquipmentEvent_RotatorMoveStarted value)  rotatorMoveStarted,required TResult Function( EquipmentEvent_RotatorMoveCompleted value)  rotatorMoveCompleted,required TResult Function( EquipmentEvent_CameraCoolingStarted value)  cameraCoolingStarted,required TResult Function( EquipmentEvent_CameraCoolingReached value)  cameraCoolingReached,required TResult Function( EquipmentEvent_CameraWarmingStarted value)  cameraWarmingStarted,required TResult Function( EquipmentEvent_CameraWarmingCompleted value)  cameraWarmingCompleted,required TResult Function( EquipmentEvent_HeartbeatStarted value)  heartbeatStarted,required TResult Function( EquipmentEvent_HeartbeatStopped value)  heartbeatStopped,required TResult Function( EquipmentEvent_HeartbeatStatusChanged value)  heartbeatStatusChanged,required TResult Function( EquipmentEvent_HeartbeatReconnecting value)  heartbeatReconnecting,required TResult Function( EquipmentEvent_HeartbeatReconnected value)  heartbeatReconnected,required TResult Function( EquipmentEvent_DeviceDiscovered value)  deviceDiscovered,required TResult Function( EquipmentEvent_DeviceLost value)  deviceLost,}){
 final _that = this;
 switch (_that) {
 case EquipmentEvent_Connecting():
@@ -135,7 +137,9 @@ return heartbeatStarted(_that);case EquipmentEvent_HeartbeatStopped():
 return heartbeatStopped(_that);case EquipmentEvent_HeartbeatStatusChanged():
 return heartbeatStatusChanged(_that);case EquipmentEvent_HeartbeatReconnecting():
 return heartbeatReconnecting(_that);case EquipmentEvent_HeartbeatReconnected():
-return heartbeatReconnected(_that);}
+return heartbeatReconnected(_that);case EquipmentEvent_DeviceDiscovered():
+return deviceDiscovered(_that);case EquipmentEvent_DeviceLost():
+return deviceLost(_that);}
 }
 /// A variant of `map` that fallback to returning `null`.
 ///
@@ -149,7 +153,7 @@ return heartbeatReconnected(_that);}
 /// }
 /// ```
 
-@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( EquipmentEvent_Connecting value)?  connecting,TResult? Function( EquipmentEvent_Connected value)?  connected,TResult? Function( EquipmentEvent_Disconnected value)?  disconnected,TResult? Function( EquipmentEvent_PropertyChanged value)?  propertyChanged,TResult? Function( EquipmentEvent_Error value)?  error,TResult? Function( EquipmentEvent_MountSlewStarted value)?  mountSlewStarted,TResult? Function( EquipmentEvent_MountSlewCompleted value)?  mountSlewCompleted,TResult? Function( EquipmentEvent_MountTrackingStarted value)?  mountTrackingStarted,TResult? Function( EquipmentEvent_MountTrackingStopped value)?  mountTrackingStopped,TResult? Function( EquipmentEvent_MountParkStarted value)?  mountParkStarted,TResult? Function( EquipmentEvent_MountParkCompleted value)?  mountParkCompleted,TResult? Function( EquipmentEvent_MountUnparked value)?  mountUnparked,TResult? Function( EquipmentEvent_FocuserMoveStarted value)?  focuserMoveStarted,TResult? Function( EquipmentEvent_FocuserMoveCompleted value)?  focuserMoveCompleted,TResult? Function( EquipmentEvent_FocuserTemperatureChanged value)?  focuserTemperatureChanged,TResult? Function( EquipmentEvent_FilterChanging value)?  filterChanging,TResult? Function( EquipmentEvent_FilterChanged value)?  filterChanged,TResult? Function( EquipmentEvent_RotatorMoveStarted value)?  rotatorMoveStarted,TResult? Function( EquipmentEvent_RotatorMoveCompleted value)?  rotatorMoveCompleted,TResult? Function( EquipmentEvent_CameraCoolingStarted value)?  cameraCoolingStarted,TResult? Function( EquipmentEvent_CameraCoolingReached value)?  cameraCoolingReached,TResult? Function( EquipmentEvent_CameraWarmingStarted value)?  cameraWarmingStarted,TResult? Function( EquipmentEvent_CameraWarmingCompleted value)?  cameraWarmingCompleted,TResult? Function( EquipmentEvent_HeartbeatStarted value)?  heartbeatStarted,TResult? Function( EquipmentEvent_HeartbeatStopped value)?  heartbeatStopped,TResult? Function( EquipmentEvent_HeartbeatStatusChanged value)?  heartbeatStatusChanged,TResult? Function( EquipmentEvent_HeartbeatReconnecting value)?  heartbeatReconnecting,TResult? Function( EquipmentEvent_HeartbeatReconnected value)?  heartbeatReconnected,}){
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>({TResult? Function( EquipmentEvent_Connecting value)?  connecting,TResult? Function( EquipmentEvent_Connected value)?  connected,TResult? Function( EquipmentEvent_Disconnected value)?  disconnected,TResult? Function( EquipmentEvent_PropertyChanged value)?  propertyChanged,TResult? Function( EquipmentEvent_Error value)?  error,TResult? Function( EquipmentEvent_MountSlewStarted value)?  mountSlewStarted,TResult? Function( EquipmentEvent_MountSlewCompleted value)?  mountSlewCompleted,TResult? Function( EquipmentEvent_MountTrackingStarted value)?  mountTrackingStarted,TResult? Function( EquipmentEvent_MountTrackingStopped value)?  mountTrackingStopped,TResult? Function( EquipmentEvent_MountParkStarted value)?  mountParkStarted,TResult? Function( EquipmentEvent_MountParkCompleted value)?  mountParkCompleted,TResult? Function( EquipmentEvent_MountUnparked value)?  mountUnparked,TResult? Function( EquipmentEvent_FocuserMoveStarted value)?  focuserMoveStarted,TResult? Function( EquipmentEvent_FocuserMoveCompleted value)?  focuserMoveCompleted,TResult? Function( EquipmentEvent_FocuserTemperatureChanged value)?  focuserTemperatureChanged,TResult? Function( EquipmentEvent_FilterChanging value)?  filterChanging,TResult? Function( EquipmentEvent_FilterChanged value)?  filterChanged,TResult? Function( EquipmentEvent_RotatorMoveStarted value)?  rotatorMoveStarted,TResult? Function( EquipmentEvent_RotatorMoveCompleted value)?  rotatorMoveCompleted,TResult? Function( EquipmentEvent_CameraCoolingStarted value)?  cameraCoolingStarted,TResult? Function( EquipmentEvent_CameraCoolingReached value)?  cameraCoolingReached,TResult? Function( EquipmentEvent_CameraWarmingStarted value)?  cameraWarmingStarted,TResult? Function( EquipmentEvent_CameraWarmingCompleted value)?  cameraWarmingCompleted,TResult? Function( EquipmentEvent_HeartbeatStarted value)?  heartbeatStarted,TResult? Function( EquipmentEvent_HeartbeatStopped value)?  heartbeatStopped,TResult? Function( EquipmentEvent_HeartbeatStatusChanged value)?  heartbeatStatusChanged,TResult? Function( EquipmentEvent_HeartbeatReconnecting value)?  heartbeatReconnecting,TResult? Function( EquipmentEvent_HeartbeatReconnected value)?  heartbeatReconnected,TResult? Function( EquipmentEvent_DeviceDiscovered value)?  deviceDiscovered,TResult? Function( EquipmentEvent_DeviceLost value)?  deviceLost,}){
 final _that = this;
 switch (_that) {
 case EquipmentEvent_Connecting() when connecting != null:
@@ -180,7 +184,9 @@ return heartbeatStarted(_that);case EquipmentEvent_HeartbeatStopped() when heart
 return heartbeatStopped(_that);case EquipmentEvent_HeartbeatStatusChanged() when heartbeatStatusChanged != null:
 return heartbeatStatusChanged(_that);case EquipmentEvent_HeartbeatReconnecting() when heartbeatReconnecting != null:
 return heartbeatReconnecting(_that);case EquipmentEvent_HeartbeatReconnected() when heartbeatReconnected != null:
-return heartbeatReconnected(_that);case _:
+return heartbeatReconnected(_that);case EquipmentEvent_DeviceDiscovered() when deviceDiscovered != null:
+return deviceDiscovered(_that);case EquipmentEvent_DeviceLost() when deviceLost != null:
+return deviceLost(_that);case _:
   return null;
 
 }
@@ -197,7 +203,7 @@ return heartbeatReconnected(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String deviceType,  String deviceId)?  connecting,TResult Function( String deviceType,  String deviceId)?  connected,TResult Function( String deviceType,  String deviceId)?  disconnected,TResult Function( String deviceType,  String deviceId,  String property,  String value)?  propertyChanged,TResult Function( String deviceType,  String deviceId,  String message)?  error,TResult Function( double ra,  double dec)?  mountSlewStarted,TResult Function( double ra,  double dec)?  mountSlewCompleted,TResult Function()?  mountTrackingStarted,TResult Function()?  mountTrackingStopped,TResult Function()?  mountParkStarted,TResult Function()?  mountParkCompleted,TResult Function()?  mountUnparked,TResult Function( int targetPosition)?  focuserMoveStarted,TResult Function( int position)?  focuserMoveCompleted,TResult Function( double temperature)?  focuserTemperatureChanged,TResult Function( int fromPosition,  int toPosition,  String? filterName)?  filterChanging,TResult Function( int position,  String? filterName)?  filterChanged,TResult Function( double targetAngle)?  rotatorMoveStarted,TResult Function( double angle)?  rotatorMoveCompleted,TResult Function( double targetTemp)?  cameraCoolingStarted,TResult Function( double temperature)?  cameraCoolingReached,TResult Function()?  cameraWarmingStarted,TResult Function()?  cameraWarmingCompleted,TResult Function( String deviceType,  String deviceId,  BigInt intervalSecs)?  heartbeatStarted,TResult Function( String deviceType,  String deviceId)?  heartbeatStopped,TResult Function( String deviceType,  String deviceId,  HeartbeatStatus status,  int consecutiveFailures,  BigInt? lastRttMs)?  heartbeatStatusChanged,TResult Function( String deviceType,  String deviceId,  int attempt,  int maxAttempts)?  heartbeatReconnecting,TResult Function( String deviceType,  String deviceId,  int afterAttempts)?  heartbeatReconnected,required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>({TResult Function( String deviceType,  String deviceId)?  connecting,TResult Function( String deviceType,  String deviceId)?  connected,TResult Function( String deviceType,  String deviceId)?  disconnected,TResult Function( String deviceType,  String deviceId,  String property,  String value)?  propertyChanged,TResult Function( String deviceType,  String deviceId,  String message)?  error,TResult Function( double ra,  double dec)?  mountSlewStarted,TResult Function( double ra,  double dec)?  mountSlewCompleted,TResult Function()?  mountTrackingStarted,TResult Function()?  mountTrackingStopped,TResult Function()?  mountParkStarted,TResult Function()?  mountParkCompleted,TResult Function()?  mountUnparked,TResult Function( int targetPosition)?  focuserMoveStarted,TResult Function( int position)?  focuserMoveCompleted,TResult Function( double temperature)?  focuserTemperatureChanged,TResult Function( int fromPosition,  int toPosition,  String? filterName)?  filterChanging,TResult Function( int position,  String? filterName)?  filterChanged,TResult Function( double targetAngle)?  rotatorMoveStarted,TResult Function( double angle)?  rotatorMoveCompleted,TResult Function( double targetTemp)?  cameraCoolingStarted,TResult Function( double temperature)?  cameraCoolingReached,TResult Function()?  cameraWarmingStarted,TResult Function()?  cameraWarmingCompleted,TResult Function( String deviceType,  String deviceId,  BigInt intervalSecs)?  heartbeatStarted,TResult Function( String deviceType,  String deviceId)?  heartbeatStopped,TResult Function( String deviceType,  String deviceId,  HeartbeatStatus status,  int consecutiveFailures,  BigInt? lastRttMs)?  heartbeatStatusChanged,TResult Function( String deviceType,  String deviceId,  int attempt,  int maxAttempts)?  heartbeatReconnecting,TResult Function( String deviceType,  String deviceId,  int afterAttempts)?  heartbeatReconnected,TResult Function( String deviceClass,  String driver,  String id,  String name,  String displayName,  String? uniqueId)?  deviceDiscovered,TResult Function( String deviceClass,  String driver,  String id)?  deviceLost,required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case EquipmentEvent_Connecting() when connecting != null:
 return connecting(_that.deviceType,_that.deviceId);case EquipmentEvent_Connected() when connected != null:
@@ -227,7 +233,9 @@ return heartbeatStarted(_that.deviceType,_that.deviceId,_that.intervalSecs);case
 return heartbeatStopped(_that.deviceType,_that.deviceId);case EquipmentEvent_HeartbeatStatusChanged() when heartbeatStatusChanged != null:
 return heartbeatStatusChanged(_that.deviceType,_that.deviceId,_that.status,_that.consecutiveFailures,_that.lastRttMs);case EquipmentEvent_HeartbeatReconnecting() when heartbeatReconnecting != null:
 return heartbeatReconnecting(_that.deviceType,_that.deviceId,_that.attempt,_that.maxAttempts);case EquipmentEvent_HeartbeatReconnected() when heartbeatReconnected != null:
-return heartbeatReconnected(_that.deviceType,_that.deviceId,_that.afterAttempts);case _:
+return heartbeatReconnected(_that.deviceType,_that.deviceId,_that.afterAttempts);case EquipmentEvent_DeviceDiscovered() when deviceDiscovered != null:
+return deviceDiscovered(_that.deviceClass,_that.driver,_that.id,_that.name,_that.displayName,_that.uniqueId);case EquipmentEvent_DeviceLost() when deviceLost != null:
+return deviceLost(_that.deviceClass,_that.driver,_that.id);case _:
   return orElse();
 
 }
@@ -245,7 +253,7 @@ return heartbeatReconnected(_that.deviceType,_that.deviceId,_that.afterAttempts)
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String deviceType,  String deviceId)  connecting,required TResult Function( String deviceType,  String deviceId)  connected,required TResult Function( String deviceType,  String deviceId)  disconnected,required TResult Function( String deviceType,  String deviceId,  String property,  String value)  propertyChanged,required TResult Function( String deviceType,  String deviceId,  String message)  error,required TResult Function( double ra,  double dec)  mountSlewStarted,required TResult Function( double ra,  double dec)  mountSlewCompleted,required TResult Function()  mountTrackingStarted,required TResult Function()  mountTrackingStopped,required TResult Function()  mountParkStarted,required TResult Function()  mountParkCompleted,required TResult Function()  mountUnparked,required TResult Function( int targetPosition)  focuserMoveStarted,required TResult Function( int position)  focuserMoveCompleted,required TResult Function( double temperature)  focuserTemperatureChanged,required TResult Function( int fromPosition,  int toPosition,  String? filterName)  filterChanging,required TResult Function( int position,  String? filterName)  filterChanged,required TResult Function( double targetAngle)  rotatorMoveStarted,required TResult Function( double angle)  rotatorMoveCompleted,required TResult Function( double targetTemp)  cameraCoolingStarted,required TResult Function( double temperature)  cameraCoolingReached,required TResult Function()  cameraWarmingStarted,required TResult Function()  cameraWarmingCompleted,required TResult Function( String deviceType,  String deviceId,  BigInt intervalSecs)  heartbeatStarted,required TResult Function( String deviceType,  String deviceId)  heartbeatStopped,required TResult Function( String deviceType,  String deviceId,  HeartbeatStatus status,  int consecutiveFailures,  BigInt? lastRttMs)  heartbeatStatusChanged,required TResult Function( String deviceType,  String deviceId,  int attempt,  int maxAttempts)  heartbeatReconnecting,required TResult Function( String deviceType,  String deviceId,  int afterAttempts)  heartbeatReconnected,}) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>({required TResult Function( String deviceType,  String deviceId)  connecting,required TResult Function( String deviceType,  String deviceId)  connected,required TResult Function( String deviceType,  String deviceId)  disconnected,required TResult Function( String deviceType,  String deviceId,  String property,  String value)  propertyChanged,required TResult Function( String deviceType,  String deviceId,  String message)  error,required TResult Function( double ra,  double dec)  mountSlewStarted,required TResult Function( double ra,  double dec)  mountSlewCompleted,required TResult Function()  mountTrackingStarted,required TResult Function()  mountTrackingStopped,required TResult Function()  mountParkStarted,required TResult Function()  mountParkCompleted,required TResult Function()  mountUnparked,required TResult Function( int targetPosition)  focuserMoveStarted,required TResult Function( int position)  focuserMoveCompleted,required TResult Function( double temperature)  focuserTemperatureChanged,required TResult Function( int fromPosition,  int toPosition,  String? filterName)  filterChanging,required TResult Function( int position,  String? filterName)  filterChanged,required TResult Function( double targetAngle)  rotatorMoveStarted,required TResult Function( double angle)  rotatorMoveCompleted,required TResult Function( double targetTemp)  cameraCoolingStarted,required TResult Function( double temperature)  cameraCoolingReached,required TResult Function()  cameraWarmingStarted,required TResult Function()  cameraWarmingCompleted,required TResult Function( String deviceType,  String deviceId,  BigInt intervalSecs)  heartbeatStarted,required TResult Function( String deviceType,  String deviceId)  heartbeatStopped,required TResult Function( String deviceType,  String deviceId,  HeartbeatStatus status,  int consecutiveFailures,  BigInt? lastRttMs)  heartbeatStatusChanged,required TResult Function( String deviceType,  String deviceId,  int attempt,  int maxAttempts)  heartbeatReconnecting,required TResult Function( String deviceType,  String deviceId,  int afterAttempts)  heartbeatReconnected,required TResult Function( String deviceClass,  String driver,  String id,  String name,  String displayName,  String? uniqueId)  deviceDiscovered,required TResult Function( String deviceClass,  String driver,  String id)  deviceLost,}) {final _that = this;
 switch (_that) {
 case EquipmentEvent_Connecting():
 return connecting(_that.deviceType,_that.deviceId);case EquipmentEvent_Connected():
@@ -275,7 +283,9 @@ return heartbeatStarted(_that.deviceType,_that.deviceId,_that.intervalSecs);case
 return heartbeatStopped(_that.deviceType,_that.deviceId);case EquipmentEvent_HeartbeatStatusChanged():
 return heartbeatStatusChanged(_that.deviceType,_that.deviceId,_that.status,_that.consecutiveFailures,_that.lastRttMs);case EquipmentEvent_HeartbeatReconnecting():
 return heartbeatReconnecting(_that.deviceType,_that.deviceId,_that.attempt,_that.maxAttempts);case EquipmentEvent_HeartbeatReconnected():
-return heartbeatReconnected(_that.deviceType,_that.deviceId,_that.afterAttempts);}
+return heartbeatReconnected(_that.deviceType,_that.deviceId,_that.afterAttempts);case EquipmentEvent_DeviceDiscovered():
+return deviceDiscovered(_that.deviceClass,_that.driver,_that.id,_that.name,_that.displayName,_that.uniqueId);case EquipmentEvent_DeviceLost():
+return deviceLost(_that.deviceClass,_that.driver,_that.id);}
 }
 /// A variant of `when` that fallback to returning `null`
 ///
@@ -289,7 +299,7 @@ return heartbeatReconnected(_that.deviceType,_that.deviceId,_that.afterAttempts)
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String deviceType,  String deviceId)?  connecting,TResult? Function( String deviceType,  String deviceId)?  connected,TResult? Function( String deviceType,  String deviceId)?  disconnected,TResult? Function( String deviceType,  String deviceId,  String property,  String value)?  propertyChanged,TResult? Function( String deviceType,  String deviceId,  String message)?  error,TResult? Function( double ra,  double dec)?  mountSlewStarted,TResult? Function( double ra,  double dec)?  mountSlewCompleted,TResult? Function()?  mountTrackingStarted,TResult? Function()?  mountTrackingStopped,TResult? Function()?  mountParkStarted,TResult? Function()?  mountParkCompleted,TResult? Function()?  mountUnparked,TResult? Function( int targetPosition)?  focuserMoveStarted,TResult? Function( int position)?  focuserMoveCompleted,TResult? Function( double temperature)?  focuserTemperatureChanged,TResult? Function( int fromPosition,  int toPosition,  String? filterName)?  filterChanging,TResult? Function( int position,  String? filterName)?  filterChanged,TResult? Function( double targetAngle)?  rotatorMoveStarted,TResult? Function( double angle)?  rotatorMoveCompleted,TResult? Function( double targetTemp)?  cameraCoolingStarted,TResult? Function( double temperature)?  cameraCoolingReached,TResult? Function()?  cameraWarmingStarted,TResult? Function()?  cameraWarmingCompleted,TResult? Function( String deviceType,  String deviceId,  BigInt intervalSecs)?  heartbeatStarted,TResult? Function( String deviceType,  String deviceId)?  heartbeatStopped,TResult? Function( String deviceType,  String deviceId,  HeartbeatStatus status,  int consecutiveFailures,  BigInt? lastRttMs)?  heartbeatStatusChanged,TResult? Function( String deviceType,  String deviceId,  int attempt,  int maxAttempts)?  heartbeatReconnecting,TResult? Function( String deviceType,  String deviceId,  int afterAttempts)?  heartbeatReconnected,}) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>({TResult? Function( String deviceType,  String deviceId)?  connecting,TResult? Function( String deviceType,  String deviceId)?  connected,TResult? Function( String deviceType,  String deviceId)?  disconnected,TResult? Function( String deviceType,  String deviceId,  String property,  String value)?  propertyChanged,TResult? Function( String deviceType,  String deviceId,  String message)?  error,TResult? Function( double ra,  double dec)?  mountSlewStarted,TResult? Function( double ra,  double dec)?  mountSlewCompleted,TResult? Function()?  mountTrackingStarted,TResult? Function()?  mountTrackingStopped,TResult? Function()?  mountParkStarted,TResult? Function()?  mountParkCompleted,TResult? Function()?  mountUnparked,TResult? Function( int targetPosition)?  focuserMoveStarted,TResult? Function( int position)?  focuserMoveCompleted,TResult? Function( double temperature)?  focuserTemperatureChanged,TResult? Function( int fromPosition,  int toPosition,  String? filterName)?  filterChanging,TResult? Function( int position,  String? filterName)?  filterChanged,TResult? Function( double targetAngle)?  rotatorMoveStarted,TResult? Function( double angle)?  rotatorMoveCompleted,TResult? Function( double targetTemp)?  cameraCoolingStarted,TResult? Function( double temperature)?  cameraCoolingReached,TResult? Function()?  cameraWarmingStarted,TResult? Function()?  cameraWarmingCompleted,TResult? Function( String deviceType,  String deviceId,  BigInt intervalSecs)?  heartbeatStarted,TResult? Function( String deviceType,  String deviceId)?  heartbeatStopped,TResult? Function( String deviceType,  String deviceId,  HeartbeatStatus status,  int consecutiveFailures,  BigInt? lastRttMs)?  heartbeatStatusChanged,TResult? Function( String deviceType,  String deviceId,  int attempt,  int maxAttempts)?  heartbeatReconnecting,TResult? Function( String deviceType,  String deviceId,  int afterAttempts)?  heartbeatReconnected,TResult? Function( String deviceClass,  String driver,  String id,  String name,  String displayName,  String? uniqueId)?  deviceDiscovered,TResult? Function( String deviceClass,  String driver,  String id)?  deviceLost,}) {final _that = this;
 switch (_that) {
 case EquipmentEvent_Connecting() when connecting != null:
 return connecting(_that.deviceType,_that.deviceId);case EquipmentEvent_Connected() when connected != null:
@@ -319,7 +329,9 @@ return heartbeatStarted(_that.deviceType,_that.deviceId,_that.intervalSecs);case
 return heartbeatStopped(_that.deviceType,_that.deviceId);case EquipmentEvent_HeartbeatStatusChanged() when heartbeatStatusChanged != null:
 return heartbeatStatusChanged(_that.deviceType,_that.deviceId,_that.status,_that.consecutiveFailures,_that.lastRttMs);case EquipmentEvent_HeartbeatReconnecting() when heartbeatReconnecting != null:
 return heartbeatReconnecting(_that.deviceType,_that.deviceId,_that.attempt,_that.maxAttempts);case EquipmentEvent_HeartbeatReconnected() when heartbeatReconnected != null:
-return heartbeatReconnected(_that.deviceType,_that.deviceId,_that.afterAttempts);case _:
+return heartbeatReconnected(_that.deviceType,_that.deviceId,_that.afterAttempts);case EquipmentEvent_DeviceDiscovered() when deviceDiscovered != null:
+return deviceDiscovered(_that.deviceClass,_that.driver,_that.id,_that.name,_that.displayName,_that.uniqueId);case EquipmentEvent_DeviceLost() when deviceLost != null:
+return deviceLost(_that.deviceClass,_that.driver,_that.id);case _:
   return null;
 
 }
@@ -1981,6 +1993,160 @@ deviceType: null == deviceType ? _self.deviceType : deviceType // ignore: cast_n
 as String,deviceId: null == deviceId ? _self.deviceId : deviceId // ignore: cast_nullable_to_non_nullable
 as String,afterAttempts: null == afterAttempts ? _self.afterAttempts : afterAttempts // ignore: cast_nullable_to_non_nullable
 as int,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class EquipmentEvent_DeviceDiscovered extends EquipmentEvent {
+  const EquipmentEvent_DeviceDiscovered({required this.deviceClass, required this.driver, required this.id, required this.name, required this.displayName, this.uniqueId}): super._();
+  
+
+/// Canonical device class (`camera`, `mount`, `focuser`, `filterWheel`,
+/// `rotator`, …).
+ final  String deviceClass;
+/// Driver backend (`native`, `ascom`, `alpaca`, `indi`, `simulator`).
+ final  String driver;
+/// Backend-scoped device id used to connect.
+ final  String id;
+/// Raw device name as reported by the SDK / driver.
+ final  String name;
+/// User-facing display name (may equal `name`).
+ final  String displayName;
+/// Stable hardware identity (USB serial, etc.) when the backend exposes
+/// one; `None` otherwise.
+ final  String? uniqueId;
+
+/// Create a copy of EquipmentEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$EquipmentEvent_DeviceDiscoveredCopyWith<EquipmentEvent_DeviceDiscovered> get copyWith => _$EquipmentEvent_DeviceDiscoveredCopyWithImpl<EquipmentEvent_DeviceDiscovered>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is EquipmentEvent_DeviceDiscovered&&(identical(other.deviceClass, deviceClass) || other.deviceClass == deviceClass)&&(identical(other.driver, driver) || other.driver == driver)&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.displayName, displayName) || other.displayName == displayName)&&(identical(other.uniqueId, uniqueId) || other.uniqueId == uniqueId));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,deviceClass,driver,id,name,displayName,uniqueId);
+
+@override
+String toString() {
+  return 'EquipmentEvent.deviceDiscovered(deviceClass: $deviceClass, driver: $driver, id: $id, name: $name, displayName: $displayName, uniqueId: $uniqueId)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $EquipmentEvent_DeviceDiscoveredCopyWith<$Res> implements $EquipmentEventCopyWith<$Res> {
+  factory $EquipmentEvent_DeviceDiscoveredCopyWith(EquipmentEvent_DeviceDiscovered value, $Res Function(EquipmentEvent_DeviceDiscovered) _then) = _$EquipmentEvent_DeviceDiscoveredCopyWithImpl;
+@useResult
+$Res call({
+ String deviceClass, String driver, String id, String name, String displayName, String? uniqueId
+});
+
+
+
+
+}
+/// @nodoc
+class _$EquipmentEvent_DeviceDiscoveredCopyWithImpl<$Res>
+    implements $EquipmentEvent_DeviceDiscoveredCopyWith<$Res> {
+  _$EquipmentEvent_DeviceDiscoveredCopyWithImpl(this._self, this._then);
+
+  final EquipmentEvent_DeviceDiscovered _self;
+  final $Res Function(EquipmentEvent_DeviceDiscovered) _then;
+
+/// Create a copy of EquipmentEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? deviceClass = null,Object? driver = null,Object? id = null,Object? name = null,Object? displayName = null,Object? uniqueId = freezed,}) {
+  return _then(EquipmentEvent_DeviceDiscovered(
+deviceClass: null == deviceClass ? _self.deviceClass : deviceClass // ignore: cast_nullable_to_non_nullable
+as String,driver: null == driver ? _self.driver : driver // ignore: cast_nullable_to_non_nullable
+as String,id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
+as String,displayName: null == displayName ? _self.displayName : displayName // ignore: cast_nullable_to_non_nullable
+as String,uniqueId: freezed == uniqueId ? _self.uniqueId : uniqueId // ignore: cast_nullable_to_non_nullable
+as String?,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class EquipmentEvent_DeviceLost extends EquipmentEvent {
+  const EquipmentEvent_DeviceLost({required this.deviceClass, required this.driver, required this.id}): super._();
+  
+
+ final  String deviceClass;
+ final  String driver;
+ final  String id;
+
+/// Create a copy of EquipmentEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$EquipmentEvent_DeviceLostCopyWith<EquipmentEvent_DeviceLost> get copyWith => _$EquipmentEvent_DeviceLostCopyWithImpl<EquipmentEvent_DeviceLost>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is EquipmentEvent_DeviceLost&&(identical(other.deviceClass, deviceClass) || other.deviceClass == deviceClass)&&(identical(other.driver, driver) || other.driver == driver)&&(identical(other.id, id) || other.id == id));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,deviceClass,driver,id);
+
+@override
+String toString() {
+  return 'EquipmentEvent.deviceLost(deviceClass: $deviceClass, driver: $driver, id: $id)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $EquipmentEvent_DeviceLostCopyWith<$Res> implements $EquipmentEventCopyWith<$Res> {
+  factory $EquipmentEvent_DeviceLostCopyWith(EquipmentEvent_DeviceLost value, $Res Function(EquipmentEvent_DeviceLost) _then) = _$EquipmentEvent_DeviceLostCopyWithImpl;
+@useResult
+$Res call({
+ String deviceClass, String driver, String id
+});
+
+
+
+
+}
+/// @nodoc
+class _$EquipmentEvent_DeviceLostCopyWithImpl<$Res>
+    implements $EquipmentEvent_DeviceLostCopyWith<$Res> {
+  _$EquipmentEvent_DeviceLostCopyWithImpl(this._self, this._then);
+
+  final EquipmentEvent_DeviceLost _self;
+  final $Res Function(EquipmentEvent_DeviceLost) _then;
+
+/// Create a copy of EquipmentEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? deviceClass = null,Object? driver = null,Object? id = null,}) {
+  return _then(EquipmentEvent_DeviceLost(
+deviceClass: null == deviceClass ? _self.deviceClass : deviceClass // ignore: cast_nullable_to_non_nullable
+as String,driver: null == driver ? _self.driver : driver // ignore: cast_nullable_to_non_nullable
+as String,id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,
   ));
 }
 

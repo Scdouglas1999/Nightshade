@@ -50,6 +50,7 @@ class CatalogOverlayDetailsPanel extends ConsumerWidget {
                 IconButton(
                   icon: const Icon(LucideIcons.x, size: 18),
                   color: colors.textMuted,
+                  tooltip: 'Close',
                   onPressed: () => ref
                       .read(selectedCatalogOverlayObjectProvider.notifier)
                       .state = null,

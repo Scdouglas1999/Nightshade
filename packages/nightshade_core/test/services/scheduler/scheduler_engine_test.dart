@@ -21,6 +21,7 @@ class _RecordingSink implements SchedulerSequenceSink {
   int resumeCount = 0;
   int stopCount = 0;
   int parkCount = 0;
+  int releaseCount = 0;
 
   @override
   Future<void> dispatchSequence(Sequence sequence) async {
@@ -45,6 +46,11 @@ class _RecordingSink implements SchedulerSequenceSink {
   @override
   Future<void> parkForEndOfNight() async {
     parkCount++;
+  }
+
+  @override
+  Future<void> releaseSequenceOwnership() async {
+    releaseCount++;
   }
 }
 
@@ -1521,4 +1527,252 @@ void main() {
       },
     );
   });
+
+  group('SchedulerEngine - active-plan ownership release', () {
+    test(
+      'engine.stop() disengages autopilot and releases editor ownership',
+      () async {
+        final sink = _RecordingSink();
+        final engine = SchedulerEngine(
+          site: _site,
+          sequenceSink: sink,
+          candidateLoader: () async => [
+            _candidate(
+              id: 1,
+              name: 'High in south',
+              raHours: 14.0,
+              decDegrees: 30.0,
+            ),
+          ],
+          clock: _fixedNow,
+        );
+
+        await engine.start();
+        expect(sink.dispatched, isNotEmpty, reason: 'autopilot took the slot');
+        expect(sink.releaseCount, 0, reason: 'still engaged after start');
+
+        await engine.stop();
+        // Full disengage -> ownership handed back to the operator exactly once.
+        expect(sink.releaseCount, 1);
+
+        await engine.dispose();
+      },
+    );
+
+    test('engine.dispose() releases editor ownership', () async {
+      final sink = _RecordingSink();
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => [
+          _candidate(
+            id: 1,
+            name: 'High in south',
+            raHours: 14.0,
+            decDegrees: 30.0,
+          ),
+        ],
+        clock: _fixedNow,
+      );
+
+      await engine.start();
+      await engine.dispose();
+      expect(sink.releaseCount, greaterThanOrEqualTo(1));
+    });
+  });
+
+  group('SchedulerEngine - failure-path hardening', () {
+    test('a failed dispatch does NOT wedge the autopilot: status is not '
+        'committed to the un-started winner, ownership is released, and a '
+        'later good dispatch recovers', () async {
+      final sink = _ConfigurableSink();
+      // Single clearly-eligible target near the meridian at night.
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => <SchedulerCandidate>[
+          _candidate(id: 42, name: 'Winner', raHours: 14.0, decDegrees: 30.0),
+        ],
+        clock: _fixedNow,
+      );
+
+      // First dispatch fails (transient pre-flight failure).
+      sink.dispatchError = StateError('disk full');
+      await engine.start();
+
+      expect(
+        engine.status.currentTargetId,
+        isNull,
+        reason:
+            'currentTargetId must NOT be committed to a target that never '
+            'started — otherwise hysteresis suppresses the re-dispatch',
+      );
+      expect(
+        engine.status.lastError,
+        isNotNull,
+        reason: 'the failure must be surfaced on the status panel',
+      );
+      expect(
+        sink.releaseCount,
+        greaterThanOrEqualTo(1),
+        reason:
+            'a failed dispatch must release the editor slot so the '
+            "operator's stashed manual sequence is not orphaned",
+      );
+
+      // Next tick: dispatch now succeeds. Because currentTargetId was never
+      // committed, the engine still sees this as a switch and re-dispatches.
+      sink.dispatchError = null;
+      await engine.evaluateNow();
+
+      expect(
+        sink.dispatched.length,
+        1,
+        reason: 'the recovery tick must actually dispatch the winner',
+      );
+      expect(
+        engine.status.currentTargetId,
+        42,
+        reason: 'after a successful dispatch the winner is committed',
+      );
+      expect(
+        engine.status.lastError,
+        isNull,
+        reason: 'a successful dispatch clears the prior error',
+      );
+      await engine.dispose();
+    });
+
+    test(
+      'engine.stop() releases editor ownership even when stopSequence throws',
+      () async {
+        final sink = _ConfigurableSink();
+        final engine = SchedulerEngine(
+          site: _site,
+          sequenceSink: sink,
+          candidateLoader: () async => <SchedulerCandidate>[
+            _candidate(id: 1, name: 'A', raHours: 14.0, decDegrees: 30.0),
+          ],
+          clock: _fixedNow,
+        );
+        await engine.start();
+        expect(sink.dispatched.length, 1);
+
+        sink.stopError = StateError('backend down');
+        await expectLater(engine.stop(), throwsA(isA<StateError>()));
+        expect(
+          sink.releaseCount,
+          greaterThanOrEqualTo(1),
+          reason:
+              'releaseSequenceOwnership must run in a finally so a throwing '
+              'stopSequence cannot orphan the stashed manual sequence',
+        );
+        await engine.dispose();
+      },
+    );
+
+    test(
+      'engine.pause() does not flip to paused when pauseSequence throws',
+      () async {
+        final sink = _ConfigurableSink();
+        final engine = SchedulerEngine(
+          site: _site,
+          sequenceSink: sink,
+          candidateLoader: () async => <SchedulerCandidate>[
+            _candidate(id: 1, name: 'A', raHours: 14.0, decDegrees: 30.0),
+          ],
+          clock: _fixedNow,
+        );
+        await engine.start();
+        expect(engine.status.state, SchedulerState.running);
+
+        sink.pauseError = StateError('Cannot pause: sequence is not running');
+        await expectLater(engine.pause(), throwsA(isA<StateError>()));
+        expect(
+          engine.status.state,
+          SchedulerState.running,
+          reason:
+              'status must not diverge from reality — a failed pause must not '
+              'leave the engine claiming it is paused',
+        );
+        await engine.dispose();
+      },
+    );
+
+    test(
+      'engine.dispose() closes both streams even when release throws',
+      () async {
+        final sink = _ConfigurableSink();
+        final engine = SchedulerEngine(
+          site: _site,
+          sequenceSink: sink,
+          candidateLoader: () async => <SchedulerCandidate>[
+            _candidate(id: 1, name: 'A', raHours: 14.0, decDegrees: 30.0),
+          ],
+          clock: _fixedNow,
+        );
+        await engine.start();
+
+        sink.releaseError = StateError('owner provider torn down');
+        // dispose() must swallow the release failure and still tear down the
+        // controllers (no unhandled error, no leaked broadcast controllers).
+        await engine.dispose();
+
+        // A closed broadcast controller rejects new listeners by completing
+        // the stream immediately with done. Proving the stream is closed proves
+        // the controller was closed despite the throwing release.
+        var statusDone = false;
+        engine.statusStream.listen(null, onDone: () => statusDone = true);
+        var decisionDone = false;
+        engine.decisionStream.listen(null, onDone: () => decisionDone = true);
+        await Future<void>.delayed(Duration.zero);
+        expect(statusDone, isTrue, reason: 'statusController must be closed');
+        expect(
+          decisionDone,
+          isTrue,
+          reason: 'decisionController must be closed',
+        );
+      },
+    );
+  });
+}
+
+/// Sink whose individual hooks can be configured to throw, for exercising the
+/// engine's failure-path hardening (dispatch/stop/pause/release failures).
+class _ConfigurableSink implements SchedulerSequenceSink {
+  final List<Sequence> dispatched = [];
+  int releaseCount = 0;
+
+  Object? dispatchError;
+  Object? stopError;
+  Object? pauseError;
+  Object? releaseError;
+
+  @override
+  Future<void> dispatchSequence(Sequence sequence) async {
+    if (dispatchError != null) throw dispatchError!;
+    dispatched.add(sequence);
+  }
+
+  @override
+  Future<void> pauseSequence() async {
+    if (pauseError != null) throw pauseError!;
+  }
+
+  @override
+  Future<void> resumeSequence() async {}
+
+  @override
+  Future<void> stopSequence() async {
+    if (stopError != null) throw stopError!;
+  }
+
+  @override
+  Future<void> parkForEndOfNight() async {}
+
+  @override
+  Future<void> releaseSequenceOwnership() async {
+    releaseCount++;
+    if (releaseError != null) throw releaseError!;
+  }
 }

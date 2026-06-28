@@ -4,8 +4,10 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../backend/network_backend.dart';
 import '../backend/nightshade_backend.dart';
 import '../models/backend/event_types.dart' show EventCategory;
 import '../database/database.dart';
@@ -39,7 +41,19 @@ class PolarAlignmentStateNotifier extends StateNotifier<PolarAlignmentState> {
   }
 
   void _init() {
-    final backend = ref.read(backendProvider);
+    _bindToBackend(ref.read(backendProvider));
+
+    // The active backend can be swapped at runtime (local FFI <-> network).
+    // Re-bind to the new backend's event stream on every swap so polar
+    // alignment events keep flowing after a reconnect; the old subscription
+    // is cancelled inside [_bindToBackend].
+    ref.listen<NightshadeBackend>(backendProvider, (_, next) {
+      _bindToBackend(next);
+    });
+  }
+
+  void _bindToBackend(NightshadeBackend backend) {
+    _eventSub?.cancel();
 
     // Subscribe to general event stream for polar alignment events
     _eventSub = backend.eventStream.listen((event) {
@@ -644,68 +658,30 @@ class PolarAlignmentErrorHistoryNotifier
     _buffer.clear();
     state = [];
   }
-
-  /// Get the trend direction (improving, worsening, stable)
-  ErrorTrend getTrend() {
-    if (_buffer.length < 5) return ErrorTrend.unknown;
-
-    final recent = _buffer.toList().sublist(_buffer.length - 5);
-    final totalErrors = recent.map((e) => e.totalError).toList();
-
-    // Calculate simple linear trend
-    double sum = 0;
-    for (int i = 1; i < totalErrors.length; i++) {
-      sum += totalErrors[i] - totalErrors[i - 1];
-    }
-    final avgChange = sum / (totalErrors.length - 1);
-
-    if (avgChange < -1) return ErrorTrend.improving;
-    if (avgChange > 1) return ErrorTrend.worsening;
-    return ErrorTrend.stable;
-  }
-}
-
-/// Error trend direction
-enum ErrorTrend { improving, stable, worsening, unknown }
-
-extension ErrorTrendExtension on ErrorTrend {
-  String get displayName {
-    switch (this) {
-      case ErrorTrend.improving:
-        return 'Improving';
-      case ErrorTrend.stable:
-        return 'Stable';
-      case ErrorTrend.worsening:
-        return 'Worsening';
-      case ErrorTrend.unknown:
-        return 'Unknown';
-    }
-  }
-
-  String get emoji {
-    switch (this) {
-      case ErrorTrend.improving:
-        return '↓';
-      case ErrorTrend.stable:
-        return '→';
-      case ErrorTrend.worsening:
-        return '↑';
-      case ErrorTrend.unknown:
-        return '?';
-    }
-  }
 }
 
 // =============================================================================
 // POLAR ALIGNMENT HISTORY PROVIDER (Database History)
 // =============================================================================
 
-/// Provider for polar alignment history from database
+/// Provider for polar alignment history from database.
+///
+/// On a remote client (`NetworkBackend`) the slave never runs the local
+/// alignment loop, so its `polar_alignment_history` table is always empty.
+/// We branch to the host's `GET /api/polar-alignment-history`
+/// (`fetchPolarAlignmentHistory()`) and map each
+/// [RemotePolarAlignmentHistoryEntry] onto the local entry shape. The local
+/// DAO path is unchanged for the host backend.
 final polarAlignmentHistoryProvider =
     FutureProvider.family<List<PolarAlignmentHistoryEntry>, int?>((
       ref,
       profileId,
     ) async {
+      final backend = ref.watch(backendProvider);
+      if (backend is NetworkBackend) {
+        final entries = await _fetchRemotePolarHistory(backend, profileId);
+        return entries.take(20).toList();
+      }
       final db = ref.watch(databaseProvider);
       return db.polarAlignmentHistoryDao.getHistoryForProfile(
         profileId,
@@ -719,6 +695,11 @@ final lastPolarAlignmentProvider =
       ref,
       profileId,
     ) async {
+      final backend = ref.watch(backendProvider);
+      if (backend is NetworkBackend) {
+        final entries = await _fetchRemotePolarHistory(backend, profileId);
+        return entries.isEmpty ? null : entries.first;
+      }
       final db = ref.watch(databaseProvider);
       return db.polarAlignmentHistoryDao.getLastAlignment(profileId);
     });
@@ -729,9 +710,65 @@ final polarAlignmentHistoryStreamProvider =
       ref,
       profileId,
     ) {
+      final backend = ref.watch(backendProvider);
+      if (backend is NetworkBackend) {
+        return _pollRemotePolarHistory(backend, profileId);
+      }
       final db = ref.watch(databaseProvider);
       return db.polarAlignmentHistoryDao.watchHistory(profileId);
     });
+
+/// Polls the host's polar-alignment history, emitting only on change (mirrors
+/// the `_pollRemote` change-guard in `database_provider.dart`).
+Stream<List<PolarAlignmentHistoryEntry>> _pollRemotePolarHistory(
+  NetworkBackend backend,
+  int? profileId, {
+  Duration interval = const Duration(seconds: 10),
+}) async* {
+  var last = await _fetchRemotePolarHistory(backend, profileId);
+  yield last;
+  while (true) {
+    await Future<void>.delayed(interval);
+    final next = await _fetchRemotePolarHistory(backend, profileId);
+    if (!listEquals(last, next)) {
+      last = next;
+      yield next;
+    }
+  }
+}
+
+Future<List<PolarAlignmentHistoryEntry>> _fetchRemotePolarHistory(
+  NetworkBackend backend,
+  int? profileId,
+) async {
+  final page = await backend.fetchPolarAlignmentHistory(
+    equipmentProfileId: profileId,
+  );
+  final mapped = page.items.map(_polarEntryFromRemote).toList()
+    // Newest-first so `.first` is the most recent alignment.
+    ..sort((a, b) => b.completedAt.compareTo(a.completedAt));
+  return mapped;
+}
+
+PolarAlignmentHistoryEntry _polarEntryFromRemote(
+  RemotePolarAlignmentHistoryEntry row,
+) {
+  return PolarAlignmentHistoryEntry(
+    id: row.id,
+    equipmentProfileId: row.equipmentProfileId,
+    initialAzimuthError: row.initialAzimuthError ?? 0.0,
+    initialAltitudeError: row.initialAltitudeError ?? 0.0,
+    initialTotalError: row.initialTotalError ?? 0.0,
+    finalAzimuthError: row.finalAzimuthError ?? 0.0,
+    finalAltitudeError: row.finalAltitudeError ?? 0.0,
+    finalTotalError: row.finalTotalError ?? 0.0,
+    startedAt: row.startedAt,
+    completedAt: row.completedAt,
+    autoCompleted: row.autoCompleted,
+    isNorth: row.isNorth,
+    configJson: row.configJson ?? '{}',
+  );
+}
 
 // =============================================================================
 // POLAR ALIGNMENT CONTROLLER (Actions)
