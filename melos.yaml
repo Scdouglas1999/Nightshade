@@ -351,7 +351,7 @@ scripts:
 
   build:desktop:linux:
     run: |
-      set -euo pipefail
+      set -eu
       cargo build --release --manifest-path native/nightshade_native/bridge/Cargo.toml
       dart run melos exec --scope="nightshade_desktop" -- flutter build linux
     description: Build Linux desktop app
