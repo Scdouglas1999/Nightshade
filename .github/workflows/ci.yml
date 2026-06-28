@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -103,7 +103,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -145,7 +145,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -170,7 +170,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -219,7 +219,7 @@ jobs:
     # PR cycle time stays low because most PRs don't touch
     # ascom/ — the opt-in label is the escape hatch.
     name: Rust Tests (windows)
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 45
     if: >-
       github.event_name == 'push' ||
@@ -227,7 +227,7 @@ jobs:
       (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:windows-rust'))
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -254,17 +254,15 @@ jobs:
         run: cargo clippy --all-features --workspace --all-targets -- -D warnings -D clippy::result_unit_err -D clippy::await_holding_lock -D clippy::undocumented_unsafe_blocks
 
   cargo-duplicates:
-    # Surface multi-semver duplicates of the same crate. The known
-    # bloaters are base64, thiserror, socket2, getrandom, hashbrown,
-    # windows-sys, windows-targets. We use `cargo tree --duplicates` which
-    # is built into stable cargo (no extra install) and exit non-zero on
-    # any duplicate via a wrapper check.
+    # Keep the resolved multi-version dependency set reviewable. Existing
+    # transitive duplicates are baselined; any graph drift must update the
+    # baseline in the same change so it cannot become a permanent warning.
     name: Cargo Duplicate Versions
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -276,23 +274,17 @@ jobs:
 
       - name: Detect duplicate crate versions
         working-directory: native/nightshade_native
-        # `cargo tree --duplicates` lists each duplicated crate once with
-        # all versions. Empty output (exit 0 with nothing on stdout) means
-        # no duplicates. We capture stdout, log it as a build annotation,
-        # and only WARN today because the known bloaters are tracked
-        # under the windows-upgrade work. Bump to
-        # `exit 1` once those are consolidated (see deny.toml skip list).
         run: |
-          set -o pipefail
-          output=$(cargo tree --duplicates --workspace --all-features 2>&1 || true)
-          if [ -n "$output" ]; then
-            echo "::group::Duplicate crate versions detected"
-            echo "$output"
-            echo "::endgroup::"
-            echo "::warning::Duplicate semver versions found. See native/nightshade_native/deny.toml skip list."
-          else
-            echo "No duplicate crate versions detected."
+          set -euo pipefail
+          current="$(mktemp)"
+          cargo metadata --format-version 1 --all-features \
+            | jq -r '.packages | sort_by(.name, .version) | group_by(.name)[] | select(map(.version) | unique | length > 1) | .[] | "\(.name) \(.version)"' \
+            | sort -u > "$current"
+          if ! diff -u duplicate-versions-baseline.txt "$current"; then
+            echo "::error::The resolved duplicate-version set changed. Review the graph and update duplicate-versions-baseline.txt intentionally."
+            exit 1
           fi
+          echo "Duplicate-version baseline matches ($(wc -l < "$current") package-version entries)."
 
   format-check:
     name: Format Check
@@ -300,7 +292,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -336,17 +328,18 @@ jobs:
         # windows pinned to windows-2022: windows-latest moved to
         # windows-2025-vs2026 (2026-06-18), whose CMake breaks flutter_webrtc's
         # Windows native build (extract-through-symlink). See release.yml.
-        os: [ubuntu-latest, windows-2022, macos-latest]
+        # Pin macOS while the macos-latest label migrates to macOS 26.
+        os: [ubuntu-latest, windows-2022, macos-15]
         include:
           - os: ubuntu-latest
             platform: linux
           - os: windows-2022
             platform: windows
-          - os: macos-latest
+          - os: macos-15
             platform: macos
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -390,7 +383,7 @@ jobs:
         run: cargo build --release --manifest-path bridge/Cargo.toml
 
       - name: Build Rust library (macOS)
-        if: matrix.os == 'macos-latest'
+        if: matrix.os == 'macos-15'
         working-directory: native/nightshade_native
         run: |
           # Try to build for the current architecture
@@ -410,7 +403,7 @@ jobs:
     timeout-minutes: 40
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -454,7 +447,7 @@ jobs:
           echo "Merged $(grep -c '^SF:' coverage.lcov) source-file records"
 
       - name: Archive coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: lcov-coverage
           path: coverage.lcov
@@ -465,7 +458,7 @@ jobs:
         # missing credential rather than a code problem). The merged lcov
         # is always archived as a build artifact above; flip
         # fail_ci_if_error to true once the token is added.
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         with:
           files: coverage.lcov
           fail_ci_if_error: false

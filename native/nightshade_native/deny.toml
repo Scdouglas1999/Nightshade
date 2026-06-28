@@ -1,7 +1,7 @@
 # cargo-deny configuration for the nightshade_native workspace.
 #
-# Used by CI (`.github/workflows/ci.yml` → cargo-duplicates job) to catch
-# multi-semver duplicates of the same crate. Reference:
+# Policy seed for cargo-deny. CI's exact resolved-graph regression gate uses
+# `duplicate-versions-baseline.txt`. Reference:
 # docs/code-quality/(base64, thiserror, socket2,
 # getrandom, hashbrown, windows-sys, windows-targets duplicate semvers).
 #
@@ -13,10 +13,8 @@
 all-features = true
 
 [bans]
-# Warn on multiple-semver-versions of the same crate in the build graph.
-#3 calls out specific offenders; the audit job sets
-# --warn duplicate so this stays informational but visible until each
-# duplicate is consolidated.
+# Keep local cargo-deny runs informative. CI separately enforces the exact
+# resolved set through duplicate-versions-baseline.txt.
 multiple-versions = "warn"
 
 # Known-bloaters that the table called out. As each
@@ -52,9 +50,7 @@ skip = [
     { name = "linux-raw-sys" },
 ]
 
-# We bind tightly later — the CI job runs with `--hide-inclusion-graph`
-# and `--warn duplicate` so the duplicates the audit identified stay
-# warnings rather than blocking PRs that don't introduce *new* dupes.
+# Remove entries as dependency upgrades consolidate these transitive versions.
 
 [licenses]
 # Don't enforce license policy from cargo-deny — that's out of scope for

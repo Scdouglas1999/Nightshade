@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -212,7 +212,7 @@ jobs:
             --write-evidence
 
       - name: Upload Linux release package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: nightshade-linux-x64-${{ github.sha }}
           path: |
@@ -222,7 +222,7 @@ jobs:
           retention-days: 14
 
       - name: Upload Linux package metadata
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-release-package-metadata-${{ github.sha }}
           path: docs/production-readiness/linux-release-package-metadata.json
