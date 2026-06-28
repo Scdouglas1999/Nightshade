@@ -127,6 +127,50 @@ void main() {
       },
     );
 
+    test('rejects a not-yet-created path whose ancestor is an in-root symlink '
+        'pointing outside the roots (no existence oracle)', () async {
+      final outside = await Directory.systemTemp.createTemp(
+        'nightshade_validate_symlink_target_',
+      );
+      addTearDown(() async {
+        if (await outside.exists()) await outside.delete(recursive: true);
+      });
+
+      // An in-root symlink whose target escapes the allow-list. Symlink
+      // creation needs privilege on Windows; skip cleanly where unsupported.
+      final escape = Link(
+        '${envBrowseRoot.path}${Platform.pathSeparator}escape',
+      );
+      try {
+        await escape.create(outside.path);
+      } on FileSystemException {
+        return; // platform can't create symlinks here
+      }
+
+      // Leaf does NOT exist under the target, so resolveSymbolicLinks throws
+      // on the full path and the deepest-ancestor fallback must resolve the
+      // `escape` symlink and reject — instead of leaking exists/writable for
+      // an arbitrary out-of-root path.
+      final response = await validate({
+        'path': '${escape.path}${Platform.pathSeparator}secret_probe_target',
+        'mustExist': false,
+        'mustBeWritable': true,
+      });
+
+      expect(response.statusCode, HttpStatus.forbidden);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['error'], 'path_not_allowed');
+      expect(body['valid'], isFalse);
+      expect(body['exists'], isFalse);
+
+      // No write-probe may have leaked into the out-of-root target.
+      final probes = await outside
+          .list()
+          .where((e) => e.path.contains('.nightshade_write_test_'))
+          .toList();
+      expect(probes, isEmpty);
+    });
+
     test('reports empty path as a plain validation error (no containment '
         'check needed)', () async {
       final response = await validate({'path': ''});
