@@ -357,7 +357,7 @@ jobs:
       # Build phases run as explicit steps (the melos multi-line `run:` only
       # executes its first line on the Windows shell).
       - name: Build Rust native bridge (release)
-        run: cargo build --release --manifest-path native/nightshade_native/bridge/Cargo.toml
+        run: cargo build --locked --release --manifest-path native/nightshade_native/bridge/Cargo.toml
 
       - name: Build Flutter Windows app (release)
         working-directory: apps/desktop

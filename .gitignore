@@ -135,6 +135,7 @@ build/
 **/target/
 **/*.rs.bk
 Cargo.lock
+!native/nightshade_native/Cargo.lock
 
 # Negation: the Dart models/target/ directory holds source files (catalog
 # target types), not Rust build output. Without this, **/target/ above swallows
