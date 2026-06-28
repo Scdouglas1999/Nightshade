@@ -171,7 +171,10 @@ db.EquipmentProfilesCompanion remoteProfileToCompanion(
 db.EquipmentProfile remoteProfileToDbRow(
   remote_profile.EquipmentProfile profile, {
   db.EquipmentProfile? existing,
+  DateTime? now,
 }) {
+  // Injectable write clock keeps the updatedAt bump deterministic under test.
+  final writeStamp = now ?? DateTime.now().toUtc();
   return db.EquipmentProfile(
     id: int.tryParse(profile.id) ?? 0,
     name: profile.name,
@@ -251,6 +254,6 @@ db.EquipmentProfile remoteProfileToDbRow(
         existing?.createdAt ??
         profile.createdAt ??
         DateTime.fromMillisecondsSinceEpoch(0),
-    updatedAt: profile.updatedAt ?? DateTime.now().toUtc(),
+    updatedAt: profile.updatedAt ?? writeStamp,
   );
 }

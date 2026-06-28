@@ -265,8 +265,14 @@ class TransientSubmissionService {
       final decoded = jsonDecode(body);
       if (decoded is Map<String, dynamic>) return decoded;
       if (decoded is Map) return decoded.cast<String, dynamic>();
-    } catch (_) {
-      // non-JSON body (e.g. an HTML error page)
+    } catch (e) {
+      // Non-JSON body (e.g. an HTML error page). The caller treats a null
+      // decode as "no structured reply"; log at debug so an unexpected
+      // non-JSON TNS response is diagnosable instead of vanishing.
+      _logger.debug(
+        'TNS reply was not JSON; treating as unstructured: $e',
+        source: 'TransientSubmissionService',
+      );
     }
     return null;
   }

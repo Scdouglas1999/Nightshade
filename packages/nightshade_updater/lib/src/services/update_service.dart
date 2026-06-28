@@ -622,8 +622,15 @@ class UpdateService {
         if (await pendingFile.exists()) {
           await pendingFile.delete();
         }
-      } catch (_) {
-        // swallow: the more important error is the spawn failure below.
+      } catch (e) {
+        // Cleanup of the pending marker is secondary here; the spawn failure
+        // thrown below is the load-bearing error. Log the delete failure so it
+        // is not lost.
+        developer.log(
+          'Failed to delete pending marker during pid=0 cleanup: $e',
+          name: 'UpdateService',
+          level: 900,
+        );
       }
       throw UpdateException(
         'Updater process reported pid=0; spawn was rejected by the OS. '

@@ -352,8 +352,9 @@ class _TransientReportPanelState extends ConsumerState<TransientReportPanel> {
       reporterName: settings.tnsReporterName.isNotEmpty
           ? settings.tnsReporterName
           : settings.observerName,
-      // Placeholder so the gate passes on identifiers; the real key is loaded
-      // at submit time and re-checked there.
+      // The real TNS API key is injected and re-validated at submit time; this
+      // identifier-preview construction carries a non-secret sentinel so the
+      // credential never lives in preview/report state.
       apiKey: 'pending',
     );
   }

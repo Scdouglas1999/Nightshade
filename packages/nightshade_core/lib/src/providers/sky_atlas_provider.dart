@@ -123,6 +123,7 @@ Stream<List<T>> _remoteAtlasSnapshotStream<T>(
   T Function(Map<String, dynamic>) fromJson,
 ) {
   final controller = StreamController<List<T>>();
+  final logger = ref.read(loggingServiceProvider);
   Timer? debounce;
 
   Future<void> refetch() async {
@@ -130,8 +131,13 @@ Stream<List<T>> _remoteAtlasSnapshotStream<T>(
       final raw = await fetch();
       final rows = raw.map(fromJson).toList(growable: false);
       if (!controller.isClosed) controller.add(rows);
-    } catch (_) {
-      // Transient (reconnect / host busy): keep the last good snapshot.
+    } catch (e) {
+      // Transient (reconnect / host busy): keep the last good snapshot rather
+      // than flashing empty. Logged at debug so the swallow stays observable.
+      logger.debug(
+        'Remote atlas snapshot refetch failed; keeping last good snapshot: $e',
+        source: 'SkyAtlasProvider',
+      );
     }
   }
 

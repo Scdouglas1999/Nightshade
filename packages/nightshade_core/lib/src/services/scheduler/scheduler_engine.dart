@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:math' as math;
 
 import 'package:nightshade_planetarium/nightshade_planetarium.dart'
@@ -217,9 +218,16 @@ class SchedulerEngine {
     // Resource teardown must run regardless, so swallow the best-effort release.
     try {
       await _sequenceSink.releaseSequenceOwnership();
-    } catch (_) {
+    } catch (e) {
       // Teardown best-effort: ownership release can fail if the global owner
-      // provider was disposed first. Resources below must still be released.
+      // provider was disposed first. Resources below must still be released —
+      // trace the swallowed error so the path is observable, not silent.
+      developer.log(
+        'Scheduler teardown: best-effort ownership release failed',
+        name: 'SchedulerEngine',
+        level: 500, // FINE / trace
+        error: e,
+      );
     }
     await _triggerSubscription?.cancel();
     await _statusController.close();
