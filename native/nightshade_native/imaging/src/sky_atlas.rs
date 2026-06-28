@@ -2039,7 +2039,7 @@ mod tests {
     #[test]
     fn deserialize_rejects_bad_magic_and_version() {
         assert_eq!(
-            SkyTileAccumulator::deserialize(b"XXXX\x01\x00\x00\x00\x00\x00\x00\x00").unwrap_err(),
+            SkyTileAccumulator::deserialize(b"BADM\x01\x00\x00\x00\x00\x00\x00\x00").unwrap_err(),
             AtlasError::BadMagic
         );
         let mut blob = Vec::new();

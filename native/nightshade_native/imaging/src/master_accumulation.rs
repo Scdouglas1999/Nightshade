@@ -1642,7 +1642,7 @@ mod tests {
     #[test]
     fn deserialize_rejects_bad_magic() {
         let err =
-            IntegratedMaster::deserialize(b"XXXX\x01\x00\x00\x00\x00\x00\x00\x00").unwrap_err();
+            IntegratedMaster::deserialize(b"BADM\x01\x00\x00\x00\x00\x00\x00\x00").unwrap_err();
         assert_eq!(err, MasterError::BadMagic);
     }
 
