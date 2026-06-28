@@ -32,6 +32,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:meta/meta.dart';
 import 'package:path/path.dart' as p;
 
 import '../../database/daos/settings_dao.dart';
@@ -41,6 +42,7 @@ import '../../providers/notification_router_provider.dart'
 import '../backup_service.dart';
 import '../logging_service.dart';
 import '../notification/secrets_store.dart';
+import 's3_sync_target.dart';
 import 'sync_target.dart';
 import 'webdav_sync_target.dart';
 
@@ -49,6 +51,7 @@ import 'webdav_sync_target.dart';
 // ---------------------------------------------------------------------------
 
 class SyncSettingsKeys {
+  static const provider = 'cloud_sync_provider';
   static const serverUrl = 'cloud_sync_server_url';
   static const username = 'cloud_sync_username';
   static const machineName = 'cloud_sync_machine_name';
@@ -56,6 +59,32 @@ class SyncSettingsKeys {
   static const retainCount = 'cloud_sync_retain_count';
   static const lastPushAt = 'cloud_sync_last_push_at';
   static const lastError = 'cloud_sync_last_error';
+
+  // S3-compatible (AWS / MinIO / Backblaze B2) non-secret config. The S3
+  // secret key is NOT here — it lives in the keyring via
+  // [SecretField.cloudSyncS3SecretKey], exactly like the WebDAV password.
+  static const s3Endpoint = 'cloud_sync_s3_endpoint';
+  static const s3Region = 'cloud_sync_s3_region';
+  static const s3Bucket = 'cloud_sync_s3_bucket';
+  static const s3AccessKey = 'cloud_sync_s3_access_key';
+  static const s3PathStyle = 'cloud_sync_s3_path_style';
+}
+
+/// Cloud-backup provider kind. The string [key] is the stable persisted
+/// value in `app_settings` (not the enum index, which could be reordered).
+enum SyncProvider {
+  webdav('webdav'),
+  s3('s3');
+
+  const SyncProvider(this.key);
+
+  final String key;
+
+  /// Back-compat hinge: a null / unknown / absent persisted value maps to
+  /// [SyncProvider.webdav], so a pre-existing WebDAV install (which never
+  /// wrote a provider key) loads as a fully working WebDAV config.
+  static SyncProvider fromKey(String? raw) =>
+      raw == SyncProvider.s3.key ? SyncProvider.s3 : SyncProvider.webdav;
 }
 
 /// Remote directory root under the WebDAV base URL.
@@ -68,38 +97,86 @@ const int kSyncDefaultRetainCount = 5;
 // Config / manifest models
 // ---------------------------------------------------------------------------
 
-/// Non-secret sync configuration (the WebDAV password is read separately
-/// from the keyring-backed [SecretsStore]).
+/// Non-secret sync configuration (the per-provider secret — the WebDAV
+/// password or the S3 secret key — is read separately from the
+/// keyring-backed [SecretsStore]).
 class SyncConfig {
+  /// Active cloud-backup provider. Defaults to [SyncProvider.webdav] so
+  /// every existing `const SyncConfig()` call site is unchanged.
+  final SyncProvider provider;
+
+  // WebDAV config.
   final String serverUrl;
   final String username;
+
+  // S3-compatible config (AWS / MinIO / Backblaze B2). The S3 secret key
+  // is intentionally NOT a field here — it flows separately through
+  // [SecretsStore], exactly as the WebDAV password does.
+  final String s3Endpoint;
+  final String s3Region;
+  final String s3Bucket;
+
+  /// S3 access key — non-secret, mirrors the WebDAV [username].
+  final String s3AccessKey;
+
+  /// Path-style addressing (`<endpoint>/<bucket>/<key>`); MinIO requires it.
+  final bool s3PathStyle;
+
   final String machineName;
   final bool autoPushEnabled;
   final int retainCount;
 
   const SyncConfig({
+    this.provider = SyncProvider.webdav,
     this.serverUrl = '',
     this.username = '',
+    this.s3Endpoint = '',
+    this.s3Region = '',
+    this.s3Bucket = '',
+    this.s3AccessKey = '',
+    this.s3PathStyle = false,
     this.machineName = '',
     this.autoPushEnabled = false,
     this.retainCount = kSyncDefaultRetainCount,
   });
 
-  /// True when enough config exists to build a target. The password is
-  /// checked at connect time (an empty password is legal for some servers).
-  bool get isConfigured =>
-      serverUrl.trim().isNotEmpty && machineName.trim().isNotEmpty;
+  /// True when enough config exists to build a target for the active
+  /// provider. The secret is checked at connect time (an empty password is
+  /// legal for some WebDAV servers). Only the active provider's fields are
+  /// evaluated, so a half-filled inactive provider blob never blocks save.
+  bool get isConfigured => switch (provider) {
+    SyncProvider.webdav =>
+      serverUrl.trim().isNotEmpty && machineName.trim().isNotEmpty,
+    SyncProvider.s3 =>
+      s3Endpoint.trim().isNotEmpty &&
+          s3Region.trim().isNotEmpty &&
+          s3Bucket.trim().isNotEmpty &&
+          s3AccessKey.trim().isNotEmpty &&
+          machineName.trim().isNotEmpty,
+  };
 
   SyncConfig copyWith({
+    SyncProvider? provider,
     String? serverUrl,
     String? username,
+    String? s3Endpoint,
+    String? s3Region,
+    String? s3Bucket,
+    String? s3AccessKey,
+    bool? s3PathStyle,
     String? machineName,
     bool? autoPushEnabled,
     int? retainCount,
   }) {
     return SyncConfig(
+      provider: provider ?? this.provider,
       serverUrl: serverUrl ?? this.serverUrl,
       username: username ?? this.username,
+      s3Endpoint: s3Endpoint ?? this.s3Endpoint,
+      s3Region: s3Region ?? this.s3Region,
+      s3Bucket: s3Bucket ?? this.s3Bucket,
+      s3AccessKey: s3AccessKey ?? this.s3AccessKey,
+      s3PathStyle: s3PathStyle ?? this.s3PathStyle,
       machineName: machineName ?? this.machineName,
       autoPushEnabled: autoPushEnabled ?? this.autoPushEnabled,
       retainCount: retainCount ?? this.retainCount,
@@ -273,6 +350,10 @@ class SyncService {
   /// Keyring field (via [SecretsStore]) holding the WebDAV password.
   static const String passwordSecretField = SecretField.cloudSyncPassword;
 
+  /// Keyring field (via [SecretsStore]) holding the S3 secret key. Read /
+  /// written ONLY through this field — never `app_settings`, never logs.
+  static const String s3SecretField = SecretField.cloudSyncS3SecretKey;
+
   final BackupService backupService;
   final SettingsDao settingsDao;
   final SecretsStore secretsStore;
@@ -301,7 +382,7 @@ class SyncService {
     Future<Directory> Function()? downloadDirectoryProvider,
     DateTime Function()? clock,
   }) : _logger = logger,
-       _targetFactory = targetFactory ?? _defaultTargetFactory,
+       _targetFactory = targetFactory ?? defaultTargetFactory,
        _downloadDirectoryProvider =
            downloadDirectoryProvider ??
            (() async {
@@ -311,20 +392,57 @@ class SyncService {
            }),
        _clock = clock ?? DateTime.now;
 
-  static SyncTarget _defaultTargetFactory(SyncConfig config, String password) {
-    final uri = Uri.parse(config.serverUrl.trim());
-    if (!uri.hasScheme || (uri.scheme != 'http' && uri.scheme != 'https')) {
-      throw SyncTargetException(
-        'Server URL must start with http:// or https:// '
-        '(got "${config.serverUrl}")',
-        kind: SyncTargetErrorKind.unknown,
-      );
+  /// Build the production [SyncTarget] for [config]. The [password]
+  /// parameter carries the active provider's secret (WebDAV password or S3
+  /// secret key) — [_buildTarget] selects the correct keyring field. The
+  /// validation messages name only non-secret fields, never the secret.
+  @visibleForTesting
+  static SyncTarget defaultTargetFactory(SyncConfig config, String password) {
+    switch (config.provider) {
+      case SyncProvider.webdav:
+        final uri = Uri.parse(config.serverUrl.trim());
+        if (!uri.hasScheme || (uri.scheme != 'http' && uri.scheme != 'https')) {
+          throw SyncTargetException(
+            'Server URL must start with http:// or https:// '
+            '(got "${config.serverUrl}")',
+            kind: SyncTargetErrorKind.unknown,
+          );
+        }
+        return WebDavSyncTarget(
+          baseUrl: uri,
+          username: config.username,
+          password: password,
+        );
+      case SyncProvider.s3:
+        final uri = Uri.parse(config.s3Endpoint.trim());
+        if (!uri.hasScheme || (uri.scheme != 'http' && uri.scheme != 'https')) {
+          throw SyncTargetException(
+            'S3 endpoint must start with http:// or https:// '
+            '(got "${config.s3Endpoint}")',
+            kind: SyncTargetErrorKind.unknown,
+          );
+        }
+        if (config.s3Region.trim().isEmpty) {
+          throw const SyncTargetException(
+            'S3 region must not be empty',
+            kind: SyncTargetErrorKind.unknown,
+          );
+        }
+        if (config.s3Bucket.trim().isEmpty) {
+          throw const SyncTargetException(
+            'S3 bucket must not be empty',
+            kind: SyncTargetErrorKind.unknown,
+          );
+        }
+        return S3SyncTarget(
+          endpoint: uri,
+          region: config.s3Region.trim(),
+          bucket: config.s3Bucket.trim(),
+          accessKey: config.s3AccessKey.trim(),
+          secretKey: password,
+          pathStyle: config.s3PathStyle,
+        );
     }
-    return WebDavSyncTarget(
-      baseUrl: uri,
-      username: config.username,
-      password: password,
-    );
   }
 
   // -------------------------------------------------------------------
@@ -332,10 +450,25 @@ class SyncService {
   // -------------------------------------------------------------------
 
   Future<SyncConfig> loadConfig() async {
+    // Absent provider key -> webdav (back-compat hinge for installs that
+    // pre-date the S3 provider).
+    final provider = SyncProvider.fromKey(
+      await settingsDao.getSetting(SyncSettingsKeys.provider),
+    );
     final serverUrl =
         await settingsDao.getSetting(SyncSettingsKeys.serverUrl) ?? '';
     final username =
         await settingsDao.getSetting(SyncSettingsKeys.username) ?? '';
+    final s3Endpoint =
+        await settingsDao.getSetting(SyncSettingsKeys.s3Endpoint) ?? '';
+    final s3Region =
+        await settingsDao.getSetting(SyncSettingsKeys.s3Region) ?? '';
+    final s3Bucket =
+        await settingsDao.getSetting(SyncSettingsKeys.s3Bucket) ?? '';
+    final s3AccessKey =
+        await settingsDao.getSetting(SyncSettingsKeys.s3AccessKey) ?? '';
+    final s3PathStyle =
+        await settingsDao.getSetting(SyncSettingsKeys.s3PathStyle) == 'true';
     var machineName =
         await settingsDao.getSetting(SyncSettingsKeys.machineName) ?? '';
     if (machineName.trim().isEmpty) {
@@ -349,30 +482,58 @@ class SyncService {
         ) ??
         kSyncDefaultRetainCount;
     return SyncConfig(
+      provider: provider,
       serverUrl: serverUrl,
       username: username,
+      s3Endpoint: s3Endpoint,
+      s3Region: s3Region,
+      s3Bucket: s3Bucket,
+      s3AccessKey: s3AccessKey,
+      s3PathStyle: s3PathStyle,
       machineName: machineName,
       autoPushEnabled: autoPush,
       retainCount: retain,
     );
   }
 
-  /// Persist [config]; [password] is written to the OS keyring only when
-  /// non-null (pass null to keep the stored password unchanged, an empty
-  /// string to clear it).
+  /// Persist [config]; [password] is the active provider's secret (WebDAV
+  /// password or S3 secret key) and is written to the OS keyring only when
+  /// non-null (pass null to keep the stored secret unchanged, an empty
+  /// string to clear it). The secret NEVER touches `app_settings`.
+  ///
+  /// Both providers' non-secret blobs are written so switching the provider
+  /// dropdown is non-destructive — only the active provider's fields are
+  /// evaluated by [SyncConfig.isConfigured], so a populated inactive blob
+  /// is inert, not a leak (it holds no secret).
   Future<void> saveConfig(SyncConfig config, {String? password}) async {
     await settingsDao.setSettings({
+      SyncSettingsKeys.provider: config.provider.key,
       SyncSettingsKeys.serverUrl: config.serverUrl.trim(),
       SyncSettingsKeys.username: config.username.trim(),
+      SyncSettingsKeys.s3Endpoint: config.s3Endpoint.trim(),
+      SyncSettingsKeys.s3Region: config.s3Region.trim(),
+      SyncSettingsKeys.s3Bucket: config.s3Bucket.trim(),
+      SyncSettingsKeys.s3AccessKey: config.s3AccessKey.trim(),
+      SyncSettingsKeys.s3PathStyle: config.s3PathStyle.toString(),
       SyncSettingsKeys.machineName: sanitizeMachineName(config.machineName),
       SyncSettingsKeys.autoPush: config.autoPushEnabled.toString(),
       SyncSettingsKeys.retainCount: config.retainCount.toString(),
     });
     if (password != null) {
-      await secretsStore.write(passwordSecretField, password);
+      await secretsStore.write(_secretFieldFor(config.provider), password);
     }
   }
 
+  /// The keyring field carrying [provider]'s secret.
+  static String _secretFieldFor(SyncProvider provider) =>
+      provider == SyncProvider.s3 ? s3SecretField : passwordSecretField;
+
+  /// Whether [provider]'s secret is already stored in the keyring.
+  Future<bool> hasStoredSecret(SyncProvider provider) =>
+      secretsStore.has(_secretFieldFor(provider));
+
+  /// Back-compat: whether the WebDAV password is stored. Prefer
+  /// [hasStoredSecret].
   Future<bool> hasStoredPassword() => secretsStore.has(passwordSecretField);
 
   /// Default machine name: the local hostname, sanitized for use as a
@@ -397,7 +558,12 @@ class SyncService {
       configured: config.isConfigured,
       autoPushEnabled: config.autoPushEnabled,
       machineName: config.machineName,
-      serverUrl: config.serverUrl,
+      // Display the meaningful endpoint for the active provider. This is
+      // the non-secret endpoint/URL only — never the access/secret key —
+      // so the headless status JSON stays safe.
+      serverUrl: config.provider == SyncProvider.s3
+          ? config.s3Endpoint
+          : config.serverUrl,
       lastPushAt: lastPushRaw == null ? null : DateTime.tryParse(lastPushRaw),
       lastError: (lastError == null || lastError.isEmpty) ? null : lastError,
       pushInProgress: _pushInProgress,
@@ -412,8 +578,8 @@ class SyncService {
         kind: SyncTargetErrorKind.unknown,
       );
     }
-    final password = await secretsStore.read(passwordSecretField);
-    return _targetFactory(config, password);
+    final secret = await secretsStore.read(_secretFieldFor(config.provider));
+    return _targetFactory(config, secret);
   }
 
   /// Probe the configured server (reachability + credentials).
@@ -732,7 +898,13 @@ class SyncService {
   }
 
   void _closeIfOwned(SyncTarget target) {
-    if (target is WebDavSyncTarget) target.close();
+    if (target is WebDavSyncTarget) {
+      target.close();
+    } else if (target is S3SyncTarget) {
+      // S3SyncTarget.close() guards _ownsClient, so an injected test client
+      // is never closed.
+      target.close();
+    }
   }
 
   static String _fileTimestamp(DateTime t) =>

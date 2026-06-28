@@ -188,11 +188,14 @@ cellular-push keys, on-sky tuning) that flip the gated bits live.
   sensors, target/progress/HFR/RMS/weather/sun-altitude sensors, online
   availability via last-will, and (default-off) pause/resume/abort controls
   routed through the same code paths as the UI.
-- **Cloud backup & sync.** WebDAV (Nextcloud-compatible) push/pull of the
-  existing backup bundles with SHA-256 manifests, retention pruning,
-  keyring-stored credentials, opt-in auto-push after the daily backup
-  cycle, and a remote-browser restore flow (restore replaces local config —
-  bundle-based, no merging).
+- **Cloud backup & sync.** WebDAV (Nextcloud-compatible) or S3-compatible
+  object storage (AWS S3, MinIO, Backblaze B2) push/pull of the existing
+  backup bundles with SHA-256 manifests, retention pruning, keyring-stored
+  credentials (the S3 secret key, like the WebDAV password, never touches
+  the settings database), opt-in auto-push after the daily backup cycle, and
+  a remote-browser restore flow (restore replaces local config — bundle-based,
+  no merging). Pick the provider in Settings > Backup & Sync; existing WebDAV
+  configurations are preserved unchanged.
 - **Weather verdict abstain channel, proven.** The disabled/snoozed/fail-open
   safety paths push an explicit abstain (never "safe") to the native
   executor; an exhaustive verdict × hardware gate-matrix test now pins that

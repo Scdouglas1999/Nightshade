@@ -27,17 +27,35 @@ class CloudSyncCard extends ConsumerStatefulWidget {
 }
 
 class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
+  // WebDAV provider fields.
   final _serverUrlController = TextEditingController();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+
+  // S3-compatible provider fields. The secret key controller is the only
+  // one carrying a credential — its text is routed to the keyring via the
+  // SyncService.saveConfig `password` param, never echoed into settings.
+  final _s3EndpointController = TextEditingController();
+  final _s3RegionController = TextEditingController();
+  final _s3BucketController = TextEditingController();
+  final _s3AccessKeyController = TextEditingController();
+  final _s3SecretController = TextEditingController();
+
+  // Shared.
   final _machineNameController = TextEditingController();
+
+  SyncProvider _provider = SyncProvider.webdav;
 
   bool _loading = true;
   bool _saving = false;
   bool _testing = false;
   bool _pushing = false;
   bool _autoPushEnabled = false;
+  bool _s3PathStyle = false;
+  // Tracked per provider so the "•••••••• (stored in OS keyring)" placeholder
+  // is correct no matter which provider the dropdown shows.
   bool _hasStoredPassword = false;
+  bool _hasStoredSecret = false;
   DateTime? _lastPushAt;
   String? _lastError;
 
@@ -52,6 +70,11 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
     _serverUrlController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
+    _s3EndpointController.dispose();
+    _s3RegionController.dispose();
+    _s3BucketController.dispose();
+    _s3AccessKeyController.dispose();
+    _s3SecretController.dispose();
     _machineNameController.dispose();
     super.dispose();
   }
@@ -62,15 +85,25 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
     try {
       final service = _service;
       final config = await service.loadConfig();
-      final hasPassword = await service.hasStoredPassword();
+      // Read both providers' stored-secret flags so the keyring placeholder
+      // renders correctly even after switching the dropdown.
+      final hasPassword = await service.hasStoredSecret(SyncProvider.webdav);
+      final hasSecret = await service.hasStoredSecret(SyncProvider.s3);
       final status = await service.status();
       if (!mounted) return;
       setState(() {
+        _provider = config.provider;
         _serverUrlController.text = config.serverUrl;
         _usernameController.text = config.username;
+        _s3EndpointController.text = config.s3Endpoint;
+        _s3RegionController.text = config.s3Region;
+        _s3BucketController.text = config.s3Bucket;
+        _s3AccessKeyController.text = config.s3AccessKey;
+        _s3PathStyle = config.s3PathStyle;
         _machineNameController.text = config.machineName;
         _autoPushEnabled = config.autoPushEnabled;
         _hasStoredPassword = hasPassword;
+        _hasStoredSecret = hasSecret;
         _lastPushAt = status.lastPushAt;
         _lastError = status.lastError;
         _loading = false;
@@ -82,24 +115,80 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
     }
   }
 
+  /// Inline validation mirroring [SyncConfig.isConfigured] for the active
+  /// provider, plus an http/https URL check. Returns the first problem as a
+  /// user-facing message, or null when the active provider is well-formed.
+  /// The S3 secret key is intentionally NOT required here — a blank secret
+  /// means "keep the one already in the keyring".
+  String? _validationError() {
+    if (_machineNameController.text.trim().isEmpty) {
+      return 'Machine name is required.';
+    }
+    switch (_provider) {
+      case SyncProvider.webdav:
+        final url = _serverUrlController.text.trim();
+        if (url.isEmpty) return 'Server URL is required.';
+        final uri = Uri.tryParse(url);
+        if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+          return 'Server URL must start with http:// or https://.';
+        }
+      case SyncProvider.s3:
+        final endpoint = _s3EndpointController.text.trim();
+        if (endpoint.isEmpty) return 'S3 endpoint is required.';
+        final uri = Uri.tryParse(endpoint);
+        if (uri == null || (uri.scheme != 'http' && uri.scheme != 'https')) {
+          return 'S3 endpoint must be a valid http:// or https:// URL.';
+        }
+        if (_s3RegionController.text.trim().isEmpty) {
+          return 'S3 region is required.';
+        }
+        if (_s3BucketController.text.trim().isEmpty) {
+          return 'S3 bucket is required.';
+        }
+        if (_s3AccessKeyController.text.trim().isEmpty) {
+          return 'S3 access key is required.';
+        }
+    }
+    return null;
+  }
+
   Future<bool> _save() async {
+    final validationError = _validationError();
+    if (validationError != null) {
+      context.showErrorSnackBar(validationError);
+      return false;
+    }
     setState(() => _saving = true);
     try {
-      final password = _passwordController.text;
+      // The active provider's secret controller is the only credential.
+      // Leaving it blank keeps the stored secret (password: null); typing a
+      // value routes it to the keyring via SyncService, never settings.
+      final secret = _provider == SyncProvider.s3
+          ? _s3SecretController.text
+          : _passwordController.text;
       await _service.saveConfig(
         SyncConfig(
+          provider: _provider,
           serverUrl: _serverUrlController.text.trim(),
           username: _usernameController.text.trim(),
+          s3Endpoint: _s3EndpointController.text.trim(),
+          s3Region: _s3RegionController.text.trim(),
+          s3Bucket: _s3BucketController.text.trim(),
+          s3AccessKey: _s3AccessKeyController.text.trim(),
+          s3PathStyle: _s3PathStyle,
           machineName: _machineNameController.text.trim(),
           autoPushEnabled: _autoPushEnabled,
         ),
-        // Only touch the keyring when the user typed something; leaving
-        // the field blank keeps the stored password.
-        password: password.isEmpty ? null : password,
+        password: secret.isEmpty ? null : secret,
       );
-      if (password.isNotEmpty) {
-        _passwordController.clear();
-        _hasStoredPassword = true;
+      if (secret.isNotEmpty) {
+        if (_provider == SyncProvider.s3) {
+          _s3SecretController.clear();
+          _hasStoredSecret = true;
+        } else {
+          _passwordController.clear();
+          _hasStoredPassword = true;
+        }
       }
       if (!mounted) return false;
       setState(() => _saving = false);
@@ -225,44 +314,42 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
                   const SizedBox(height: 8),
                   Text(
                     'Push configuration backups to a WebDAV server (Nextcloud, '
-                    'ownCloud, generic WebDAV) and restore them on another '
-                    'machine. Sync is bundle-based: restoring replaces local '
-                    'configuration — nothing is merged.',
+                    'ownCloud, generic WebDAV) or an S3-compatible object '
+                    'store (AWS S3, MinIO, Backblaze B2) and restore them on '
+                    'another machine. Sync is bundle-based: restoring replaces '
+                    'local configuration — nothing is merged.',
                     style: TextStyle(
                       color: colors.textSecondary,
                       fontSize: NightshadeTypography.fontSize12,
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _field(
-                    controller: _serverUrlController,
-                    label: 'Server URL',
-                    hint:
-                        'https://cloud.example.com/remote.php/dav/files/user/',
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _field(
-                          controller: _usernameController,
-                          label: 'Username',
-                          hint: 'WebDAV username',
-                        ),
+                  DropdownButtonFormField<SyncProvider>(
+                    initialValue: _provider,
+                    decoration: const InputDecoration(
+                      labelText: 'Provider',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: SyncProvider.webdav,
+                        child: Text('WebDAV (Nextcloud, ownCloud)'),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _field(
-                          controller: _passwordController,
-                          label: 'Password',
-                          hint: _hasStoredPassword
-                              ? '•••••••• (stored in OS keyring)'
-                              : 'WebDAV password / app token',
-                          obscure: true,
-                        ),
+                      DropdownMenuItem(
+                        value: SyncProvider.s3,
+                        child: Text('S3-compatible (AWS, MinIO, Backblaze B2)'),
                       ),
                     ],
+                    onChanged: (value) {
+                      if (value != null) setState(() => _provider = value);
+                    },
                   ),
+                  const SizedBox(height: 12),
+                  if (_provider == SyncProvider.webdav)
+                    ..._webdavFields()
+                  else
+                    ..._s3Fields(),
                   const SizedBox(height: 12),
                   _field(
                     controller: _machineNameController,
@@ -351,6 +438,120 @@ class _CloudSyncCardState extends ConsumerState<CloudSyncCard> {
               ),
       ),
     );
+  }
+
+  /// WebDAV-specific fields: server URL + username/password. Machine name is
+  /// rendered once by the shared block below the provider switch.
+  List<Widget> _webdavFields() {
+    return [
+      _field(
+        controller: _serverUrlController,
+        label: 'Server URL',
+        hint: 'https://cloud.example.com/remote.php/dav/files/user/',
+      ),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          Expanded(
+            child: _field(
+              controller: _usernameController,
+              label: 'Username',
+              hint: 'WebDAV username',
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _field(
+              controller: _passwordController,
+              label: 'Password',
+              hint: _hasStoredPassword
+                  ? '•••••••• (stored in OS keyring)'
+                  : 'WebDAV password / app token',
+              obscure: true,
+            ),
+          ),
+        ],
+      ),
+    ];
+  }
+
+  /// S3-compatible fields: endpoint, region + bucket, access key + secret
+  /// key, and the path-style toggle MinIO requires. The secret key is
+  /// obscured and only ever flows to the keyring via [_save].
+  List<Widget> _s3Fields() {
+    final colors = NightshadeColors.of(context);
+    return [
+      _field(
+        controller: _s3EndpointController,
+        label: 'Endpoint',
+        hint: 'https://s3.us-east-1.amazonaws.com',
+      ),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          Expanded(
+            child: _field(
+              controller: _s3RegionController,
+              label: 'Region',
+              hint: 'us-east-1',
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _field(
+              controller: _s3BucketController,
+              label: 'Bucket',
+              hint: 'my-nightshade-backups',
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 12),
+      Row(
+        children: [
+          Expanded(
+            child: _field(
+              controller: _s3AccessKeyController,
+              label: 'Access key',
+              hint: 'AKIA… / MinIO access key',
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _field(
+              controller: _s3SecretController,
+              label: 'Secret key',
+              hint: _hasStoredSecret
+                  ? '•••••••• (stored in OS keyring)'
+                  : 'S3 secret key',
+              obscure: true,
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 4),
+      SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        dense: true,
+        title: Text(
+          'Path-style addressing (required for MinIO)',
+          style: TextStyle(
+            color: colors.textPrimary,
+            fontSize: NightshadeTypography.fontSize14,
+          ),
+        ),
+        subtitle: Text(
+          'Use <endpoint>/<bucket>/<key> instead of virtual-host style. '
+          'Leave off for AWS S3; turn on for MinIO.',
+          style: TextStyle(
+            color: colors.textSecondary,
+            fontSize: NightshadeTypography.fontSize12,
+          ),
+        ),
+        value: _s3PathStyle,
+        onChanged: (v) => setState(() => _s3PathStyle = v),
+      ),
+    ];
   }
 
   Widget _field({
