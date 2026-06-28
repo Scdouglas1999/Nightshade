@@ -37,12 +37,12 @@ function ReadAllText($files) {
     return ($parts -join "`n")
 }
 
-function AddResult($rows, [string]$vendor, [string]$kind, [string]$item, [bool]$pass, [string]$evidence, [string]$reason) {
+function AddResult($rows, [string]$vendor, [string]$kind, [string]$item, [bool]$pass, [string]$evidence, [string]$reason, [switch]$Blocked) {
     $rows.Add([pscustomobject]@{
         vendor = $vendor
         kind = $kind
         item = $item
-        verdict = if ($pass) { "pass" } else { "fail" }
+        verdict = if ($Blocked) { "blocked" } elseif ($pass) { "pass" } else { "fail" }
         evidence = $evidence
         reason = $reason
     }) | Out-Null
@@ -175,8 +175,14 @@ foreach ($contract in $contracts) {
     $headers = @()
     foreach ($pattern in $contract.headers) { $headers += MatchFiles $root $pattern }
     $headers = @($headers | Sort-Object FullName -Unique)
-    $headerEvidence = if ($headers.Count -gt 0) { (($headers | Select-Object -First 3 | ForEach-Object { Rel $root $_.FullName }) -join ", ") } else { "" }
-    AddResult $rows $contract.vendor "sdk-header" "header files" ($headers.Count -gt 0) $headerEvidence "required SDK header evidence is present"
+    # Vendor SDK headers live under SDKs/ which is gitignored, so they are absent
+    # on hosts without the vendor SDKs installed (e.g. CI runners). Without the
+    # header we cannot verify its ABI surface — that is BLOCKED (evidence
+    # unavailable), not a FAIL. A fail must mean the SDK is present but its
+    # symbols/struct layout drifted from what the Rust FFI expects.
+    $headersPresent = $headers.Count -gt 0
+    $headerEvidence = if ($headersPresent) { (($headers | Select-Object -First 3 | ForEach-Object { Rel $root $_.FullName }) -join ", ") } else { "" }
+    AddResult $rows $contract.vendor "sdk-header" "header files" $headersPresent $headerEvidence "required SDK header evidence is present" -Blocked:(-not $headersPresent)
 
     $rustPath = Join-Path $root $contract.rust
     $rustPresent = Test-Path $rustPath
@@ -187,7 +193,7 @@ foreach ($contract in $contracts) {
     $rustText = if ($rustPresent) { [IO.File]::ReadAllText($rustPath) } else { "" }
 
     foreach ($symbol in $contract.header_symbols) {
-        AddResult $rows $contract.vendor "header-symbol" $symbol (TokenPresent $headerText $symbol) $headerEvidence "vendor header declares required API surface"
+        AddResult $rows $contract.vendor "header-symbol" $symbol (TokenPresent $headerText $symbol) $headerEvidence "vendor header declares required API surface" -Blocked:(-not $headersPresent)
     }
     foreach ($symbol in $contract.rust_symbols) {
         AddResult $rows $contract.vendor "rust-symbol-load" $symbol (TokenPresent $rustText $symbol) $contract.rust "Rust FFI loader references the same SDK symbol"
@@ -206,8 +212,10 @@ New-Item -ItemType Directory -Force -Path $outPath | Out-Null
 $rows | ConvertTo-Json -Depth 8 | Set-Content -Encoding UTF8 (Join-Path $outPath "abi-contracts.json")
 RenderMarkdown $rows | Set-Content -Encoding UTF8 (Join-Path $outPath "abi-contracts.md")
 
-$failed = @($rows | Where-Object { $_.verdict -ne "pass" })
-Write-Host "Native SDK ABI/header contracts: $($rows.Count - $failed.Count) passed, $($failed.Count) failed"
+$failed = @($rows | Where-Object { $_.verdict -eq "fail" })
+$blocked = @($rows | Where-Object { $_.verdict -eq "blocked" })
+$passed = $rows.Count - $failed.Count - $blocked.Count
+Write-Host "Native SDK ABI/header contracts: $passed passed, $($failed.Count) failed, $($blocked.Count) blocked (SDK headers absent)"
 if ($failed.Count -gt 0) {
     foreach ($row in ($failed | Select-Object -First 20)) {
         Write-Host "FAIL $($row.vendor) $($row.kind) $($row.item): $($row.reason)"
