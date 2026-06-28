@@ -15,7 +15,11 @@ on:
 jobs:
   linux-release-build:
     name: Build Linux Release Artifact
-    runs-on: ubuntu-latest
+    # ubuntu-22.04 ships glibc 2.35, under the 2.36 Bookworm/Raspberry Pi OS
+    # floor the artifact targets — so binaries built here link symbols the
+    # appliance can resolve. Building on ubuntu-latest (glibc 2.39) produces
+    # binaries that abort on boot there (caught by the glibc-floor step below).
+    runs-on: ubuntu-22.04
     timeout-minutes: 45
 
     steps:
