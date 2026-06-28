@@ -10,6 +10,7 @@
 [![Status: public beta](https://img.shields.io/badge/status-public%20beta-orange)](#-first-public-beta--whats-verified)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS%20%7C%20Android-blue)](#platforms)
 [![License](https://img.shields.io/badge/license-source--available-lightgrey)](LICENSE)
+[![Support on Patreon](https://img.shields.io/badge/Support%20on-Patreon-f96854?style=for-the-badge&logo=patreon&logoColor=white)](https://www.patreon.com/cw/SeanDouglas)
 
 [**Download**](https://github.com/Scdouglas1999/Nightshade/releases/latest) · [**Documentation**](docs/index.md) · [**Support development**](https://www.patreon.com/cw/SeanDouglas) · [**Changelog**](docs/CHANGELOG.md) · [**Release notes (4.1.0)**](docs/release/v4.1.0.md)
 
@@ -32,6 +33,10 @@ Nightshade runs the whole night from a single program. Connect the rig, plan tar
 > ⚠️ **Do not leave an expensive rig running unattended until your specific setup has passed a supervised first-night validation.** Watch the first full sessions end to end — connect, slew, focus, guide, capture, meridian flip, and park — and confirm each step on *your* hardware before you trust it to run while you sleep.
 
 ## Support Nightshade
+
+<p align="center">
+  <a href="https://www.patreon.com/cw/SeanDouglas"><img src="https://img.shields.io/badge/Support%20Nightshade%20on-Patreon-f96854?style=for-the-badge&logo=patreon&logoColor=white" alt="Support Nightshade on Patreon"></a>
+</p>
 
 Nightshade is free to use, and the goal is to keep it that way. If it saves you time, helps your rig behave, or you simply want to support long-term development, you can optionally [support the project on Patreon](https://www.patreon.com/cw/SeanDouglas).
 
