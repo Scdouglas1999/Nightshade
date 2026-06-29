@@ -20,7 +20,7 @@ base64.workspace = true
 
 # mDNS discovery
 mdns-sd = "0.11"
-if-addrs = "0.13"
+if-addrs = "0.15"
 
 # Per-instance PRNG for reconnect/restart jitter. fastrand 2.x is small,
 # dependency-free, and lets us seed each IndiClient with a unique value so two
