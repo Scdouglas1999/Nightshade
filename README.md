@@ -12,7 +12,7 @@
 [![License](https://img.shields.io/badge/license-source--available-lightgrey)](LICENSE)
 [![Support on Patreon](https://img.shields.io/badge/Support%20on-Patreon-f96854?style=for-the-badge&logo=patreon&logoColor=white)](https://www.patreon.com/cw/SeanDouglas)
 
-[**Download**](https://github.com/Scdouglas1999/Nightshade/releases/latest) · [**Documentation**](docs/index.md) · [**Support development**](https://www.patreon.com/cw/SeanDouglas) · [**Changelog**](docs/CHANGELOG.md) · [**Release notes (4.1.0)**](docs/release/v4.1.0.md)
+[**Download**](https://github.com/Scdouglas1999/Nightshade/releases/latest) · [**Documentation**](docs/index.md) · [**Support development**](https://www.patreon.com/cw/SeanDouglas) · [**Changelog**](docs/CHANGELOG.md) · [**Release notes (5.0.0)**](docs/release/v5.0.0.md)
 
 <img src="assets/screenshots/desktop-dashboard.png?v=20260608" width="860" alt="Nightshade live dashboard with preview, equipment, guiding, and weather tiles">
 
@@ -28,7 +28,7 @@ Nightshade runs the whole night from a single program. Connect the rig, plan tar
 >
 > Nightshade is verified on **Windows**, where the desktop app drives ASCOM/Alpaca cameras, focuser, filter wheel, and PHD2, with plate-solving and planning. Remote **monitoring and planning** over the LAN — from the web dashboard and the Android companion — are verified. Fully-unattended **headless** acquisition on real ASCOM hardware is **still being hardened** and should be supervised. **Linux** is in early testing; **macOS** builds in CI with no hardware soak. Every other device path is **capability-gated** — present in the app but not a support guarantee until verified per rig.
 >
-> **Recommended tested setup:** Windows 10/11 desktop app + ASCOM/Alpaca drivers + a supported camera, focuser, filter wheel, and PHD2. **Experimental / supervise closely:** unattended *headless* nights, Linux, macOS, and native-SDK device paths. See [release evidence](docs/release-evidence/4.1.0.md), [supported hardware](docs/supported-hardware-by-platform.md), and [known limitations](docs/known-limitations.md). Test reports from real rigs are the most useful thing you can send — name the gear, the backend (ASCOM/Alpaca/INDI/native), the OS, and where it went sideways.
+> **Recommended tested setup:** Windows 10/11 desktop app + ASCOM/Alpaca drivers + a supported camera, focuser, filter wheel, and PHD2. **Experimental / supervise closely:** unattended *headless* nights, Linux, macOS, native-SDK device paths, and the new 5.0 Living Sky/automation paths until your rig completes a supervised night. See [5.0 release evidence](docs/release-evidence/5.0.0.md), [supported hardware](docs/supported-hardware-by-platform.md), and [known limitations](docs/known-limitations.md). Test reports from real rigs are the most useful thing you can send — name the gear, the backend (ASCOM/Alpaca/INDI/native), the OS, and where it went sideways.
 >
 > ⚠️ **Do not leave an expensive rig running unattended until your specific setup has passed a supervised first-night validation.** Watch the first full sessions end to end — connect, slew, focus, guide, capture, meridian flip, and park — and confirm each step on *your* hardware before you trust it to run while you sleep.
 
@@ -106,18 +106,17 @@ Then step away. Supervise or drive the same live session from a LAN browser or t
 </tr>
 </table>
 
-## What's new in 4.1.0
+## What's new in 5.0.0
 
-4.0 was the "run your rig from the couch" release; 4.1 makes the whole thing feel solid.
+5.0 is the **Living Sky** release, backed by a broad automation and remote-control hardening pass.
 
-- **Catalogs, rebuilt.** Downloads stage to a temp file and swap in only once complete and verified (no more truncating your working catalog on a dropped connection); multi-gigabyte catalogs stream straight to disk, downloads cancel mid-flight, and progress survives leaving the screen.
-- **Night Narrator.** A real-time, plain-language insight feed on your session — what just happened, what's drifting, what needs attention — surfaced across the relevant screens instead of buried in logs.
-- **Sturdier remote & appliance paths.** More reliable mDNS discovery and pairing between the app and a headless rig, updated Avahi/systemd packaging for the dedicated-box setup, and smoother mobile reconnect to a known rig.
-- **Headless API parity & safety.** More desktop-parity endpoints, fails closed on unknown auth scopes, `/api/info` advertises every registered route, and handler errors are logged explicitly instead of swallowed.
-- **Autopilot hardening.** Refinements across autofocus, exposure, meridian-flip, and fault-recovery in the native sequencer.
-- **Self-contained Linux bundle.** Cross-distro packaging fixes (glibc floor, bundled libraw and sqlite) so the Linux artifact runs on a clean box.
+- **Your Sky, First Light, and Constellation.** Build a personal atlas, review transient candidates, submit confirmed TNS reports or export AAVSO/MPC files, and optionally contribute through a self-hosted Constellation hub.
+- **Desktop master/slave mode.** A second desktop can monitor and control a host over the LAN with contract-tested state parity. A physical two-machine soak is still recommended.
+- **One automation core.** Plan Tonight and Unattended Autopilot now share scoring, safety, geometry, calibration, and focus-temperature contracts instead of drifting implementations.
+- **S3-compatible backups.** AWS S3, MinIO, and Backblaze B2 join WebDAV; credentials remain in the OS keyring. Validate your live provider before relying on it.
+- **Release hardening.** Schema 51→55 migration is verified using a database created by tagged v4.3.0 code; the self-hosted hub has dedicated CI; desktop packages carry their licenses and truthful dependency scope.
 
-Full detail: [docs/release/v4.1.0.md](docs/release/v4.1.0.md). Honest verification status — what's been run on real hardware versus code-only — is in [docs/release-evidence/4.1.0.md](docs/release-evidence/4.1.0.md).
+Full detail: [docs/release/v5.0.0.md](docs/release/v5.0.0.md). Verification status is in [docs/release-evidence/5.0.0.md](docs/release-evidence/5.0.0.md).
 
 ## Hardware support
 
@@ -128,9 +127,9 @@ Nightshade talks to devices through four backends. Coverage depends on the backe
 | ASCOM COM | Available | Unsupported | Unsupported | Needs Windows COM and locally installed ASCOM Platform/device drivers. Windows-only. |
 | ASCOM Alpaca | Available | Available | Available | Network REST API for ASCOM devices and bridges. Capability gaps are reported by the Alpaca server. |
 | INDI | Available | Available | Available | Needs a reachable INDI server. Feature depth depends on the driver and device properties. |
-| Native SDK | Capability-gated | Capability-gated | Capability-gated | Depends on packaged vendor libraries, OS driver support, and redistribution approval. Verified per release. |
+| Native SDK | Capability-gated | Capability-gated | Capability-gated | Depends on user-installed vendor libraries and OS driver support. Official artifacts do not redistribute vendor SDK binaries. |
 
-**Native camera SDKs:** ZWO ASI, QHY, Player One, SVBony, Atik, FLI, Moravian, and the Touptek family (Touptek, Altair, Mallincam, OGMA). DSLR capture (Canon/Nikon via gphoto2) exists in the codebase but is not a public-release guarantee.
+**Native camera SDK paths in the codebase:** ZWO ASI, QHY, Player One, SVBony, Atik, FLI, Moravian, and the Touptek family (Touptek, Altair, Mallincam, OGMA). Official release archives do not redistribute those vendors' SDK binaries; install a compatible vendor library/driver yourself or use ASCOM/Alpaca/INDI. DSLR capture (Canon/Nikon via gphoto2) is not a public-release guarantee.
 
 **Native mounts:** SkyWatcher/Synta, iOptron, and LX200 (serial).
 
@@ -153,15 +152,17 @@ Download the latest release: **[github.com/Scdouglas1999/Nightshade/releases/lat
 
 | Platform | Asset |
 |---|---|
-| Windows x64 | `nightshade-4.1.0-windows-x64.zip` (portable build — unzip and run) |
-| Linux x64 | `nightshade-4.1.0-linux-x64.tar.gz` |
-| Android companion | `nightshade-4.1.0-android-universal.apk` (debug-signed sideload beta — see note) |
+| Windows x64 | `nightshade-5.0.0-windows-x64.zip` (unsigned portable beta — unzip and run; SmartScreen may warn) |
+| Linux x64 | `nightshade-5.0.0-linux-x64.tar.gz` (extract and run `./nightshade`) |
+| Android companion | `nightshade-5.0.0-android-universal.apk` (debug-signed sideload beta — see note) |
 | macOS desktop | Not shipped (build from source) |
 | iOS companion | Build from source (requires signing) |
 
 > **Android APK is a debug-signed sideload beta.** It is built with `flutter build apk --release` but signed with the standard Android debug key, not a production release key, so Android may warn on install and Play-Store distribution is not configured. It is for sideloading to pair with your rig, not a polished store release. Install via "unknown sources."
 
 The Android and iOS apps pair to a running desktop or headless instance by QR code over your LAN. They supervise and lightly control the live session; the desktop app remains the full control surface.
+
+> **5.0 updates are manual.** The official artifacts contain no updater executable, trusted update key, or configured update server. Back up, download the next GitHub release, and replace the portable bundle.
 
 **System requirements**
 
@@ -179,8 +180,8 @@ New to Nightshade? Start with the [installation guide](docs/getting-started/inst
 - [Known limitations](docs/known-limitations.md)
 - [Headless / remote setup](docs/headless-secure-setup.md)
 - [FFI troubleshooting](docs/FRB_TROUBLESHOOTING.md)
-- [Release notes 4.1.0](docs/release/v4.1.0.md)
-- [Release evidence (what's verified) 4.1.0](docs/release-evidence/4.1.0.md)
+- [Release notes 5.0.0](docs/release/v5.0.0.md)
+- [Release evidence (what's verified) 5.0.0](docs/release-evidence/5.0.0.md)
 - [Architecture overview](docs/architecture.md)
 - [No-silent-fake-hardware policy](docs/no-fake-hardware-policy.md)
 - [Changelog](docs/CHANGELOG.md)

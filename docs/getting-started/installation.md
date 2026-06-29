@@ -1,254 +1,158 @@
 # Installation Guide
 
-Welcome to Nightshade. This guide explains the expected install flow, but
-the release notes are the source of truth for which platform artifacts are
-actually shipped and verified for a given release candidate.
+This guide matches the official Nightshade 5.0.0 artifacts. Read the
+[5.0.0 release notes](../release/v5.0.0.md),
+[supported-hardware matrix](../supported-hardware-by-platform.md), and
+[known limitations](../known-limitations.md) before connecting equipment.
 
-Before installing a release candidate, review:
-
-- [Release Notes Template](../release-notes-template.md), or the completed
-  release notes for the build you are installing
-- [Supported Hardware By Platform](../supported-hardware-by-platform.md)
-- [Known Limitations](../known-limitations.md)
-- [Migration, Backup, and Restore Guide](../migration-backup-restore.md)
-- [Linux Release CI Recipe](../production-readiness/linux-release-ci-recipe.md)
-
-Release automation tracks these same references by repo path:
-`docs/release-notes-template.md`, `docs/supported-hardware-by-platform.md`,
-`docs/known-limitations.md`,
+Release engineering validates this guide against
+`docs/release-notes-template.md`,
+`docs/supported-hardware-by-platform.md`, `docs/known-limitations.md`,
 `docs/production-readiness/linux-release-ci-recipe.md`, and
-`docs/production-readiness/linux-release-package-metadata.json`.
+`docs/production-readiness/linux-release-package-metadata.json`. A Linux
+artifact is not promoted without passing its recorded `runtimeSmokeChecks`.
 
-## System Requirements
+## Downloads
 
-### Windows
-- **Operating System**: Windows 10 or Windows 11 (64-bit)
-- **Processor**: Intel Core i5 or AMD Ryzen 5 (or equivalent)
-- **Memory**: 8 GB RAM minimum, 16 GB recommended
-- **Graphics**: DirectX 11 compatible GPU with 2 GB VRAM
-- **Storage**: 500 MB for application, plus space for images
-- **Additional**: .NET Framework 4.8 or later (for ASCOM support)
+Open the [Nightshade releases
+page](https://github.com/Scdouglas1999/Nightshade/releases) and download the
+artifact for your platform:
 
-### macOS
-- **Operating System**: macOS 13 (Ventura) or later
-- **Processor**: Intel or Apple Silicon (M1/M2/M3)
-- **Memory**: 8 GB RAM minimum, 16 GB recommended
-- **Graphics**: Metal-compatible GPU
-- **Storage**: 500 MB for application, plus space for images
+| Platform | 5.0.0 artifact | Distribution status |
+| --- | --- | --- |
+| Windows x64 | `nightshade-5.0.0-windows-x64.zip` | Unsigned portable beta |
+| Linux x64 | `nightshade-5.0.0-linux-x64.tar.gz` | Portable tar bundle; early testing |
+| Android | `nightshade-5.0.0-android-universal.apk` | Debug-signed sideload companion beta |
+| macOS | None | Build from source for development |
+| iOS | None | Build from source with your Apple signing identity |
 
-### Linux
-- **Operating System**: Ubuntu 22.04 LTS or later (or equivalent distribution)
-- **Processor**: Intel Core i5 or AMD Ryzen 5 (or equivalent)
-- **Memory**: 8 GB RAM minimum, 16 GB recommended
-- **Graphics**: OpenGL 3.3 compatible GPU
-- **Storage**: 500 MB for application, plus space for images
-- **Additional**: INDI server installed for INDI equipment control
+Each application artifact has a matching `.sha256` file. Desktop archives
+include `NIGHTSHADE-LICENSE.txt`, `THIRD_PARTY_NOTICES.md`, and the applicable
+third-party license text. `SOURCE-COMMIT.txt` records the exact source commit
+used to build each desktop archive.
 
-macOS and Linux requirements apply only when that platform is listed as shipped
-in the completed release notes. A Windows build or analyzer pass does not prove
-Linux or macOS package/runtime support.
-
-## Download
-
-1. Visit the [Nightshade releases page](https://github.com/Scodouglas1999/Nightshade/releases)
-2. Open the release notes for the build you plan to install.
-3. Download only the artifact listed as supported or limited for your platform.
-   Example artifact names may include:
-   - **Windows**: `Nightshade-2.0-Setup.exe` or a signed Windows bundle
-   - **macOS**: `Nightshade-2.0.dmg`, only if macOS is shipped for that release
-   - **Linux**: `Nightshade-2.0-x64.AppImage` or `.deb`, only if Linux is
-     shipped for that release
-
-Do not infer support for a missing artifact from this guide. If the release
-notes mark a platform as not shipped, use another supported platform or build
-from source for development only.
-
-## Installation Steps
+## System requirements
 
 ### Windows
 
-1. **Run the Installer**
-   - Double-click `Nightshade-2.0-Setup.exe`
-   - If Windows SmartScreen appears, click "More info" then "Run anyway"
-
-2. **Follow the Setup Wizard**
-   - Accept the license agreement
-   - Choose installation directory (default: `C:\Program Files\Nightshade`)
-   - Select whether to create desktop shortcut
-   - Click "Install"
-
-3. **Complete Installation**
-   - Wait for installation to complete
-   - Click "Finish" to launch Nightshade
-
-4. **ASCOM Setup (Optional but Recommended)**
-   - If you plan to use ASCOM drivers, download and install the [ASCOM Platform](https://ascom-standards.org/)
-   - Install ASCOM drivers for your equipment (camera, mount, focuser, etc.)
-
-### macOS
-
-Use this section only when the completed release notes list a macOS artifact as
-shipped for the build you downloaded.
-
-1. **Open the Disk Image**
-   - Double-click `Nightshade-2.0.dmg`
-   - A new window will open
-
-2. **Install the Application**
-   - Drag the Nightshade icon to the Applications folder
-   - Wait for the copy to complete
-
-3. **First Launch**
-   - Open Applications folder
-   - Right-click Nightshade and select "Open" (first time only)
-   - Click "Open" when prompted about an unidentified developer
-   - Subsequent launches can use normal double-click
-
-4. **Grant Permissions**
-   - Allow camera access if prompted (for USB cameras)
-   - Allow network access if prompted (for network-connected devices)
+- Windows 10 or 11, 64-bit
+- 8 GB RAM minimum; 16 GB recommended
+- DirectX 11-capable GPU with 2 GB VRAM
+- Approximately 500 MB for the app, plus image/catalog storage
+- ASCOM Platform and device drivers when using local ASCOM COM devices
 
 ### Linux
 
-Use this section only when the completed release notes list a Linux artifact as
-shipped for the build you downloaded. Public release sign-off requires a real
-Linux build and runtime smoke pass; a Windows-local build does not cover this
-section. The release owner must run the repeatable flow in
-`docs/production-readiness/linux-release-ci-recipe.md` and attach
-`docs/production-readiness/linux-release-package-metadata.json` with passing
-`runtimeSmokeChecks` before the Linux artifact is described as supported.
+- x86-64 Linux with glibc 2.35 or newer (Ubuntu 22.04 / Debian Bookworm or
+  equivalent)
+- 8 GB RAM minimum; 16 GB recommended
+- OpenGL 3.3-capable GPU
+- GTK 3, libsecret, libusb, libudev, and OpenSSL runtime libraries
+- A reachable INDI server for INDI equipment control
 
-#### Using AppImage (Universal)
+Linux is an early-testing path. Vendor-native USB devices may also require
+vendor udev rules, libraries, and group membership.
 
-1. **Make Executable**
-   ```bash
-   chmod +x Nightshade-2.0-x64.AppImage
+## Windows installation
+
+1. Download `nightshade-5.0.0-windows-x64.zip` and its checksum.
+2. Optionally verify it in PowerShell:
+
+   ```powershell
+   Get-FileHash .\nightshade-5.0.0-windows-x64.zip -Algorithm SHA256
    ```
 
-2. **Run the Application**
+   Compare the result with the first value in the `.sha256` file.
+3. Extract the entire archive to a writable folder. Do not run the executable
+   from inside the ZIP.
+4. Run `nightshade_desktop.exe`.
+5. Windows SmartScreen may show “Windows protected your PC” because the beta is
+   not code-signed. Confirm the file hash and GitHub release source before using
+   “More info” → “Run anyway.”
+6. Install ASCOM Platform and the matching device drivers before configuring
+   ASCOM hardware.
+
+The official archive includes the Nightshade bridge, LibRaw, and required MSVC
+runtime DLLs. It does **not** redistribute vendor camera/mount SDK DLLs. Install
+a compatible vendor library yourself or use ASCOM/Alpaca.
+
+## Linux installation
+
+1. Download `nightshade-5.0.0-linux-x64.tar.gz` and its checksum.
+2. Verify and extract it:
+
    ```bash
-   ./Nightshade-2.0-x64.AppImage
+   sha256sum -c nightshade-5.0.0-linux-x64.tar.gz.sha256
+   tar -xzf nightshade-5.0.0-linux-x64.tar.gz
+   cd nightshade-5.0.0-linux-x64
+   ./nightshade
    ```
 
-3. **Optional: Add to Menu**
-   - Right-click the AppImage and select "Integrate with system"
-   - Or move to `~/.local/bin/` for command-line access
+Use the `./nightshade` launcher, not `nightshade_desktop` directly; the launcher
+loads the archive's ABI-matched LibRaw and SQLite libraries first.
 
-#### Using .deb Package (Debian/Ubuntu)
+For INDI, install and start the server/drivers through your distribution. For
+example, Ubuntu users can install the appropriate INDI packages and then point
+Nightshade at that server. The official archive does not bundle INDI or vendor
+device SDKs.
 
-1. **Install the Package**
-   ```bash
-   sudo dpkg -i nightshade_2.0_amd64.deb
-   sudo apt-get install -f  # Install dependencies if needed
-   ```
+## Android companion installation
 
-2. **Launch**
-   - Find Nightshade in your application menu
-   - Or run from terminal: `nightshade`
+1. Download `nightshade-5.0.0-android-universal.apk` to the Android device.
+2. Verify the SHA-256 if your download tool supports it.
+3. Allow “Install unknown apps” for the browser/file manager you used, then
+   open the APK.
+4. Android will warn because this is a debug-signed sideload build, not a Play
+   Store / production-signed package.
+5. Pair it with a running Nightshade desktop/headless host over the LAN.
 
-#### INDI Server Setup
+The mobile app is a companion for monitoring and light control; the desktop is
+the full equipment-control surface.
 
-For equipment control on Linux, you'll need INDI:
+## First launch
 
-1. **Install INDI**
-   ```bash
-   sudo apt-add-repository ppa:mutlaqja/ppa
-   sudo apt-get update
-   sudo apt-get install indi-full
-   ```
+1. Open the Dashboard and confirm the UI loads without an error banner.
+2. Create an equipment profile under Equipment.
+3. Open Planetarium and confirm the sky view renders.
+4. Connect one device at a time and verify telemetry before issuing motion or
+   exposure commands.
+5. Run at least one complete supervised session on your exact rig before using
+   unattended automation.
 
-2. **Start INDI Server**
-   - Nightshade can auto-start INDI drivers
-   - Or manually start: `indiserver indi_simulator_telescope indi_simulator_ccd`
+Nightshade data is stored under:
 
-## First Launch
-
-When you first launch Nightshade:
-
-1. **Welcome Screen**
-   - You'll see a brief welcome message
-   - Click "Get Started" to continue
-
-2. **Equipment Setup Wizard** (Optional)
-   - Choose whether to set up equipment now or later
-   - If you select "Set Up Now", you'll be guided through connecting your devices
-   - You can always set up equipment later from the Equipment screen
-
-3. **Main Interface**
-   - The Dashboard will open, showing your equipment status
-   - Use the sidebar to navigate between different features
-
-## Verify Installation
-
-To verify Nightshade is working correctly:
-
-1. **Check the Dashboard**
-   - All panels should load without errors
-   - The clock should display current time and LST
-
-2. **Open Equipment Screen**
-   - Navigate to Equipment from the sidebar
-   - You should see connection options for different protocols
-
-3. **Open Planetarium**
-   - Navigate to Planetarium from the sidebar
-   - The sky view should render smoothly
-
-## Data Storage
-
-Nightshade stores configuration and data in the following locations:
-
-- **Windows**: `%APPDATA%\Nightshade\`
-- **macOS**: `~/Library/Application Support/Nightshade/`
-- **Linux**: `~/.local/share/nightshade/`
-
-This includes:
-- Equipment profiles
-- Imaging sequences
-- Session data
-- Application settings
+- Windows: `%APPDATA%\Nightshade\`
+- Linux: `~/.local/share/nightshade/`
+- macOS development builds: `~/Library/Application Support/Nightshade/`
 
 ## Updating
 
-To update Nightshade:
+Official 5.0.0 artifacts are manual-update-only: no updater executable, trusted
+update public key, or update server is shipped.
 
-1. Read the release notes and known limitations for the target version.
-2. Create a backup from Settings > Backup & Restore.
-3. Keep a copy of the old profile/database if you are validating a release
-   candidate migration.
-4. Download the artifact listed for your platform.
-5. Run the installer or replace the bundle as instructed by the release notes.
-6. Launch Nightshade and verify your equipment profile before connecting
-   hardware.
+1. Create a backup from Settings → Backup & Restore.
+2. Read the target release notes and known limitations.
+3. Download and verify the new artifact from GitHub.
+4. Keep the old portable folder until the new build opens your profile and you
+   have verified the migration.
+5. Replace/extract the new bundle, launch it, and confirm your equipment profile
+   before connecting hardware.
 
-## Troubleshooting Installation
+The 5.0 release gate verifies schema v51 (created by tagged v4.3.0 code) through
+v55 on a copied database. Your own backup remains the rollback path.
 
-### Windows: "Windows protected your PC" message
-- Click "More info"
-- Click "Run anyway"
-- This appears because the app is not signed with a Windows certificate
+## Troubleshooting
 
-### macOS: "App is damaged and can't be opened"
-- This is a Gatekeeper issue
-- Open Terminal and run: `xattr -cr /Applications/Nightshade.app`
-- Then try opening Nightshade again
+- Windows SmartScreen: verify the SHA-256 and release source, then use “More
+  info” → “Run anyway.”
+- Missing Windows device: install ASCOM/vendor drivers; official artifacts do
+  not include vendor SDK DLLs.
+- Linux startup/library error: run `ldd ./nightshade_desktop` from the extracted
+  directory and install the missing system library. Start via `./nightshade`.
+- Pairing failure: keep both devices on the same LAN, allow Nightshade through
+  the host firewall, and retry QR/manual pairing.
 
-### Linux: AppImage won't run
-- Ensure you've made it executable: `chmod +x Nightshade-2.0-x64.AppImage`
-- Install FUSE if needed: `sudo apt-get install fuse`
-
-### Missing Dependencies
-- Windows: Install Visual C++ Redistributable and .NET Framework 4.8
-- Linux: Run `ldd Nightshade` to check for missing libraries
-
-## Next Steps
-
-Now that Nightshade is installed, proceed to:
-- [Connecting Your First Device](first-connection.md) - Set up your camera and mount
-- [Capturing Your First Image](first-image.md) - Take your first exposure
-
-## Getting Help
-
-If you encounter issues during installation:
-- Check the [Troubleshooting Guide](../troubleshooting/common-issues.md)
-- Visit our [GitHub Issues](https://github.com/Scodouglas1999/Nightshade/issues)
+Continue with [Connecting Your First Device](first-connection.md) and
+[Capturing Your First Image](first-image.md). For help, use the
+[troubleshooting guide](../troubleshooting/common-issues.md) or
+[GitHub Issues](https://github.com/Scdouglas1999/Nightshade/issues).

@@ -45,7 +45,7 @@ void main() {
           qualifiesAsOlderProfile: false,
           migrationVerified: false,
           blocker:
-              'No older real Nightshade database/profile was supplied. Set NIGHTSHADE_OLD_DATABASE or pass --dart-define=NIGHTSHADE_OLD_DATABASE=<path>.',
+              'No older release-authentic Nightshade database/profile was supplied. Set NIGHTSHADE_OLD_DATABASE or pass --dart-define=NIGHTSHADE_OLD_DATABASE=<path>.',
         ),
       );
       print('Manual migration probe complete.');
@@ -53,7 +53,9 @@ void main() {
       print('JSON: $_jsonOutputPath');
       print('Markdown: $_markdownOutputPath');
       if (requireArtifact) {
-        fail('No older real Nightshade database/profile was supplied.');
+        fail(
+          'No older release-authentic Nightshade database/profile was supplied.',
+        );
       }
       return;
     }
@@ -63,7 +65,7 @@ void main() {
       await _writeReport(
         _ProbeReport(
           artifactProvided: true,
-          sourcePath: source.absolute.path,
+          sourcePath: _evidencePath(source),
           sourceExists: false,
           qualifiesAsOlderProfile: false,
           migrationVerified: false,
@@ -118,11 +120,11 @@ void main() {
         await _writeReport(
           _ProbeReport(
             artifactProvided: true,
-            sourcePath: source.absolute.path,
+            sourcePath: _evidencePath(source),
             sourceExists: true,
             sourceSizeBytes: sourceSizeBytes,
             sourceSha256: sourceSha256,
-            copiedPath: copy.path,
+            copiedPath: _evidencePath(copy),
             copiedSourceSha256: copiedSourceSha256,
             copiedSourceSha256Matches: copiedSourceSha256Matches,
             sourceUserVersion: sourceUserVersion,
@@ -167,7 +169,7 @@ void main() {
       await _writeReport(
         _ProbeReport(
           artifactProvided: true,
-          sourcePath: source.absolute.path,
+          sourcePath: _evidencePath(source),
           sourceExists: true,
           sourceSizeBytes: await source.length(),
           sourceSha256: await _sha256(source),
@@ -185,6 +187,22 @@ void main() {
       }
     }
   });
+}
+
+/// Keeps committed evidence reproducible and avoids recording a maintainer's
+/// home-directory path. The content hash remains the artifact identity.
+String _evidencePath(File source) {
+  final absolute = source.absolute.path.replaceAll('\\', '/');
+  final repoRoot = Directory.current.parent.parent.absolute.path.replaceAll(
+    '\\',
+    '/',
+  );
+  if (absolute.startsWith('$repoRoot/')) {
+    return absolute.substring(repoRoot.length + 1);
+  }
+  return source.uri.pathSegments.isEmpty
+      ? source.path
+      : source.uri.pathSegments.last;
 }
 
 Future<int?> _readSqliteUserVersion(File file) async {
@@ -346,7 +364,7 @@ class _ProbeReport {
       ..writeln('- Migration verified: `$migrationVerified`')
       ..writeln()
       ..writeln(
-        'Scope: this probe validates a supplied older real SQLite profile/database by migrating a temporary copy. It does not replace the synthetic database migration test suite.',
+        'Scope: this probe validates a supplied older release-authentic SQLite profile/database by migrating a temporary copy. The checked-in v4.3.0 fixture was created by the tagged v4.3.0 database code; synthetic schema tests remain a separate layer.',
       )
       ..writeln();
 

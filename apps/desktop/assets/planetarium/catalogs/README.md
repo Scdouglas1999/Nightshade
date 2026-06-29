@@ -9,6 +9,23 @@ Bundled catalog packs live under this directory and are declared in `apps/deskto
 
 Each pack directory includes a `pack.json` manifest (SHA-256 per file). After rebuilding payloads, regenerate manifests so digests match (see below).
 
+## License and attribution
+
+The two bundled catalog packs are transformed database extracts distributed
+under the [Creative Commons Attribution-ShareAlike 4.0 International
+license](https://creativecommons.org/licenses/by-sa/4.0/):
+
+- **OpenNGC:** compiled by Mattia Verga and OpenNGC contributors. Source:
+  <https://github.com/mattiaverga/OpenNGC>. The build filters and converts the
+  source CSV into Nightshade's fixed-width `dso-opengnc-v1.bin` format.
+- **HYG Database:** compiled by David Nash / Astronexus and contributors.
+  Source: <https://codeberg.org/astronexus/hyg>. The build filters HYG v4.2 to
+  magnitude 15 and partitions it into Nightshade's HEALPix tile format.
+
+The resulting catalog pack data is licensed CC BY-SA 4.0. Nightshade's program
+code remains governed by its own license; no additional restrictions are
+asserted over the source datasets.
+
 ## Prerequisites (read-only sources, not committed)
 
 | Tool | Source CSV | Setup |

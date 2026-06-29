@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-06-16T19:39:23.130589Z",
+  "generatedAt": "2026-06-29T00:59:55.871749Z",
   "sourceChecklist": "docs/production-readiness/public-release-master-checklist.md",
   "totalItemCount": 16,
-  "checkedItemCount": 6,
-  "uncheckedItemCount": 10,
+  "checkedItemCount": 10,
+  "uncheckedItemCount": 6,
   "checkedWithoutEvidenceCount": 0,
   "knownLimitationsReferenced": true,
   "supportedHardwareByPlatformReferenced": true,
@@ -18,8 +18,8 @@
     {
       "section": "Release Branch And Packaging",
       "total": 4,
-      "checked": 2,
-      "unchecked": 2,
+      "checked": 3,
+      "unchecked": 1,
       "checkedWithoutEvidence": 0
     },
     {
@@ -32,8 +32,8 @@
     {
       "section": "Mobile And Migration",
       "total": 4,
-      "checked": 1,
-      "unchecked": 3,
+      "checked": 4,
+      "unchecked": 0,
       "checkedWithoutEvidence": 0
     },
     {
@@ -51,13 +51,6 @@
       "checked": false,
       "text": "Final release PR branch is clean, non-main, and validated against the",
       "lineNumber": 27,
-      "hasEvidence": true
-    },
-    {
-      "section": "Release Branch And Packaging",
-      "checked": false,
-      "text": "Linux release package is built and smoke-tested from a real Linux",
-      "lineNumber": 36,
       "hasEvidence": true
     },
     {
@@ -82,38 +75,17 @@
       "hasEvidence": true
     },
     {
-      "section": "Mobile And Migration",
-      "checked": false,
-      "text": "Android emulator remote smoke artifacts exist and show a connected remote",
-      "lineNumber": 59,
-      "hasEvidence": true
-    },
-    {
-      "section": "Mobile And Migration",
-      "checked": false,
-      "text": "Android emulator reconnect smoke records reconnect behavior.",
-      "lineNumber": 64,
-      "hasEvidence": true
-    },
-    {
-      "section": "Mobile And Migration",
-      "checked": false,
-      "text": "Older real Nightshade profile/database migration is verified from a copied",
-      "lineNumber": 69,
-      "hasEvidence": true
-    },
-    {
       "section": "Final Sign-Off",
       "checked": false,
       "text": "Public release external evidence validator passes for Linux build,",
-      "lineNumber": 75,
+      "lineNumber": 76,
       "hasEvidence": true
     },
     {
       "section": "Final Sign-Off",
       "checked": false,
       "text": "Final ship/no-ship decision records reviewer, date, commit, version,",
-      "lineNumber": 79,
+      "lineNumber": 80,
       "hasEvidence": true
     }
   ]

@@ -1,16 +1,18 @@
-# Bundled vendor device SDKs (Windows)
+# Optional vendor device SDKs for local Windows development
 
 Native camera/focuser/filter-wheel drivers are loaded at runtime by the native
 bridge (`native/nightshade_native/native/src/vendor/*`). The loader
 (`sdk_loader.rs`) searches **next to `nightshade_desktop.exe` first**, then the
 vendor's install path (`C:\Program Files\<vendor>\...`).
 
-Any `*.dll` placed in this folder is copied next to the executable by
-`scripts/stage_windows_release.ps1` and shipped in the release zip, so devices
-connect without the user installing the vendor's driver package separately.
+The staging script does **not** copy this folder by default. For a local-only
+development build, pass `-IncludeVendorSdks` to
+`scripts/stage_windows_release.ps1`. The official GitHub release workflow never
+passes that switch and fails if a known vendor SDK DLL appears in the output.
 
 These vendor SDK binaries are **not committed** (license + size). Drop the
-redistributable 64-bit DLLs here before cutting a release. Expected filenames
+64-bit DLLs here only for local testing. Do not put them in an official release
+until each vendor's redistribution terms and notices are cleared. Expected filenames
 (must match exactly — the loader looks for these names):
 
 | Vendor | DLL(s) |
@@ -29,5 +31,5 @@ redistributable 64-bit DLLs here before cutting a release. Expected filenames
 | gPhoto2 (DSLR) | `gphoto2.dll`, `libgphoto2.dll` |
 
 All DLLs must be 64-bit (the staging script asserts this). Sources are each
-vendor's official SDK download; only the freely-redistributable SDKs should be
-bundled.
+vendor's official SDK download. Their presence in a local tree is not evidence
+of redistribution permission.

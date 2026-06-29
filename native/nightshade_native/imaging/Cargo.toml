@@ -2,6 +2,9 @@
 name = "nightshade_imaging"
 version.workspace = true
 edition.workspace = true
+license-file.workspace = true
+authors.workspace = true
+publish.workspace = true
 build = "build.rs"
 
 [dependencies]

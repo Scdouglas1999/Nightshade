@@ -96,10 +96,10 @@ on:
   pull_request:
 jobs:
   linux-release-build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
@@ -107,18 +107,23 @@ jobs:
       - run: dart run melos bootstrap
       - run: dart run melos run build:desktop:linux --no-select
       - run: |
+          cp LICENSE apps/desktop/build/linux/x64/release/bundle/NIGHTSHADE-LICENSE.txt
+          cp docs/THIRD_PARTY_NOTICES.md apps/desktop/build/linux/x64/release/bundle/THIRD_PARTY_NOTICES.md
+          cp third_party/licenses/LGPL-2.1.txt apps/desktop/build/linux/x64/release/bundle/LGPL-2.1.txt
+          printf '%s\\n' "$GITHUB_SHA" > apps/desktop/build/linux/x64/release/bundle/SOURCE-COMMIT.txt
+      - run: |
           dart run tools/production/linux_release_package_metadata.dart \\
             --bundle-dir=apps/desktop/build/linux/x64/release/bundle \\
             --output-dir=build/release-linux \\
             --metadata-output=docs/production-readiness/linux-release-package-metadata.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           path: |
             build/release-linux/*.tar.gz
             build/release-linux/*.sha256
           if-no-files-found: error
           retention-days: 14
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           path: docs/production-readiness/linux-release-package-metadata.json
           if-no-files-found: error

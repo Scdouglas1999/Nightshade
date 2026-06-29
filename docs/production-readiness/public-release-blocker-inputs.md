@@ -2,7 +2,7 @@
 
 - Source gate: `docs/production-readiness/public-release-gate.json`
 - Gate decision: `NOT_READY`
-- Open blockers: `5`
+- Open blockers: `4`
 
 This artifact lists the exact missing input or evidence needed to clear each current public-release blocker. It does not satisfy the blockers by itself.
 
@@ -11,7 +11,6 @@ This artifact lists the exact missing input or evidence needed to clear each cur
 | Blocker | Category | Required input |
 | --- | --- | --- |
 | Full hardware/control smoke | functionality | A rig, simulator-backed environment, or remote host that exposes camera, mount, focuser, filter wheel, rotator, guider, dome, weather, and safety monitor classes, plus permission to run safe control commands. |
-| Older real profile/database migration | data-integrity | An older real Nightshade SQLite database/profile artifact that can be copied and migrated by the probe. |
 | Second-device LAN/firewall smoke | networking | A second physical phone, tablet, or laptop on the same LAN, with the Windows firewall/router path used exactly as a real user would use it. |
 | Real remote-control actions | functionality | Permission and a safe test window to issue actual remote control actions from dashboard/mobile/headless APIs against real or simulator-backed devices. |
 | Final release checklist/sign-off | process | Reviewer sign-off evidence for every remaining checklist item, or explicit release-scope removal for items that cannot be satisfied. |
@@ -43,32 +42,6 @@ Expected evidence:
 - `docs/production-readiness/hardware-availability-probe.json`
 - `Full hardware/control smoke log with command results`
 - `Screenshots or exported dashboard/device-state evidence if manually driven`
-
-## Older real profile/database migration
-
-- ID: `manual_migration`
-- Category: `data-integrity`
-- Current gate detail: artifactProvided=false sourceExists=false sourceSizeBytes=0 sourceSha256Recorded=false copiedSourceSha256Matches=false qualifiesAsOlderProfile=false migrationVerified=false expectedTableCount=0 migratedTableCount=0 defaultSettingCount=0 missingTables=0 missingDefaultSettings=0.
-- Local status: artifactProvided=false; migrationVerified=false. No older real Nightshade database/profile was supplied. Set NIGHTSHADE_OLD_DATABASE or pass --dart-define=NIGHTSHADE_OLD_DATABASE=<path>.
-- Required input: An older real Nightshade SQLite database/profile artifact that can be copied and migrated by the probe.
-
-Acceptance criteria:
-- Probe runs against a temporary copy of an older real database/profile.
-- `artifactProvided=true` and `migrationVerified=true` in `manual-migration-probe.json`.
-- Report records source path, source size, source SHA256, original user_version, final user_version, current table set, and required default settings.
-- Synthetic old-schema/profile migration regression tests pass without using real user data.
-
-Rerun commands:
-- `cd packages/nightshade_core && flutter test test/services/database_migration_test.dart`
-- `$env:NIGHTSHADE_OLD_DATABASE="<path-to-old-nightshade.sqlite>"; dart run melos run audit:manual-migration --no-select`
-- `dart run melos run audit:public-release-gate --no-select`
-
-Expected evidence:
-- `packages/nightshade_core/test/fixtures/synthetic_old_profile_fixtures.dart`
-- `packages/nightshade_core/test/services/database_migration_test.dart`
-- `docs/production-readiness/manual-migration-probe.json`
-- `docs/production-readiness/manual-migration-probe.md`
-- `Path or secure reference to the source old database artifact`
 
 ## Second-device LAN/firewall smoke
 
@@ -130,8 +103,8 @@ Expected evidence:
 
 - ID: `final_checklist`
 - Category: `process`
-- Current gate detail: Checklist items=16 checked=6 unchecked=10 checkedWithoutEvidence=0 knownLimitationsReferenced=true supportedHardwareByPlatformReferenced=true; validated final sign-off evidence is missing. External evidence validator did not pass for docs/production-readiness/final-release-signoff-evidence.json. Template: docs/production-readiness/external-evidence-templates/final-release-signoff-evidence.template.json. Evidence file is missing or is not valid JSON.
-- Local status: Checklist items=16 checked=6 unchecked=10 checkedWithoutEvidence=0 knownLimitationsReferenced=true supportedHardwareByPlatformReferenced=true.
+- Current gate detail: Checklist items=16 checked=10 unchecked=6 checkedWithoutEvidence=0 knownLimitationsReferenced=true supportedHardwareByPlatformReferenced=true; validated final sign-off evidence is missing. External evidence validator did not pass for docs/production-readiness/final-release-signoff-evidence.json. Template: docs/production-readiness/external-evidence-templates/final-release-signoff-evidence.template.json. Evidence file is missing or is not valid JSON.
+- Local status: Checklist items=16 checked=10 unchecked=6 checkedWithoutEvidence=0 knownLimitationsReferenced=true supportedHardwareByPlatformReferenced=true.
 - Required input: Reviewer sign-off evidence for every remaining checklist item, or explicit release-scope removal for items that cannot be satisfied.
 
 Acceptance criteria:

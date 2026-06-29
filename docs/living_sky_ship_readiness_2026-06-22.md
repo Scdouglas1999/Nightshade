@@ -1,5 +1,15 @@
 # Living Sky (Your Sky / First Light / Constellation) — Ship-Readiness Evaluation
 
+> **Historical pre-fix audit — superseded for 5.0.0.** This document is retained
+> as the finding record and intentionally describes the code as it existed on
+> 2026-06-22. The coordinated remediation landed in Wave 0 (`bc9330b9`), Wave 1
+> (`e1fd56dd`), Wave 2 (`41ed1ee4`), Wave 3 (`90fe0805`), the final sweep
+> (`dec8d33f`), and deferred-backlog closure (`0d16b0bc`). Current release scope
+> is defined by `docs/release/v5.0.0.md`: TNS has a real credentialed API path;
+> AAVSO/MPC are explicit manual exports; Constellation uses a self-hosted hub;
+> and physical-rig/on-sky validation remains pending. Do not treat the original
+> “NOT ready” verdict below as the current branch status.
+
 _Read-only deep evaluation, 2026-06-22. 3 pillars mapped end-to-end, evaluated through 6 lenses each (desired UX, functional gaps, adversarial UI, correctness, code quality, data/scale), adversarially verified. 126 raw findings -> 116 confirmed. No code changed._
 
 ---

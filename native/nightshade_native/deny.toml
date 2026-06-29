@@ -74,6 +74,22 @@ allow = [
 ]
 confidence-threshold = 0.8
 
+# First-party Nightshade crates use the repository's custom source-available
+# license and are all marked `publish = false`. The third-party policy below is
+# intentionally not applied to them.
+[licenses.private]
+ignore = true
+
+# allo-isolate 0.1.27 ships the complete Apache-2.0 text in its crate tarball
+# but declares it through `license-file` instead of an SPDX expression.
+[[licenses.clarify]]
+name = "allo-isolate"
+version = "0.1.27"
+expression = "Apache-2.0"
+license-files = [
+    { path = "LICENSE", hash = 0xc71d239d },
+]
+
 [advisories]
 # Vulnerability advisories are handled separately by the rust audit job;
 # this file only governs duplicates today. Ignore unmaintained-only

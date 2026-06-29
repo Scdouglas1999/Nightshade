@@ -248,7 +248,7 @@ class HipsTileFetcher {
     this.timeout = defaultTimeout,
     this.maxResponseBytes = defaultMaxResponseBytes,
     String appUserAgent =
-        'Nightshade/2.5 (+https://github.com/Scoduglas1999) '
+        'Nightshade/5.0 (+https://github.com/Scdouglas1999/Nightshade) '
         'HiPS-framing-tile-layer',
   }) : _client = httpClient ?? http.Client(),
        _ownsClient = httpClient == null,

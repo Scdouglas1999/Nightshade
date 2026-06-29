@@ -48,7 +48,8 @@ Future<void> main() async {
       'passing fixture should include oversized request coverage',
     );
     _expect(
-      middlewareTests['chunked_oversized_control_request_before_auth'] == true,
+      middlewareTests['chunked_oversized_control_request_auth_ordering'] ==
+          true,
       'passing fixture should include chunked oversized request coverage',
     );
     _expect(
@@ -101,10 +102,10 @@ void main() {
   // rejects oversized control requests before auth
   // HttpStatus.requestEntityTooLarge
   // Request body too large
-  // rejects chunked oversized control requests before auth
-  // Transfer-Encoding: chunked
+  // rejects chunked oversized control requests for authenticated callers
   // response.body['requestId']
   // response.headers['x-request-id']
+  // HttpStatus.requestEntityTooLarge
   // rate limits repeated high-risk control requests
   // HttpStatus.tooManyRequests
   // Rate limit exceeded
@@ -114,6 +115,17 @@ void main() {
   // GET /events?apiVersion=1.9.9 HTTP/1.1
   // HttpStatus.upgradeRequired
   // server_too_old
+}
+''',
+  );
+  await _writeFile(
+    root,
+    'apps/desktop/test/headless_api_server/http_request_size_limit_test.dart',
+    '''
+void main() {
+  // unauthenticated chunked upload is rejected with 401 before the body
+  // HttpStatus.unauthorized
+  // Transfer-Encoding: chunked
 }
 ''',
   );

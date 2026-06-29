@@ -20,7 +20,7 @@
 //! - XAPI.dll (main SDK)
 //! - FF0000API.dll through FF0020API.dll (model-specific modules)
 //!
-//! Based on the Nina Fujifilm plugin: https://github.com/Scoduglas1999/NINA-Fujifilm-Native-Plugin
+//! Based on the Nina Fujifilm plugin: https://github.com/Scdouglas1999/NINA-Fujifilm-Native-Plugin
 
 #![cfg(target_os = "windows")]
 #![allow(dead_code)] // FFI types must match SDK headers even if not all variants are used

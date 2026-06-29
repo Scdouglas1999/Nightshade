@@ -113,7 +113,7 @@ manual paths:
 - Confirm the schema-12 upgrade test reaches the current schema version and
   contains every current Drift-managed table.
 - Restore a `.nsbackup` from the previous public or internal build.
-- Manually upgrade a copied older real profile/database by launching the new app
+- Manually upgrade a copied older release-authentic profile/database by launching the new app
   against it.
 - Confirm application settings, equipment profiles, targets, sequences, and
   sequence templates are present after restart.

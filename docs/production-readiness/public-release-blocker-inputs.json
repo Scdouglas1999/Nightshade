@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-06-16T19:58:53.056012Z",
+  "generatedAt": "2026-06-29T00:59:56.698162Z",
   "sourceGate": "docs/production-readiness/public-release-gate.json",
   "decision": "NOT_READY",
-  "blockerCount": 5,
+  "blockerCount": 4,
   "blockers": [
     {
       "id": "hardware_control_smoke",
@@ -30,32 +30,6 @@
         "docs/production-readiness/hardware-availability-probe.json",
         "Full hardware/control smoke log with command results",
         "Screenshots or exported dashboard/device-state evidence if manually driven"
-      ]
-    },
-    {
-      "id": "manual_migration",
-      "label": "Older real profile/database migration",
-      "category": "data-integrity",
-      "currentGateDetail": "artifactProvided=false sourceExists=false sourceSizeBytes=0 sourceSha256Recorded=false copiedSourceSha256Matches=false qualifiesAsOlderProfile=false migrationVerified=false expectedTableCount=0 migratedTableCount=0 defaultSettingCount=0 missingTables=0 missingDefaultSettings=0.",
-      "localStatus": "artifactProvided=false; migrationVerified=false. No older real Nightshade database/profile was supplied. Set NIGHTSHADE_OLD_DATABASE or pass --dart-define=NIGHTSHADE_OLD_DATABASE=<path>.",
-      "requiredInput": "An older real Nightshade SQLite database/profile artifact that can be copied and migrated by the probe.",
-      "acceptanceCriteria": [
-        "Probe runs against a temporary copy of an older real database/profile.",
-        "`artifactProvided=true` and `migrationVerified=true` in `manual-migration-probe.json`.",
-        "Report records source path, source size, source SHA256, original user_version, final user_version, current table set, and required default settings.",
-        "Synthetic old-schema/profile migration regression tests pass without using real user data."
-      ],
-      "rerunCommands": [
-        "cd packages/nightshade_core && flutter test test/services/database_migration_test.dart",
-        "$env:NIGHTSHADE_OLD_DATABASE=\"<path-to-old-nightshade.sqlite>\"; dart run melos run audit:manual-migration --no-select",
-        "dart run melos run audit:public-release-gate --no-select"
-      ],
-      "expectedEvidence": [
-        "packages/nightshade_core/test/fixtures/synthetic_old_profile_fixtures.dart",
-        "packages/nightshade_core/test/services/database_migration_test.dart",
-        "docs/production-readiness/manual-migration-probe.json",
-        "docs/production-readiness/manual-migration-probe.md",
-        "Path or secure reference to the source old database artifact"
       ]
     },
     {
@@ -118,8 +92,8 @@
       "id": "final_checklist",
       "label": "Final release checklist/sign-off",
       "category": "process",
-      "currentGateDetail": "Checklist items=16 checked=6 unchecked=10 checkedWithoutEvidence=0 knownLimitationsReferenced=true supportedHardwareByPlatformReferenced=true; validated final sign-off evidence is missing. External evidence validator did not pass for docs/production-readiness/final-release-signoff-evidence.json. Template: docs/production-readiness/external-evidence-templates/final-release-signoff-evidence.template.json. Evidence file is missing or is not valid JSON.",
-      "localStatus": "Checklist items=16 checked=6 unchecked=10 checkedWithoutEvidence=0 knownLimitationsReferenced=true supportedHardwareByPlatformReferenced=true.",
+      "currentGateDetail": "Checklist items=16 checked=10 unchecked=6 checkedWithoutEvidence=0 knownLimitationsReferenced=true supportedHardwareByPlatformReferenced=true; validated final sign-off evidence is missing. External evidence validator did not pass for docs/production-readiness/final-release-signoff-evidence.json. Template: docs/production-readiness/external-evidence-templates/final-release-signoff-evidence.template.json. Evidence file is missing or is not valid JSON.",
+      "localStatus": "Checklist items=16 checked=10 unchecked=6 checkedWithoutEvidence=0 knownLimitationsReferenced=true supportedHardwareByPlatformReferenced=true.",
       "requiredInput": "Reviewer sign-off evidence for every remaining checklist item, or explicit release-scope removal for items that cannot be satisfied.",
       "acceptanceCriteria": [
         "Every completed checklist item has evidence notes.",

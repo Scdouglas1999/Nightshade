@@ -291,14 +291,15 @@ _BlockerInput _manualMigrationBlocker(
   return _BlockerInput(
     id: check['id']?.toString() ?? 'manual_migration',
     label:
-        check['label']?.toString() ?? 'Older real profile/database migration',
+        check['label']?.toString() ??
+        'Older release-authentic profile/database migration',
     category: 'data-integrity',
     localStatus:
         'artifactProvided=${migration?['artifactProvided']}; migrationVerified=${migration?['migrationVerified']}. ${migration?['blocker'] ?? ''}',
     requiredInput:
-        'An older real Nightshade SQLite database/profile artifact that can be copied and migrated by the probe.',
+        'An older release-authentic Nightshade SQLite database/profile artifact that can be copied and migrated by the probe.',
     acceptanceCriteria: [
-      'Probe runs against a temporary copy of an older real database/profile.',
+      'Probe runs against a temporary copy of an older release-authentic database/profile.',
       '`artifactProvided=true` and `migrationVerified=true` in `manual-migration-probe.json`.',
       'Report records source path, source size, source SHA256, original user_version, final user_version, current table set, and required default settings.',
       'Synthetic old-schema/profile migration regression tests pass without using real user data.',

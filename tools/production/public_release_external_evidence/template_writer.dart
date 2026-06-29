@@ -55,7 +55,7 @@ Future<void> _writeTemplates() async {
       ],
       'nativeLibraryNotes': [
         'replace with ldd/native shared library findings from the Linux artifact',
-        'replace with bundled or runtime vendor SDK library notes',
+        'replace with runtime/user-installed vendor SDK library notes (official artifacts do not bundle vendor SDKs)',
       ],
       'linuxPermissionNotes': [
         'replace with udev rules and dialout/plugdev/video group checks from the smoke host',

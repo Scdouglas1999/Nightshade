@@ -8,7 +8,11 @@
 
 param(
     [ValidateSet('Release', 'Debug')]
-    [string]$Profile = 'Release'
+    [string]$Profile = 'Release',
+
+    # Local development only. Official artifacts must leave this disabled
+    # until every included vendor's redistribution terms are cleared.
+    [switch]$IncludeVendorSdks
 )
 
 $ErrorActionPreference = 'Stop'
@@ -141,7 +145,7 @@ foreach ($name in $runtimeDlls) {
 # installing the vendor's driver package. An empty folder bundles nothing.
 # ---------------------------------------------------------------------------
 $sdkDir = Join-Path $ProjectRoot 'native\sdk\windows'
-if (Test-Path $sdkDir) {
+if ($IncludeVendorSdks -and (Test-Path $sdkDir)) {
     $sdkDlls = @(Get-ChildItem -Path $sdkDir -Filter '*.dll' -File -ErrorAction SilentlyContinue)
     if ($sdkDlls.Count -gt 0) {
         Write-Host "Bundling $($sdkDlls.Count) vendor device SDK DLL(s) from native\sdk\windows" -ForegroundColor Cyan
@@ -154,6 +158,12 @@ if (Test-Path $sdkDir) {
     else {
         Write-Host "No vendor SDK DLLs in native\sdk\windows (devices need vendor drivers installed)" -ForegroundColor DarkYellow
     }
+}
+elseif ($IncludeVendorSdks) {
+    Write-Host "Vendor SDK staging requested, but native\sdk\windows does not exist" -ForegroundColor DarkYellow
+}
+else {
+    Write-Host "Vendor SDK staging disabled (official release-safe default)" -ForegroundColor DarkYellow
 }
 
 # ---------------------------------------------------------------------------

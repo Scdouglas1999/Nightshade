@@ -1,6 +1,6 @@
 # No Fake Hardware Policy
 
-Nightshade 4.1.0 controls real telescopes, mounts, cameras, and observatory
+Nightshade controls real telescopes, mounts, cameras, and observatory
 roofs, often unattended. A control system that quietly invents data, or quietly
 substitutes a simulator for a missing device, is worse than one that stops:
 it hides a fault behind plausible-looking numbers until the optics are pointed
