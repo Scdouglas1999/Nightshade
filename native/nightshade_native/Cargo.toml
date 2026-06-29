@@ -61,7 +61,7 @@ base64 = "0.22"
 flutter_rust_bridge = "2.0"
 
 # Windows COM (used by ASCOM crate on Windows)
-windows = { version = "0.52", features = [
+windows = { version = "0.62", features = [
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
     "Win32_System_Com",
