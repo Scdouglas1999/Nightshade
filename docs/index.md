@@ -157,7 +157,7 @@ Nightshade supports multiple ways to connect to your equipment:
 | Protocol | Best For | Platform | Requirements |
 |----------|----------|----------|--------------|
 | **ASCOM** | Windows users with ASCOM drivers | Windows only | ASCOM Platform + drivers |
-| **Native** | Direct USB connection when the release includes the needed SDK | Capability-gated | Packaged vendor SDK and OS driver support |
+| **Native** | Direct USB connection when the user has installed the needed SDK | Capability-gated | User-installed vendor SDK and OS driver support; official artifacts do not redistribute vendor SDK binaries |
 | **Alpaca** | Network devices, remote imaging | All platforms | Alpaca server on device |
 | **INDI** | Linux/macOS standard | Linux/macOS | INDI server + drivers |
 
@@ -366,7 +366,7 @@ Application:
 
 - **Documentation**: You're reading it!
 - **GitHub**: https://github.com/Scdouglas1999/Nightshade
-- **Issues**: https://github.com/Scodouglas1999/Nightshade/issues
+- **Issues**: https://github.com/Scdouglas1999/Nightshade/issues
 
 ### Developer Resources
 

@@ -768,7 +768,7 @@ _GateCheck _checkSyntheticMigrationRegression() {
     passed: data['passed'] == true && issueCount == 0,
     evidence: 'docs/production-readiness/migration-regression-audit.json',
     detail:
-        'issues=$issueCount fixtureMissing=${fixture['missingTextCount']} testMissing=${tests['missingTextCount']} manualProbeMissing=${manualProbe['missingTextCount']} manualRealArtifactGatePreserved=${data['manualRealArtifactGatePreserved']}. Real older-profile migration remains a separate blocker.',
+        'issues=$issueCount fixtureMissing=${fixture['missingTextCount']} testMissing=${tests['missingTextCount']} manualProbeMissing=${manualProbe['missingTextCount']} manualRealArtifactGatePreserved=${data['manualRealArtifactGatePreserved']}. Release-authentic older-profile migration is evaluated by the separate manual-probe check.',
   );
 }
 
@@ -813,7 +813,7 @@ _GateCheck _checkManualMigration() {
       missingSettings == 0;
   return _GateCheck(
     id: 'manual_migration',
-    label: 'Older real profile/database migration',
+    label: 'Older release-authentic profile/database migration',
     passed: passed,
     evidence: 'docs/production-readiness/manual-migration-probe.json',
     detail:

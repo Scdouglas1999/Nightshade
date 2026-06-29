@@ -53,6 +53,7 @@ jobs:
             libsecret-1-dev \
             libjsoncpp-dev \
             libudev-dev \
+            libusb-1.0-0-dev \
             libraw-dev \
             xvfb \
             tar
@@ -155,16 +156,10 @@ jobs:
       - name: Verify glibc floor (Bookworm / Raspberry Pi OS compatibility)
         run: |
           set -euo pipefail
-          # This job builds on ubuntu-latest (newer glibc), but the appliance
-          # ships on Debian/Raspberry Pi OS Bookworm (glibc 2.36) — both the
-          # systemd/Pi installs and the docker appliance (FROM debian:bookworm-slim).
-          # A binary that requires a newer glibc aborts on boot there with
-          # "GLIBC_2.38 not found", invisible to a smoke test run on this runner.
-          # Fail loudly if any bundle binary exceeds the target floor.
-          #
-          # To make this PASS (not just detect), build on Bookworm: the
-          # now-Bookworm-capable scripts/docker_build_linux.sh produces a
-          # glibc-2.36 bundle and runs this same check internally —
+          # This job builds on ubuntu-22.04 (glibc 2.35), below the appliance's
+          # Debian/Raspberry Pi OS Bookworm glibc 2.36 floor. Keep this guard so
+          # a future runner or prebuilt library cannot silently raise the floor.
+          # The Docker path performs the same check on Bookworm:
           #   docker run --rm -e NIGHTSHADE_GLIBC_FLOOR=2.36 \
           #     -v "$PWD":/host:ro -v "$PWD/dist-linux":/out \
           #     debian:bookworm-slim bash /host/scripts/docker_build_linux.sh
@@ -189,6 +184,16 @@ jobs:
             exit 1
           fi
           echo "glibc floor OK (no binary exceeds $FLOOR)"
+
+      - name: Add release licenses and notices
+        run: |
+          set -euo pipefail
+          BUNDLE="apps/desktop/build/linux/x64/release/bundle"
+          cp LICENSE "$BUNDLE/NIGHTSHADE-LICENSE.txt"
+          cp docs/THIRD_PARTY_NOTICES.md "$BUNDLE/THIRD_PARTY_NOTICES.md"
+          printf '%s\n' "$GITHUB_SHA" > "$BUNDLE/SOURCE-COMMIT.txt"
+          mkdir -p "$BUNDLE/LICENSES"
+          cp third_party/licenses/LGPL-2.1.txt "$BUNDLE/LICENSES/LGPL-2.1.txt"
 
       - name: Headless runtime smoke
         run: |

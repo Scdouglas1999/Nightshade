@@ -2,7 +2,7 @@ name: Release
 
 # Builds the Android APK, Linux bundle, and Windows package, then publishes
 # them all to a public GitHub Release. Triggered by pushing a version tag
-# (e.g. `git tag v4.1.0 && git push origin v4.1.0`). Windows desktop cannot be
+# (e.g. `git tag v5.0.0 && git push origin v5.0.0`). Windows desktop cannot be
 # cross-compiled from Linux, so it builds on a Windows runner here.
 #
 # `workflow_dispatch` lets you rebuild artifacts on demand. Supplying an
@@ -198,7 +198,7 @@ jobs:
           sudo apt-get install -y \
             clang cmake ninja-build pkg-config \
             libgtk-3-dev libsecret-1-dev libjsoncpp-dev \
-            libudev-dev libraw-dev tar
+            libudev-dev libusb-1.0-0-dev libraw-dev tar
 
       - name: Install Melos
         run: dart pub global activate melos
@@ -295,6 +295,12 @@ jobs:
       - name: Package + checksum
         run: |
           set -euo pipefail
+          BUNDLE="apps/desktop/build/linux/x64/release/bundle"
+          cp LICENSE "$BUNDLE/NIGHTSHADE-LICENSE.txt"
+          cp docs/THIRD_PARTY_NOTICES.md "$BUNDLE/THIRD_PARTY_NOTICES.md"
+          printf '%s\n' "$GITHUB_SHA" > "$BUNDLE/SOURCE-COMMIT.txt"
+          mkdir -p "$BUNDLE/LICENSES"
+          cp third_party/licenses/LGPL-2.1.txt "$BUNDLE/LICENSES/LGPL-2.1.txt"
           mkdir -p dist
           tar -czf "dist/nightshade-${APP_VERSION}-linux-x64.tar.gz" \
             -C apps/desktop/build/linux/x64/release \
@@ -318,7 +324,7 @@ jobs:
     # to windows-2025-vs2026 on 2026-06-18, whose newer CMake refuses to extract
     # archives through symlinks and breaks flutter_webrtc's Windows native build
     # ("Cannot extract through symlink ...flutter_webrtc"). windows-2022 is the
-    # known-good image yesterday's 4.1.0 build shipped on. TODO: revisit with a
+    # known-good image used by the previous release. TODO: revisit with a
     # durable fix (pin CMake / flutter_webrtc workaround) before windows-2022 is
     # deprecated.
     runs-on: windows-2022
@@ -381,6 +387,17 @@ jobs:
             Write-Error "Missing required files in Release output: $($missing -join ', ')"
             exit 1
           }
+          $forbidden = @(
+            "updater.exe",
+            "ASICamera2.dll", "EAF_focuser.dll", "EFW_filter.dll",
+            "qhyccd.dll", "AtikCameras.dll", "PlayerOneCamera.dll",
+            "SVBCameraSDK.dll", "ogmacam.dll", "dlapi.dll"
+          )
+          $unexpected = @($forbidden | Where-Object { Test-Path (Join-Path $rel $_) })
+          if ($unexpected.Count -gt 0) {
+            Write-Error "Official 5.0 is manual-update-only and redistributes no vendor SDKs; unexpected files: $($unexpected -join ', ')"
+            exit 1
+          }
           Write-Host "Release output verified:"
           Get-ChildItem $rel | Format-Table Name, Length
 
@@ -389,6 +406,11 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           $rel = "apps/desktop/build/windows/x64/runner/Release"
+          Copy-Item LICENSE (Join-Path $rel "NIGHTSHADE-LICENSE.txt") -Force
+          Copy-Item docs/THIRD_PARTY_NOTICES.md (Join-Path $rel "THIRD_PARTY_NOTICES.md") -Force
+          $env:GITHUB_SHA | Out-File -Encoding ascii (Join-Path $rel "SOURCE-COMMIT.txt")
+          New-Item -ItemType Directory -Force -Path (Join-Path $rel "LICENSES") | Out-Null
+          Copy-Item third_party/licenses/LGPL-2.1.txt (Join-Path $rel "LICENSES/LGPL-2.1.txt") -Force
           $zip = "dist/nightshade-$($env:APP_VERSION)-windows-x64.zip"
           Compress-Archive -Path "$rel/*" -DestinationPath $zip -Force
           (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() + "  nightshade-$($env:APP_VERSION)-windows-x64.zip" `
@@ -426,13 +448,17 @@ jobs:
           mkdir -p release-assets
           find artifacts -type f \( -name '*.apk' -o -name '*.tar.gz' \
             -o -name '*.zip' -o -name '*.sha256' \) -exec cp -v {} release-assets/ \;
+          cp LICENSE release-assets/NIGHTSHADE-LICENSE.txt
+          cp docs/THIRD_PARTY_NOTICES.md release-assets/THIRD_PARTY_NOTICES.md
+          cp third_party/licenses/LGPL-2.1.txt release-assets/LGPL-2.1.txt
+          printf '%s\n' "$GITHUB_SHA" > release-assets/SOURCE-COMMIT.txt
           echo "Release assets:"
           ls -l release-assets
 
       # Fail early with a clear message rather than letting the publish step
       # silently fall back to an empty release body when the notes file for this
-      # tag was never written. The file name must match the tag (v4.1.0 ->
-      # docs/release/v4.1.0.md).
+      # tag was never written. The file name must match the tag (v5.0.0 ->
+      # docs/release/v5.0.0.md).
       - name: Verify release notes exist for this tag
         if: startsWith(github.ref, 'refs/tags/')
         run: |

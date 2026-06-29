@@ -870,7 +870,7 @@ packages:
       path: "../mobile"
       relative: true
     source: path
-    version: "4.3.0+22"
+    version: "5.0.0+23"
   nightshade_planetarium:
     dependency: "direct overridden"
     description:

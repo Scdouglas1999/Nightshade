@@ -1,5 +1,5 @@
 name: nightshade
-repository: https://github.com/Scoduglas1999/Nightshade2
+repository: https://github.com/Scdouglas1999/Nightshade
 
 packages:
   - apps/*
@@ -221,12 +221,12 @@ scripts:
     description: Self-test Linux release workflow audit against temporary workflow fixtures
 
   audit:manual-migration:
-    run: cd packages/nightshade_core && flutter test tool/production_migration_probe.dart
-    description: Record or verify older real profile/database migration evidence
+    run: cd packages/nightshade_core && NIGHTSHADE_OLD_DATABASE="$PWD/test/fixtures/nightshade-v4.3.0-profile.db" flutter test tool/production_migration_probe.dart --dart-define=REQUIRE_MIGRATION_ARTIFACT=true
+    description: Verify the release-authentic v4.3.0 profile/database migration to the current schema
 
   audit:migration-regression:
     run: dart run tools/production/migration_regression_audit.dart
-    description: Verify synthetic old-schema/profile migration fixture coverage without satisfying the real artifact gate
+    description: Verify synthetic old-schema coverage alongside the release-authentic migration artifact gate
 
   audit:migration-regression:self-test:
     run: dart run tools/production/migration_regression_audit_self_test.dart

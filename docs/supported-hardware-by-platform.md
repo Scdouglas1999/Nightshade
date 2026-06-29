@@ -39,7 +39,7 @@ acquisition** as experimental. Linux and macOS have no hardware rows yet.
 | ASCOM COM | Available | Unsupported | Unsupported | Requires Windows COM and locally installed ASCOM Platform/device drivers. |
 | ASCOM Alpaca | Available | Available | Available | Network API for ASCOM-compatible devices and bridges. Device capability gaps are reported by the Alpaca server. |
 | INDI | Available | Available | Available | Requires a reachable INDI server. Feature depth depends on the INDI driver and device property support. |
-| Native SDK | Capability-gated | Capability-gated | Capability-gated | Depends on packaged vendor libraries, OS driver support, and redistribution approval. |
+| Native SDK | Capability-gated | Capability-gated | Capability-gated | Depends on user-installed vendor libraries and OS driver support. Official artifacts do not redistribute vendor SDK binaries. |
 | Simulator | Capability-gated | Capability-gated | Capability-gated | Workflow-specific; use ASCOM, Alpaca, or INDI simulator drivers for hardware-like smoke tests unless an in-app simulator path is explicitly enabled. |
 
 ## Device Category Coverage
@@ -116,6 +116,9 @@ search the executable directory and `bundle/lib` before system library paths,
 so the same artifact can run on a clean Raspberry Pi when the required
 libraries are legally bundled. If a vendor SDK must be installed separately,
 record the package/source and architecture in release evidence.
+
+The official 5.0.0 GitHub artifacts do not use this custom packaging option and
+contain no vendor SDK binaries.
 
 ## Release Verification Gate
 

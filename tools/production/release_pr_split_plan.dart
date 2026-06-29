@@ -99,7 +99,7 @@ const _bucketDefinitions = [
     intent:
         'Review database, model, provider, backend, migration, and shared service changes as a data/API compatibility set.',
     recommendedAction:
-        'Stage with focused tests and a real older-profile migration artifact; generated DB/model files stay in the generated-files bucket.',
+        'Stage with focused tests and a release-authentic older-profile migration artifact; generated DB/model files stay in the generated-files bucket.',
   ),
   _BucketDefinition(
     id: 'desktop-ui-workflows',

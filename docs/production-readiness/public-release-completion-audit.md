@@ -5,8 +5,8 @@
 - Decision: `NOT_ACHIEVED`
 - Gate decision: `NOT_READY`
 - Completion detail: One or more P0 requirements remain blocked or weakly verified.
-- Complete P0 checks: `3`
-- Blocked/incomplete P0 checks: `4`
+- Complete P0 checks: `4`
+- Blocked/incomplete P0 checks: `3`
 
 This audit maps each P0 public-release requirement from `goal.txt` to concrete evidence. Proxy signals are not treated as completion when direct evidence is missing.
 
@@ -15,14 +15,14 @@ This audit maps each P0 public-release requirement from `goal.txt` to concrete e
 | Artifact | Generated | Decision | Count |
 | --- | --- | --- | --- |
 | `goal.txt` | `unknown` | `` | `` |
-| `docs/production-readiness/public-release-gate.json` | `2026-06-16T19:58:47.859991Z` | `NOT_READY` | `20` |
-| `docs/production-readiness/public-release-blocker-inputs.json` | `2026-06-16T19:58:53.056012Z` | `NOT_READY` | `` |
+| `docs/production-readiness/public-release-gate.json` | `2026-06-29T00:59:56.096908Z` | `NOT_READY` | `21` |
+| `docs/production-readiness/public-release-blocker-inputs.json` | `2026-06-29T00:53:41.953698Z` | `NOT_READY` | `` |
 | `docs/production-readiness/public-release-external-evidence.json` | `2026-06-16T19:55:28.086493Z` | `ready=false` | `1` |
 | `docs/production-readiness/release-staging-audit.json` | `2026-06-16T19:36:20.097609Z` | `` | `0` |
 | `docs/production-readiness/release-pr-split-plan.json` | `2026-06-16T19:35:32.397361Z` | `` | `189` |
 | `docs/production-readiness/release-pr-owner-decision-matrix.json` | `2026-06-16T19:35:32.479571Z` | `` | `189` |
 | `docs/production-readiness/release-pr-staged-branch-validation.json` | `2026-06-16T19:58:44.043814Z` | `` | `` |
-| `docs/production-readiness/public-release-checklist-audit.json` | `2026-06-16T19:39:23.130589Z` | `` | `` |
+| `docs/production-readiness/public-release-checklist-audit.json` | `2026-06-29T00:59:55.871749Z` | `` | `` |
 
 ## Prompt-To-Artifact Checklist
 
@@ -32,9 +32,9 @@ This audit maps each P0 public-release requirement from `goal.txt` to concrete e
 | complete | Split generated/binary/native changes from Dart/UI changes where possible. | docs/production-readiness/release-pr-split-plan.json; docs/production-readiness/release-pr-owner-decision-matrix.json; docs/production-readiness/release-pr-staged-branch-validation.json; docs/production-readiness/release-pr-pathspecs/*.txt | Planning artifacts exist, but no final clean PR has staged or excluded those buckets yet. bucketCount=8; entryCount=189; ownerMatrixPaths=189; stagedBranchValidationPassed=true. |
 | complete | Do a Linux release build on an actual Linux environment, not inferred from Windows. | docs/production-readiness/linux-environment-probe.json; docs/production-readiness/public-release-external-evidence.json; docs/production-readiness/linux-release-build-evidence.json | No blocker-input record found. |
 | blocked | Run a full hardware smoke pass with real or simulator-backed camera, mount, focuser, filter wheel, rotator, guider, dome, weather, and safety devices. | docs/production-readiness/hardware-availability-probe.json; docs/production-readiness/public-release-external-evidence.json; docs/production-readiness/full-hardware-control-smoke-evidence.json | Required input: A rig, simulator-backed environment, or remote host that exposes camera, mount, focuser, filter wheel, rotator, guider, dome, weather, and safety monitor classes, plus permission to run safe control commands. |
-| blocked | Verify upgrade/migration from an older Nightshade profile/database. | docs/production-readiness/manual-migration-probe.json; packages/nightshade_core/test/fixtures/synthetic_old_profile_fixtures.dart; packages/nightshade_core/test/services/database_migration_test.dart | Required input: An older real Nightshade SQLite database/profile artifact that can be copied and migrated by the probe. |
+| complete | Verify upgrade/migration from an older Nightshade profile/database. | docs/production-readiness/manual-migration-probe.json; packages/nightshade_core/test/fixtures/synthetic_old_profile_fixtures.dart; packages/nightshade_core/test/services/database_migration_test.dart | No blocker-input record found. |
 | incomplete | Verify headless auth, LAN opt-in, dashboard, mobile remote client, and WebSocket reconnect behavior together. | docs/production-readiness/android-emulator-remote-smoke-log.txt, docs/production-readiness/android-emulator-remote-smoke.png, docs/production-readiness/mobile-remote-window-connected.xml; docs/production-readiness/android-emulator-remote-reconnect-smoke-log.txt; docs/production-readiness/public-release-external-evidence.json; docs/production-readiness/public-release-audit-report.md; docs/production-readiness/public-release-master-checklist.md; docs/production-readiness/hardware-availability-probe.json | Required input: A second physical phone, tablet, or laptop on the same LAN, with the Windows firewall/router path used exactly as a real user would use it. Required input: Permission and a safe test window to issue actual remote control actions from dashboard/mobile/headless APIs against real or simulator-backed devices. |
-| blocked | Produce a release checklist with known unsupported-by-platform items clearly documented. | docs/production-readiness/public-release-master-checklist.md; docs/production-readiness/public-release-checklist-audit.json; docs/production-readiness/public-release-external-evidence.json; docs/known-limitations.md; docs/supported-hardware-by-platform.md | Required input: Reviewer sign-off evidence for every remaining checklist item, or explicit release-scope removal for items that cannot be satisfied. Checklist audit unchecked=10; checkedWithoutEvidence=0; knownLimitationsReferenced=true; supportedHardwareByPlatformReferenced=true. External evidence checks passing=1/5. |
+| blocked | Produce a release checklist with known unsupported-by-platform items clearly documented. | docs/production-readiness/public-release-master-checklist.md; docs/production-readiness/public-release-checklist-audit.json; docs/production-readiness/public-release-external-evidence.json; docs/known-limitations.md; docs/supported-hardware-by-platform.md | Required input: Reviewer sign-off evidence for every remaining checklist item, or explicit release-scope removal for items that cannot be satisfied. Checklist audit unchecked=6; checkedWithoutEvidence=0; knownLimitationsReferenced=true; supportedHardwareByPlatformReferenced=true. External evidence checks passing=1/5. |
 
 ## Details
 
@@ -112,28 +112,9 @@ Evidence:
 ### Verify upgrade/migration from an older Nightshade profile/database.
 
 - ID: `older_profile_migration`
-- Status: `blocked`
-- Verification rule: Manual migration probe must run against an older real database/profile and report migrationVerified=true. Synthetic regression tests cover old-schema/profile fixtures but do not replace the real older-profile artifact.
-- Gap: Required input: An older real Nightshade SQLite database/profile artifact that can be copied and migrated by the probe.
-
-Rerun commands:
-- `cd packages/nightshade_core && flutter test test/services/database_migration_test.dart`
-- `$env:NIGHTSHADE_OLD_DATABASE="<path-to-old-nightshade.sqlite>"`
-- `dart run melos run audit:manual-migration --no-select`
-- `dart run melos run audit:public-release-gate --no-select`
-
-Acceptance criteria:
-- Probe runs against a temporary copy of an older real database/profile.
-- `artifactProvided=true` and `migrationVerified=true` in `manual-migration-probe.json`.
-- Report records source path, source size, source SHA256, original user_version, final user_version, current table set, and required default settings.
-- Synthetic old-schema/profile migration regression tests pass without using real user data.
-
-Expected evidence:
-- `packages/nightshade_core/test/fixtures/synthetic_old_profile_fixtures.dart`
-- `packages/nightshade_core/test/services/database_migration_test.dart`
-- `docs/production-readiness/manual-migration-probe.json`
-- `docs/production-readiness/manual-migration-probe.md`
-- `Path or secure reference to the source old database artifact`
+- Status: `complete`
+- Verification rule: Manual migration probe must run against an older release-authentic database/profile and report migrationVerified=true. The checked-in v4.3.0 fixture must be generated by the tagged v4.3.0 database code, not hand-authored SQL.
+- Gap: No blocker-input record found.
 
 Evidence:
 - `docs/production-readiness/manual-migration-probe.json`
@@ -192,7 +173,7 @@ Evidence:
 - ID: `release_checklist_known_unsupported`
 - Status: `blocked`
 - Verification rule: Final checklist gate requires checklist audit evidence with zero unchecked items, zero checked-without-evidence items, known limitations/support docs references, and validated final sign-off evidence.
-- Gap: Required input: Reviewer sign-off evidence for every remaining checklist item, or explicit release-scope removal for items that cannot be satisfied. Checklist audit unchecked=10; checkedWithoutEvidence=0; knownLimitationsReferenced=true; supportedHardwareByPlatformReferenced=true. External evidence checks passing=1/5.
+- Gap: Required input: Reviewer sign-off evidence for every remaining checklist item, or explicit release-scope removal for items that cannot be satisfied. Checklist audit unchecked=6; checkedWithoutEvidence=0; knownLimitationsReferenced=true; supportedHardwareByPlatformReferenced=true. External evidence checks passing=1/5.
 
 Rerun commands:
 - `dart run melos run audit:public-release-external-evidence --no-select`

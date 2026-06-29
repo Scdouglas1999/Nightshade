@@ -313,9 +313,21 @@ Future<void> _writePassingVersionNegotiationFixtures(Directory root) async {
     'packages/nightshade_core/lib/src/models/backend/remote_api_compatibility.dart',
     r'''
 class RemoteApiCompatibility {
-  static const minimumSupportedVersion = SemanticVersion(2, 4, 0);
-  static const serverApiVersion = SemanticVersion(2, 6, 0);
-  void codes() {
+  static final minimumSupportedVersion =
+      NightshadeServerCompatibility.minimumSupportedVersion;
+  static void check(String version) {
+    NightshadeServerCompatibility.check(version);
+  }
+}
+''',
+  );
+  await _writeFile(
+    root,
+    'packages/nightshade_remote_protocol/lib/src/server_compatibility.dart',
+    r'''
+class NightshadeServerCompatibility {
+  static const minimumSupportedVersion = ServerSemanticVersion(2, 4, 0);
+  static void check(String version) {
     print('server_too_old');
     print('server_too_new');
     print('client_too_old');

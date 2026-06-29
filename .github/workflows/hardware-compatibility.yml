@@ -29,13 +29,19 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y indi-bin libindi-dev pkg-config libudev-dev libraw-dev
+          sudo apt-get install -y indi-bin libindi-dev pkg-config libudev-dev libusb-1.0-0-dev libraw-dev
 
       - name: Install macOS native build dependencies
         if: runner.os == 'macOS'
+        shell: bash
         run: |
           brew untap aws/tap || true
-          brew install libraw
+          brew install libraw libusb
+          libraw_prefix="$(brew --prefix libraw)"
+          libusb_prefix="$(brew --prefix libusb)"
+          echo "LIBRARY_PATH=$libraw_prefix/lib${LIBRARY_PATH:+:$LIBRARY_PATH}" >> "$GITHUB_ENV"
+          echo "CPATH=$libraw_prefix/include:$libusb_prefix/include${CPATH:+:$CPATH}" >> "$GITHUB_ENV"
+          echo "PKG_CONFIG_PATH=$libraw_prefix/lib/pkgconfig:$libusb_prefix/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}" >> "$GITHUB_ENV"
 
       - name: Run compatibility suite
         shell: pwsh

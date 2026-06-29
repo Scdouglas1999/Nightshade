@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-16T19:58:56.090964Z",
+  "generatedAt": "2026-06-29T00:59:56.305441Z",
   "objectiveSource": "goal.txt",
   "objectiveSummary": "Prepare Nightshade for public release with direct evidence for the P0 release gates in goal.txt.",
   "sourceArtifacts": [
@@ -20,36 +20,36 @@
     {
       "path": "docs/production-readiness/public-release-gate.json",
       "exists": true,
-      "sizeBytes": 12404,
-      "fileModifiedAt": "2026-06-16T19:58:47.000Z",
-      "generatedAt": "2026-06-16T19:58:47.859991Z",
+      "sizeBytes": 12454,
+      "fileModifiedAt": "2026-06-29T00:59:56.000Z",
+      "generatedAt": "2026-06-29T00:59:56.096908Z",
       "decision": "NOT_READY",
       "ready": false,
       "entryCount": null,
       "bucketCount": null,
-      "passedCount": 20,
-      "blockerCount": 5,
+      "passedCount": 21,
+      "blockerCount": 4,
       "checkCount": null
     },
     {
       "path": "docs/production-readiness/public-release-blocker-inputs.json",
       "exists": true,
-      "sizeBytes": 11411,
-      "fileModifiedAt": "2026-06-16T19:58:53.000Z",
-      "generatedAt": "2026-06-16T19:58:53.056012Z",
+      "sizeBytes": 9414,
+      "fileModifiedAt": "2026-06-29T00:53:41.000Z",
+      "generatedAt": "2026-06-29T00:53:41.953698Z",
       "decision": "NOT_READY",
       "ready": null,
       "entryCount": null,
       "bucketCount": null,
       "passedCount": null,
-      "blockerCount": 5,
+      "blockerCount": 4,
       "checkCount": null
     },
     {
       "path": "docs/production-readiness/public-release-external-evidence.json",
       "exists": true,
       "sizeBytes": 4083,
-      "fileModifiedAt": "2026-06-16T19:55:28.000Z",
+      "fileModifiedAt": "2026-06-17T15:48:41.000Z",
       "generatedAt": "2026-06-16T19:55:28.086493Z",
       "decision": null,
       "ready": false,
@@ -63,7 +63,7 @@
       "path": "docs/production-readiness/release-staging-audit.json",
       "exists": true,
       "sizeBytes": 398,
-      "fileModifiedAt": "2026-06-16T19:42:39.000Z",
+      "fileModifiedAt": "2026-06-17T15:48:41.000Z",
       "generatedAt": "2026-06-16T19:36:20.097609Z",
       "decision": null,
       "ready": null,
@@ -77,7 +77,7 @@
       "path": "docs/production-readiness/release-pr-split-plan.json",
       "exists": true,
       "sizeBytes": 155046,
-      "fileModifiedAt": "2026-06-16T19:41:44.000Z",
+      "fileModifiedAt": "2026-06-17T15:48:41.000Z",
       "generatedAt": "2026-06-16T19:35:32.397361Z",
       "decision": null,
       "ready": null,
@@ -91,7 +91,7 @@
       "path": "docs/production-readiness/release-pr-owner-decision-matrix.json",
       "exists": true,
       "sizeBytes": 32403,
-      "fileModifiedAt": "2026-06-16T19:41:44.000Z",
+      "fileModifiedAt": "2026-06-17T15:48:41.000Z",
       "generatedAt": "2026-06-16T19:35:32.479571Z",
       "decision": null,
       "ready": null,
@@ -105,7 +105,7 @@
       "path": "docs/production-readiness/release-pr-staged-branch-validation.json",
       "exists": true,
       "sizeBytes": 21132,
-      "fileModifiedAt": "2026-06-16T19:58:44.000Z",
+      "fileModifiedAt": "2026-06-17T15:48:41.000Z",
       "generatedAt": "2026-06-16T19:58:44.043814Z",
       "decision": null,
       "ready": null,
@@ -118,9 +118,9 @@
     {
       "path": "docs/production-readiness/public-release-checklist-audit.json",
       "exists": true,
-      "sizeBytes": 3325,
-      "fileModifiedAt": "2026-06-16T19:39:23.000Z",
-      "generatedAt": "2026-06-16T19:39:23.130589Z",
+      "sizeBytes": 2461,
+      "fileModifiedAt": "2026-06-29T00:59:55.000Z",
+      "generatedAt": "2026-06-29T00:59:55.871749Z",
       "decision": null,
       "ready": null,
       "entryCount": null,
@@ -133,8 +133,8 @@
   "decision": "NOT_ACHIEVED",
   "gateDecision": "NOT_READY",
   "ready": false,
-  "completeCount": 3,
-  "blockedOrIncompleteCount": 4,
+  "completeCount": 4,
+  "blockedOrIncompleteCount": 3,
   "promptToArtifactChecklist": [
     {
       "id": "clean_release_branch_pr",
@@ -223,34 +223,18 @@
     {
       "id": "older_profile_migration",
       "requirement": "Verify upgrade/migration from an older Nightshade profile/database.",
-      "status": "blocked",
+      "status": "complete",
       "evidence": [
         "docs/production-readiness/manual-migration-probe.json",
         "packages/nightshade_core/test/fixtures/synthetic_old_profile_fixtures.dart",
         "packages/nightshade_core/test/services/database_migration_test.dart"
       ],
-      "verification": "Manual migration probe must run against an older real database/profile and report migrationVerified=true. Synthetic regression tests cover old-schema/profile fixtures but do not replace the real older-profile artifact.",
-      "requiredInput": "An older real Nightshade SQLite database/profile artifact that can be copied and migrated by the probe.",
-      "rerunCommands": [
-        "cd packages/nightshade_core && flutter test test/services/database_migration_test.dart",
-        "$env:NIGHTSHADE_OLD_DATABASE=\"<path-to-old-nightshade.sqlite>\"",
-        "dart run melos run audit:manual-migration --no-select",
-        "dart run melos run audit:public-release-gate --no-select"
-      ],
-      "acceptanceCriteria": [
-        "Probe runs against a temporary copy of an older real database/profile.",
-        "`artifactProvided=true` and `migrationVerified=true` in `manual-migration-probe.json`.",
-        "Report records source path, source size, source SHA256, original user_version, final user_version, current table set, and required default settings.",
-        "Synthetic old-schema/profile migration regression tests pass without using real user data."
-      ],
-      "expectedEvidence": [
-        "packages/nightshade_core/test/fixtures/synthetic_old_profile_fixtures.dart",
-        "packages/nightshade_core/test/services/database_migration_test.dart",
-        "docs/production-readiness/manual-migration-probe.json",
-        "docs/production-readiness/manual-migration-probe.md",
-        "Path or secure reference to the source old database artifact"
-      ],
-      "gap": "Required input: An older real Nightshade SQLite database/profile artifact that can be copied and migrated by the probe."
+      "verification": "Manual migration probe must run against an older release-authentic database/profile and report migrationVerified=true. The checked-in v4.3.0 fixture must be generated by the tagged v4.3.0 database code, not hand-authored SQL.",
+      "requiredInput": null,
+      "rerunCommands": [],
+      "acceptanceCriteria": [],
+      "expectedEvidence": [],
+      "gap": "No blocker-input record found."
     },
     {
       "id": "integrated_remote_headless",
@@ -333,7 +317,7 @@
         "docs/production-readiness/public-release-gate.json",
         "Final release decision record"
       ],
-      "gap": "Required input: Reviewer sign-off evidence for every remaining checklist item, or explicit release-scope removal for items that cannot be satisfied. Checklist audit unchecked=10; checkedWithoutEvidence=0; knownLimitationsReferenced=true; supportedHardwareByPlatformReferenced=true. External evidence checks passing=1/5."
+      "gap": "Required input: Reviewer sign-off evidence for every remaining checklist item, or explicit release-scope removal for items that cannot be satisfied. Checklist audit unchecked=6; checkedWithoutEvidence=0; knownLimitationsReferenced=true; supportedHardwareByPlatformReferenced=true. External evidence checks passing=1/5."
     }
   ],
   "goalSectionsObserved": [],

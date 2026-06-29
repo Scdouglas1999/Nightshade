@@ -11,7 +11,7 @@ const _metadataSchemaVersion = 2;
 
 const _defaultNativeLibraryNotes = <String>[
   'Verify native shared libraries with ldd against the packaged Linux bundle.',
-  'Record bundled or runtime-provided vendor SDK libraries before claiming native SDK support.',
+  'Record runtime/user-provided vendor SDK libraries before claiming native SDK support; official artifacts do not bundle vendor SDKs.',
 ];
 
 const _defaultLinuxPermissionNotes = <String>[

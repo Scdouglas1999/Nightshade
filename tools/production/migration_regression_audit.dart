@@ -132,7 +132,7 @@ Future<void> main(List<String> args) async {
     'focusedTestCommand':
         'cd packages/nightshade_core && flutter test test/services/database_migration_test.dart',
     'policy':
-        'Synthetic migration fixtures reduce upgrade risk without using real user data. They do not satisfy the release blocker for an older real Nightshade profile/database artifact.',
+        'Synthetic migration fixtures reduce upgrade risk, while the checked-in v4.3.0 release-authentic database exercises the real tagged schema. The manual probe must migrate that artifact (or an older user profile) successfully.',
   };
 
   await File(jsonOut).parent.create(recursive: true);
@@ -399,7 +399,7 @@ String _renderMarkdown({
     ..writeln('- Behavioral migration tests: `${behavioral.summaryLine}`')
     ..writeln()
     ..writeln(
-      'This audit runs the synthetic old-schema/profile migration test suite and fails on a non-zero test exit, in addition to verifying that the fixtures and named cases are present. It confirms the separate real older-profile migration gate remains documented; it does not replace the required real artifact probe.',
+      'This audit runs the synthetic old-schema/profile migration test suite and fails on a non-zero test exit, in addition to verifying that the fixtures and named cases are present. The separate manual probe migrates a release-authentic v4.3.0 database artifact.',
     )
     ..writeln()
     ..writeln('## Required Files')

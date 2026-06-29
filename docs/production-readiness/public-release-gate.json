@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-06-19T02:07:35.199444Z",
+  "generatedAt": "2026-06-29T00:59:56.096908Z",
   "decision": "NOT_READY",
   "ready": false,
-  "passedCount": 20,
-  "blockerCount": 5,
+  "passedCount": 21,
+  "blockerCount": 4,
   "checks": [
     {
       "id": "production_analyzer",
@@ -17,7 +17,7 @@
       "label": "Placeholder audit",
       "passed": true,
       "evidence": ".audit_highrisk.txt; docs/production-readiness/highrisk-baseline.txt",
-      "detail": "High-risk marker hits=161; acceptedBaseline=161; newHighRisk=0; removedBaseline=0."
+      "detail": "High-risk marker hits=168; acceptedBaseline=167; newHighRisk=0; removedBaseline=2."
     },
     {
       "id": "fail_closed",
@@ -38,7 +38,7 @@
       "label": "Developer quality audit",
       "passed": true,
       "evidence": "docs/production-readiness/developer-quality-audit.json",
-      "detail": "issues=0 ui_consistency: passed=true metrics=findingCount=136,blockingFindingCount=0,rawButtonStyle=0,largeRadius=0,emptyCallback=0,fakeCallback=0,stubCallback=0,headlessRouteNotAdvertised=0,designSystemGalleryReady=true,designSystemGalleryMissing=0,rawMaterialColor=136,semanticRawMaterialColor=0,intentionalImageOverlayColor=136 headless_api_contract: passed=true metrics=registeredRouteCount=467,advertisedRouteCount=467,openApiOperationCount=464,networkBackendRouteCount=372,networkBackendMissingOnServer=0,openApiMetadataCoverage=9/9,webSocketContractCoverage=4/4,networkBackendContractCoverage=4/4,versionNegotiationCoverage=10/10 headless_route_policy: passed=true metrics=issueCount=0,highRiskPolicyCount=19,defaultLimitedPolicyCount=9,ordinaryReadLimited=false,fileBrowseAuditAction=file_browse,bodyLimitRouteCount=6,bodyLimitedApiWriteRouteCount=222,serverMiddlewareTestCount=4 headless_response_helpers: passed=true metrics=issueCount=0,rawResponseCallCount=0,intentionalRawResponseCallCount=0,unclassifiedRawResponseCallCount=0,jsonContentTypeCount=2,helperImportCount=43,helperCallCount=675 oversized_files: passed=true metrics=scannedFileCount=1788,warningFileCount=0,criticalFileCount=0,prioritySplitCandidateCount=0,modularizedSourceFamilyCount=5,warningLineLimit=1000,criticalLineLimit=2500,releaseBlocking=false structured_logging: passed=true metrics=requiredFileCount=4,missingTextCount=0,requestCorrelationFieldsRequired=true,auditCorrelationFieldsRequired=true,networkBackendCorrelationRequired=true."
+      "detail": "issues=0 ui_consistency: passed=true metrics=findingCount=136,blockingFindingCount=0,rawButtonStyle=0,largeRadius=0,emptyCallback=0,fakeCallback=0,stubCallback=0,headlessRouteNotAdvertised=0,designSystemGalleryReady=true,designSystemGalleryMissing=0,rawMaterialColor=136,semanticRawMaterialColor=0,intentionalImageOverlayColor=136 headless_api_contract: passed=true metrics=registeredRouteCount=509,advertisedRouteCount=509,openApiOperationCount=506,networkBackendRouteCount=414,networkBackendMissingOnServer=0,openApiMetadataCoverage=9/9,webSocketContractCoverage=4/4,networkBackendContractCoverage=4/4,versionNegotiationCoverage=10/10 headless_route_policy: passed=true metrics=issueCount=0,highRiskPolicyCount=19,defaultLimitedPolicyCount=9,ordinaryReadLimited=false,fileBrowseAuditAction=file_browse,bodyLimitRouteCount=6,bodyLimitedApiWriteRouteCount=268,serverMiddlewareTestCount=4 headless_response_helpers: passed=true metrics=issueCount=0,rawResponseCallCount=0,intentionalRawResponseCallCount=0,unclassifiedRawResponseCallCount=0,jsonContentTypeCount=2,helperImportCount=43,helperCallCount=675 oversized_files: passed=true metrics=scannedFileCount=2049,warningFileCount=48,criticalFileCount=0,prioritySplitCandidateCount=0,modularizedSourceFamilyCount=5,warningLineLimit=1000,criticalLineLimit=2500,releaseBlocking=false structured_logging: passed=true metrics=requiredFileCount=4,missingTextCount=0,requestCorrelationFieldsRequired=true,auditCorrelationFieldsRequired=true,networkBackendCorrelationRequired=true."
     },
     {
       "id": "windows_bundle",
@@ -80,7 +80,7 @@
       "label": "Docs local links",
       "passed": true,
       "evidence": "docs/production-readiness/docs-link-audit.json",
-      "detail": "Markdown files=115 checkedLocalLinks=167 brokenLocalLinks=0."
+      "detail": "Markdown files=173 checkedLocalLinks=182 brokenLocalLinks=0."
     },
     {
       "id": "release_docs",
@@ -94,7 +94,7 @@
       "label": "Platform capability clarity",
       "passed": true,
       "evidence": "docs/production-readiness/platform-capability-audit.json",
-      "detail": "files=13 issues=0. ASCOM/Alpaca/INDI/native capability model, headless API exposure, settings UI, backend selector gating, docs, and tests are aligned."
+      "detail": "files=14 issues=0. ASCOM/Alpaca/INDI/native capability model, headless API exposure, settings UI, backend selector gating, docs, and tests are aligned."
     },
     {
       "id": "public_release_self_tests",
@@ -136,14 +136,14 @@
       "label": "Synthetic migration regression coverage",
       "passed": true,
       "evidence": "docs/production-readiness/migration-regression-audit.json",
-      "detail": "issues=0 fixtureMissing=0 testMissing=0 manualProbeMissing=0 manualRealArtifactGatePreserved=true. Real older-profile migration remains a separate blocker."
+      "detail": "issues=0 fixtureMissing=0 testMissing=0 manualProbeMissing=0 manualRealArtifactGatePreserved=true. Release-authentic older-profile migration is evaluated by the separate manual-probe check."
     },
     {
       "id": "manual_migration",
-      "label": "Older real profile/database migration",
-      "passed": false,
+      "label": "Older release-authentic profile/database migration",
+      "passed": true,
       "evidence": "docs/production-readiness/manual-migration-probe.json",
-      "detail": "artifactProvided=false sourceExists=false sourceSizeBytes=0 sourceSha256Recorded=false copiedSourceSha256Matches=false qualifiesAsOlderProfile=false migrationVerified=false expectedTableCount=0 migratedTableCount=0 defaultSettingCount=0 missingTables=0 missingDefaultSettings=0."
+      "detail": "artifactProvided=true sourceExists=true sourceSizeBytes=884736 sourceSha256Recorded=true copiedSourceSha256Matches=true qualifiesAsOlderProfile=true migrationVerified=true expectedTableCount=41 migratedTableCount=57 defaultSettingCount=120 missingTables=0 missingDefaultSettings=0."
     },
     {
       "id": "mobile_remote_smoke",
@@ -178,7 +178,7 @@
       "label": "Final release checklist/sign-off",
       "passed": false,
       "evidence": "docs/production-readiness/public-release-master-checklist.md; docs/production-readiness/public-release-checklist-audit.json; docs/production-readiness/public-release-external-evidence.json",
-      "detail": "Checklist items=16 checked=6 unchecked=10 checkedWithoutEvidence=0 knownLimitationsReferenced=true supportedHardwareByPlatformReferenced=true; validated final sign-off evidence is missing. External evidence validator did not pass for docs/production-readiness/final-release-signoff-evidence.json. Template: docs/production-readiness/external-evidence-templates/final-release-signoff-evidence.template.json. Evidence file is missing or is not valid JSON."
+      "detail": "Checklist items=16 checked=10 unchecked=6 checkedWithoutEvidence=0 knownLimitationsReferenced=true supportedHardwareByPlatformReferenced=true; validated final sign-off evidence is missing. External evidence validator did not pass for docs/production-readiness/final-release-signoff-evidence.json. Template: docs/production-readiness/external-evidence-templates/final-release-signoff-evidence.template.json. Evidence file is missing or is not valid JSON."
     }
   ]
 }

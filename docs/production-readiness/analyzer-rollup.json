@@ -1,5 +1,5 @@
 {
-  "generatedAtUtc": "2026-06-23T09:46:16.652444Z",
+  "generatedAtUtc": "2026-06-29T00:53:18.553366Z",
   "analyzerExitCode": 0,
   "policyPath": "docs/production-readiness/analyzer-policy.yaml",
   "policy": {
@@ -28,12 +28,12 @@
     "all": {
       "errors": 0,
       "warnings": 0,
-      "infos": 73
+      "infos": 76
     },
     "production": {
       "errors": 0,
       "warnings": 0,
-      "infos": 36
+      "infos": 38
     },
     "criticalWarnings": 0,
     "failed": false
@@ -375,13 +375,33 @@
     },
     {
       "severity": "INFO",
-      "type": "LINT",
-      "code": "UNAWAITED_FUTURES",
-      "file": "/home/scdouglas/Documents/Nightshade2/packages/nightshade_core/lib/src/backend/ffi_backend/status_profile_operations.dart",
-      "line": 180,
-      "column": 25,
-      "length": 14,
-      "message": "Missing an 'await' for the 'Future' computed by this expression."
+      "type": "HINT",
+      "code": "UNNECESSARY_IMPORT",
+      "file": "/home/scdouglas/Documents/Nightshade2/packages/nightshade_core/lib/src/providers/autofocus_progress_provider.dart",
+      "line": 5,
+      "column": 8,
+      "length": 41,
+      "message": "The import of '../models/backend/autofocus_result.dart' is unnecessary because all of the used elements are also provided by the import of '../backend/nightshade_backend.dart'."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "UNNECESSARY_IMPORT",
+      "file": "/home/scdouglas/Documents/Nightshade2/packages/nightshade_core/lib/src/providers/autofocus_progress_provider.dart",
+      "line": 6,
+      "column": 8,
+      "length": 36,
+      "message": "The import of '../models/backend/event_types.dart' is unnecessary because all of the used elements are also provided by the import of '../backend/nightshade_backend.dart'."
+    },
+    {
+      "severity": "INFO",
+      "type": "HINT",
+      "code": "UNNECESSARY_IMPORT",
+      "file": "/home/scdouglas/Documents/Nightshade2/packages/nightshade_core/lib/src/providers/polar_alignment_provider.dart",
+      "line": 12,
+      "column": 8,
+      "length": 36,
+      "message": "The import of '../models/backend/event_types.dart' is unnecessary because all of the used elements are also provided by the import of '../backend/nightshade_backend.dart'."
     },
     {
       "severity": "INFO",

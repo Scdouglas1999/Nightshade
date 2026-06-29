@@ -8,8 +8,9 @@ controls, corrupted frames, or device disconnects during long sessions.
 - Use ASCOM COM only on Windows.
 - Use Alpaca for network devices and ASCOM bridges.
 - Use INDI when a supported INDI server and driver are available.
-- Use native SDK paths only when the release package includes the needed vendor
-  library for the current OS.
+- Use native SDK paths only when the needed vendor library is installed on the
+  system or supplied in a legally cleared custom bundle. Official 5.0.0
+  artifacts do not redistribute vendor SDK binaries.
 - Use simulator paths to separate Nightshade workflow issues from hardware
   issues.
 
@@ -27,7 +28,8 @@ controls, corrupted frames, or device disconnects during long sessions.
 - A stale driver service is still running after an update.
 - The device firmware requires a newer driver.
 - A USB-to-serial adapter is using the wrong COM port or missing its driver.
-- A native vendor SDK DLL/shared library is missing from the release bundle.
+- A native vendor SDK DLL/shared library is not installed or is outside the
+  loader's search path.
 - The driver exposes fewer capabilities than the UI control expects.
 
 ## When To Reinstall

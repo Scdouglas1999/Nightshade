@@ -5,7 +5,7 @@ for a release candidate. Do not use it to hide blockers. An accepted limitation
 must be documented, understandable to users, paired with a workaround when one
 exists, and reflected in release notes.
 
-## 4.1.0 Verified Scope
+## 5.0.0 Verified Scope
 
 This is the scoped capability statement that must match the README "First public
 beta" callout, the release notes, and `supported-hardware-by-platform.md` word
@@ -18,9 +18,11 @@ for word:
 > hardware is **still being hardened** and should be supervised. **Linux** is in
 > early testing; **macOS** builds in CI with no hardware soak. Every other device
 > path is **capability-gated** — present in the app but not a support guarantee
-> until verified per rig.
+> until verified per rig. The 5.0 Living Sky, automation-unification, and
+> desktop master/slave paths are automated/local-stack verified but still need
+> a supervised physical-rig and real second-machine LAN validation.
 
-Evidence: [`release-evidence/4.1.0.md`](release-evidence/4.1.0.md).
+Evidence: [`release-evidence/5.0.0.md`](release-evidence/5.0.0.md).
 
 ## Acceptance Rules
 
@@ -39,17 +41,22 @@ release blocker unless the release explicitly removes that workflow from scope.
 
 ## Current Release Candidate Limitations
 
-Fill this table during release-candidate review. Leave no row with placeholder
-text in the published release.
+These are the accepted limitations for the 5.0.0 release candidate.
 
 | Area | Limitation | Impact | Workaround | Release blocker? | Owner/issue |
 | --- | --- | --- | --- | --- | --- |
-| Hardware/platform | Native SDK support is capability-gated by packaged vendor libraries and OS driver availability. | Some vendor devices may require ASCOM, Alpaca, or INDI instead of native mode. | Use a verified driver backend listed in `docs/supported-hardware-by-platform.md`. | No, if unsupported native paths are not advertised as shipped. | Track in `docs/production-readiness/public-release-master-checklist.md` under supported hardware and packaging gates. |
+| Hardware/platform | Official archives do not redistribute vendor SDK libraries; native paths are capability-gated by user-installed libraries and OS driver availability. | Some vendor devices require ASCOM, Alpaca, or INDI instead of native mode. | Install a compatible vendor library/driver or use a verified backend listed in `docs/supported-hardware-by-platform.md`. | No; packaging and release notes state the boundary. | Track vendor-specific verification in the support matrix. |
 | Hardware/platform | ASCOM COM is Windows-only. | Linux and macOS users cannot use local ASCOM COM drivers directly. | Use ASCOM Alpaca/ASCOM Remote, INDI, or another supported backend. | No. | Track in `docs/production-readiness/feature-parity-matrix.md` and platform-capability verification. |
 | Hardware/platform | Native DSLR control for Canon/Nikon is not a public-release guarantee. | DSLR users may need an external driver/backend. | Use supported ASCOM, INDI, or Alpaca workflows where available. | No, if docs and release notes do not advertise native DSLR support. | Track in `docs/supported-hardware-by-platform.md` and release notes scope review. |
 | Hardware/platform | INDI weather and switch parity is not fully verified for release-critical safety. | Linux/macOS observatory safety may require another backend. | Use a verified Alpaca or ASCOM safety/weather path for unattended operation. | Yes for unattended safety claims unless verified. | Track in hardware smoke evidence and `docs/production-readiness/feature-parity-matrix.md`. |
-| Remote/headless | Fully-unattended **headless** acquisition on real ASCOM hardware is still being hardened: headless COM-session issues affect mount connect, filter-wheel set, mid-session camera stability, and the sequence start-gate (B1–B6, B18, B19). | Unattended *headless* nights on a Windows ASCOM rig may stall or mis-capture; the desktop GUI path performs the same operations correctly. | Use the desktop app for unattended runs, or supervise headless nights. Remote monitoring and planning over the LAN are reliable. | Yes for an *unattended-headless* acquisition claim; No for monitoring/planning and the desktop scope. | Tracked in `docs/release-evidence/4.1.0.md` and GitHub issues [#1–#6](https://github.com/Scdouglas1999/Nightshade/issues?q=label%3Abeta-gap) (B1/B2/B5/B18/B19 + umbrella); fixes implemented, runtime-pending on the rig. |
+| Remote/headless | Fully-unattended **headless** acquisition on real ASCOM hardware is still being hardened: headless COM-session issues affect mount connect, filter-wheel set, mid-session camera stability, and the sequence start-gate (B1–B6, B18, B19). | Unattended *headless* nights on a Windows ASCOM rig may stall or mis-capture; the desktop GUI path performs the same operations correctly. | Use the desktop app for unattended runs, or supervise headless nights. Remote monitoring and planning over the LAN are reliable. | Yes for an *unattended-headless* acquisition claim; No for monitoring/planning and the desktop scope. | Tracked in `docs/release-evidence/5.0.0.md` and GitHub issues [#1–#6](https://github.com/Scdouglas1999/Nightshade/issues?q=label%3Abeta-gap). |
 | Remote/headless | Scoped tokens are coarse-grained (`view`, `control`, `admin`) rather than custom per-route roles. | Operators cannot yet define custom roles for a specific device or workflow. | Issue separate view/control/admin tokens and keep admin tokens limited to trusted operators. | No, if coarse scopes meet the release security model. | Track in Remote Access and Security sections of `docs/production-readiness/public-release-master-checklist.md`. |
+| Living Sky | Constellation is self-hosted; Nightshade operates no public/default hub in 5.0. | Users cannot join a global swarm without choosing an operator they trust. | Run `server/nightshade_hub` or use a trusted club/operator hub and enter its URL. | No; this is the explicit 5.0 deployment model. | Hub README and dedicated CI job. |
+| Living Sky | New Living Sky native processing and automation paths have automated coverage but no final physical-rig/on-sky soak. | Timing, device, or data-quality behavior may differ on a real rig. | Run a supervised complete night before relying on it unattended. | Yes for unattended claims; no for supervised beta scope. | 5.0 release evidence and hardware campaign. |
+| Desktop mirroring | Master/slave mirroring is contract- and local-stack tested, not yet soaked across two physical machines on a real LAN. | Network/firewall and long-session behavior may reveal gaps. | Validate host discovery/manual URL, reconnect, monitoring, and one control cycle on your LAN before depending on it. | No for beta; yes for a fully verified mirroring claim. | 5.0 release evidence. |
+| Updates | Official 5.0.0 artifacts are manual-update-only; no updater executable, trusted update key, or update server is shipped. | The app does not install the next release automatically. | Back up, download/verify the next GitHub release, and replace the portable bundle. | No; OTA is removed from public 5.0 scope and fails closed. | Release workflow and `docs/OTA_UPDATE_TESTING.md`. |
+| Distribution | Windows is unsigned and Android is debug-signed. | SmartScreen/Android install warnings appear; no managed/store update path exists. | Verify SHA-256/GitHub source and follow the installation guide. | No for public beta; yes for a production/store distribution claim. | Release notes and installation guide. |
+| Cloud backup | S3-compatible backup is tested against an in-process object store, not every live S3/MinIO/B2 variant. | Endpoint-specific signing or policy differences may fail. | Test connection and perform a disposable backup/restore before relying on it. | No for beta with this warning. | S3 tests and 5.0 release evidence. |
 
 ## Unsupported By Platform
 
@@ -62,7 +69,7 @@ Platform-specific unsupported items must match the Platform Capabilities UI,
 | ASCOM COM | Available | Unsupported | Unsupported | Requires Windows COM and locally installed ASCOM drivers. |
 | ASCOM Alpaca | Available | Available | Available | Network backend; device-specific capability gaps are reported by the Alpaca server. |
 | INDI | Available | Available | Available | Requires a reachable INDI server and driver support for the device capability. |
-| Native SDK | Capability-gated | Capability-gated | Capability-gated | Requires packaged vendor SDK libraries and supported OS drivers. |
+| Native SDK | Capability-gated | Capability-gated | Capability-gated | Requires user-installed vendor SDK libraries and supported OS drivers; official archives do not redistribute them. |
 | Simulator | Capability-gated | Capability-gated | Capability-gated | Workflow-specific; use ASCOM, Alpaca, or INDI simulator drivers for hardware-like smoke tests unless an in-app simulator path is explicitly enabled. |
 
 ## Release Notes Checklist
