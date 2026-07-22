@@ -18,7 +18,8 @@ use crate::NativeVendor;
 use async_trait::async_trait;
 use libloading::Library;
 use std::collections::HashMap;
-use std::ffi::{c_char, c_int, c_uint, c_void, CStr};
+use std::ffi::{c_char, c_int, c_uint, c_ushort, c_void, CStr};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 // ============================================================================
@@ -39,11 +40,26 @@ const OGMACAM_FLAG_ST4: u64 = 0x00000200;
 const OGMACAM_FLAG_ROI_HARDWARE: u64 = 0x00000008;
 const OGMACAM_FLAG_BINSKIP_SUPPORTED: u64 = 0x00000020;
 
-// Options
+// Options (values verified against toupcam.h / ogmacam.h)
 const OGMACAM_OPTION_TEC: c_uint = 0x08;
-const OGMACAM_OPTION_BITDEPTH: c_uint = 0x04;
-const OGMACAM_OPTION_BINNING: c_uint = 0x01;
+// 0x06 = TOUPCAM_OPTION_BITDEPTH (0 = 8-bit, 1 = 16-bit). NOT 0x04 — that value is
+// OPTION_RAW, so the old constant silently re-set RAW and never changed bit depth,
+// leaving the camera in 8-bit while download parsed W*H bytes as W*H*2 u16 garbage.
+const OGMACAM_OPTION_BITDEPTH: c_uint = 0x06;
+// 0x17 = TOUPCAM_OPTION_BINNING. NOT 0x01 — that value is OPTION_NOFRAME_TIMEOUT, so
+// the old constant wrote a frame timeout (below the 500ms minimum) and never binned.
+const OGMACAM_OPTION_BINNING: c_uint = 0x17;
 const OGMACAM_OPTION_RAW: c_uint = 0x04;
+// 0x0b = TOUPCAM_OPTION_TRIGGER. Value 1 selects software/simulated trigger mode, the
+// prerequisite for the software-trigger + pull-mode capture pipeline used below.
+const OGMACAM_OPTION_TRIGGER: c_uint = 0x0b;
+
+// Pull-mode event codes delivered to the StartPullModeWithCallback callback.
+// A software-triggered frame arrives as EVENT_IMAGE (live image), pulled with bStill = 0.
+const OGMACAM_EVENT_IMAGE: c_uint = 0x0004;
+const OGMACAM_EVENT_ERROR: c_uint = 0x0080;
+const OGMACAM_EVENT_DISCONNECTED: c_uint = 0x0081;
+const OGMACAM_EVENT_NOFRAMETIMEOUT: c_uint = 0x0082;
 
 /// Camera model information
 #[repr(C)]
@@ -156,14 +172,66 @@ type OgmacamPutRoi = unsafe extern "system" fn(
     y_height: c_uint,
 ) -> i32;
 
+/// Final output size after ROI, rotate and binning (Ogmacam_get_FinalSize).
+type OgmacamGetFinalSize =
+    unsafe extern "system" fn(h: HOgmacam, w: *mut c_int, h_: *mut c_int) -> i32;
+
 // Serial number and info
 type OgmacamGetSerialNumber = unsafe extern "system" fn(h: HOgmacam, sn: *mut c_char) -> i32;
 
-// Snap (still image capture)
-type OgmacamSnap = unsafe extern "system" fn(h: HOgmacam, n_resolution_index: c_uint) -> i32;
+// Software trigger + pull-mode streaming.
+// Matches `typedef void (__stdcall* PTOUPCAM_EVENT_CALLBACK)(unsigned nEvent, void* ctxEvent)`
+// (toupcam.h:412). `__stdcall` == Rust `extern "system"` on Win32 and the C ABI elsewhere.
+type OgmacamEventCallback = unsafe extern "system" fn(n_event: c_uint, ctx: *mut c_void);
+type OgmacamStartPullModeWithCallback = unsafe extern "system" fn(
+    h: HOgmacam,
+    fun_event: OgmacamEventCallback,
+    ctx_event: *mut c_void,
+) -> i32;
+/// Ogmacam_Trigger(h, nNumber): nNumber = 1 fires one software-triggered frame, 0 cancels.
+type OgmacamTrigger = unsafe extern "system" fn(h: HOgmacam, n_number: c_ushort) -> i32;
 
 // SDK metadata
 type OgmacamVersion = unsafe extern "system" fn() -> *const c_char;
+
+/// Heap-stable state shared with the SDK's pull-mode event callback.
+///
+/// Owned by a `Box` inside [`TouptekCamera`] so its address is stable across moves of the
+/// camera struct (the camera is moved into a `HashMap` after connect). The callback only
+/// ever reads/writes these two atomics — it never calls back into the SDK, which is
+/// mandatory: `Ogmacam_Stop`/`Ogmacam_Close` deadlock if invoked from the callback context
+/// (toupcam.h:410).
+struct TouptekEventState {
+    /// Set true on EVENT_IMAGE — a software-triggered frame is ready to pull.
+    image_ready: AtomicBool,
+    /// Set true on EVENT_ERROR / EVENT_DISCONNECTED / EVENT_NOFRAMETIMEOUT.
+    error: AtomicBool,
+}
+
+/// Pull-mode event callback registered via `Ogmacam_StartPullModeWithCallback`.
+///
+/// SAFETY / lifetime proof: `ctx` is the pointer to the heap-allocated `TouptekEventState`
+/// that `connect()` registered. The owning `Box` lives in `TouptekCamera::event_state` and
+/// is only dropped AFTER `Ogmacam_Stop` + `Ogmacam_Close` have returned (see `disconnect()`
+/// and the `Drop` impl). Stop/Close synchronize with and quiesce the SDK's internal
+/// streaming thread, so once either returns no further callback can be dispatched. Therefore
+/// while this function can run, the pointee is always live — it can never observe freed
+/// memory. The `ctx.is_null()` guard defends against a spurious null context. This function
+/// performs no SDK calls, only atomic stores, so it is reentrancy- and deadlock-safe.
+unsafe extern "system" fn touptek_event_callback(n_event: c_uint, ctx: *mut c_void) {
+    if ctx.is_null() {
+        return;
+    }
+    // SAFETY: see the lifetime proof above — `ctx` points to a live `TouptekEventState`.
+    let state = unsafe { &*(ctx as *const TouptekEventState) };
+    match n_event {
+        OGMACAM_EVENT_IMAGE => state.image_ready.store(true, Ordering::SeqCst),
+        OGMACAM_EVENT_ERROR | OGMACAM_EVENT_DISCONNECTED | OGMACAM_EVENT_NOFRAMETIMEOUT => {
+            state.error.store(true, Ordering::SeqCst);
+        }
+        _ => {}
+    }
+}
 
 // ============================================================================
 // SDK Wrapper
@@ -187,7 +255,11 @@ struct TouptekSdk {
     get_size: OgmacamGetSize,
     put_roi: OgmacamPutRoi,
     get_serial_number: OgmacamGetSerialNumber,
-    snap: OgmacamSnap,
+    start_pull_mode_with_callback: OgmacamStartPullModeWithCallback,
+    trigger: OgmacamTrigger,
+    /// Optional: universally present in modern toupcam-family SDKs; falls back to a
+    /// ROI/sensor upper bound for buffer sizing if a white-label lib omits it.
+    get_final_size: Option<OgmacamGetFinalSize>,
     version: Option<OgmacamVersion>,
 }
 
@@ -349,9 +421,18 @@ impl TouptekSdk {
                     .map_err(|e| {
                         NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e))
                     })?,
-                snap: *library.get::<OgmacamSnap>(&sym("Snap")).map_err(|e| {
+                start_pull_mode_with_callback: *library
+                    .get::<OgmacamStartPullModeWithCallback>(&sym("StartPullModeWithCallback"))
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e))
+                    })?,
+                trigger: *library.get::<OgmacamTrigger>(&sym("Trigger")).map_err(|e| {
                     NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e))
                 })?,
+                get_final_size: library
+                    .get::<OgmacamGetFinalSize>(&sym("get_FinalSize"))
+                    .ok()
+                    .map(|symbol| *symbol),
                 version: library
                     .get::<OgmacamVersion>(&sym("Version"))
                     .ok()
@@ -799,6 +880,9 @@ pub struct TouptekCamera {
     model_flags: u64,
     /// Which brand SDK this camera uses
     brand: String,
+    /// Heap-stable state shared with the SDK pull-mode event callback. `Some` only while
+    /// pull mode is active (set in `connect()`, cleared in `disconnect()` after Stop+Close).
+    event_state: Option<Box<TouptekEventState>>,
 }
 
 impl std::fmt::Debug for TouptekCamera {
@@ -833,6 +917,7 @@ impl TouptekCamera {
             exposure_started_at: None,
             model_flags: 0,
             brand: brand.to_string(),
+            event_state: None,
         }
     }
 
@@ -1022,17 +1107,66 @@ impl NativeDevice for TouptekCamera {
             supports_readout_modes: false,
         };
 
-        // Set 16-bit raw mode (get fresh handle after await, needs mutex)
-        {
+        // Configure RAW/16-bit/software-trigger, then start the pull-mode data pipeline with
+        // an event callback. All option writes must precede StartPullModeWithCallback and run
+        // on this (non-callback) thread (toupcam.h:411 forbids TRIGGER/BITDEPTH/BINNING/ROTATE
+        // put_Option from the callback context). This mirrors indi_toupbase Connect ordering.
+        let start_result: Result<(), NativeError> = {
             let _lock = touptek_mutex().lock().await;
             let handle_val = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
-            with_sdk(&brand, |sdk| {
-                // SAFETY: touptek_mutex held above (in connect's set-bit-depth section); `handle_val` was just re-loaded from `self.handle` after a fresh mutex acquisition; Ogmacam_put_Option takes (handle, c_uint, c_int) POD per the SDK header. OGMACAM_OPTION_RAW=0x04 with value 1 enables raw output (see SDK constants).
+
+            // Heap-stable state whose address we hand to the SDK as the callback context.
+            // Boxing guarantees the pointee address survives `self` being moved into the
+            // camera HashMap after connect.
+            let event_state = Box::new(TouptekEventState {
+                image_ready: AtomicBool::new(false),
+                error: AtomicBool::new(false),
+            });
+            let ctx = &*event_state as *const TouptekEventState as *mut c_void;
+            let name = self.name.clone();
+
+            let r = with_sdk(&brand, |sdk| {
+                // SAFETY: touptek_mutex held; `handle_val` re-loaded from `self.handle`.
+                // OGMACAM_OPTION_RAW=0x04 value 1 enables raw output. POD args only.
                 let _ = unsafe { (sdk.put_option)(handle_val, OGMACAM_OPTION_RAW, 1) };
-                // SAFETY: touptek_mutex held; `handle_val` valid; OGMACAM_OPTION_BITDEPTH=0x04 with value 1 selects 16-bit output per the SDK header. Ogmacam_put_Option takes POD arguments only (no out-pointers).
-                let _ = unsafe { (sdk.put_option)(handle_val, OGMACAM_OPTION_BITDEPTH, 1) }; // 1 = 16-bit
+                // SAFETY: as above; OGMACAM_OPTION_BITDEPTH=0x06 value 1 selects 16-bit output.
+                let _ = unsafe { (sdk.put_option)(handle_val, OGMACAM_OPTION_BITDEPTH, 1) };
+                // SAFETY: as above; OGMACAM_OPTION_TRIGGER=0x0b value 1 selects software trigger.
+                let _ = unsafe { (sdk.put_option)(handle_val, OGMACAM_OPTION_TRIGGER, 1) };
+
+                // SAFETY: touptek_mutex held; `handle_val` valid; `touptek_event_callback`
+                // is an `extern "system"` fn matching PTOUPCAM_EVENT_CALLBACK; `ctx` points to
+                // the live `event_state` box (freed only after Stop+Close, see disconnect/Drop).
+                let rc = unsafe {
+                    (sdk.start_pull_mode_with_callback)(handle_val, touptek_event_callback, ctx)
+                };
+                if rc < 0 {
+                    // The stream never started, so the callback can never fire and `ctx` will
+                    // dangle harmlessly once `event_state` drops at end of scope. Close the
+                    // handle to avoid leaking it.
+                    // SAFETY: touptek_mutex held; `handle_val` valid; Ogmacam_Close releases it.
+                    unsafe { (sdk.close)(handle_val) };
+                    return Err(NativeError::SdkError(format!(
+                        "Failed to start pull mode on Touptek camera '{}'. SDK error: {}",
+                        name, rc
+                    )));
+                }
                 Ok(())
-            })?;
+            });
+
+            if r.is_ok() {
+                // Pull mode is live; take ownership of the state so it outlives the callback.
+                self.event_state = Some(event_state);
+            }
+            r
+        };
+        if let Err(e) = start_result {
+            // Handle was closed inside the closure; forget the now-dangling pointer.
+            {
+                let mut h = self.handle.lock().unwrap_or_else(|e| e.into_inner());
+                *h = HandleWrapper(std::ptr::null_mut());
+            }
+            return Err(e);
         }
 
         self.connected = true;
@@ -1074,14 +1208,22 @@ impl NativeDevice for TouptekCamera {
 
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
-        // Stop any capture and close camera
+        // Teardown order is load-bearing: stop the pull-mode stream, then close the handle,
+        // and only THEN drop the event-state box. Stop()+Close() quiesce the SDK's internal
+        // streaming thread, so after they return no callback can fire; freeing the box
+        // afterwards means the callback can never observe freed memory.
         with_sdk(&brand, |sdk| {
-            // SAFETY: touptek_mutex held above (in disconnect, line 721); `handle` was just loaded from `self.handle` under its own Mutex; Ogmacam_Stop is idempotent and takes only the handle per the SDK header. Failure is intentionally swallowed because we close immediately after regardless.
+            // SAFETY: touptek_mutex held; `handle` loaded from `self.handle`. Ogmacam_Stop
+            // halts pull mode and joins the streaming thread; idempotent, handle-only arg.
             let _ = unsafe { (sdk.stop)(handle) };
-            // SAFETY: touptek_mutex held; `handle` valid (connected==true was checked at function top); Ogmacam_Close is the contractual release for Ogmacam_OpenByIndex per the SDK header and takes only the handle.
+            // SAFETY: touptek_mutex held; `handle` valid (connected==true checked at top).
+            // Ogmacam_Close is the contractual release for Ogmacam_OpenByIndex.
             unsafe { (sdk.close)(handle) };
             Ok(())
         })?;
+
+        // Safe now: Stop()+Close() returned, so the SDK will not invoke the callback again.
+        self.event_state = None;
 
         {
             let mut h = self.handle.lock().unwrap_or_else(|e| e.into_inner());
@@ -1094,6 +1236,34 @@ impl NativeDevice for TouptekCamera {
         tracing::info!("Disconnected from Touptek camera: {}", self.name);
 
         Ok(())
+    }
+}
+
+impl Drop for TouptekCamera {
+    fn drop(&mut self) {
+        // Best-effort teardown for the forgot-to-disconnect path. The `event_state` box is a
+        // struct field, so the compiler drops (frees) it immediately AFTER this body returns.
+        // We MUST stop pull mode + close the handle here first, otherwise the SDK's streaming
+        // thread could dispatch the callback into freed state. The normal path (disconnect)
+        // has already set `connected = false` and `event_state = None`, so this is a no-op then.
+        if self.connected {
+            let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
+            if !handle.is_null() {
+                // SAFETY: Drop is best-effort cleanup. We do NOT acquire the async
+                // touptek_mutex (Drop cannot await), matching GPhoto2Camera::drop: Drop runs
+                // only when the last owner releases the camera, so no other task holds this
+                // handle. Ogmacam_Stop then Ogmacam_Close quiesce the SDK streaming thread
+                // BEFORE `event_state` is freed, so the callback can never observe freed memory.
+                if get_sdk_for_brand(&self.brand).is_ok() {
+                    let _ = with_sdk(&self.brand, |sdk| {
+                        unsafe { (sdk.stop)(handle) };
+                        unsafe { (sdk.close)(handle) };
+                        Ok(())
+                    });
+                }
+            }
+            self.connected = false;
+        }
     }
 }
 
@@ -1181,9 +1351,17 @@ impl NativeCamera for TouptekCamera {
 
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
-        // Set exposure time and start snap, all within SDK lock
+        // Set exposure time and fire ONE software-triggered frame, all within the SDK lock.
         let name = self.name.clone();
         with_sdk(&brand, |sdk| {
+            // Clear the frame-arrival flags for THIS exposure BEFORE triggering, so the poll
+            // in download_image only observes the frame produced by the trigger below (and not
+            // a stale/late frame from a previous exposure).
+            if let Some(es) = self.event_state.as_ref() {
+                es.image_ready.store(false, Ordering::SeqCst);
+                es.error.store(false, Ordering::SeqCst);
+            }
+
             let exposure_us = (params.duration_secs * 1_000_000.0) as c_uint;
             // SAFETY: touptek_mutex held above (in start_exposure); `handle` was loaded from `self.handle` under its Mutex with `connected == true` guaranteeing a valid Ogmacam_OpenByIndex handle. Ogmacam_put_ExpoTime takes (handle, c_uint microseconds) POD per the SDK header.
             let result = unsafe { (sdk.put_expo_time)(handle, exposure_us) };
@@ -1198,11 +1376,13 @@ impl NativeCamera for TouptekCamera {
                 )));
             }
 
-            // SAFETY: touptek_mutex held; `handle` valid; Ogmacam_Snap takes (handle, c_uint resolution_index) — index 0 is the default full-frame resolution per the SDK header. POD arguments only.
-            let result = unsafe { (sdk.snap)(handle, 0) };
+            // Software trigger: nNumber = 1 requests exactly one frame, delivered as
+            // EVENT_IMAGE and pulled in download_image(). OPTION_TRIGGER=1 was set in connect().
+            // SAFETY: touptek_mutex held; `handle` valid; Ogmacam_Trigger takes (handle, c_ushort) POD.
+            let result = unsafe { (sdk.trigger)(handle, 1) };
             if result < 0 {
                 tracing::error!(
-                    "Touptek Snap() failed for camera '{}'. Duration: {:.3}s, error code: {}",
+                    "Touptek Trigger() failed for camera '{}'. Duration: {:.3}s, error code: {}",
                     name,
                     params.duration_secs,
                     result
@@ -1236,11 +1416,14 @@ impl NativeCamera for TouptekCamera {
 
         let name = self.name.clone();
         with_sdk(&brand, |sdk| {
-            // SAFETY: touptek_mutex held above (in abort_exposure); `handle` was loaded from `self.handle` under its Mutex with `connected == true` guaranteeing a valid handle; Ogmacam_Stop takes only the handle and aborts ongoing capture per the SDK header.
-            let result = unsafe { (sdk.stop)(handle) };
+            // Cancel the software trigger with Trigger(0) — NOT Stop(), which would tear down
+            // the pull-mode stream and break all subsequent exposures. This matches
+            // indi_toupbase AbortExposure (Trigger(m_Handle, 0)) and keeps pull mode running.
+            // SAFETY: touptek_mutex held above (in abort_exposure); `handle` was loaded from `self.handle` under its Mutex with `connected == true` guaranteeing a valid handle; Ogmacam_Trigger takes (handle, c_ushort) POD per the SDK header.
+            let result = unsafe { (sdk.trigger)(handle, 0) };
             if result < 0 {
                 tracing::error!(
-                    "Touptek Stop() failed for camera '{}'. Error code: {}",
+                    "Touptek Trigger(0) (cancel) failed for camera '{}'. Error code: {}",
                     name,
                     result
                 );
@@ -1251,6 +1434,12 @@ impl NativeCamera for TouptekCamera {
             }
             Ok(())
         })?;
+
+        // Clear frame-arrival flags so the next exposure starts from a clean slate.
+        if let Some(es) = self.event_state.as_ref() {
+            es.image_ready.store(false, Ordering::SeqCst);
+            es.error.store(false, Ordering::SeqCst);
+        }
 
         self.state = CameraState::Idle;
         self.exposure_started_at = None;
@@ -1263,6 +1452,46 @@ impl NativeCamera for TouptekCamera {
             return Err(NativeError::NotConnected);
         }
 
+        // Wait for the software-triggered frame to arrive. The SDK's pull-mode callback flips
+        // `image_ready` on EVENT_IMAGE and `error` on EVENT_ERROR/DISCONNECTED/NOFRAMETIMEOUT.
+        // We poll the atomics WITHOUT holding touptek_mutex so unrelated SDK calls aren't
+        // blocked for the whole exposure. Timeout = exposure + margin (>= the SDK frame timeout).
+        let timeout_secs = self.exposure_duration * 1.1 + 5.0;
+        let poll_start = std::time::Instant::now();
+        loop {
+            let (ready, errored) = {
+                let es = self.event_state.as_ref().ok_or_else(|| {
+                    NativeError::SdkError(
+                        "Touptek pull mode not started (event state missing)".to_string(),
+                    )
+                })?;
+                (
+                    es.image_ready.load(Ordering::SeqCst),
+                    es.error.load(Ordering::SeqCst),
+                )
+            };
+            if errored {
+                self.state = CameraState::Idle;
+                self.exposure_started_at = None;
+                return Err(NativeError::SdkError(format!(
+                    "Touptek camera '{}' reported an error/disconnect during exposure",
+                    self.name
+                )));
+            }
+            if ready {
+                break;
+            }
+            if poll_start.elapsed().as_secs_f64() > timeout_secs {
+                self.state = CameraState::Idle;
+                self.exposure_started_at = None;
+                return Err(NativeError::Timeout(format!(
+                    "Touptek camera '{}' did not deliver a frame within {:.1}s",
+                    self.name, timeout_secs
+                )));
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+
         let brand = self.brand.clone();
 
         // Acquire global SDK mutex for thread safety
@@ -1270,60 +1499,102 @@ impl NativeCamera for TouptekCamera {
 
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
-        // Calculate buffer size.
-        // Why: sensor_info.width/height are u32; widening to usize via `as` is value
-        // -preserving on every Tier 1 target. Use checked_mul to surface overflow rather
-        // than silently allocate a wrapped tiny buffer (which would underflow on SDK write).
-        let width = self.sensor_info.width as usize;
-        let height = self.sensor_info.height as usize;
-        let bytes_per_pixel: usize = 2; // 16-bit
-        let buffer_size = width
-            .checked_mul(height)
-            .and_then(|p| p.checked_mul(bytes_per_pixel))
-            .ok_or_else(|| {
+        // Size the buffer from the ACTUAL current output resolution, not the full sensor: a
+        // subframe/binned frame is smaller and would otherwise be mis-sized/skewed.
+        // `get_FinalSize` reports the exact size after ROI + rotate + binning. If a white-label
+        // SDK lacks the symbol we fall back to the ROI (or full sensor) dims, which are an
+        // UPPER BOUND on the delivered frame (binning only shrinks), so the buffer is never
+        // too small. The delivered frame is then sliced to `info.width`/`info.height`.
+        let fallback_dims: (usize, usize) = match &self.subframe {
+            Some(sf) => (sf.width as usize, sf.height as usize),
+            None => (
+                self.sensor_info.width as usize,
+                self.sensor_info.height as usize,
+            ),
+        };
+
+        let name = self.name.clone();
+        let (data, out_width, out_height) = with_sdk(&brand, |sdk| {
+            let (buf_w, buf_h) = if let Some(get_final) = sdk.get_final_size {
+                let mut fw: c_int = 0;
+                let mut fh: c_int = 0;
+                // SAFETY: touptek_mutex held; `handle` valid; two distinct stack out-pointers
+                // as required by Ogmacam_get_FinalSize.
+                let rc = unsafe { get_final(handle, &mut fw, &mut fh) };
+                if rc >= 0 && fw > 0 && fh > 0 {
+                    (fw as usize, fh as usize)
+                } else {
+                    fallback_dims
+                }
+            } else {
+                fallback_dims
+            };
+
+            let buf_pixels = buf_w.checked_mul(buf_h).ok_or_else(|| {
+                NativeError::SdkError(format!("Touptek buffer size overflow: {}x{}", buf_w, buf_h))
+            })?;
+            let buffer_size = buf_pixels.checked_mul(2).ok_or_else(|| {
                 NativeError::SdkError(format!(
-                    "Touptek buffer size overflow: {}x{} bytes_per_pixel={}",
-                    width, height, bytes_per_pixel
+                    "Touptek buffer size overflow: {}x{} * 2 bytes",
+                    buf_w, buf_h
                 ))
             })?;
 
-        let mut buffer = vec![0u8; buffer_size];
-        // SAFETY: OgmacamFrameInfoV3 is `#[repr(C)]` and contains only POD fields (c_uint, u64, u16) — all valid bit-patterns. Zero-init is the well-defined empty state before Ogmacam_PullImageV3 overwrites it.
-        let mut info: OgmacamFrameInfoV3 = unsafe { std::mem::zeroed() };
+            let mut buffer = vec![0u8; buffer_size];
+            // SAFETY: OgmacamFrameInfoV3 is `#[repr(C)]` POD (c_uint/u64/u16); zero-init is the
+            // valid empty state before Ogmacam_PullImageV3 overwrites it.
+            let mut info: OgmacamFrameInfoV3 = unsafe { std::mem::zeroed() };
 
-        // Pull the image
-        let name = self.name.clone();
-        with_sdk(&brand, |sdk| {
-            // SAFETY: touptek_mutex held above (in download_image); `handle` was loaded from `self.handle` under its Mutex with `connected == true` guaranteeing a valid handle; `buffer.as_mut_ptr() as *mut c_void` points to a Vec<u8> of exactly `width * height * 2` bytes (just allocated above) matching the 16-bit data the SDK will write; `&mut info` is a valid stack out-pointer to a `#[repr(C)]` OgmacamFrameInfoV3. The `bStill=1, bits=16, row_pitch=0` argument tuple matches the SDK contract for full-frame 16-bit still images.
+            // SAFETY: touptek_mutex held; `handle` valid; `buffer` is exactly `buf_w*buf_h*2`
+            // bytes, matching the 16-bit RAW frame for the current output size; `&mut info` is a
+            // valid `#[repr(C)]` out-pointer. bStill=0 pulls the live (software-triggered) image
+            // signalled by EVENT_IMAGE; in RAW mode `bits` is ignored and row_pitch=0 is the
+            // tight Width*2 default for RAW-16 (toupcam.h:498,532).
             let result = unsafe {
                 (sdk.pull_image_v3)(
                     handle,
                     buffer.as_mut_ptr() as *mut c_void,
-                    1,  // bStill = true
-                    16, // 16 bits
-                    0,  // auto row pitch
+                    0,  // bStill = false (live/triggered image)
+                    16, // 16 bits (ignored in RAW mode)
+                    0,  // default row pitch = tight Width*2 for RAW-16
                     &mut info,
                 )
             };
-
             if result < 0 {
                 tracing::error!(
                     "Touptek PullImageV3() failed for camera '{}'. Buffer: {}x{} pixels, error code: {}",
-                    name, width, height, result
+                    name, buf_w, buf_h, result
                 );
                 return Err(NativeError::SdkError(format!(
                     "Failed to download image from Touptek camera '{}'. SDK error: {}",
                     name, result
                 )));
             }
-            Ok(())
-        })?;
 
-        // Convert to u16 array
-        let data: Vec<u16> = buffer
-            .chunks_exact(2)
-            .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
-            .collect();
+            // Build the pixel Vec from the ACTUAL frame dims the SDK reported, guarding against
+            // a frame that would not fit the allocated buffer.
+            let pulled_w = info.width as usize;
+            let pulled_h = info.height as usize;
+            let pulled_pixels = pulled_w.checked_mul(pulled_h).ok_or_else(|| {
+                NativeError::SdkError(format!(
+                    "Touptek frame size overflow: {}x{}",
+                    pulled_w, pulled_h
+                ))
+            })?;
+            if pulled_pixels == 0 || pulled_pixels > buf_pixels {
+                return Err(NativeError::SdkError(format!(
+                    "Touptek camera '{}' delivered a {}x{} frame that does not fit the {}x{} buffer",
+                    name, pulled_w, pulled_h, buf_w, buf_h
+                )));
+            }
+
+            let data: Vec<u16> = buffer[..pulled_pixels * 2]
+                .chunks_exact(2)
+                .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
+                .collect();
+
+            Ok((data, info.width, info.height))
+        })?;
 
         self.state = CameraState::Idle;
         self.exposure_started_at = None;
