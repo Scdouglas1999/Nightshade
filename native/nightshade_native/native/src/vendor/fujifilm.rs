@@ -1820,9 +1820,18 @@ impl NativeCamera for FujifilmCamera {
         let img_format = img_info.l_format;
         let data_size = img_info.l_data_size as usize;
 
-        // Verify we got RAW format
+        // Require RAW. The download path always LibRaw-decodes the bytes as a
+        // RAF, so a JPEG (or any non-RAW) frame would either fail opaquely in
+        // LibRaw or, worse, be mis-decoded. The X Acquire SDK exposes no still-
+        // image quality setter we can drive to force RAW, so we fail here with
+        // an actionable message rather than shipping a corrupt/failed frame.
         if img_format != XSDK_IMAGEFORMAT_RAW {
-            tracing::warn!("Expected RAW format (1), got format {}", img_format);
+            return Err(NativeError::SdkError(format!(
+                "Fujifilm: camera returned a non-RAW frame (format code {}, expected RAW={}). \
+                 Set the camera's Image Quality to RAW (not JPEG or RAW+JPEG) — astro capture \
+                 requires the linear RAW sensor data.",
+                img_format, XSDK_IMAGEFORMAT_RAW
+            )));
         }
 
         // Download image data (RAF format)
@@ -1847,8 +1856,24 @@ impl NativeCamera for FujifilmCamera {
 
         self.is_exposing = false;
 
-        // Process RAF file with LibRaw
-        let (width, height, data) = process_raf_buffer(&buffer, self.model.is_xtrans())?;
+        // Decode the RAF into its native linear CFA mosaic (single channel).
+        let cfa = process_raf_buffer(&buffer, self.model.is_xtrans())?;
+
+        // Bayer orientation: X-Trans (6×6) has no valid 2×2 pattern → None
+        // (downstream then treats the mosaic as luminance rather than double-
+        // debayering it as if it were Bayer). GFX bodies are true Bayer → use
+        // LibRaw's detected orientation, falling back to the sensor default.
+        let bayer_pattern = if cfa.is_xtrans {
+            None
+        } else {
+            match cfa.cfa_pattern {
+                Some(nightshade_imaging::CfaPattern::Rggb) => Some(BayerPattern::Rggb),
+                Some(nightshade_imaging::CfaPattern::Grbg) => Some(BayerPattern::Grbg),
+                Some(nightshade_imaging::CfaPattern::Gbrg) => Some(BayerPattern::Gbrg),
+                Some(nightshade_imaging::CfaPattern::Bggr) => Some(BayerPattern::Bggr),
+                None => self.sensor_info.bayer_pattern,
+            }
+        };
 
         let metadata = ImageMetadata {
             exposure_time: self.exposure_duration.as_secs_f64(),
@@ -1864,11 +1889,12 @@ impl NativeCamera for FujifilmCamera {
         };
 
         Ok(ImageData {
-            width,
-            height,
-            data,
-            bits_per_pixel: self.sensor_info.bit_depth,
-            bayer_pattern: self.sensor_info.bayer_pattern,
+            width: cfa.width,
+            height: cfa.height,
+            data: cfa.data,
+            // Truthful sensor bit depth derived from LibRaw's saturation level.
+            bits_per_pixel: cfa.bits_per_pixel,
+            bayer_pattern,
             metadata,
         })
     }
@@ -1972,57 +1998,36 @@ impl NativeCamera for FujifilmCamera {
 // RAF PROCESSING
 // =============================================================================
 
-/// Process RAF buffer and convert to 16-bit image data
+/// Decode a RAF buffer into its native single-channel LINEAR CFA mosaic.
+///
+/// Decodes straight from the buffer (no temp file → no filename collision
+/// between concurrent captures) via `read_cfa_mosaic_from_bytes`, which does
+/// `unpack` + `raw2image` with NO `dcraw_process` — so the result is the
+/// sensor's raw linear mosaic, one u16 per pixel, NOT a demosaiced/white-
+/// balanced/gamma-encoded 3-channel sRGB image. Feeding processed RGB into the
+/// mono-mosaic contract corrupts every frame (3× oversize, non-linear, and —
+/// for the Bayer GFX bodies — double-debayered).
 fn process_raf_buffer(
     buffer: &[u8],
     _is_xtrans: bool,
-) -> Result<(u32, u32, Vec<u16>), NativeError> {
-    // Write to temp file for LibRaw processing
-    let temp_path = std::env::temp_dir().join(format!("fuji_raw_{}.raf", std::process::id()));
-    std::fs::write(&temp_path, buffer)
-        .map_err(|e| NativeError::SdkError(format!("Failed to write temp RAF file: {}", e)))?;
+) -> Result<nightshade_imaging::CfaImage, NativeError> {
+    let (cfa, _metadata) = nightshade_imaging::read_cfa_mosaic_from_bytes(buffer, "raf")
+        .map_err(|e| NativeError::SdkError(format!("LibRaw processing failed: {}", e)))?;
 
-    // Use LibRaw to process
-    // Use nightshade_imaging LibRaw integration and return its result.
-    let result = process_raf_with_libraw(&temp_path);
-
-    // Cleanup temp file
-    let _ = std::fs::remove_file(&temp_path);
-
-    result
-}
-
-/// Process RAF file with LibRaw
-fn process_raf_with_libraw(path: &std::path::Path) -> Result<(u32, u32, Vec<u16>), NativeError> {
-    // Try to use nightshade_imaging's LibRaw integration
-    // Use DHT demosaic for best X-Trans quality
-    let params = nightshade_imaging::RawProcessingParams {
-        output_bps: 16, // 16-bit output
-        ..Default::default()
-    };
-
-    match nightshade_imaging::read_raw(path, Some(&params)) {
-        Ok((image_data, _metadata)) => {
-            // Convert ImageData to Vec<u16>
-            // ImageData stores bytes, need to convert to u16
-            let u16_data = if let Some(data) = image_data.as_u16() {
-                data
-            } else {
-                // Fallback: convert raw bytes to u16
-                image_data
-                    .data
-                    .chunks_exact(2)
-                    .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
-                    .collect()
-            };
-
-            Ok((image_data.width, image_data.height, u16_data))
-        }
-        Err(e) => Err(NativeError::SdkError(format!(
-            "LibRaw processing failed: {}",
-            e
-        ))),
+    // Contract guard: the mono mosaic MUST be exactly width*height samples.
+    let expected = (cfa.width as usize) * (cfa.height as usize);
+    if cfa.data.len() != expected {
+        return Err(NativeError::SdkError(format!(
+            "Fujifilm: CFA decode produced {} samples for a {}x{} frame (expected {}) — \
+             refusing to emit a corrupt frame",
+            cfa.data.len(),
+            cfa.width,
+            cfa.height,
+            expected
+        )));
     }
+
+    Ok(cfa)
 }
 
 // =============================================================================
