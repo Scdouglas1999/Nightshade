@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 import 'package:nightshade_core/src/models/framing_plate_scale.dart';
 import 'package:nightshade_core/src/providers/framing_image_cache_provider.dart';
@@ -153,9 +154,14 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           framingImageCacheServiceProvider.overrideWithValue(cacheService),
-          // Force the network path to fail fast by pointing the target at a
-          // benign location; the test environment has no network so both
-          // endpoints error and the cache miss is honored.
+          // Force the network path to fail fast. This used to rely on the test
+          // host having no network, which is not something a test may assume:
+          // the survey fetch allows each endpoint 30s, so a machine that IS
+          // online consumes the entire default test budget and times out. It
+          // passed locally and failed on CI for exactly that reason.
+          framingSurveyHttpClientFactoryProvider.overrideWithValue(
+            () => _OfflineClient(),
+          ),
         ],
       );
       addTearDown(container.dispose);
@@ -180,4 +186,15 @@ void main() {
       }
     });
   });
+}
+
+/// An HTTP client that refuses immediately, standing in for "this machine has
+/// no route to the survey services". Both survey endpoints fail fast, so the
+/// sidecar-less cache entry is honored as a miss without spending the test's
+/// time budget on a real fetch.
+class _OfflineClient extends http.BaseClient {
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) {
+    throw const SocketException('offline (test stub)');
+  }
 }

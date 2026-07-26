@@ -69,7 +69,7 @@ extension _FramingSurveyOperations on FramingNotifier {
         requestPixelWidth,
       );
 
-      final client = http.Client();
+      final client = _ref.read(framingSurveyHttpClientFactoryProvider)();
       try {
         http.Response? response;
         try {

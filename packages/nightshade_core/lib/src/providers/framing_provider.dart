@@ -850,6 +850,21 @@ class FramingNotifier extends StateNotifier<FramingState> {
 /// overwritten on every selection — never a new `targets` row.
 const String _lastFramedTargetKey = 'framing.lastTarget';
 
+/// Factory for the HTTP client the survey-image fetch uses.
+///
+/// Seam so a test can decide what the network does instead of depending on
+/// whether the machine running it happens to be online. The survey fetch allows
+/// each endpoint 30s, which is right for an operator on a slow link but is also
+/// the whole budget of a default Dart test — so a host WITH network guarantees a
+/// timeout, and a host without one passes by accident. That is what made
+/// `framing_plate_scale_state_test` pass locally and fail on CI.
+///
+/// Production keeps the real client; tests override this with one that fails
+/// immediately, which is what the offline-cache tests were always asserting.
+final framingSurveyHttpClientFactoryProvider = Provider<http.Client Function()>(
+  (ref) => http.Client.new,
+);
+
 final framingProvider = StateNotifierProvider<FramingNotifier, FramingState>((
   ref,
 ) {
